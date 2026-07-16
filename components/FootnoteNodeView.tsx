@@ -117,7 +117,9 @@ export function FootnoteNodeView({
 
   // Push edits into the node attrs as you type so the margin sidenote stays live.
   const contentRef = useRef(content);
-  contentRef.current = content;
+  useEffect(() => {
+    contentRef.current = content;
+  }, [content]);
   useEffect(() => {
     if (!noteEditor) return;
     const sync = () => {
