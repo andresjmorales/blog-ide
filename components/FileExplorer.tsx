@@ -23,6 +23,7 @@ type Props = {
   onMoveToTrash: (nodeId: string) => void;
   onRestore: (nodeId: string, parentId: string | null) => void;
   onMoveTo: (nodeId: string, parentId: string | null) => void;
+  onRename: (nodeId: string) => void;
   onDeleteForever: (nodeId: string) => void;
   loading?: boolean;
   error?: string | null;
@@ -43,6 +44,14 @@ function childrenOf(
     .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
 }
 
+/** Display label — hide the .md extension; storage still uses it. */
+function displayName(node: WorkspaceNode): string {
+  if (node.kind === "document") {
+    return node.name.replace(/\.md$/i, "");
+  }
+  return node.name;
+}
+
 export function FileExplorer({
   nodes,
   activeNodeId,
@@ -52,6 +61,7 @@ export function FileExplorer({
   onMoveToTrash,
   onRestore,
   onMoveTo,
+  onRename,
   onDeleteForever,
   loading,
   error,
@@ -115,6 +125,16 @@ export function FileExplorer({
         },
         { kind: "separator", id: "sep-new" }
       );
+    }
+
+    if (!isTrashFolder && !scratch) {
+      items.push({
+        kind: "action",
+        id: "rename",
+        label: "Rename",
+        disabled: inTrash,
+        onSelect: () => onRename(node.id),
+      });
     }
 
     if (inTrash) {
@@ -323,7 +343,7 @@ function TreeNode({
           onContextMenu={(e) => onContextMenu(e, node)}
         >
           <span className="min-w-0 flex-1 truncate font-medium">
-            {node.name}/
+            {displayName(node)}/
           </span>
           {!isInTrash(node.id, nodes, trashId) && (
             <button
@@ -369,7 +389,7 @@ function TreeNode({
           title={node.url ?? node.name}
           onContextMenu={(e) => onContextMenu(e, node)}
         >
-          ↗ {node.name}
+          ↗ {displayName(node)}
         </a>
       </li>
     );
@@ -389,7 +409,7 @@ function TreeNode({
         }`}
         style={{ paddingLeft }}
       >
-        <span className="truncate">{node.name}</span>
+        <span className="truncate">{displayName(node)}</span>
         {node.pinned && (
           <span className="ml-2 shrink-0 text-[10px] font-mono uppercase text-muted">
             pinned

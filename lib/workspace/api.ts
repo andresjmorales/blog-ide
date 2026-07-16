@@ -103,3 +103,16 @@ export async function deleteWorkspaceNode(nodeId: string): Promise<void> {
   });
   if (error) throw error;
 }
+
+export async function renameWorkspaceNode(
+  nodeId: string,
+  name: string
+): Promise<void> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Name is required");
+  const { error } = await client()
+    .from("workspace_nodes")
+    .update({ name: trimmed, updated_at: new Date().toISOString() })
+    .eq("id", nodeId);
+  if (error) throw error;
+}

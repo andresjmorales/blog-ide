@@ -21,12 +21,19 @@ import {
   parseSpellcheckLangs,
   writeSpellcheckLangs,
 } from "@/lib/markdown/spellcheckFrontmatter";
+import {
+  fileNameToTitle,
+  parseTitle,
+  titleToFileName,
+  writeTitle,
+} from "@/lib/markdown/titleFrontmatter";
+import { normalizeEssayTitle } from "@/lib/markdown/docTitle";
+import { EssaySettingsPanel } from "@/components/EssaySettingsPanel";
 
 const SAMPLE_DOC = `---
 title: Welcome to BlogIDE
 status: draft
 ---
-# Welcome to BlogIDE
 
 This is preview mode. Connect Supabase to persist documents.
 `;
@@ -35,6 +42,10 @@ type Mode = "wysiwyg" | "source";
 
 type Props = {
   nodeId: string | null;
+  /** Current workspace file name for the open document (e.g. essay.md). */
+  documentName?: string | null;
+  /** When false, title edits won't rename the file (scratchpad). */
+  canRenameDocument?: boolean;
   previewMode?: boolean;
   onDeletedFootnotesChange: (deleted: DeletedFootnote[]) => void;
   registerDeletedActions: (actions: {
@@ -43,29 +54,35 @@ type Props = {
   }) => void;
   onDocumentLoaded?: (markdown: string) => void;
   onRequestTreeRefresh?: () => void;
-  onDocumentSpellcheckChange?: (meta: {
-    languages: string[];
-    setLanguages: (languages: string[]) => void;
-    hasDocument: boolean;
-  }) => void;
+  onRenameDocument?: (nodeId: string, fileName: string) => Promise<void>;
 };
 
 export function DocumentWorkspace({
   nodeId,
+  documentName = null,
+  canRenameDocument = true,
   previewMode = false,
   onDeletedFootnotesChange,
   registerDeletedActions,
   onDocumentLoaded,
   onRequestTreeRefresh,
-  onDocumentSpellcheckChange,
+  onRenameDocument,
 }: Props) {
-  const [{ frontmatter, body }, setDoc] = useState(() =>
-    splitFrontmatter(SAMPLE_DOC)
+  const [{ frontmatter, body }, setDoc] = useState(() => {
+    const normalized = normalizeEssayTitle(SAMPLE_DOC);
+    return {
+      frontmatter: normalized.frontmatter,
+      body: normalized.body,
+    };
+  });
+  const [titleDraft, setTitleDraft] = useState(
+    () => normalizeEssayTitle(SAMPLE_DOC).title
   );
   const [mode, setMode] = useState<Mode>("wysiwyg");
   const [sourceText, setSourceText] = useState("");
   const [lossyWarning, setLossyWarning] = useState(false);
   const [lossyDiffOpen, setLossyDiffOpen] = useState(false);
+  const [essaySettingsOpen, setEssaySettingsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [baseVersion, setBaseVersion] = useState(1);
@@ -74,16 +91,20 @@ export function DocumentWorkspace({
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const baseVersionRef = useRef(1);
   const nodeIdRef = useRef(nodeId);
+  const syncingNameRef = useRef(false);
+  const prevDocumentNameRef = useRef<string | null | undefined>(documentName);
   const { prefs, updatePrefs } = useEditorPrefs();
   const persistEnabled = isSupabaseConfigured() && !previewMode && !!nodeId;
   const documentLanguages = parseSpellcheckLangs(frontmatter);
-  const documentLanguagesKey = documentLanguages.join(",");
+  const essayTitle =
+    parseTitle(frontmatter) ??
+    (documentName ? fileNameToTitle(documentName) : "Untitled");
   const persistMarkdownRef = useRef<(full: string) => void>(() => {});
-  const onSpellcheckChangeRef = useRef(onDocumentSpellcheckChange);
+  const onRenameRef = useRef(onRenameDocument);
 
   useEffect(() => {
-    onSpellcheckChangeRef.current = onDocumentSpellcheckChange;
-  }, [onDocumentSpellcheckChange]);
+    onRenameRef.current = onRenameDocument;
+  }, [onRenameDocument]);
 
   useEffect(() => {
     baseVersionRef.current = baseVersion;
@@ -91,7 +112,9 @@ export function DocumentWorkspace({
 
   useEffect(() => {
     nodeIdRef.current = nodeId;
-  }, [nodeId]);
+    // Seed so opening a doc doesn't look like an external rename.
+    prevDocumentNameRef.current = documentName;
+  }, [nodeId]); // eslint-disable-line react-hooks/exhaustive-deps -- only on document switch
 
   const restoreDeletedFootnote = useCallback((id: string) => {
     const editor = editorRef.current;
@@ -126,7 +149,12 @@ export function DocumentWorkspace({
 
     async function load() {
       if (!persistEnabled || !nodeId) {
-        setDoc(splitFrontmatter(SAMPLE_DOC));
+        const normalized = normalizeEssayTitle(SAMPLE_DOC);
+        setDoc({
+          frontmatter: normalized.frontmatter,
+          body: normalized.body,
+        });
+        setTitleDraft(normalized.title);
         setBaseVersion(1);
         setLoadError(null);
         return;
@@ -139,9 +167,23 @@ export function DocumentWorkspace({
         await flushSyncQueue();
         const opened = await openDocument(nodeId);
         if (cancelled) return;
-        setDoc(splitFrontmatter(opened.markdown));
+        const normalized = normalizeEssayTitle(
+          opened.markdown,
+          documentName
+        );
+        setDoc({
+          frontmatter: normalized.frontmatter,
+          body: normalized.body,
+        });
+        setTitleDraft(normalized.title);
         setBaseVersion(opened.baseVersion);
-        onDocumentLoaded?.(opened.markdown);
+        if (normalized.changed) {
+          // Persist migration of legacy `# Title` out of the body.
+          persistMarkdownRef.current(
+            normalized.frontmatter + normalized.body
+          );
+        }
+        onDocumentLoaded?.(normalized.frontmatter + normalized.body);
         if (opened.dirty) {
           void syncDocument(nodeId).then(() => onRequestTreeRefresh?.());
         }
@@ -163,6 +205,31 @@ export function DocumentWorkspace({
     };
   }, [nodeId, persistEnabled, onDocumentLoaded, onRequestTreeRefresh]);
 
+  const syncFilenameFromTitle = useCallback(
+    async (fullMarkdown: string) => {
+      if (
+        !persistEnabled ||
+        !nodeId ||
+        !canRenameDocument ||
+        !onRenameRef.current ||
+        syncingNameRef.current
+      ) {
+        return;
+      }
+      const title = parseTitle(splitFrontmatter(fullMarkdown).frontmatter);
+      if (!title) return;
+      const desired = titleToFileName(title);
+      if (!documentName || desired === documentName) return;
+      syncingNameRef.current = true;
+      try {
+        await onRenameRef.current(nodeId, desired);
+      } finally {
+        syncingNameRef.current = false;
+      }
+    },
+    [persistEnabled, nodeId, canRenameDocument, documentName]
+  );
+
   const persistMarkdown = useCallback(
     (fullMarkdown: string) => {
       if (!persistEnabled || !nodeId) return;
@@ -170,6 +237,7 @@ export function DocumentWorkspace({
       saveTimer.current = setTimeout(() => {
         const version = baseVersionRef.current;
         void saveLocal(nodeId, fullMarkdown, version).then(() => {
+          void syncFilenameFromTitle(fullMarkdown);
           if (syncTimer.current) clearTimeout(syncTimer.current);
           syncTimer.current = setTimeout(() => {
             void syncDocument(nodeId).then(async () => {
@@ -183,12 +251,33 @@ export function DocumentWorkspace({
         });
       }, 1000);
     },
-    [persistEnabled, nodeId, onRequestTreeRefresh]
+    [
+      persistEnabled,
+      nodeId,
+      onRequestTreeRefresh,
+      syncFilenameFromTitle,
+    ]
   );
 
   useEffect(() => {
     persistMarkdownRef.current = persistMarkdown;
   }, [persistMarkdown]);
+
+  // External rename (Files panel) → update frontmatter title.
+  useEffect(() => {
+    if (!documentName || syncingNameRef.current) return;
+    if (prevDocumentNameRef.current === documentName) return;
+    prevDocumentNameRef.current = documentName;
+    const fromFile = fileNameToTitle(documentName);
+    setDoc((prev) => {
+      const current = parseTitle(prev.frontmatter);
+      if (current === fromFile) return prev;
+      const nextFrontmatter = writeTitle(prev.frontmatter, fromFile);
+      const next = { frontmatter: nextFrontmatter, body: prev.body };
+      persistMarkdownRef.current(nextFrontmatter + next.body);
+      return next;
+    });
+  }, [documentName]);
 
   const setDocumentLanguages = useCallback((languages: string[]) => {
     setDoc((current) => {
@@ -202,20 +291,71 @@ export function DocumentWorkspace({
     });
   }, []);
 
+  const setEssayTitle = useCallback(
+    (title: string) => {
+      const cleaned = title.trim() || "Untitled";
+      setTitleDraft(cleaned);
+      setDoc((current) => {
+        const nextFrontmatter = writeTitle(current.frontmatter, cleaned);
+        const next = { frontmatter: nextFrontmatter, body: current.body };
+        persistMarkdownRef.current(nextFrontmatter + next.body);
+        return next;
+      });
+      if (
+        persistEnabled &&
+        nodeId &&
+        canRenameDocument &&
+        onRenameRef.current
+      ) {
+        const desired = titleToFileName(cleaned);
+        if (desired !== documentName) {
+          syncingNameRef.current = true;
+          void onRenameRef.current(nodeId, desired).finally(() => {
+            syncingNameRef.current = false;
+          });
+        }
+      }
+    },
+    [persistEnabled, nodeId, canRenameDocument, documentName]
+  );
+
+  // Keep the Title field in sync when the file is renamed externally.
   useEffect(() => {
-    onSpellcheckChangeRef.current?.({
-      languages: documentLanguagesKey
-        ? documentLanguagesKey.split(",")
-        : [],
-      setLanguages: setDocumentLanguages,
-      hasDocument: Boolean(nodeId) || previewMode,
-    });
-  }, [
-    documentLanguagesKey,
-    nodeId,
-    previewMode,
-    setDocumentLanguages,
-  ]);
+    setTitleDraft(essayTitle);
+  }, [essayTitle, nodeId]);
+
+  function commitTitleField(focusBody = false) {
+    const next = titleDraft.trim() || "Untitled";
+    if (next !== essayTitle) {
+      setEssayTitle(next);
+    } else {
+      setTitleDraft(next);
+    }
+    if (focusBody) {
+      requestAnimationFrame(() => {
+        editorRef.current?.commands.focus("start");
+      });
+    }
+  }
+
+  const titleField = (
+    <input
+      type="text"
+      value={titleDraft}
+      onChange={(e) => setTitleDraft(e.target.value)}
+      onBlur={() => commitTitleField(false)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commitTitleField(true);
+        }
+      }}
+      disabled={!canRenameDocument && Boolean(nodeId) && !previewMode}
+      aria-label="Essay title"
+      placeholder="Title"
+      className="essay-title-input"
+    />
+  );
 
   // After a conflict resolution, reload the canonical remote into the editor.
   useEffect(() => {
@@ -224,7 +364,12 @@ export function DocumentWorkspace({
       if (!status.conflictCopyId || !status.message) return;
       void openDocument(nodeId).then((opened) => {
         if (nodeIdRef.current !== nodeId) return;
-        setDoc(splitFrontmatter(opened.markdown));
+        const normalized = normalizeEssayTitle(opened.markdown);
+        setDoc({
+          frontmatter: normalized.frontmatter,
+          body: normalized.body,
+        });
+        setTitleDraft(normalized.title);
         setBaseVersion(opened.baseVersion);
       });
     });
@@ -270,10 +415,14 @@ export function DocumentWorkspace({
     }
     setLossyWarning(false);
     setLossyDiffOpen(false);
-    const next = splitFrontmatter(sourceText);
-    setDoc(next);
+    const normalized = normalizeEssayTitle(sourceText, documentName);
+    setDoc({
+      frontmatter: normalized.frontmatter,
+      body: normalized.body,
+    });
+    setTitleDraft(normalized.title);
     setMode("wysiwyg");
-    persistMarkdown(sourceText);
+    persistMarkdown(normalized.frontmatter + normalized.body);
   }
 
   const lossyDiffLines = lossyWarning
@@ -335,7 +484,17 @@ export function DocumentWorkspace({
           <span className="text-xs font-mono uppercase tracking-wider text-muted">
             Markdown source
           </span>
-          {toggleButton}
+          <span className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setEssaySettingsOpen(true)}
+              className="rounded border border-border px-2.5 py-1 text-xs text-muted hover:bg-panel hover:text-foreground"
+              title="Essay settings"
+            >
+              Essay settings
+            </button>
+            {toggleButton}
+          </span>
         </div>
 
         {lossyWarning && (
@@ -418,43 +577,72 @@ export function DocumentWorkspace({
           aria-label="Markdown source"
           className="flex-1 w-full resize-none bg-transparent px-6 py-6 font-mono text-sm leading-relaxed outline-none"
         />
+        <EssaySettingsPanel
+          open={essaySettingsOpen}
+          onClose={() => setEssaySettingsOpen(false)}
+          title={essayTitle}
+          onTitleChange={setEssayTitle}
+          documentLanguages={documentLanguages}
+          onDocumentLanguagesChange={setDocumentLanguages}
+          canEditTitle={canRenameDocument}
+        />
       </div>
     );
   }
 
   return (
-    <DocumentEditor
-      key={nodeId ?? "preview"}
-      markdown={body}
-      onChange={(md) => {
-        setDoc({ frontmatter, body: md });
-        persistMarkdown(frontmatter + md);
-      }}
-      onDeletedFootnotesChange={onDeletedFootnotesChange}
-      editorRef={editorRef}
-      spellcheckLanguages={
-        documentLanguages.length > 0
-          ? documentLanguages
-          : prefs.spellcheckLanguages
-      }
-      toolbarExtra={
-        <span className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => updatePrefs({ sidenotes: !prefs.sidenotes })}
-            aria-pressed={prefs.sidenotes}
-            className={`hidden rounded border border-border px-2.5 py-1 text-xs md:inline-block ${
-              prefs.sidenotes
-                ? "bg-accent/15 text-accent"
-                : "text-muted hover:bg-panel hover:text-foreground"
-            }`}
-            title="Show footnotes in the margin"
-          >
-            Sidenotes
-          </button>
-          {toggleButton}
-        </span>
-      }
-    />
+    <>
+      <DocumentEditor
+        key={nodeId ?? "preview"}
+        markdown={body}
+        onChange={(md) => {
+          setDoc({ frontmatter, body: md });
+          persistMarkdown(frontmatter + md);
+        }}
+        onDeletedFootnotesChange={onDeletedFootnotesChange}
+        editorRef={editorRef}
+        titleSlot={titleField}
+        spellcheckLanguages={
+          documentLanguages.length > 0
+            ? documentLanguages
+            : prefs.spellcheckLanguages
+        }
+        toolbarExtra={
+          <span className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setEssaySettingsOpen(true)}
+              className="rounded border border-border px-2.5 py-1 text-xs text-muted hover:bg-panel hover:text-foreground"
+              title="Essay settings"
+            >
+              Essay settings
+            </button>
+            <button
+              type="button"
+              onClick={() => updatePrefs({ sidenotes: !prefs.sidenotes })}
+              aria-pressed={prefs.sidenotes}
+              className={`hidden rounded border border-border px-2.5 py-1 text-xs md:inline-block ${
+                prefs.sidenotes
+                  ? "bg-accent/15 text-accent"
+                  : "text-muted hover:bg-panel hover:text-foreground"
+              }`}
+              title="Show footnotes in the margin"
+            >
+              Sidenotes
+            </button>
+            {toggleButton}
+          </span>
+        }
+      />
+      <EssaySettingsPanel
+        open={essaySettingsOpen}
+        onClose={() => setEssaySettingsOpen(false)}
+        title={essayTitle}
+        onTitleChange={setEssayTitle}
+        documentLanguages={documentLanguages}
+        onDocumentLanguagesChange={setDocumentLanguages}
+        canEditTitle={canRenameDocument}
+      />
+    </>
   );
 }

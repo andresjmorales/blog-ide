@@ -17,8 +17,9 @@ import {
   type EditorPrefs,
 } from "@/lib/settings";
 import { DocumentWorkspace } from "@/components/DocumentWorkspace";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { SettingsPanel } from "@/components/SettingsPanel";
+import { HelpPanel } from "@/components/HelpPanel";
+import { UserMenu } from "@/components/UserMenu";
 import { EditorPrefsProvider } from "@/components/EditorPrefsContext";
 import { DocumentSessionProvider } from "@/components/DocumentSessionContext";
 import { DeletedFootnotesPanel } from "@/components/DeletedFootnotesPanel";
@@ -28,11 +29,16 @@ import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { deleteLocalDoc } from "@/lib/db/indexed";
 import {
+  fileNameToTitle,
+  titleToFileName,
+} from "@/lib/markdown/titleFrontmatter";
+import {
   createWorkspaceNode,
   deleteWorkspaceNode,
   ensureDefaultWorkspace,
   listWorkspaceNodes,
   moveWorkspaceNode,
+  renameWorkspaceNode,
 } from "@/lib/workspace/api";
 import {
   documentIdsInSubtree,
@@ -67,15 +73,27 @@ function useSyncStatusLabel() {
   return { status, label: formatSyncLabel(status) };
 }
 
-export function AppShell({ userEmail }: { userEmail: string }) {
+export function AppShell({
+  userEmail,
+  displayName,
+}: {
+  userEmail: string;
+  displayName?: string;
+}) {
   return (
     <AppDialogProvider>
-      <AppShellContent userEmail={userEmail} />
+      <AppShellContent userEmail={userEmail} displayName={displayName} />
     </AppDialogProvider>
   );
 }
 
-function AppShellContent({ userEmail }: { userEmail: string }) {
+function AppShellContent({
+  userEmail,
+  displayName,
+}: {
+  userEmail: string;
+  displayName?: string;
+}) {
   const router = useRouter();
   const previewMode = !isSupabaseConfigured() || userEmail === "not signed in";
   const [storedPrefs, setPrefs] = useState(() =>
@@ -86,6 +104,7 @@ function AppShellContent({ userEmail }: { userEmail: string }) {
   const dragging = useRef<"left" | "right" | null>(null);
   const prefsRef = useRef(storedPrefs);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [deletedFootnotes, setDeletedFootnotes] = useState<DeletedFootnote[]>(
     []
   );
@@ -96,13 +115,12 @@ function AppShellContent({ userEmail }: { userEmail: string }) {
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
   const [treeLoading, setTreeLoading] = useState(false);
   const [treeError, setTreeError] = useState<string | null>(null);
-  const [docSpellLangs, setDocSpellLangs] = useState<string[]>([]);
-  const [hasOpenDocument, setHasOpenDocument] = useState(false);
-  const setDocSpellLangsHandler = useRef<(languages: string[]) => void>(
-    () => {}
-  );
   const { status: syncStatus, label: syncLabel } = useSyncStatusLabel();
   const dialog = useAppDialog();
+  const resolvedName =
+    displayName?.trim() ||
+    (previewMode ? "Preview" : userEmail.split("@")[0] || "Account");
+  const activeNode = nodes.find((n) => n.id === activeNodeId) ?? null;
 
   useEffect(() => {
     prefsRef.current = storedPrefs;
@@ -123,25 +141,6 @@ function AppShellContent({ userEmail }: { userEmail: string }) {
     }) => {
       restoreRef.current = actions.restore;
       dismissRef.current = actions.dismiss;
-    },
-    []
-  );
-
-  const handleDocumentSpellcheckChange = useCallback(
-    (meta: {
-      languages: string[];
-      setLanguages: (languages: string[]) => void;
-      hasDocument: boolean;
-    }) => {
-      setDocSpellLangsHandler.current = meta.setLanguages;
-      setDocSpellLangs((current) =>
-        current.join(",") === meta.languages.join(",")
-          ? current
-          : meta.languages
-      );
-      setHasOpenDocument((current) =>
-        current === meta.hasDocument ? current : meta.hasDocument
-      );
     },
     []
   );
@@ -245,19 +244,21 @@ function AppShellContent({ userEmail }: { userEmail: string }) {
   async function handleNewDocument(parentId: string | null) {
     if (previewMode) return;
     const name = await dialog.prompt({
-      title: "New document",
-      message: "Name for the markdown file.",
-      defaultValue: "untitled.md",
+      title: "New essay",
+      message: "Title for the essay (also used as the file name).",
+      defaultValue: "Untitled",
       confirmLabel: "Create",
     });
-    if (!name) return;
-    const fileName = name.endsWith(".md") ? name : `${name}.md`;
+    if (!name?.trim()) return;
+    const title = name.trim().replace(/\.md$/i, "");
+    const fileName = titleToFileName(title);
     try {
       const id = await createWorkspaceNode({
         kind: "document",
         name: fileName,
         parentId,
-        markdown: `---\ntitle: ${fileName.replace(/\.md$/i, "")}\nstatus: draft\n---\n\n# ${fileName.replace(/\.md$/i, "")}\n\n`,
+        // Title lives in frontmatter + the Title field — not as Heading 1.
+        markdown: `---\ntitle: ${title}\nstatus: draft\n---\n\n`,
       });
       await refreshTree();
       setActiveNodeId(id);
@@ -319,6 +320,46 @@ function AppShellContent({ userEmail }: { userEmail: string }) {
     await handleMoveTo(nodeId, parentId);
   }
 
+  async function handleRename(nodeId: string) {
+    if (previewMode) return;
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node || node.system_key === "trash" || isScratchpad(node)) return;
+
+    const currentTitle =
+      node.kind === "document"
+        ? fileNameToTitle(node.name)
+        : node.name.replace(/\/$/, "");
+    const next = await dialog.prompt({
+      title: "Rename",
+      message:
+        node.kind === "document"
+          ? "New title (also updates the file name)."
+          : "New folder name.",
+      defaultValue: currentTitle,
+      confirmLabel: "Rename",
+    });
+    if (!next?.trim()) return;
+
+    const newName =
+      node.kind === "document" ? titleToFileName(next) : next.trim();
+    try {
+      await renameWorkspaceNode(nodeId, newName);
+      await refreshTree();
+    } catch (error) {
+      setTreeError(
+        error instanceof Error ? error.message : "Could not rename."
+      );
+    }
+  }
+
+  async function handleRenameDocument(nodeId: string, fileName: string) {
+    if (previewMode) return;
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node || isScratchpad(node) || node.name === fileName) return;
+    await renameWorkspaceNode(nodeId, fileName);
+    await refreshTree();
+  }
+
   async function handleDeleteForever(nodeId: string) {
     if (previewMode) return;
     const node = nodes.find((n) => n.id === nodeId);
@@ -377,26 +418,14 @@ function AppShellContent({ userEmail }: { userEmail: string }) {
               >
                 {previewMode ? "Preview mode · not synced" : syncLabel}
               </span>
-              <span className="hidden md:inline">·</span>
-              <span className="hidden md:inline">{userEmail}</span>
-              <ThemeToggle />
-              <button
-                type="button"
-                onClick={() => setSettingsOpen(true)}
-                title="Settings"
-                aria-label="Open settings"
-                className="rounded p-1.5 text-muted hover:bg-panel hover:text-foreground"
-              >
-                <SettingsIcon />
-              </button>
-              {!previewMode && (
-                <button
-                  onClick={signOut}
-                  className="rounded px-2 py-1 hover:bg-panel hover:text-foreground"
-                >
-                  Sign out
-                </button>
-              )}
+              <UserMenu
+                displayName={resolvedName}
+                email={previewMode ? "" : userEmail}
+                previewMode={previewMode}
+                onAccountSettings={() => setSettingsOpen(true)}
+                onHelp={() => setHelpOpen(true)}
+                onSignOut={() => void signOut()}
+              />
               <button
                 onClick={() => update({ rightOpen: !prefs.rightOpen })}
                 title="Toggle right panel"
@@ -461,6 +490,7 @@ function AppShellContent({ userEmail }: { userEmail: string }) {
                         onMoveToTrash={handleMoveToTrash}
                         onRestore={handleRestore}
                         onMoveTo={handleMoveTo}
+                        onRename={handleRename}
                         onDeleteForever={handleDeleteForever}
                         loading={treeLoading}
                         error={treeError}
@@ -481,11 +511,15 @@ function AppShellContent({ userEmail }: { userEmail: string }) {
             <main className="flex-1 min-w-0 min-h-0">
               <DocumentWorkspace
                 nodeId={previewMode ? null : activeNodeId}
+                documentName={activeNode?.name ?? null}
+                canRenameDocument={
+                  !activeNode || !isScratchpad(activeNode)
+                }
                 previewMode={previewMode}
                 onDeletedFootnotesChange={setDeletedFootnotes}
                 registerDeletedActions={registerDeletedActions}
                 onRequestTreeRefresh={refreshTree}
-                onDocumentSpellcheckChange={handleDocumentSpellcheckChange}
+                onRenameDocument={handleRenameDocument}
               />
             </main>
 
@@ -536,12 +570,8 @@ function AppShellContent({ userEmail }: { userEmail: string }) {
           <SettingsPanel
             open={settingsOpen}
             onClose={() => setSettingsOpen(false)}
-            hasOpenDocument={hasOpenDocument}
-            documentLanguages={docSpellLangs}
-            onDocumentLanguagesChange={(languages) =>
-              setDocSpellLangsHandler.current(languages)
-            }
           />
+          <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
         </div>
       </DocumentSessionProvider>
     </EditorPrefsProvider>
@@ -570,10 +600,3 @@ function PanelIcon({ side }: { side: "left" | "right" }) {
   );
 }
 
-function SettingsIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-      <path d="M6.7 1.6a1.2 1.2 0 0 1 2.6 0l.08.5a4.8 4.8 0 0 1 1.1.64l.46-.24a1.2 1.2 0 0 1 1.64.44l.9 1.56a1.2 1.2 0 0 1-.44 1.64l-.46.26c.1.35.16.72.16 1.1 0 .38-.06.75-.16 1.1l.46.26a1.2 1.2 0 0 1 .44 1.64l-.9 1.56a1.2 1.2 0 0 1-1.64.44l-.46-.24a4.8 4.8 0 0 1-1.1.64l-.08.5a1.2 1.2 0 0 1-2.6 0l-.08-.5a4.8 4.8 0 0 1-1.1-.64l-.46.24a1.2 1.2 0 0 1-1.64-.44l-.9-1.56a1.2 1.2 0 0 1 .44-1.64l.46-.26A4.7 4.7 0 0 1 3.5 8c0-.38.06-.75.16-1.1l-.46-.26a1.2 1.2 0 0 1-.44-1.64l.9-1.56a1.2 1.2 0 0 1 1.64-.44l.46.24a4.8 4.8 0 0 1 1.1-.64l.08-.5ZM8 5.75A2.25 2.25 0 1 0 8 10.25 2.25 2.25 0 0 0 8 5.75Z" />
-    </svg>
-  );
-}

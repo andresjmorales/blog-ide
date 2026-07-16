@@ -17,7 +17,7 @@ import {
   promptForLink,
   setLinkPromptHandler,
 } from "@/lib/editor/linkShortcut";
-import { ItalicIcon, LinkIcon } from "@/components/icons";
+import { ImageIcon, ItalicIcon, LinkIcon } from "@/components/icons";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { useStickySidenotes } from "@/components/useStickySidenotes";
@@ -33,6 +33,8 @@ type Props = {
   editorRef?: React.MutableRefObject<Editor | null>;
   /** Rendered right-aligned in the toolbar row (e.g. the source toggle). */
   toolbarExtra?: React.ReactNode;
+  /** Substack-style title field above the body (not a Heading 1). */
+  titleSlot?: React.ReactNode;
   /** Effective spellcheck language tags for this essay. */
   spellcheckLanguages?: string[];
 };
@@ -48,6 +50,7 @@ function withFootnoteNodeView(extension: AnyExtension): AnyExtension {
 
 export function DocumentEditor({
   markdown,
+  titleSlot,
   onChange,
   onDeletedFootnotesChange,
   editorRef,
@@ -161,6 +164,7 @@ export function DocumentEditor({
             prefs.sidenotes ? "max-w-5xl" : "max-w-2xl"
           }`}
         >
+          {titleSlot}
           <EditorContent editor={editor} />
         </div>
       </div>
@@ -309,7 +313,7 @@ function Toolbar({ editor, extra }: { editor: Editor; extra?: React.ReactNode })
         —
       </ToolButton>
       <ToolButton title="Insert image" onClick={insertImage}>
-        Img
+        <ImageIcon />
       </ToolButton>
       <ToolButton
         title="Insert footnote (Ctrl+Shift+F)"

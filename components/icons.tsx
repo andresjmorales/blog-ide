@@ -64,6 +64,38 @@ export function PinIcon({ className = "" }: { className?: string }) {
   );
 }
 
+/** Classic “picture frame with mountains” image affordance. */
+export function ImageIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <rect
+        x="1.5"
+        y="2.5"
+        width="13"
+        height="11"
+        rx="1.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <circle cx="5.5" cy="6" r="1.2" fill="currentColor" />
+      <path
+        d="M2.5 12.5 6 8.5l2.2 2.2L11 7.5l2.5 5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** Six-dot grip used as a "this is draggable" affordance. */
 export function GrabHandle({ className = "" }: { className?: string }) {
   return (

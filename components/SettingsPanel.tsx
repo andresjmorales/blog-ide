@@ -8,19 +8,9 @@ import { SPELLCHECK_LANGUAGE_OPTIONS } from "@/lib/markdown/spellcheckFrontmatte
 type Props = {
   open: boolean;
   onClose: () => void;
-  /** Languages for the open essay (frontmatter). */
-  documentLanguages?: string[];
-  onDocumentLanguagesChange?: (languages: string[]) => void;
-  hasOpenDocument?: boolean;
 };
 
-export function SettingsPanel({
-  open,
-  onClose,
-  documentLanguages = [],
-  onDocumentLanguagesChange,
-  hasOpenDocument = false,
-}: Props) {
+export function SettingsPanel({ open, onClose }: Props) {
   const { prefs, updatePrefs } = useEditorPrefs();
 
   useEffect(() => {
@@ -45,25 +35,12 @@ export function SettingsPanel({
     });
   }
 
-  function toggleDocumentLang(code: string) {
-    if (!onDocumentLanguagesChange) return;
-    const base =
-      documentLanguages.length > 0 ? documentLanguages : defaultLangs;
-    const next = base.includes(code)
-      ? base.filter((item) => item !== code)
-      : [...base, code];
-    onDocumentLanguagesChange(next.length > 0 ? next : [...defaultLangs]);
-  }
-
-  const essayLangs =
-    documentLanguages.length > 0 ? documentLanguages : defaultLangs;
-
   return (
     <div className="settings-overlay" role="presentation">
       <button
         type="button"
         className="settings-backdrop"
-        aria-label="Close settings"
+        aria-label="Close account settings"
         onClick={onClose}
       />
       <div
@@ -73,7 +50,7 @@ export function SettingsPanel({
         className="settings-panel"
       >
         <div className="settings-panel-header">
-          <h2 id="settings-title">Settings</h2>
+          <h2 id="settings-title">Account settings</h2>
           <button type="button" onClick={onClose} aria-label="Close settings">
             Close
           </button>
@@ -137,11 +114,10 @@ export function SettingsPanel({
           {prefs.spellcheckEnabled && (
             <>
               <p className="settings-help">
-                Uses the browser dictionary. Pick default languages for new
-                essays; override per open document below.
+                Default languages for new essays. Override languages for the
+                open essay under Essay settings in the toolbar.
               </p>
-              <p className="mb-1.5 text-xs text-muted">Default languages</p>
-              <div className="spellcheck-langs mb-3">
+              <div className="spellcheck-langs">
                 {SPELLCHECK_LANGUAGE_OPTIONS.map((option) => (
                   <label key={option.code}>
                     <input
@@ -153,35 +129,8 @@ export function SettingsPanel({
                   </label>
                 ))}
               </div>
-              {hasOpenDocument && onDocumentLanguagesChange && (
-                <>
-                  <p className="mb-1.5 text-xs text-muted">
-                    Languages for this essay
-                  </p>
-                  <div className="spellcheck-langs">
-                    {SPELLCHECK_LANGUAGE_OPTIONS.map((option) => (
-                      <label key={option.code}>
-                        <input
-                          type="checkbox"
-                          checked={essayLangs.includes(option.code)}
-                          onChange={() => toggleDocumentLang(option.code)}
-                        />
-                        {option.label}
-                      </label>
-                    ))}
-                  </div>
-                </>
-              )}
             </>
           )}
-        </section>
-
-        <section className="settings-section">
-          <h3>Appearance</h3>
-          <p className="settings-help">
-            Use the sun/moon control in the top bar to switch light and dark
-            theme.
-          </p>
         </section>
       </div>
     </div>

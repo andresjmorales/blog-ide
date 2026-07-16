@@ -75,6 +75,30 @@ body {
 .editor-prose > * + * {
   margin-top: 0.75em;
 }
+
+/* Substack-style essay title — not a Heading 1 in the body. */
+.essay-title-input {
+  background: transparent;
+  border: 0;
+  color: var(--foreground);
+  display: block;
+  font-size: 2.15rem;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  margin: 0 0 1.25rem;
+  outline: none;
+  padding: 0;
+  width: 100%;
+}
+.essay-title-input::placeholder {
+  color: var(--muted);
+  opacity: 0.65;
+}
+.essay-title-input:disabled {
+  opacity: 0.85;
+}
+
 .editor-prose h1 {
   font-size: 2em;
   font-weight: 650;
@@ -440,6 +464,65 @@ body {
   font-size: 0.8rem;
   max-width: 14rem;
   padding: 0.25rem 0.4rem;
+}
+.settings-row-stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+.settings-text-input {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.875rem;
+  padding: 0.4rem 0.55rem;
+  width: 100%;
+}
+.settings-text-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.user-avatar {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--foreground);
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 650;
+  height: 1.85rem;
+  justify-content: center;
+  letter-spacing: 0.02em;
+  min-width: 1.85rem;
+  padding: 0 0.35rem;
+}
+.user-avatar:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.user-menu-item {
+  background: transparent;
+  border: 0;
+  color: var(--foreground);
+  cursor: pointer;
+  display: block;
+  font-size: 0.875rem;
+  padding: 0.45rem 0.85rem;
+  text-align: left;
+  width: 100%;
+}
+.user-menu-item:hover {
+  background: var(--panel);
+}
+.user-menu-toggle {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+}
+.user-menu-toggle input {
+  accent-color: var(--accent);
 }
 
 @media (min-width: 1100px) {

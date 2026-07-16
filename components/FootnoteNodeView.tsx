@@ -19,6 +19,7 @@ import {
 } from "@/lib/editor/linkShortcut";
 import {
   GrabHandle,
+  ImageIcon,
   ItalicIcon,
   LinkIcon,
   PinIcon,
@@ -646,7 +647,7 @@ function FootnoteToolbar({
             —
           </FootnoteToolButton>
           <FootnoteToolButton title="Insert image" onClick={insertImage}>
-            Img
+            <ImageIcon />
           </FootnoteToolButton>
           <SpecialCharsMenu editor={editor} />
         </>

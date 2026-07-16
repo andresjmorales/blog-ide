@@ -1,20 +1,13 @@
 "use client";
 
-const STORAGE_KEY = "blogide.theme";
+import { toggleTheme } from "@/lib/theme";
 
+/** Compact sun/moon control (kept for reuse; header uses the avatar menu). */
 export function ThemeToggle() {
-  function toggleTheme() {
-    const root = document.documentElement;
-    const next = root.dataset.theme === "dark" ? "light" : "dark";
-    root.dataset.theme = next;
-    root.style.colorScheme = next;
-    localStorage.setItem(STORAGE_KEY, next);
-  }
-
   return (
     <button
       type="button"
-      onClick={toggleTheme}
+      onClick={() => toggleTheme()}
       className="theme-toggle rounded p-1.5 text-muted hover:bg-panel hover:text-foreground"
       aria-label="Toggle light and dark theme"
       title="Toggle light and dark theme"
