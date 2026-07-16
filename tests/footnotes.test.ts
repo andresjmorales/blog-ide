@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isLossy, parseBody, serializeBody } from "@/lib/markdown/pipeline";
+import { isLossy, parseBody, roundTrip, serializeBody } from "@/lib/markdown/pipeline";
+import { packStickySidenotes } from "@/lib/editor/sidenoteLayout";
 
 function footnotesIn(doc: ReturnType<typeof parseBody>) {
   const found: Array<{ id: string; content: string }> = [];
@@ -51,5 +52,49 @@ describe("footnote markdown pipeline", () => {
   it("treats a canonical footnote document as lossless", () => {
     const markdown = "A claim.[^1]\n\n[^1]: A [linked](https://example.com) note.\n";
     expect(isLossy(markdown)).toBe(false);
+  });
+
+  it("round-trips the BlogIDE deleted-footnotes trailer", () => {
+    const markdown =
+      "A claim.[^1]\n\n[^1]: Keep me.\n\n<!--blogide-deleted-footnotes:[{\"id\":\"gone-1\",\"content\":\"**Lost** note\",\"deletedAt\":\"2020-01-01T00:00:00.000Z\"}]-->\n";
+    const doc = parseBody(markdown);
+    expect(doc.attrs?.deletedFootnotes).toEqual([
+      {
+        id: "gone-1",
+        content: "**Lost** note",
+        deletedAt: "2020-01-01T00:00:00.000Z",
+      },
+    ]);
+    expect(roundTrip(markdown)).toBe(markdown);
+    expect(isLossy(markdown)).toBe(false);
+  });
+
+  it("omits the deleted-footnotes trailer when the archive is empty", () => {
+    const markdown = "A claim.[^1]\n\n[^1]: Keep me.\n";
+    expect(serializeBody(parseBody(markdown))).not.toContain(
+      "blogide-deleted-footnotes"
+    );
+  });
+});
+
+describe("sticky sidenote packing", () => {
+  it("keeps notes inside the viewport and marks the closest as primary", () => {
+    const packed = packStickySidenotes(
+      [
+        { id: "a", naturalTop: 10, height: 40 },
+        { id: "b", naturalTop: 80, height: 40 },
+        { id: "c", naturalTop: 400, height: 40 },
+      ],
+      0,
+      200,
+      90
+    );
+
+    expect(packed.find((item) => item.id === "b")?.primary).toBe(true);
+    for (const item of packed) {
+      expect(item.top).toBeGreaterThanOrEqual(8);
+      expect(item.top + 40).toBeLessThanOrEqual(200);
+    }
+    expect(packed[1].top).toBeGreaterThanOrEqual(packed[0].top + 40);
   });
 });

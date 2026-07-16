@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   EditorContent,
   ReactNodeViewRenderer,
@@ -11,13 +11,21 @@ import type { AnyExtension, Editor } from "@tiptap/core";
 import { Placeholder } from "@tiptap/extensions";
 import { createExtensions } from "@/lib/editor/extensions";
 import { parseBody, serializeBody } from "@/lib/markdown/pipeline";
+import { withoutFootnoteDeletionTracking } from "@/lib/editor/footnoteDeletion";
 import { FootnoteNodeView } from "@/components/FootnoteNodeView";
+import { promptForLink } from "@/lib/editor/linkShortcut";
+import { ItalicIcon, LinkIcon } from "@/components/icons";
+import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
+import { useEditorPrefs } from "@/components/EditorPrefsContext";
+import { useStickySidenotes } from "@/components/useStickySidenotes";
+import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 
 type Props = {
   /** Markdown body (frontmatter already stripped by the caller). */
   markdown: string;
   onChange: (markdown: string) => void;
-  sidenotes?: boolean;
+  onDeletedFootnotesChange?: (deleted: DeletedFootnote[]) => void;
+  editorRef?: React.MutableRefObject<Editor | null>;
   /** Rendered right-aligned in the toolbar row (e.g. the source toggle). */
   toolbarExtra?: React.ReactNode;
 };
@@ -34,9 +42,18 @@ function withFootnoteNodeView(extension: AnyExtension): AnyExtension {
 export function DocumentEditor({
   markdown,
   onChange,
-  sidenotes = false,
+  onDeletedFootnotesChange,
+  editorRef,
   toolbarExtra,
 }: Props) {
+  const { prefs } = useEditorPrefs();
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
+  const stickyEnabled =
+    prefs.sidenotes && prefs.sidenoteLayout === "sticky";
+
+  useStickySidenotes(scrollEl, stickyEnabled);
+
   const editor = useEditor({
     // Placeholder is UI-only; it stays out of the shared markdown schema.
     extensions: [
@@ -56,13 +73,37 @@ export function DocumentEditor({
     },
   });
 
+  useEffect(() => {
+    if (editorRef) editorRef.current = editor;
+    return () => {
+      if (editorRef) editorRef.current = null;
+    };
+  }, [editor, editorRef]);
+
+  useEffect(() => {
+    if (!editor || !onDeletedFootnotesChange) return;
+    const sync = () => {
+      const list = Array.isArray(editor.state.doc.attrs.deletedFootnotes)
+        ? (editor.state.doc.attrs.deletedFootnotes as DeletedFootnote[])
+        : [];
+      onDeletedFootnotesChange(list);
+    };
+    sync();
+    editor.on("transaction", sync);
+    return () => {
+      editor.off("transaction", sync);
+    };
+  }, [editor, onDeletedFootnotesChange]);
+
   // Replace content when the caller switches documents / returns from source
   // view. Guard against feeding the editor its own onChange output.
   useEffect(() => {
     if (!editor) return;
     if (serializeBody(editor.getJSON()) !== markdown) {
-      editor.commands.setContent(parseBody(markdown), {
-        emitUpdate: false,
+      withoutFootnoteDeletionTracking(() => {
+        editor.commands.setContent(parseBody(markdown), {
+          emitUpdate: false,
+        });
       });
     }
   }, [editor, markdown]);
@@ -71,13 +112,17 @@ export function DocumentEditor({
     <div className="flex flex-col h-full">
       {editor && <Toolbar editor={editor} extra={toolbarExtra} />}
       <div
+        ref={(node) => {
+          scrollRef.current = node;
+          setScrollEl(node);
+        }}
         className={`flex-1 overflow-y-auto ${
-          sidenotes ? "show-sidenotes" : ""
-        }`}
+          prefs.sidenotes ? "show-sidenotes" : ""
+        } ${stickyEnabled ? "sidenotes-sticky" : ""}`}
       >
         <div
           className={`mx-auto px-6 py-10 ${
-            sidenotes ? "max-w-5xl" : "max-w-2xl"
+            prefs.sidenotes ? "max-w-5xl" : "max-w-2xl"
           }`}
         >
           <EditorContent editor={editor} />
@@ -103,17 +148,6 @@ function Toolbar({ editor, extra }: { editor: Editor; extra?: React.ReactNode })
       heading: [1, 2, 3, 4].find((l) => editor.isActive("heading", { level: l })) ?? 0,
     }),
   });
-
-  function setLink() {
-    const previous = editor.getAttributes("link").href as string | undefined;
-    const url = window.prompt("Link URL", previous ?? "https://");
-    if (url === null) return;
-    if (url === "") {
-      editor.chain().focus().unsetLink().run();
-      return;
-    }
-    editor.chain().focus().setLink({ href: url }).run();
-  }
 
   function insertImage() {
     const src = window.prompt(
@@ -152,73 +186,94 @@ function Toolbar({ editor, extra }: { editor: Editor; extra?: React.ReactNode })
       </select>
 
       <ToolButton
-        label="B"
         title="Bold (Ctrl+B)"
         active={state.bold}
         onClick={() => editor.chain().focus().toggleBold().run()}
         className="font-bold"
-      />
+      >
+        B
+      </ToolButton>
       <ToolButton
-        label="I"
         title="Italic (Ctrl+I)"
         active={state.italic}
         onClick={() => editor.chain().focus().toggleItalic().run()}
-        className="italic"
-      />
+      >
+        <ItalicIcon />
+      </ToolButton>
       <ToolButton
-        label="S"
         title="Strikethrough"
         active={state.strike}
         onClick={() => editor.chain().focus().toggleStrike().run()}
         className="line-through"
-      />
+      >
+        S
+      </ToolButton>
       <ToolButton
-        label="<>"
         title="Inline code (Ctrl+E)"
         active={state.code}
         onClick={() => editor.chain().focus().toggleCode().run()}
         className="font-mono text-xs"
-      />
-      <ToolButton label="Link" title="Add or edit link" active={state.link} onClick={setLink} />
+      >
+        {"<>"}
+      </ToolButton>
+      <ToolButton
+        title="Add or edit link (Ctrl+K)"
+        active={state.link}
+        onClick={() => promptForLink(editor)}
+      >
+        <LinkIcon />
+      </ToolButton>
 
       <span className="mx-1.5 h-4 w-px bg-border" aria-hidden />
 
       <ToolButton
-        label={"\u201C\u201D"}
         title="Blockquote"
         active={state.blockquote}
         onClick={() => editor.chain().focus().toggleBlockquote().run()}
-      />
+      >
+        {"\u201C\u201D"}
+      </ToolButton>
       <ToolButton
-        label="• List"
         title="Bullet list"
         active={state.bulletList}
         onClick={() => editor.chain().focus().toggleBulletList().run()}
-      />
+      >
+        • List
+      </ToolButton>
       <ToolButton
-        label="1. List"
         title="Ordered list"
         active={state.orderedList}
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
-      />
+      >
+        1. List
+      </ToolButton>
       <ToolButton
-        label="{ }"
         title="Code block"
         active={state.codeBlock}
         onClick={() => editor.chain().focus().toggleCodeBlock().run()}
         className="font-mono text-xs"
-      />
+      >
+        {"{ }"}
+      </ToolButton>
       <ToolButton
-        label="—"
         title="Horizontal rule"
         onClick={() => editor.chain().focus().setHorizontalRule().run()}
-      />
-      <ToolButton label="Img" title="Insert image" onClick={insertImage} />
+      >
+        —
+      </ToolButton>
+      <ToolButton title="Insert image" onClick={insertImage}>
+        Img
+      </ToolButton>
       <ToolButton
-        label="Fn"
         title="Insert footnote (Ctrl+Shift+F)"
         onClick={() => editor.chain().focus().insertFootnote().run()}
-      />
+      >
+        Fn
+      </ToolButton>
+
+      <span className="mx-1.5 h-4 w-px bg-border" aria-hidden />
+
+      <SpecialCharsMenu editor={editor} />
 
       {extra && <div className="ml-auto">{extra}</div>}
     </div>
@@ -226,28 +281,28 @@ function Toolbar({ editor, extra }: { editor: Editor; extra?: React.ReactNode })
 }
 
 function ToolButton({
-  label,
   title,
   active = false,
   onClick,
   className = "",
+  children,
 }: {
-  label: string;
   title: string;
   active?: boolean;
   onClick: () => void;
   className?: string;
+  children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
       title={title}
       onClick={onClick}
-      className={`min-w-8 rounded px-2 py-1 ${
+      className={`inline-flex min-w-8 items-center justify-center rounded px-2 py-1 ${
         active ? "bg-accent/15 text-accent" : "text-muted hover:bg-panel hover:text-foreground"
       } ${className}`}
     >
-      {label}
+      {children}
     </button>
   );
 }

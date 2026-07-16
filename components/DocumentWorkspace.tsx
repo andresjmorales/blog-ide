@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { Editor } from "@tiptap/core";
 import { DocumentEditor } from "@/components/DocumentEditor";
+import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { splitFrontmatter } from "@/lib/markdown/frontmatter";
 import { isLossy } from "@/lib/markdown/pipeline";
+import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 
 const SAMPLE_DOC = `---
 title: Welcome to BlogIDE
@@ -26,14 +29,56 @@ markdown source toggle in the top right.
 
 type Mode = "wysiwyg" | "source";
 
-export function DocumentWorkspace() {
+type Props = {
+  onDeletedFootnotesChange: (deleted: DeletedFootnote[]) => void;
+  registerDeletedActions: (actions: {
+    restore: (id: string) => void;
+    dismiss: (id: string) => void;
+  }) => void;
+};
+
+export function DocumentWorkspace({
+  onDeletedFootnotesChange,
+  registerDeletedActions,
+}: Props) {
   // Full document = held frontmatter + editable body (spec §4.1).
-  const [{ frontmatter, body }, setDoc] = useState(() => splitFrontmatter(SAMPLE_DOC));
+  const [{ frontmatter, body }, setDoc] = useState(() =>
+    splitFrontmatter(SAMPLE_DOC)
+  );
   const [mode, setMode] = useState<Mode>("wysiwyg");
   // Source view edits the whole file, frontmatter included.
   const [sourceText, setSourceText] = useState("");
   const [lossyWarning, setLossyWarning] = useState(false);
-  const [sidenotes, setSidenotes] = useState(false);
+  const editorRef = useRef<Editor | null>(null);
+  const { prefs, updatePrefs } = useEditorPrefs();
+
+  const restoreDeletedFootnote = useCallback((id: string) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.chain().focus("end").restoreDeletedFootnote(id).run();
+  }, []);
+
+  const dismissDeletedFootnote = useCallback((id: string) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.commands.dismissDeletedFootnote(id);
+  }, []);
+
+  useEffect(() => {
+    registerDeletedActions({
+      restore: restoreDeletedFootnote,
+      dismiss: dismissDeletedFootnote,
+    });
+  }, [
+    registerDeletedActions,
+    restoreDeletedFootnote,
+    dismissDeletedFootnote,
+  ]);
+
+  // Clear the Files-panel list while source view has no live editor.
+  useEffect(() => {
+    if (mode === "source") onDeletedFootnotesChange([]);
+  }, [mode, onDeletedFootnotesChange]);
 
   function toSource() {
     setSourceText(frontmatter + body);
@@ -127,15 +172,16 @@ export function DocumentWorkspace() {
     <DocumentEditor
       markdown={body}
       onChange={(md) => setDoc({ frontmatter, body: md })}
-      sidenotes={sidenotes}
+      onDeletedFootnotesChange={onDeletedFootnotesChange}
+      editorRef={editorRef}
       toolbarExtra={
         <span className="flex items-center gap-1">
           <button
             type="button"
-            onClick={() => setSidenotes((shown) => !shown)}
-            aria-pressed={sidenotes}
+            onClick={() => updatePrefs({ sidenotes: !prefs.sidenotes })}
+            aria-pressed={prefs.sidenotes}
             className={`hidden rounded border border-border px-2.5 py-1 text-xs md:inline-block ${
-              sidenotes
+              prefs.sidenotes
                 ? "bg-accent/15 text-accent"
                 : "text-muted hover:bg-panel hover:text-foreground"
             }`}

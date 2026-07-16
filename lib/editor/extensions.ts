@@ -3,6 +3,8 @@ import Image from "@tiptap/extension-image";
 import { Markdown } from "@tiptap/markdown";
 import { Extension, type AnyExtension, type JSONContent } from "@tiptap/core";
 import { FootnoteRef } from "@/lib/editor/footnote";
+import { FootnoteDeletionTracker } from "@/lib/editor/footnoteDeletion";
+import { LinkShortcut } from "@/lib/editor/linkShortcut";
 
 /**
  * Spec §5.1: unknown constructs on parse are preserved as literal text —
@@ -51,6 +53,8 @@ export function createExtensions(): AnyExtension[] {
     }),
     Image,
     FootnoteRef,
+    FootnoteDeletionTracker,
+    LinkShortcut,
     Markdown,
     preserveAsLiteralText("table"),
     preserveAsLiteralText("def"),

@@ -6,6 +6,11 @@ import {
   encodeFootnoteValue,
   type OrphanFootnote,
 } from "@/lib/editor/footnote";
+import {
+  appendDeletedFootnotesTrailer,
+  stripDeletedFootnotesTrailer,
+  type DeletedFootnote,
+} from "@/lib/markdown/deletedFootnotes";
 import { splitFrontmatter } from "./frontmatter";
 
 /**
@@ -82,11 +87,13 @@ function prepareFootnotes(body: string): PreparedFootnotes {
 
 /** Parse a markdown body (frontmatter already removed) into TipTap JSON. */
 export function parseBody(body: string): JSONContent {
-  const prepared = prepareFootnotes(body);
+  const { body: withoutTrailer, deleted } = stripDeletedFootnotesTrailer(body);
+  const prepared = prepareFootnotes(withoutTrailer);
   const doc = getManager().parse(prepared.markdown);
   doc.attrs = {
     ...doc.attrs,
     orphanFootnotes: prepared.orphans,
+    deletedFootnotes: deleted,
   };
   return doc;
 }
@@ -111,11 +118,16 @@ export function serializeBody(doc: JSONContent): string {
     ? (doc.attrs.orphanFootnotes as OrphanFootnote[])
     : [];
   const footer = [...definitions, ...orphans.map((orphan) => orphan.raw)];
+  const withFooter =
+    footer.length === 0
+      ? body
+      : `${body.trimEnd()}\n\n${footer.join("\n")}`;
 
-  if (footer.length === 0) {
-    return body;
-  }
-  return `${body.trimEnd()}\n\n${footer.join("\n")}`;
+  const deleted = Array.isArray(doc.attrs?.deletedFootnotes)
+    ? (doc.attrs.deletedFootnotes as DeletedFootnote[])
+    : [];
+
+  return appendDeletedFootnotesTrailer(withFooter, deleted);
 }
 
 /**

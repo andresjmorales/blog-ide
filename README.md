@@ -16,36 +16,49 @@ Documents remain in-memory until the revised M3. Images, persistence, and the AI
 
 ## Stack
 
-- Next.js (App Router) + TypeScript + Tailwind CSS
-- Supabase Postgres — auth, workspace tree, markdown documents, settings, and quota accounting *(milestone 3)*
-- Supabase Storage — binary assets in private per-user paths *(milestone 3)*
-- IndexedDB — instant local autosave layer *(milestone 3)*
-- GitHub — optional one-way backup/export; never required for onboarding
-- Anthropic API, bring-your-own-key — AI sidebar *(milestone 6)*
+Next.js, TypeScript, Tailwind CSS, TipTap, Supabase, and IndexedDB. GitHub
+backup and the Anthropic assistant are optional integrations. See
+[ARCHITECTURE.md](./ARCHITECTURE.md) for boundaries, persistence, quota, and
+the repository map.
 
 ## Getting started
 
-### 1. Create a Supabase project
+### 1. Create / open a Supabase project
 
-1. Create a free project at [supabase.com](https://supabase.com).
-2. In the SQL editor, run [`supabase/schema.sql`](./supabase/schema.sql). This creates `beta_codes`, `user_settings`, and `doc_index` with row-level security.
-3. Seed at least one beta code:
+Use any Supabase project you control (hosted or self-hosted).
+
+1. In the Supabase dashboard **SQL Editor**, run [`supabase/schema.sql`](./supabase/schema.sql).
+2. Seed a beta access code (pick any string you want):
 
 ```sql
 insert into beta_codes (code) values ('YOUR-CODE-HERE');
 ```
 
-### 2. Configure environment
+You can insert more codes the same way. Codes are single-use: once redeemed at signup they are marked with `redeemed_by` / `redeemed_at`.
+3. Under **Project Settings → API**, copy:
+   - Project URL
+   - legacy `anon` / `public` key
+   - legacy `service_role` key (server-only — never put this in client code or commit it)
+4. Under **Authentication → URL Configuration**, set the Site URL to
+   `http://localhost:3000` for local work. Add your production URL before deploying.
+
+### 2. Configure the environment
 
 ```bash
 cp .env.example .env.local
 ```
 
-Fill in from your Supabase project's API settings:
+Edit `.env.local` (this file is gitignored — keep secrets here, not in the README):
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` — server-only; used exclusively by the signup route to redeem beta codes. Never exposed to the client.
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
+
+`SUPABASE_SERVICE_ROLE_KEY` is used only by the signup API route to redeem beta codes. Never expose it to the browser.
+
+Add the same three variables in Vercel (or your host) when deploying.
 
 ### 3. Run
 
@@ -54,49 +67,23 @@ npm install
 npm run dev
 ```
 
-Run the round-trip test suite (spec §5.1 — every editor feature must survive
-`serialize(parse(fixture)) === fixture`):
+Open http://localhost:3000 → **Sign up** → enter your beta code from step 1 → create an account.
 
 ```bash
-npm test
+npm test   # round-trip suite (spec §5.1)
 ```
 
-Open http://localhost:3000, enter your beta code, and sign up.
-
-> Without real Supabase credentials (fresh clone / placeholder values), the app runs in an unauthenticated **preview mode**: auth is skipped and `/editor` shows the shell directly, so you can explore the layout before setting anything up.
+> Without real Supabase credentials (fresh clone / placeholder values in `.env.local`), the app runs in an unauthenticated **preview mode**: auth is skipped and `/editor` shows the shell directly.
 
 ## Security notes
 
-- The optional GitHub PAT and Anthropic API key (later milestones) are stored client-side only (IndexedDB, per device) and never sent to the server or Supabase. For the v1 single-user threat model they are stored unencrypted; a WebCrypto passphrase option is a planned nice-to-have (spec §8).
-- Each user has a hard 200 MB combined quota across markdown content and Supabase Storage assets. Authoritative usage accounting will be enforced server-side in M3.
-- `beta_codes` has no client RLS policies — redemption only happens through the server signup route with the service-role key.
-- All other tables enforce `user_id = auth.uid()` row-level security.
+See [SECURITY.md](./SECURITY.md). Setup, testing, and pull-request guidance
+live in [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-## Self-hosting
+## Support
 
-BlogIDE is a standard Next.js app; the hosted instance is just a deployment of this repo.
-
-```bash
-npm run build
-npm start
-```
-
-Deploy to Vercel or any Node host. Supply the three environment variables above. A `docker-compose` example is planned alongside later milestones.
-
-## Project layout
-
-```
-app/                # routes: landing, login, signup, editor, API
-components/         # client components (forms, app shell, editor, workspace)
-lib/editor/         # shared TipTap extension set (spec §5.1 node set)
-lib/markdown/       # parse/serialize pipeline + frontmatter preservation
-lib/supabase/       # browser / server / admin (service-role) clients
-lib/settings.ts     # editor prefs persistence (localStorage + user_settings)
-supabase/schema.sql # database schema + RLS policies
-tests/              # round-trip fixture suite (vitest)
-public/sw.js        # PWA service worker (app-shell caching)
-.local/blogide-spec.md # full technical specification
-```
+If BlogIDE is useful, you can support development through
+[Buy Me a Coffee](https://buymeacoffee.com/andresjmorales).
 
 ## License
 

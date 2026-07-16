@@ -1,19 +1,24 @@
 import { Node, mergeAttributes, type JSONContent } from "@tiptap/core";
+import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 
 export type OrphanFootnote = {
   label: string;
   raw: string;
 };
 
+export type { DeletedFootnote };
+
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
     footnoteRef: {
       insertFootnote: (content?: string) => ReturnType;
+      restoreDeletedFootnote: (id: string) => ReturnType;
+      dismissDeletedFootnote: (id: string) => ReturnType;
     };
   }
 }
 
-function createFootnoteId(): string {
+export function createFootnoteId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
@@ -65,6 +70,10 @@ export const FootnoteRef = Node.create({
             default: [] as OrphanFootnote[],
             rendered: false,
           },
+          deletedFootnotes: {
+            default: [] as DeletedFootnote[],
+            rendered: false,
+          },
         },
       },
     ];
@@ -95,6 +104,51 @@ export const FootnoteRef = Node.create({
             type: this.name,
             attrs: { id: createFootnoteId(), content },
           }),
+
+      restoreDeletedFootnote:
+        (id: string) =>
+        ({ state, dispatch }) => {
+          const list = Array.isArray(state.doc.attrs.deletedFootnotes)
+            ? (state.doc.attrs.deletedFootnotes as DeletedFootnote[])
+            : [];
+          const entry = list.find((item) => item.id === id);
+          if (!entry) return false;
+          if (dispatch) {
+            const node = state.schema.nodes.footnoteRef.create({
+              id: entry.id,
+              content: entry.content,
+            });
+            const tr = state.tr
+              .replaceSelectionWith(node)
+              .setMeta("blogide-skip-footnote-delete", true)
+              .setDocAttribute(
+                "deletedFootnotes",
+                list.filter((item) => item.id !== id)
+              );
+            dispatch(tr.scrollIntoView());
+          }
+          return true;
+        },
+
+      dismissDeletedFootnote:
+        (id: string) =>
+        ({ state, tr, dispatch }) => {
+          const list = Array.isArray(state.doc.attrs.deletedFootnotes)
+            ? (state.doc.attrs.deletedFootnotes as DeletedFootnote[])
+            : [];
+          if (!list.some((item) => item.id === id)) return false;
+          if (dispatch) {
+            dispatch(
+              tr
+                .setMeta("blogide-skip-footnote-delete", true)
+                .setDocAttribute(
+                  "deletedFootnotes",
+                  list.filter((item) => item.id !== id)
+                )
+            );
+          }
+          return true;
+        },
     };
   },
 
