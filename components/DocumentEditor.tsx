@@ -13,11 +13,16 @@ import { createExtensions } from "@/lib/editor/extensions";
 import { parseBody, serializeBody } from "@/lib/markdown/pipeline";
 import { withoutFootnoteDeletionTracking } from "@/lib/editor/footnoteDeletion";
 import { FootnoteNodeView } from "@/components/FootnoteNodeView";
-import { promptForLink } from "@/lib/editor/linkShortcut";
+import {
+  promptForLink,
+  setLinkPromptHandler,
+} from "@/lib/editor/linkShortcut";
 import { ItalicIcon, LinkIcon } from "@/components/icons";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { useStickySidenotes } from "@/components/useStickySidenotes";
+import { useAppDialog } from "@/components/AppDialog";
+import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 
 type Props = {
@@ -28,6 +33,8 @@ type Props = {
   editorRef?: React.MutableRefObject<Editor | null>;
   /** Rendered right-aligned in the toolbar row (e.g. the source toggle). */
   toolbarExtra?: React.ReactNode;
+  /** Effective spellcheck language tags for this essay. */
+  spellcheckLanguages?: string[];
 };
 
 function withFootnoteNodeView(extension: AnyExtension): AnyExtension {
@@ -45,12 +52,20 @@ export function DocumentEditor({
   onDeletedFootnotesChange,
   editorRef,
   toolbarExtra,
+  spellcheckLanguages = [],
 }: Props) {
   const { prefs } = useEditorPrefs();
+  const dialog = useAppDialog();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
   const stickyEnabled =
     prefs.sidenotes && prefs.sidenoteLayout === "sticky";
+  const spellcheckOn = prefs.spellcheckEnabled;
+  const lang = primaryLang(
+    spellcheckLanguages.length > 0
+      ? spellcheckLanguages
+      : prefs.spellcheckLanguages
+  );
 
   useStickySidenotes(scrollEl, stickyEnabled);
 
@@ -66,12 +81,33 @@ export function DocumentEditor({
       attributes: {
         class: "editor-prose outline-none min-h-[60vh]",
         "aria-label": "Document editor",
+        spellcheck: spellcheckOn ? "true" : "false",
+        lang,
       },
     },
     onUpdate: ({ editor }) => {
       onChange(serializeBody(editor.getJSON()));
     },
   });
+
+  useEffect(() => {
+    setLinkPromptHandler(async (previous) =>
+      dialog.prompt({
+        title: "Link URL",
+        message: "Leave blank to remove an existing link.",
+        defaultValue: previous ?? "https://",
+        confirmLabel: "Apply",
+      })
+    );
+    return () => setLinkPromptHandler(null);
+  }, [dialog]);
+
+  useEffect(() => {
+    if (!editor) return;
+    const dom = editor.view.dom as HTMLElement;
+    dom.setAttribute("spellcheck", spellcheckOn ? "true" : "false");
+    dom.setAttribute("lang", lang);
+  }, [editor, spellcheckOn, lang]);
 
   useEffect(() => {
     if (editorRef) editorRef.current = editor;
@@ -114,7 +150,7 @@ export function DocumentEditor({
       <div
         ref={(node) => {
           scrollRef.current = node;
-          setScrollEl(node);
+          setScrollEl((current) => (current === node ? current : node));
         }}
         className={`flex-1 overflow-y-auto ${
           prefs.sidenotes ? "show-sidenotes" : ""
@@ -133,6 +169,7 @@ export function DocumentEditor({
 }
 
 function Toolbar({ editor, extra }: { editor: Editor; extra?: React.ReactNode }) {
+  const dialog = useAppDialog();
   const state = useEditorState({
     editor,
     selector: ({ editor }) => ({
@@ -149,13 +186,21 @@ function Toolbar({ editor, extra }: { editor: Editor; extra?: React.ReactNode })
     }),
   });
 
-  function insertImage() {
-    const src = window.prompt(
-      "Image path or URL (upload pipeline arrives in milestone 5)",
-      "assets/"
-    );
+  async function insertImage() {
+    const src = await dialog.prompt({
+      title: "Insert image",
+      message: "Path or URL (upload pipeline arrives in milestone 5).",
+      defaultValue: "assets/",
+      confirmLabel: "Next",
+    });
     if (!src) return;
-    const alt = window.prompt("Alt text", "") ?? "";
+    const alt =
+      (await dialog.prompt({
+        title: "Alt text",
+        message: "Optional description for accessibility.",
+        defaultValue: "",
+        confirmLabel: "Insert",
+      })) ?? "";
     editor.chain().focus().setImage({ src, alt }).run();
   }
 
@@ -219,7 +264,9 @@ function Toolbar({ editor, extra }: { editor: Editor; extra?: React.ReactNode })
       <ToolButton
         title="Add or edit link (Ctrl+K)"
         active={state.link}
-        onClick={() => promptForLink(editor)}
+        onClick={() => {
+          void promptForLink(editor);
+        }}
       >
         <LinkIcon />
       </ToolButton>
@@ -268,7 +315,7 @@ function Toolbar({ editor, extra }: { editor: Editor; extra?: React.ReactNode })
         title="Insert footnote (Ctrl+Shift+F)"
         onClick={() => editor.chain().focus().insertFootnote().run()}
       >
-        Fn
+        Footnote
       </ToolButton>
 
       <span className="mx-1.5 h-4 w-px bg-border" aria-hidden />

@@ -15,7 +15,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "BlogIDE",
-  description: "An IDE for essays — long-form writing with footnotes, Git-backed storage, and an AI assistant.",
+  description:
+    "An IDE for essays: a rich WYSIWYG editor meets a second brain, with first-class footnotes, autosave, and optional AI. Markdown-native and local-first.",
   applicationName: "BlogIDE",
   appleWebApp: {
     capable: true,

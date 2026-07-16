@@ -10,9 +10,10 @@ export default function LandingPage() {
         </p>
         <h1 className="text-5xl font-semibold tracking-tight mb-4">BlogIDE</h1>
         <p className="text-lg text-muted mb-10 leading-relaxed">
-          An IDE for essays. Long-form writing with first-class footnotes,
-          Git-backed storage, autosave, and an AI assistant — markdown-native,
-          local-first, and yours to keep.
+          An IDE for essays: a cross between a rich WYSIWYG editor and a second
+          brain, with first-class footnotes, autosave, a project-style
+          workspace, and optional AI. Markdown-native, local-first, and yours
+          to keep.
         </p>
 
         <BetaCodeForm />

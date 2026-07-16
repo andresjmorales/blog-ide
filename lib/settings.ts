@@ -15,6 +15,10 @@ export type EditorPrefs = {
   sidenoteLayout?: SidenoteLayout;
   /** Open the footnote editor card on superscript hover. */
   footnoteOpenOnHover?: boolean;
+  /** Browser spellcheck in the editor (off by default). */
+  spellcheckEnabled?: boolean;
+  /** Default BCP-47 language tags when a document has none set. */
+  spellcheckLanguages?: string[];
 };
 
 export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
@@ -26,6 +30,8 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   sidenotes: true,
   sidenoteLayout: "sticky",
   footnoteOpenOnHover: true,
+  spellcheckEnabled: false,
+  spellcheckLanguages: ["en-US"],
 };
 
 const LOCAL_KEY = "blogide.editorPrefs";

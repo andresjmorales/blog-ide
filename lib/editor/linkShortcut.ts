@@ -1,8 +1,19 @@
 import { Extension, type Editor } from "@tiptap/core";
 
-export function promptForLink(editor: Editor): boolean {
+type LinkPrompt = (previous: string | undefined) => Promise<string | null>;
+
+let linkPrompt: LinkPrompt | null = null;
+
+/** Register async UI for Ctrl+K / toolbar link (BlogIDE dialog). */
+export function setLinkPromptHandler(handler: LinkPrompt | null) {
+  linkPrompt = handler;
+}
+
+export async function promptForLink(editor: Editor): Promise<boolean> {
   const previous = editor.getAttributes("link").href as string | undefined;
-  const url = window.prompt("Link URL", previous ?? "https://");
+  const url = linkPrompt
+    ? await linkPrompt(previous)
+    : window.prompt("Link URL", previous ?? "https://");
   if (url === null) return true;
 
   if (url.trim() === "") {
@@ -24,7 +35,10 @@ export const LinkShortcut = Extension.create({
 
   addKeyboardShortcuts() {
     return {
-      "Mod-k": () => promptForLink(this.editor),
+      "Mod-k": () => {
+        void promptForLink(this.editor);
+        return true;
+      },
     };
   },
 });

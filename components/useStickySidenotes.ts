@@ -16,9 +16,9 @@ export function useStickySidenotes(
     if (!enabled || !scrollRoot) return;
 
     let frame = 0;
+    let applying = false;
 
     function layout() {
-      frame = 0;
       if (!scrollRoot) return;
 
       const nodes = [
@@ -76,18 +76,28 @@ export function useStickySidenotes(
     }
 
     function schedule() {
-      if (frame) return;
-      frame = window.requestAnimationFrame(layout);
+      if (applying || frame) return;
+      frame = window.requestAnimationFrame(() => {
+        applying = true;
+        try {
+          layout();
+        } finally {
+          applying = false;
+          frame = 0;
+        }
+      });
     }
 
     schedule();
     scrollRoot.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
+    // Structural edits only — packing style changes must not re-enter.
     const observer = new MutationObserver(schedule);
     observer.observe(scrollRoot, {
       childList: true,
       subtree: true,
       characterData: true,
+      attributes: false,
     });
 
     return () => {

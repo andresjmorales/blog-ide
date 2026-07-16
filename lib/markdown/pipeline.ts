@@ -153,6 +153,10 @@ export function roundTrip(markdown: string): string {
  * reproduce it — used to warn before switching out of source view (spec §5.1).
  */
 export function isLossy(markdown: string): boolean {
-  const { body } = splitFrontmatter(markdown);
-  return normalize(serializeBody(parseBody(body))) !== normalize(body);
+  return normalize(roundTrip(markdown)) !== normalize(markdown);
+}
+
+/** What the editor would emit after a source → rich-text round trip. */
+export function previewRoundTrip(markdown: string): string {
+  return normalize(roundTrip(markdown));
 }

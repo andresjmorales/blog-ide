@@ -37,17 +37,9 @@ create table if not exists workspace_nodes (
   position integer not null default 0,
   url text,
   pinned boolean not null default false,
-  system_key text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
-
--- Additive for projects created before Trash support.
-alter table workspace_nodes add column if not exists system_key text;
-
-create unique index if not exists workspace_nodes_user_system_key_uidx
-  on workspace_nodes (user_id, system_key)
-  where system_key is not null;
 
 create index if not exists workspace_nodes_user_parent_idx
   on workspace_nodes (user_id, parent_id, position);
@@ -154,7 +146,6 @@ declare
   essays_id uuid;
   drafts_id uuid;
   scratch_id uuid;
-  trash_id uuid;
   scratch_md text := $md$---
 title: Scratchpad
 status: draft
@@ -215,24 +206,12 @@ begin
     );
   end if;
 
-  select id into trash_id
-  from workspace_nodes
-  where user_id = uid and system_key = 'trash'
-  limit 1;
-
-  if trash_id is null then
-    insert into workspace_nodes (user_id, parent_id, kind, name, position, system_key)
-    values (uid, null, 'folder', 'Trash', 100, 'trash')
-    returning id into trash_id;
-  end if;
-
   perform public.recompute_used_bytes(uid);
 
   return jsonb_build_object(
     'essaysId', essays_id,
     'draftsId', drafts_id,
-    'scratchpadId', scratch_id,
-    'trashId', trash_id
+    'scratchpadId', scratch_id
   );
 end;
 $$;
@@ -391,116 +370,5 @@ $$;
 
 revoke all on function public.save_document(uuid, text, bigint) from public;
 grant execute on function public.save_document(uuid, text, bigint) to authenticated;
-
--- Move a node under a new parent (or to workspace root).
-create or replace function public.move_workspace_node(
-  p_node_id uuid,
-  p_parent_id uuid default null
-)
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  uid uuid := auth.uid();
-  node workspace_nodes%rowtype;
-  next_pos integer;
-  walk uuid;
-begin
-  if uid is null then
-    raise exception 'Not authenticated';
-  end if;
-
-  select * into node
-  from workspace_nodes
-  where id = p_node_id and user_id = uid
-  for update;
-
-  if not found then
-    raise exception 'Node not found';
-  end if;
-
-  if node.system_key = 'trash' then
-    raise exception 'Cannot move the Trash folder';
-  end if;
-
-  if p_parent_id is not null then
-    if not exists (
-      select 1 from workspace_nodes
-      where id = p_parent_id and user_id = uid and kind = 'folder'
-    ) then
-      raise exception 'Invalid parent';
-    end if;
-
-    -- Reject cycles: parent cannot be the node or one of its descendants.
-    if p_parent_id = p_node_id then
-      raise exception 'Cannot move a folder into itself';
-    end if;
-
-    walk := p_parent_id;
-    while walk is not null loop
-      if walk = p_node_id then
-        raise exception 'Cannot move a folder into its descendant';
-      end if;
-      select parent_id into walk
-      from workspace_nodes
-      where id = walk and user_id = uid;
-    end loop;
-  end if;
-
-  select coalesce(max(position), -1) + 1 into next_pos
-  from workspace_nodes
-  where user_id = uid and parent_id is not distinct from p_parent_id;
-
-  update workspace_nodes
-  set
-    parent_id = p_parent_id,
-    position = next_pos,
-    updated_at = now()
-  where id = p_node_id and user_id = uid;
-end;
-$$;
-
-revoke all on function public.move_workspace_node(uuid, uuid) from public;
-grant execute on function public.move_workspace_node(uuid, uuid) to authenticated;
-
--- Permanently delete a node (cascades children + documents) and recompute quota.
-create or replace function public.delete_workspace_node(p_node_id uuid)
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  uid uuid := auth.uid();
-  node workspace_nodes%rowtype;
-begin
-  if uid is null then
-    raise exception 'Not authenticated';
-  end if;
-
-  select * into node
-  from workspace_nodes
-  where id = p_node_id and user_id = uid
-  for update;
-
-  if not found then
-    raise exception 'Node not found';
-  end if;
-
-  if node.system_key = 'trash' then
-    raise exception 'Cannot delete the Trash folder';
-  end if;
-
-  delete from workspace_nodes
-  where id = p_node_id and user_id = uid;
-
-  perform public.recompute_used_bytes(uid);
-end;
-$$;
-
-revoke all on function public.delete_workspace_node(uuid) from public;
-grant execute on function public.delete_workspace_node(uuid) to authenticated;
 
 -- Seed example (run manually): insert into beta_codes (code) values ('WRITE-2026');

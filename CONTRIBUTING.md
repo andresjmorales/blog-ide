@@ -8,8 +8,11 @@ well-tested changes that preserve the markdown format are preferred.
 1. Install Node.js 22 and run `npm install`.
 2. Copy `.env.example` to `.env.local`.
 3. To use authentication, create a Supabase project, run
-   `supabase/schema.sql`, and add the project credentials described in the
-   README. Without credentials, the editor runs in preview mode.
+   `supabase/schema.sql` (or `supabase db push` with the CLI), and add the
+   project credentials described in the README. Without credentials, the
+   editor runs in preview mode. Pushes to `main` can apply
+   `supabase/migrations/` automatically when the CI secrets in the README
+   are configured.
 4. Start the app with `npm run dev`.
 
 ## Before submitting a change

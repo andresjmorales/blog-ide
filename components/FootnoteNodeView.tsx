@@ -26,11 +26,14 @@ import {
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
 import { FootnoteSidenote } from "@/components/FootnoteSidenote";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
+import { useAppDialog } from "@/components/AppDialog";
+import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
 
 // ProseMirror may recreate an atom NodeView when its selection changes.
-// Keep transient card visibility keyed by the node's stable ID so that a
-// selection-only remount does not immediately close the editor.
-const openFootnoteIds = new Set<string>();
+// Keep click-/pin-sticky card visibility keyed by the node's stable ID so a
+// selection-only remount does not immediately close the editor. Hover-only
+// previews are intentionally not persisted across remounts.
+const stickyFootnoteIds = new Set<string>();
 const pinnedFootnoteIds = new Set<string>();
 const expandedFootnoteIds = new Set<string>();
 const cardPositions = new Map<string, { left: number; top: number }>();
@@ -44,18 +47,35 @@ export function FootnoteNodeView({
 }: NodeViewProps) {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const footnoteId = String(node.attrs.id ?? "");
-  const [open, setOpen] = useState(() => openFootnoteIds.has(footnoteId));
+  const [open, setOpen] = useState(
+    () =>
+      stickyFootnoteIds.has(footnoteId) || pinnedFootnoteIds.has(footnoteId)
+  );
+  /** Click (or pin/drag) keeps the card open; hover alone does not. */
+  const [sticky, setSticky] = useState(() =>
+    stickyFootnoteIds.has(footnoteId)
+  );
   const [pinned, setPinned] = useState(() =>
     pinnedFootnoteIds.has(footnoteId)
   );
   const [expanded, setExpanded] = useState(() =>
     expandedFootnoteIds.has(footnoteId)
   );
+  const stickyRef = useRef(sticky);
+  const pinnedRef = useRef(pinned);
+  const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragRef = useRef<{
     pointerId: number;
     offsetX: number;
     offsetY: number;
   } | null>(null);
+
+  useEffect(() => {
+    stickyRef.current = sticky;
+  }, [sticky]);
+  useEffect(() => {
+    pinnedRef.current = pinned;
+  }, [pinned]);
   const [cardPosition, setCardPosition] = useState<{
     left?: number;
     top?: number;
@@ -64,6 +84,8 @@ export function FootnoteNodeView({
   // Only user drags are sticky; auto-placement should follow the ref on scroll.
   const hasDraggedPosition = cardPositions.has(footnoteId);
   const { prefs } = useEditorPrefs();
+  const spellcheckOn = prefs.spellcheckEnabled;
+  const spellLang = primaryLang(prefs.spellcheckLanguages);
 
   const number = useEditorState({
     editor: outerEditor,
@@ -103,6 +125,8 @@ export function FootnoteNodeView({
       attributes: {
         class: "footnote-card-editor outline-none",
         "aria-label": `Footnote ${number} content`,
+        spellcheck: spellcheckOn ? "true" : "false",
+        lang: spellLang,
       },
     },
   });
@@ -143,32 +167,64 @@ export function FootnoteNodeView({
   }, [content, noteEditor, updateAttributes]);
 
   const commitAndClose = useCallback(() => {
+    if (hoverCloseTimer.current) {
+      clearTimeout(hoverCloseTimer.current);
+      hoverCloseTimer.current = null;
+    }
     commitContent();
-    openFootnoteIds.delete(footnoteId);
+    stickyFootnoteIds.delete(footnoteId);
     pinnedFootnoteIds.delete(footnoteId);
     expandedFootnoteIds.delete(footnoteId);
     cardPositions.delete(footnoteId);
+    setSticky(false);
     setPinned(false);
     setExpanded(false);
     setCardPosition({});
     setOpen(false);
   }, [commitContent, footnoteId]);
 
+  const cancelHoverClose = useCallback(() => {
+    if (hoverCloseTimer.current) {
+      clearTimeout(hoverCloseTimer.current);
+      hoverCloseTimer.current = null;
+    }
+  }, []);
+
+  const scheduleHoverClose = useCallback(() => {
+    cancelHoverClose();
+    hoverCloseTimer.current = setTimeout(() => {
+      hoverCloseTimer.current = null;
+      // Clicked or pinned cards stay; hover previews dismiss on leave.
+      if (!stickyRef.current && !pinnedRef.current) {
+        commitAndClose();
+      }
+    }, 140);
+  }, [cancelHoverClose, commitAndClose]);
+
   const openCard = useCallback(
-    (options?: { scrollToAnchor?: boolean; focusEditor?: boolean }) => {
+    (options?: {
+      scrollToAnchor?: boolean;
+      focusEditor?: boolean;
+      /** true = click/sidenote; false/omit for hover preview */
+      sticky?: boolean;
+    }) => {
+      cancelHoverClose();
       if (options?.scrollToAnchor) {
         buttonRef.current?.scrollIntoView({
           behavior: "smooth",
           block: "center",
         });
       }
-      openFootnoteIds.add(footnoteId);
+      if (options?.sticky) {
+        stickyFootnoteIds.add(footnoteId);
+        setSticky(true);
+      }
       setOpen(true);
       if (options?.focusEditor !== false) {
         requestAnimationFrame(() => noteEditor?.commands.focus("end"));
       }
     },
-    [footnoteId, noteEditor]
+    [cancelHoverClose, footnoteId, noteEditor]
   );
 
   const togglePinned = useCallback(() => {
@@ -274,6 +330,8 @@ export function FootnoteNodeView({
   }, [commitAndClose, open, outerEditor]);
 
   useEffect(() => {
+    // Pinned cards ignore outside clicks. Hover-only and click-sticky both
+    // dismiss on outside pointer (hover also dismisses on mouse leave).
     if (!open || pinned) return;
     function closeOnOutsidePointer(event: PointerEvent) {
       const targetFootnote =
@@ -290,6 +348,12 @@ export function FootnoteNodeView({
     return () =>
       document.removeEventListener("pointerdown", closeOnOutsidePointer);
   }, [commitAndClose, footnoteId, open, pinned]);
+
+  useEffect(() => {
+    return () => {
+      if (hoverCloseTimer.current) clearTimeout(hoverCloseTimer.current);
+    };
+  }, []);
 
   const beginDrag = useCallback(
     (event: React.PointerEvent<HTMLElement>) => {
@@ -360,9 +424,14 @@ export function FootnoteNodeView({
         aria-label={`Edit footnote ${number}`}
         aria-expanded={open}
         onMouseEnter={() => {
-          if (prefs.footnoteOpenOnHover) openCard({ focusEditor: false });
+          if (prefs.footnoteOpenOnHover) {
+            openCard({ focusEditor: false, sticky: false });
+          }
         }}
-        onClick={() => openCard()}
+        onMouseLeave={() => {
+          if (prefs.footnoteOpenOnHover) scheduleHoverClose();
+        }}
+        onClick={() => openCard({ sticky: true })}
         contentEditable={false}
       >
         {number}
@@ -371,8 +440,12 @@ export function FootnoteNodeView({
       <FootnoteSidenote
         number={number}
         markdown={content}
-        onNumberClick={() => openCard({ scrollToAnchor: true })}
-        onBodyClick={() => openCard({ scrollToAnchor: false })}
+        onNumberClick={() =>
+          openCard({ scrollToAnchor: true, sticky: true })
+        }
+        onBodyClick={() =>
+          openCard({ scrollToAnchor: false, sticky: true })
+        }
       />
 
       {open &&
@@ -385,9 +458,21 @@ export function FootnoteNodeView({
             data-footnote-id={footnoteId}
             contentEditable={false}
             style={{ left: cardPosition.left, top: cardPosition.top }}
+            onMouseEnter={cancelHoverClose}
+            onMouseLeave={() => {
+              if (prefs.footnoteOpenOnHover) scheduleHoverClose();
+            }}
+            onPointerDown={() => {
+              // Interacting with the card counts as engaging it.
+              stickyFootnoteIds.add(footnoteId);
+              setSticky(true);
+            }}
           >
             <span className="footnote-card-heading">
               <span className="footnote-card-title">
+                <span>Footnote {number}</span>
+              </span>
+              <span className="footnote-card-actions">
                 <button
                   type="button"
                   className="footnote-grab"
@@ -400,9 +485,6 @@ export function FootnoteNodeView({
                 >
                   <GrabHandle />
                 </button>
-                <span>Footnote {number}</span>
-              </span>
-              <span className="footnote-card-actions">
                 <button
                   type="button"
                   onClick={togglePinned}
@@ -450,6 +532,7 @@ function FootnoteToolbar({
   expanded: boolean;
   onToggleExpanded: () => void;
 }) {
+  const dialog = useAppDialog();
   const state = useEditorState({
     editor,
     selector: ({ editor }) => ({
@@ -465,13 +548,21 @@ function FootnoteToolbar({
     }),
   });
 
-  function insertImage() {
-    const src = window.prompt(
-      "Image path or URL (upload pipeline arrives in milestone 5)",
-      "assets/"
-    );
+  async function insertImage() {
+    const src = await dialog.prompt({
+      title: "Insert image",
+      message: "Path or URL (upload pipeline arrives in milestone 5).",
+      defaultValue: "assets/",
+      confirmLabel: "Next",
+    });
     if (!src) return;
-    const alt = window.prompt("Alt text", "") ?? "";
+    const alt =
+      (await dialog.prompt({
+        title: "Alt text",
+        message: "Optional description for accessibility.",
+        defaultValue: "",
+        confirmLabel: "Insert",
+      })) ?? "";
     editor.chain().focus().setImage({ src, alt }).run();
   }
 
@@ -496,7 +587,9 @@ function FootnoteToolbar({
       <FootnoteToolButton
         title="Add or edit link (Ctrl+K)"
         active={state.link}
-        onClick={() => promptForLink(editor)}
+        onClick={() => {
+          void promptForLink(editor);
+        }}
       >
         <LinkIcon />
       </FootnoteToolButton>

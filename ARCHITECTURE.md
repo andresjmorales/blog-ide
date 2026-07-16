@@ -77,8 +77,12 @@ app/                  Routes, metadata, API handlers, and global styles
 components/           App shell and interactive editor components
 lib/editor/           TipTap extensions and editor commands
 lib/markdown/         Parse/serialize and frontmatter pipeline
+lib/db/               IndexedDB working copy
+lib/sync/             Autosave / Supabase sync engine
+lib/workspace/        Workspace tree + document RPC clients
 lib/supabase/         Browser, server, and service-role clients
-supabase/schema.sql   Current database bootstrap and RLS
+supabase/schema.sql   Database bootstrap, RLS, and RPCs
+supabase/migrations/  Timestamped copies for db push workflows
 tests/                Round-trip and focused behavior tests
 .local/               Product specification and internal roadmap
 ```

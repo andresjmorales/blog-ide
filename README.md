@@ -1,18 +1,19 @@
 # BlogIDE
 
-An IDE for essays — a browser-based writing environment for long-form writing with first-class footnotes, a project-explorer-style knowledge workspace, autosave, and an AI assistant sidebar. Markdown-native, local-first, MIT licensed, self-hostable by design.
+An IDE for writing blogs and essays: a cross between a rich WYSIWYG editor and a second brain,
+with first-class footnotes, autosave, a project-style workspace, and optional
+AI. Markdown-native, local-first, MIT licensed, and self-hostable by design.
 
 Full design: [`.local/blogide-spec.md`](./.local/blogide-spec.md).
 
 ## Status
 
-Milestone 2 of 6 (see spec §13):
-
 - **M1 — Shell & auth**: Supabase auth with beta-code gate, settings storage, three-panel layout, PWA manifest.
 - **M2 — Editor & round-trip**: TipTap editor with the full §5.1 node set, bidirectional markdown serialization, source-view toggle with lossy-parse warning, round-trip fixture test suite.
-- **M4 — Footnotes**: first-class inline references, nested footnote editor, GFM serialization, and sidenote view. Implemented before persistence.
+- **M3 — Persistence (core)**: workspace tree in Supabase, IndexedDB autosave, optimistic sync with conflict copies, 200 MB quota accounting. GitHub backup and Storage assets still deferred.
+- **M4 — Footnotes**: first-class inline references, nested footnote editor, GFM serialization, and sidenote view.
 
-Documents remain in-memory until the revised M3. Images, persistence, and the AI sidebar land in later milestones.
+Images pipeline and the AI sidebar land in later milestones.
 
 ## Stack
 
@@ -27,20 +28,21 @@ the repository map.
 
 Use any Supabase project you control (hosted or self-hosted).
 
-1. In the Supabase dashboard **SQL Editor**, run [`supabase/schema.sql`](./supabase/schema.sql).
+1. In the Supabase dashboard **SQL Editor**, run the full [`supabase/schema.sql`](./supabase/schema.sql) (or the matching file under `supabase/migrations/`).  
+   **Existing projects:** re-run this file after pulling schema updates — it is additive (`IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`) and creates `workspace_nodes`, `documents`, quota columns, Trash (`system_key`), and move/delete RPCs.
 2. Seed a beta access code (pick any string you want):
 
 ```sql
 insert into beta_codes (code) values ('YOUR-CODE-HERE');
 ```
 
-You can insert more codes the same way. Codes are single-use: once redeemed at signup they are marked with `redeemed_by` / `redeemed_at`.
+Codes are single-use: once redeemed at signup they are marked with `redeemed_by` / `redeemed_at`.
 3. Under **Project Settings → API**, copy:
    - Project URL
-   - legacy `anon` / `public` key
-   - legacy `service_role` key (server-only — never put this in client code or commit it)
+   - **Publishable** key (or legacy `anon`) for the browser
+   - **Secret** key (or legacy `service_role`) for the server only — never put this in client code or commit it
 4. Under **Authentication → URL Configuration**, set the Site URL to
-   `http://localhost:3000` for local work. Add your production URL before deploying.
+   `http://localhost:3000` for local work. Add your production URL (e.g. `https://blogide.com`) before deploying, plus matching Redirect URLs.
 
 ### 2. Configure the environment
 
@@ -48,17 +50,29 @@ You can insert more codes the same way. Codes are single-use: once redeemed at s
 cp .env.example .env.local
 ```
 
-Edit `.env.local` (this file is gitignored — keep secrets here, not in the README):
+Edit `.env.local` (gitignored — keep secrets here, not in the README):
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-or-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-secret-or-service-role-key
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` is used only by the signup API route to redeem beta codes. Never expose it to the browser.
+`SUPABASE_SERVICE_ROLE_KEY` is used only by the signup API route to redeem beta codes.
 
-Add the same three variables in Vercel (or your host) when deploying.
+Add the same three variables in Vercel (Production + Preview as needed) and **redeploy** after saving.
+
+### CI migrations (optional)
+
+On every push to `main`, CI can apply new files under [`supabase/migrations/`](./supabase/migrations/) with `supabase db push` after tests pass. Add these **GitHub repository secrets** (Settings → Secrets and variables → Actions):
+
+| Secret | Where to get it |
+| --- | --- |
+| `SUPABASE_ACCESS_TOKEN` | [Account → Access Tokens](https://supabase.com/dashboard/account/tokens) |
+| `SUPABASE_PROJECT_ID` | Project Settings → General → Reference ID |
+| `SUPABASE_DB_PASSWORD` | Project Settings → Database → Database password |
+
+Without those secrets the migrate job skips (tests still run). First-time projects should still run [`supabase/schema.sql`](./supabase/schema.sql) once (or let the migration history catch up via `db push`).
 
 ### 3. Run
 
@@ -67,13 +81,14 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000 → **Sign up** → enter your beta code from step 1 → create an account.
+Open http://localhost:3000 → **Sign up** → enter your beta code → create an account.  
+On first editor load, BlogIDE bootstraps `essays/`, `drafts/`, and pinned `scratchpad.md`. Edits save to IndexedDB immediately and sync to Supabase.
 
 ```bash
 npm test   # round-trip suite (spec §5.1)
 ```
 
-> Without real Supabase credentials (fresh clone / placeholder values in `.env.local`), the app runs in an unauthenticated **preview mode**: auth is skipped and `/editor` shows the shell directly.
+> Without real Supabase credentials, the app runs in an unauthenticated **preview mode**: auth is skipped and `/editor` shows the shell without cloud sync.
 
 ## Security notes
 

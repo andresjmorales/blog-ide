@@ -3,13 +3,24 @@
 import { useEffect } from "react";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import type { SidenoteLayout } from "@/lib/settings";
+import { SPELLCHECK_LANGUAGE_OPTIONS } from "@/lib/markdown/spellcheckFrontmatter";
 
 type Props = {
   open: boolean;
   onClose: () => void;
+  /** Languages for the open essay (frontmatter). */
+  documentLanguages?: string[];
+  onDocumentLanguagesChange?: (languages: string[]) => void;
+  hasOpenDocument?: boolean;
 };
 
-export function SettingsPanel({ open, onClose }: Props) {
+export function SettingsPanel({
+  open,
+  onClose,
+  documentLanguages = [],
+  onDocumentLanguagesChange,
+  hasOpenDocument = false,
+}: Props) {
   const { prefs, updatePrefs } = useEditorPrefs();
 
   useEffect(() => {
@@ -22,6 +33,30 @@ export function SettingsPanel({ open, onClose }: Props) {
   }, [open, onClose]);
 
   if (!open) return null;
+
+  const defaultLangs = prefs.spellcheckLanguages;
+
+  function toggleDefaultLang(code: string) {
+    const next = defaultLangs.includes(code)
+      ? defaultLangs.filter((item) => item !== code)
+      : [...defaultLangs, code];
+    updatePrefs({
+      spellcheckLanguages: next.length > 0 ? next : ["en-US"],
+    });
+  }
+
+  function toggleDocumentLang(code: string) {
+    if (!onDocumentLanguagesChange) return;
+    const base =
+      documentLanguages.length > 0 ? documentLanguages : defaultLangs;
+    const next = base.includes(code)
+      ? base.filter((item) => item !== code)
+      : [...base, code];
+    onDocumentLanguagesChange(next.length > 0 ? next : [...defaultLangs]);
+  }
+
+  const essayLangs =
+    documentLanguages.length > 0 ? documentLanguages : defaultLangs;
 
   return (
     <div className="settings-overlay" role="presentation">
@@ -89,6 +124,56 @@ export function SettingsPanel({ open, onClose }: Props) {
               }
             />
           </label>
+          <label className="settings-row">
+            <span>Spell check</span>
+            <input
+              type="checkbox"
+              checked={prefs.spellcheckEnabled}
+              onChange={(event) =>
+                updatePrefs({ spellcheckEnabled: event.target.checked })
+              }
+            />
+          </label>
+          {prefs.spellcheckEnabled && (
+            <>
+              <p className="settings-help">
+                Uses the browser dictionary. Pick default languages for new
+                essays; override per open document below.
+              </p>
+              <p className="mb-1.5 text-xs text-muted">Default languages</p>
+              <div className="spellcheck-langs mb-3">
+                {SPELLCHECK_LANGUAGE_OPTIONS.map((option) => (
+                  <label key={option.code}>
+                    <input
+                      type="checkbox"
+                      checked={defaultLangs.includes(option.code)}
+                      onChange={() => toggleDefaultLang(option.code)}
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
+              {hasOpenDocument && onDocumentLanguagesChange && (
+                <>
+                  <p className="mb-1.5 text-xs text-muted">
+                    Languages for this essay
+                  </p>
+                  <div className="spellcheck-langs">
+                    {SPELLCHECK_LANGUAGE_OPTIONS.map((option) => (
+                      <label key={option.code}>
+                        <input
+                          type="checkbox"
+                          checked={essayLangs.includes(option.code)}
+                          onChange={() => toggleDocumentLang(option.code)}
+                        />
+                        {option.label}
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )}
         </section>
 
         <section className="settings-section">

@@ -22,7 +22,30 @@ import { SettingsPanel } from "@/components/SettingsPanel";
 import { EditorPrefsProvider } from "@/components/EditorPrefsContext";
 import { DocumentSessionProvider } from "@/components/DocumentSessionContext";
 import { DeletedFootnotesPanel } from "@/components/DeletedFootnotesPanel";
+import { FileExplorer } from "@/components/FileExplorer";
+import { AppDialogProvider, useAppDialog } from "@/components/AppDialog";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { deleteLocalDoc } from "@/lib/db/indexed";
+import {
+  createWorkspaceNode,
+  deleteWorkspaceNode,
+  ensureDefaultWorkspace,
+  listWorkspaceNodes,
+  moveWorkspaceNode,
+} from "@/lib/workspace/api";
+import {
+  documentIdsInSubtree,
+  getTrashNode,
+  isScratchpad,
+} from "@/lib/workspace/tree";
+import type { WorkspaceNode } from "@/lib/workspace/types";
+import {
+  formatSyncLabel,
+  getSyncStatus,
+  subscribeSyncStatus,
+  type SyncStatus,
+} from "@/lib/sync/engine";
 
 const MIN_PANEL = 180;
 const MAX_PANEL = 480;
@@ -38,16 +61,28 @@ function useHydrated() {
   );
 }
 
+function useSyncStatusLabel() {
+  const [status, setStatus] = useState<SyncStatus>(getSyncStatus);
+  useEffect(() => subscribeSyncStatus(setStatus), []);
+  return { status, label: formatSyncLabel(status) };
+}
+
 export function AppShell({ userEmail }: { userEmail: string }) {
+  return (
+    <AppDialogProvider>
+      <AppShellContent userEmail={userEmail} />
+    </AppDialogProvider>
+  );
+}
+
+function AppShellContent({ userEmail }: { userEmail: string }) {
   const router = useRouter();
+  const previewMode = !isSupabaseConfigured() || userEmail === "not signed in";
   const [storedPrefs, setPrefs] = useState(() =>
     mergePrefs(typeof window === "undefined" ? {} : loadLocalPrefs())
   );
   const hydrated = useHydrated();
-  // Render defaults until hydration completes so server and client markup match.
-  const prefs = hydrated
-    ? storedPrefs
-    : mergePrefs({});
+  const prefs = hydrated ? storedPrefs : mergePrefs({});
   const dragging = useRef<"left" | "right" | null>(null);
   const prefsRef = useRef(storedPrefs);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -56,6 +91,18 @@ export function AppShell({ userEmail }: { userEmail: string }) {
   );
   const restoreRef = useRef<(id: string) => void>(() => {});
   const dismissRef = useRef<(id: string) => void>(() => {});
+
+  const [nodes, setNodes] = useState<WorkspaceNode[]>([]);
+  const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
+  const [treeLoading, setTreeLoading] = useState(false);
+  const [treeError, setTreeError] = useState<string | null>(null);
+  const [docSpellLangs, setDocSpellLangs] = useState<string[]>([]);
+  const [hasOpenDocument, setHasOpenDocument] = useState(false);
+  const setDocSpellLangsHandler = useRef<(languages: string[]) => void>(
+    () => {}
+  );
+  const { status: syncStatus, label: syncLabel } = useSyncStatusLabel();
+  const dialog = useAppDialog();
 
   useEffect(() => {
     prefsRef.current = storedPrefs;
@@ -80,6 +127,25 @@ export function AppShell({ userEmail }: { userEmail: string }) {
     []
   );
 
+  const handleDocumentSpellcheckChange = useCallback(
+    (meta: {
+      languages: string[];
+      setLanguages: (languages: string[]) => void;
+      hasDocument: boolean;
+    }) => {
+      setDocSpellLangsHandler.current = meta.setLanguages;
+      setDocSpellLangs((current) =>
+        current.join(",") === meta.languages.join(",")
+          ? current
+          : meta.languages
+      );
+      setHasOpenDocument((current) =>
+        current === meta.hasDocument ? current : meta.hasDocument
+      );
+    },
+    []
+  );
+
   const sessionValue = useMemo(
     () => ({
       deletedFootnotes,
@@ -88,6 +154,50 @@ export function AppShell({ userEmail }: { userEmail: string }) {
     }),
     [deletedFootnotes]
   );
+
+  const refreshTree = useCallback(async () => {
+    if (previewMode) return;
+    try {
+      const list = await listWorkspaceNodes();
+      setNodes(list);
+      setTreeError(null);
+    } catch (error) {
+      setTreeError(
+        error instanceof Error ? error.message : "Could not load files."
+      );
+    }
+  }, [previewMode]);
+
+  useEffect(() => {
+    if (previewMode) return;
+
+    let cancelled = false;
+    async function boot() {
+      setTreeLoading(true);
+      try {
+        const ids = await ensureDefaultWorkspace();
+        const list = await listWorkspaceNodes();
+        if (cancelled) return;
+        setNodes(list);
+        setActiveNodeId((current) => current ?? ids.scratchpadId);
+        setTreeError(null);
+      } catch (error) {
+        if (cancelled) return;
+        setTreeError(
+          error instanceof Error
+            ? error.message
+            : "Could not bootstrap workspace. Did you run supabase/schema.sql?"
+        );
+      } finally {
+        if (!cancelled) setTreeLoading(false);
+      }
+    }
+
+    void boot();
+    return () => {
+      cancelled = true;
+    };
+  }, [previewMode]);
 
   useEffect(() => {
     function onMove(e: PointerEvent) {
@@ -132,6 +242,115 @@ export function AppShell({ userEmail }: { userEmail: string }) {
     router.refresh();
   }
 
+  async function handleNewDocument(parentId: string | null) {
+    if (previewMode) return;
+    const name = await dialog.prompt({
+      title: "New document",
+      message: "Name for the markdown file.",
+      defaultValue: "untitled.md",
+      confirmLabel: "Create",
+    });
+    if (!name) return;
+    const fileName = name.endsWith(".md") ? name : `${name}.md`;
+    try {
+      const id = await createWorkspaceNode({
+        kind: "document",
+        name: fileName,
+        parentId,
+        markdown: `---\ntitle: ${fileName.replace(/\.md$/i, "")}\nstatus: draft\n---\n\n# ${fileName.replace(/\.md$/i, "")}\n\n`,
+      });
+      await refreshTree();
+      setActiveNodeId(id);
+    } catch (error) {
+      setTreeError(
+        error instanceof Error ? error.message : "Could not create document."
+      );
+    }
+  }
+
+  async function handleNewFolder(parentId: string | null) {
+    if (previewMode) return;
+    const name = await dialog.prompt({
+      title: "New folder",
+      message: "Folder name in the workspace tree.",
+      defaultValue: "notes",
+      confirmLabel: "Create",
+    });
+    if (!name) return;
+    try {
+      await createWorkspaceNode({
+        kind: "folder",
+        name,
+        parentId,
+      });
+      await refreshTree();
+    } catch (error) {
+      setTreeError(
+        error instanceof Error ? error.message : "Could not create folder."
+      );
+    }
+  }
+
+  async function handleMoveTo(nodeId: string, parentId: string | null) {
+    if (previewMode) return;
+    try {
+      await moveWorkspaceNode(nodeId, parentId);
+      await refreshTree();
+    } catch (error) {
+      setTreeError(
+        error instanceof Error ? error.message : "Could not move item."
+      );
+    }
+  }
+
+  async function handleMoveToTrash(nodeId: string) {
+    if (previewMode) return;
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node || isScratchpad(node) || node.system_key === "trash") return;
+    const trash = getTrashNode(nodes);
+    if (!trash) {
+      setTreeError("Trash folder is missing. Re-run supabase/schema.sql.");
+      return;
+    }
+    await handleMoveTo(nodeId, trash.id);
+  }
+
+  async function handleRestore(nodeId: string, parentId: string | null) {
+    await handleMoveTo(nodeId, parentId);
+  }
+
+  async function handleDeleteForever(nodeId: string) {
+    if (previewMode) return;
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node || isScratchpad(node) || node.system_key === "trash") return;
+
+    const label =
+      node.kind === "folder" ? `${node.name}/ and its contents` : node.name;
+    const ok = await dialog.confirm({
+      title: "Delete permanently?",
+      message: `“${label}” will be removed forever. This cannot be undone.`,
+      confirmLabel: "Delete forever",
+      danger: true,
+    });
+    if (!ok) return;
+
+    const docIds = documentIdsInSubtree(nodeId, nodes);
+    try {
+      await deleteWorkspaceNode(nodeId);
+      await Promise.all(docIds.map((id) => deleteLocalDoc(id)));
+      if (activeNodeId && docIds.includes(activeNodeId)) {
+        setActiveNodeId(null);
+      } else if (activeNodeId === nodeId) {
+        setActiveNodeId(null);
+      }
+      await refreshTree();
+    } catch (error) {
+      setTreeError(
+        error instanceof Error ? error.message : "Could not delete item."
+      );
+    }
+  }
+
   return (
     <EditorPrefsProvider prefs={prefs} updatePrefs={update}>
       <DocumentSessionProvider value={sessionValue}>
@@ -150,8 +369,13 @@ export function AppShell({ userEmail }: { userEmail: string }) {
               </span>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted">
-              <span className="hidden sm:inline">
-                Saved locally · not yet synced
+              <span
+                className={`hidden sm:inline ${
+                  syncStatus.error ? "text-red-600 dark:text-red-400" : ""
+                }`}
+                title={syncStatus.error ?? syncStatus.message ?? undefined}
+              >
+                {previewMode ? "Preview mode · not synced" : syncLabel}
               </span>
               <span className="hidden md:inline">·</span>
               <span className="hidden md:inline">{userEmail}</span>
@@ -165,12 +389,14 @@ export function AppShell({ userEmail }: { userEmail: string }) {
               >
                 <SettingsIcon />
               </button>
-              <button
-                onClick={signOut}
-                className="rounded px-2 py-1 hover:bg-panel hover:text-foreground"
-              >
-                Sign out
-              </button>
+              {!previewMode && (
+                <button
+                  onClick={signOut}
+                  className="rounded px-2 py-1 hover:bg-panel hover:text-foreground"
+                >
+                  Sign out
+                </button>
+              )}
               <button
                 onClick={() => update({ rightOpen: !prefs.rightOpen })}
                 title="Toggle right panel"
@@ -181,6 +407,24 @@ export function AppShell({ userEmail }: { userEmail: string }) {
             </div>
           </header>
 
+          {syncStatus.message && (
+            <div
+              role="status"
+              className="flex flex-wrap items-center gap-3 border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm"
+            >
+              <span>{syncStatus.message}</span>
+              {syncStatus.conflictCopyId && (
+                <button
+                  type="button"
+                  className="rounded border border-border px-2 py-0.5 text-xs hover:bg-panel"
+                  onClick={() => setActiveNodeId(syncStatus.conflictCopyId)}
+                >
+                  Open conflict copy
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-1 min-h-0">
             {prefs.leftOpen && (
               <>
@@ -188,26 +432,44 @@ export function AppShell({ userEmail }: { userEmail: string }) {
                   style={{ width: prefs.leftWidth }}
                   className="shrink-0 border-r border-border bg-panel/60 overflow-y-auto hidden md:block"
                 >
-                  <div className="p-3">
-                    <p className="text-xs font-mono uppercase tracking-wider text-muted mb-3">
-                      Files
-                    </p>
-                    <ul className="space-y-0.5 text-sm">
-                      <li className="rounded px-2 py-1.5 bg-panel font-medium">
-                        scratchpad.md
-                        <span className="ml-2 text-[10px] font-mono uppercase text-muted">
-                          pinned
-                        </span>
-                      </li>
-                      <li className="px-2 py-1.5 text-muted">essays/</li>
-                      <li className="px-2 py-1.5 text-muted">drafts/</li>
-                    </ul>
-                    <DeletedFootnotesPanel />
-                    <p className="mt-6 text-xs text-muted leading-relaxed">
-                      Your Supabase workspace tree arrives in milestone 3.
-                      GitHub backup will be optional.
-                    </p>
-                  </div>
+                  {previewMode ? (
+                    <div className="p-3">
+                      <p className="text-xs font-mono uppercase tracking-wider text-muted mb-3">
+                        Files
+                      </p>
+                      <ul className="space-y-0.5 text-sm">
+                        <li className="rounded px-2 py-1.5 bg-panel font-medium">
+                          scratchpad.md
+                          <span className="ml-2 text-[10px] font-mono uppercase text-muted">
+                            preview
+                          </span>
+                        </li>
+                      </ul>
+                      <p className="mt-6 text-xs text-muted leading-relaxed">
+                        Connect Supabase and sign in to persist your workspace
+                        tree.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <FileExplorer
+                        nodes={nodes}
+                        activeNodeId={activeNodeId}
+                        onOpen={setActiveNodeId}
+                        onNewDocument={handleNewDocument}
+                        onNewFolder={handleNewFolder}
+                        onMoveToTrash={handleMoveToTrash}
+                        onRestore={handleRestore}
+                        onMoveTo={handleMoveTo}
+                        onDeleteForever={handleDeleteForever}
+                        loading={treeLoading}
+                        error={treeError}
+                      />
+                      <div className="px-3 pb-3">
+                        <DeletedFootnotesPanel />
+                      </div>
+                    </>
+                  )}
                 </aside>
                 <div
                   onPointerDown={() => startDrag("left")}
@@ -218,8 +480,12 @@ export function AppShell({ userEmail }: { userEmail: string }) {
 
             <main className="flex-1 min-w-0 min-h-0">
               <DocumentWorkspace
+                nodeId={previewMode ? null : activeNodeId}
+                previewMode={previewMode}
                 onDeletedFootnotesChange={setDeletedFootnotes}
                 registerDeletedActions={registerDeletedActions}
+                onRequestTreeRefresh={refreshTree}
+                onDocumentSpellcheckChange={handleDocumentSpellcheckChange}
               />
             </main>
 
@@ -270,6 +536,11 @@ export function AppShell({ userEmail }: { userEmail: string }) {
           <SettingsPanel
             open={settingsOpen}
             onClose={() => setSettingsOpen(false)}
+            hasOpenDocument={hasOpenDocument}
+            documentLanguages={docSpellLangs}
+            onDocumentLanguagesChange={(languages) =>
+              setDocSpellLangsHandler.current(languages)
+            }
           />
         </div>
       </DocumentSessionProvider>

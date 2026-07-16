@@ -33,6 +33,17 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error("signup: SUPABASE_SERVICE_ROLE_KEY is not set");
+    return NextResponse.json(
+      {
+        error:
+          "Server is missing SUPABASE_SERVICE_ROLE_KEY. Add the Secret (or legacy service_role) key in Vercel env vars and redeploy.",
+      },
+      { status: 500 }
+    );
+  }
+
   const admin = createAdminClient();
 
   const { data: code, error: codeError } = await admin
@@ -42,7 +53,16 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (codeError) {
-    return NextResponse.json({ error: "Could not verify beta code." }, { status: 500 });
+    // This path is almost always a wrong/missing service-role key, or schema
+    // not applied on the project the URL points at — not a bad beta code.
+    console.error("signup: beta_codes lookup failed", codeError);
+    return NextResponse.json(
+      {
+        error:
+          "Could not verify beta code (database lookup failed). Check that SUPABASE_SERVICE_ROLE_KEY is the Secret/service_role key for the same project as NEXT_PUBLIC_SUPABASE_URL, and that schema.sql has been run.",
+      },
+      { status: 500 }
+    );
   }
   if (!code || code.redeemed_by) {
     return NextResponse.json(
