@@ -23,13 +23,6 @@ export function EssaySettingsPanel({
   onDocumentLanguagesChange,
   canEditTitle = true,
 }: Props) {
-  const { prefs } = useEditorPrefs();
-  const [draftTitle, setDraftTitle] = useState(title);
-
-  useEffect(() => {
-    if (open) setDraftTitle(title);
-  }, [open, title]);
-
   useEffect(() => {
     if (!open) return;
     function onKeyDown(event: KeyboardEvent) {
@@ -40,6 +33,38 @@ export function EssaySettingsPanel({
   }, [open, onClose]);
 
   if (!open) return null;
+
+  // Remount when opened so the draft resets from `title` without an effect.
+  return (
+    <EssaySettingsDialog
+      key={title}
+      title={title}
+      onClose={onClose}
+      onTitleChange={onTitleChange}
+      documentLanguages={documentLanguages}
+      onDocumentLanguagesChange={onDocumentLanguagesChange}
+      canEditTitle={canEditTitle}
+    />
+  );
+}
+
+function EssaySettingsDialog({
+  title,
+  onClose,
+  onTitleChange,
+  documentLanguages,
+  onDocumentLanguagesChange,
+  canEditTitle,
+}: {
+  title: string;
+  onClose: () => void;
+  onTitleChange: (title: string) => void;
+  documentLanguages: string[];
+  onDocumentLanguagesChange: (languages: string[]) => void;
+  canEditTitle: boolean;
+}) {
+  const { prefs } = useEditorPrefs();
+  const [draftTitle, setDraftTitle] = useState(title);
 
   const defaultLangs = prefs.spellcheckLanguages;
   const essayLangs =

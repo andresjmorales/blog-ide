@@ -31,15 +31,13 @@ export function UserMenu({
   onSignOut,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const [theme, setThemeState] = useState<ThemeMode>("light");
+  const [theme, setThemeState] = useState<ThemeMode>(() =>
+    typeof document !== "undefined" ? getTheme() : "light"
+  );
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
   const initials = initialsFromName(displayName, email);
   const label = displayName.trim() || email || "Account";
-
-  useEffect(() => {
-    setThemeState(getTheme());
-  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -66,7 +64,10 @@ export function UserMenu({
         aria-expanded={open}
         aria-controls={menuId}
         title={label}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setThemeState(getTheme());
+          setOpen((v) => !v);
+        }}
       >
         <span aria-hidden>{initials}</span>
         <span className="sr-only">Account menu</span>

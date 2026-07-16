@@ -78,6 +78,8 @@ export function DocumentWorkspace({
   const [titleDraft, setTitleDraft] = useState(
     () => normalizeEssayTitle(SAMPLE_DOC).title
   );
+  const [titleFocused, setTitleFocused] = useState(false);
+  const documentNameRef = useRef(documentName);
   const [mode, setMode] = useState<Mode>("wysiwyg");
   const [sourceText, setSourceText] = useState("");
   const [lossyWarning, setLossyWarning] = useState(false);
@@ -107,14 +109,19 @@ export function DocumentWorkspace({
   }, [onRenameDocument]);
 
   useEffect(() => {
+    documentNameRef.current = documentName;
+  }, [documentName]);
+
+  useEffect(() => {
     baseVersionRef.current = baseVersion;
   }, [baseVersion]);
 
   useEffect(() => {
     nodeIdRef.current = nodeId;
-    // Seed so opening a doc doesn't look like an external rename.
+    // Seed with this render's name so a newly opened doc isn't treated as a rename.
     prevDocumentNameRef.current = documentName;
-  }, [nodeId]); // eslint-disable-line react-hooks/exhaustive-deps -- only on document switch
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when switching documents
+  }, [nodeId]);
 
   const restoreDeletedFootnote = useCallback((id: string) => {
     const editor = editorRef.current;
@@ -169,7 +176,7 @@ export function DocumentWorkspace({
         if (cancelled) return;
         const normalized = normalizeEssayTitle(
           opened.markdown,
-          documentName
+          documentNameRef.current
         );
         setDoc({
           frontmatter: normalized.frontmatter,
@@ -264,19 +271,23 @@ export function DocumentWorkspace({
   }, [persistMarkdown]);
 
   // External rename (Files panel) → update frontmatter title.
+  // Queue the write so we don't setState synchronously inside the effect body.
   useEffect(() => {
     if (!documentName || syncingNameRef.current) return;
     if (prevDocumentNameRef.current === documentName) return;
     prevDocumentNameRef.current = documentName;
     const fromFile = fileNameToTitle(documentName);
-    setDoc((prev) => {
-      const current = parseTitle(prev.frontmatter);
-      if (current === fromFile) return prev;
-      const nextFrontmatter = writeTitle(prev.frontmatter, fromFile);
-      const next = { frontmatter: nextFrontmatter, body: prev.body };
-      persistMarkdownRef.current(nextFrontmatter + next.body);
-      return next;
-    });
+    const timer = window.setTimeout(() => {
+      setDoc((prev) => {
+        const current = parseTitle(prev.frontmatter);
+        if (current === fromFile) return prev;
+        const nextFrontmatter = writeTitle(prev.frontmatter, fromFile);
+        const next = { frontmatter: nextFrontmatter, body: prev.body };
+        persistMarkdownRef.current(nextFrontmatter + next.body);
+        return next;
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [documentName]);
 
   const setDocumentLanguages = useCallback((languages: string[]) => {
@@ -319,11 +330,6 @@ export function DocumentWorkspace({
     [persistEnabled, nodeId, canRenameDocument, documentName]
   );
 
-  // Keep the Title field in sync when the file is renamed externally.
-  useEffect(() => {
-    setTitleDraft(essayTitle);
-  }, [essayTitle, nodeId]);
-
   function commitTitleField(focusBody = false) {
     const next = titleDraft.trim() || "Untitled";
     if (next !== essayTitle) {
@@ -331,6 +337,7 @@ export function DocumentWorkspace({
     } else {
       setTitleDraft(next);
     }
+    setTitleFocused(false);
     if (focusBody) {
       requestAnimationFrame(() => {
         editorRef.current?.commands.focus("start");
@@ -338,10 +345,18 @@ export function DocumentWorkspace({
     }
   }
 
+  // While focused, show the draft; otherwise show the committed title
+  // (so external renames appear without a syncing effect).
+  const titleFieldValue = titleFocused ? titleDraft : essayTitle;
+
   const titleField = (
     <input
       type="text"
-      value={titleDraft}
+      value={titleFieldValue}
+      onFocus={() => {
+        setTitleFocused(true);
+        setTitleDraft(essayTitle);
+      }}
       onChange={(e) => setTitleDraft(e.target.value)}
       onBlur={() => commitTitleField(false)}
       onKeyDown={(e) => {
