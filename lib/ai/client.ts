@@ -56,3 +56,32 @@ Rules:
 - Turn indented quote-looking paragraphs into markdown blockquotes (> ).
 - Remove leftover footnote navigation chrome ("Jump to footnote", back-ref arrows, etc.).
 - Keep the author's prose otherwise unchanged.`;
+
+/** System prompt when the open essay is attached as chat context. */
+export function essayChatSystem(essayMarkdown: string): string {
+  return `You are helping revise a BlogIDE essay (markdown with optional YAML frontmatter).
+
+Footnotes (important — do not confuse with body prose):
+- BlogIDE uses GFM footnote syntax. In the body, a citation is only a short marker like [^1] or [^2] (inline, usually after a word/sentence). That marker is NOT the note text.
+- The note text lives in definitions at the end of the document, one per line (or block), like:
+  [^1]: This is the footnote content.
+  [^2]: Another note.
+- When reading or critiquing the essay, treat definition lines as asides / endnotes, not as continuation of the main argument. Do not summarize or quote footnote definitions as if they were body paragraphs unless the user asked about the notes.
+- When rewriting the full document, keep markers in the body and matching [^n]: definitions at the end; preserve ids and wording unless the user asked to change the notes. Do not inline footnote text into the main essay.
+
+The user can apply a full revised document back into the editor. When they ask you to rewrite, edit, or return the essay:
+- Return ONLY the complete markdown document (keep frontmatter if present). No preamble or code fences.
+- Otherwise (critique, ideas, questions): answer normally in prose; do not dump the whole essay unless asked.
+
+Current essay:
+---
+${essayMarkdown}
+---`;
+}
+
+/** Strip optional \`\`\`markdown fences from a model reply before Apply. */
+export function unwrapMarkdownReply(text: string): string {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/^```(?:markdown|md)?\r?\n([\s\S]*?)\r?\n```$/i);
+  return fenced ? fenced[1].trim() : trimmed;
+}

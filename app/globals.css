@@ -76,6 +76,46 @@ body {
   margin-top: 0.75em;
 }
 
+/* Compact markdown in the AI chat panel. */
+.ai-chat-prose.editor-prose {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.ai-chat-prose.editor-prose > * + * {
+  margin-top: 0.55em;
+}
+.ai-chat-prose.editor-prose h1,
+.ai-chat-prose.editor-prose h2,
+.ai-chat-prose.editor-prose h3,
+.ai-chat-prose.editor-prose h4 {
+  font-size: 0.9rem;
+  line-height: 1.3;
+  margin: 0.75em 0 0.35em;
+}
+.ai-chat-prose.editor-prose h1:first-child,
+.ai-chat-prose.editor-prose h2:first-child,
+.ai-chat-prose.editor-prose h3:first-child,
+.ai-chat-prose.editor-prose h4:first-child {
+  margin-top: 0;
+}
+.ai-chat-prose.editor-prose p {
+  margin: 0;
+}
+.ai-chat-prose.editor-prose ul,
+.ai-chat-prose.editor-prose ol {
+  margin: 0.35em 0;
+  padding-left: 1.25em;
+}
+.ai-chat-prose.editor-prose pre {
+  font-size: 0.75rem;
+  margin: 0.5em 0;
+  overflow-x: auto;
+  padding: 0.5rem 0.65rem;
+}
+.ai-chat-prose.editor-prose blockquote {
+  margin: 0.5em 0;
+}
+
 /* Substack-style title + optional subtitle (subtitle is body data). */
 .essay-title-block {
   border-bottom: 1px solid var(--border);
@@ -87,14 +127,21 @@ body {
   border: 0;
   color: var(--foreground);
   display: block;
+  field-sizing: content;
   font-size: 2.15rem;
   font-weight: 650;
   letter-spacing: -0.025em;
   line-height: 1.2;
   margin: 0;
+  min-height: 1.2em;
   outline: none;
+  overflow: hidden;
   padding: 0;
+  resize: none;
+  white-space: pre-wrap;
   width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 .essay-subtitle-input {
   background: transparent;
@@ -110,8 +157,23 @@ body {
   padding: 0;
   width: 100%;
 }
+.essay-author-input {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 450;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+  margin: 0.35rem 0 0;
+  outline: none;
+  padding: 0;
+  width: 100%;
+}
 .essay-title-input::placeholder,
-.essay-subtitle-input::placeholder {
+.essay-subtitle-input::placeholder,
+.essay-author-input::placeholder {
   color: var(--muted);
   opacity: 0.65;
 }
@@ -1289,6 +1351,11 @@ body {
 .document-preview-subtitle {
   color: var(--muted);
   font-size: 1rem;
+  margin: 0 0 0.35rem;
+}
+.document-preview-author {
+  color: var(--muted);
+  font-size: 0.9rem;
   margin: 0 0 1.25rem;
 }
 

@@ -25,6 +25,7 @@ import {
   flushSyncQueue,
   openDocument,
   saveLocal,
+  setSyncFocus,
   subscribeSyncStatus,
   syncDocument,
 } from "@/lib/sync/engine";
@@ -45,7 +46,9 @@ import {
   parseSubtitle,
   writeSubtitle,
 } from "@/lib/markdown/subtitle";
+import { parseAuthor, writeAuthor } from "@/lib/markdown/author";
 import { EssaySettingsPanel } from "@/components/EssaySettingsPanel";
+import { EssayTitleBlock } from "@/components/EssayTitleBlock";
 import { convertMarkdownFootnoteLinks } from "@/lib/import/footnotePaste";
 import { getActiveProvider, loadAiKeys } from "@/lib/ai/keys";
 import { chatCompletion, IMPORT_CLEANUP_SYSTEM } from "@/lib/ai/client";
@@ -76,6 +79,7 @@ function unpackDocument(
     subtitle = legacy.subtitle;
     frontmatter = writeSubtitle(frontmatter, subtitle);
   }
+  const author = parseAuthor(frontmatter);
   const changed =
     normalized.changed ||
     frontmatter !== normalized.frontmatter ||
@@ -83,6 +87,7 @@ function unpackDocument(
   return {
     frontmatter,
     subtitle,
+    author,
     body: legacy.body,
     title: normalized.title,
     changed,
@@ -92,9 +97,10 @@ function unpackDocument(
 function packDocument(
   frontmatter: string,
   subtitle: string,
+  author: string,
   body: string
 ): string {
-  return writeSubtitle(frontmatter, subtitle) + body;
+  return writeAuthor(writeSubtitle(frontmatter, subtitle), author) + body;
 }
 
 type Mode = "wysiwyg" | "source";
@@ -114,8 +120,8 @@ type Props = {
   onDocumentLoaded?: (markdown: string) => void;
   onRequestTreeRefresh?: () => void;
   onRenameDocument?: (nodeId: string, fileName: string) => Promise<void>;
-  /** Keep the AI sidebar in sync with the open essay. */
-  onMarkdownForAi?: (markdown: string | null) => void;
+  /** Pull current essay markdown when the AI sidebar sends / cleans. */
+  registerGetMarkdownForAi?: (get: () => string | null) => void;
   registerApplyMarkdown?: (apply: (markdown: string) => void) => void;
   /** Docked under the prose column (between Outline and sidenotes). */
   shellDock?: ReactNode;
@@ -131,26 +137,20 @@ export function DocumentWorkspace({
   onDocumentLoaded,
   onRequestTreeRefresh,
   onRenameDocument,
-  onMarkdownForAi,
+  registerGetMarkdownForAi,
   registerApplyMarkdown,
   shellDock,
 }: Props) {
   const dialog = useAppDialog();
-  const [{ frontmatter, subtitle, body }, setDoc] = useState(() => {
+  const [{ frontmatter, subtitle, author, body }, setDoc] = useState(() => {
     const unpacked = unpackDocument(SAMPLE_DOC);
     return {
       frontmatter: unpacked.frontmatter,
       subtitle: unpacked.subtitle,
+      author: unpacked.author,
       body: unpacked.body,
     };
   });
-  const [titleDraft, setTitleDraft] = useState(
-    () => unpackDocument(SAMPLE_DOC).title
-  );
-  const [titleFocused, setTitleFocused] = useState(false);
-  const [subtitleFocused, setSubtitleFocused] = useState(false);
-  const [subtitleDraft, setSubtitleDraft] = useState("");
-  const subtitleInputRef = useRef<HTMLInputElement | null>(null);
   const documentNameRef = useRef(documentName);
   const [mode, setMode] = useState<Mode>("wysiwyg");
   const [sourceText, setSourceText] = useState("");
@@ -196,6 +196,14 @@ export function DocumentWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when switching documents
   }, [nodeId]);
 
+  // Status bar describes this essay only (inbox/pop-out opens won't clobber it).
+  useEffect(() => {
+    setSyncFocus(nodeId);
+    return () => {
+      setSyncFocus(null);
+    };
+  }, [nodeId]);
+
   const restoreDeletedFootnote = useCallback((id: string) => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -233,9 +241,9 @@ export function DocumentWorkspace({
         setDoc({
           frontmatter: unpacked.frontmatter,
           subtitle: unpacked.subtitle,
+          author: unpacked.author,
           body: unpacked.body,
         });
-        setTitleDraft(unpacked.title);
         setBaseVersion(1);
         setLoadError(null);
         return;
@@ -255,13 +263,14 @@ export function DocumentWorkspace({
         setDoc({
           frontmatter: unpacked.frontmatter,
           subtitle: unpacked.subtitle,
+          author: unpacked.author,
           body: unpacked.body,
         });
-        setTitleDraft(unpacked.title);
         setBaseVersion(opened.baseVersion);
         const packed = packDocument(
           unpacked.frontmatter,
           unpacked.subtitle,
+          unpacked.author,
           unpacked.body
         );
         if (unpacked.changed) {
@@ -348,17 +357,13 @@ export function DocumentWorkspace({
     persistMarkdownRef.current = persistMarkdown;
   }, [persistMarkdown]);
 
-  const packedMarkdown = packDocument(frontmatter, subtitle, body);
-
-  // Keep the AI panel from re-rendering on every keystroke.
-  useEffect(() => {
-    const markdown =
-      mode === "source" ? sourceText || packedMarkdown : packedMarkdown;
-    const timer = window.setTimeout(() => {
-      onMarkdownForAi?.(markdown);
-    }, 400);
-    return () => window.clearTimeout(timer);
-  }, [mode, sourceText, packedMarkdown, onMarkdownForAi]);
+  const getMarkdownForAi = useCallback(() => {
+    flushMarkdownRef.current?.();
+    if (mode === "source") return sourceText || null;
+    const editor = editorRef.current;
+    const nextBody = editor ? serializeBody(editor.getJSON()) : body;
+    return packDocument(frontmatter, subtitle, author, nextBody);
+  }, [mode, sourceText, frontmatter, subtitle, author, body]);
 
   const applyMarkdown = useCallback(
     (markdown: string) => {
@@ -366,20 +371,24 @@ export function DocumentWorkspace({
       const packed = packDocument(
         unpacked.frontmatter,
         unpacked.subtitle,
+        unpacked.author,
         unpacked.body
       );
       setDoc({
         frontmatter: unpacked.frontmatter,
         subtitle: unpacked.subtitle,
+        author: unpacked.author,
         body: unpacked.body,
       });
-      setTitleDraft(unpacked.title);
       if (mode === "source") setSourceText(packed);
       persistMarkdownRef.current(packed);
-      onMarkdownForAi?.(packed);
     },
-    [documentName, mode, onMarkdownForAi]
+    [documentName, mode]
   );
+
+  useEffect(() => {
+    registerGetMarkdownForAi?.(getMarkdownForAi);
+  }, [registerGetMarkdownForAi, getMarkdownForAi]);
 
   useEffect(() => {
     registerApplyMarkdown?.(applyMarkdown);
@@ -387,7 +396,9 @@ export function DocumentWorkspace({
 
   const convertFootnoteLinks = useCallback(async () => {
     const full =
-      mode === "source" ? sourceText : packDocument(frontmatter, subtitle, body);
+      mode === "source"
+        ? sourceText
+        : packDocument(frontmatter, subtitle, author, body);
     const { markdown, converted } = convertMarkdownFootnoteLinks(full);
     if (converted > 0) {
       applyMarkdown(markdown);
@@ -440,6 +451,7 @@ export function DocumentWorkspace({
     sourceText,
     frontmatter,
     subtitle,
+    author,
     body,
     applyMarkdown,
     dialog,
@@ -460,10 +472,16 @@ export function DocumentWorkspace({
         const next = {
           frontmatter: nextFrontmatter,
           subtitle: prev.subtitle,
+          author: prev.author,
           body: prev.body,
         };
         persistMarkdownRef.current(
-          packDocument(next.frontmatter, next.subtitle, next.body)
+          packDocument(
+            next.frontmatter,
+            next.subtitle,
+            next.author,
+            next.body
+          )
         );
         return next;
       });
@@ -480,10 +498,16 @@ export function DocumentWorkspace({
       const next = {
         frontmatter: nextFrontmatter,
         subtitle: current.subtitle,
+        author: current.author,
         body: current.body,
       };
       persistMarkdownRef.current(
-        packDocument(next.frontmatter, next.subtitle, next.body)
+        packDocument(
+          next.frontmatter,
+          next.subtitle,
+          next.author,
+          next.body
+        )
       );
       return next;
     });
@@ -492,16 +516,21 @@ export function DocumentWorkspace({
   const setEssayTitle = useCallback(
     (title: string) => {
       const cleaned = title.trim() || "Untitled";
-      setTitleDraft(cleaned);
       setDoc((current) => {
         const nextFrontmatter = writeTitle(current.frontmatter, cleaned);
         const next = {
           frontmatter: nextFrontmatter,
           subtitle: current.subtitle,
+          author: current.author,
           body: current.body,
         };
         persistMarkdownRef.current(
-          packDocument(next.frontmatter, next.subtitle, next.body)
+          packDocument(
+            next.frontmatter,
+            next.subtitle,
+            next.author,
+            next.body
+          )
         );
         return next;
       });
@@ -523,94 +552,63 @@ export function DocumentWorkspace({
     [persistEnabled, nodeId, canRenameDocument, documentName]
   );
 
-  function commitTitleField(focusNext: "subtitle" | "body" | null = null) {
-    const next = titleDraft.trim() || "Untitled";
-    if (next !== essayTitle) {
-      setEssayTitle(next);
-    } else {
-      setTitleDraft(next);
-    }
-    setTitleFocused(false);
-    if (focusNext === "subtitle") {
-      requestAnimationFrame(() => subtitleInputRef.current?.focus());
-    } else if (focusNext === "body") {
-      requestAnimationFrame(() => {
-        editorRef.current?.commands.focus("start");
-      });
-    }
-  }
-
-  function commitSubtitleField(focusBody = false) {
-    const next = subtitleDraft;
-    setSubtitleFocused(false);
+  const commitSubtitle = useCallback((next: string) => {
     setDoc((current) => {
       if (current.subtitle === next) return current;
       const nextFrontmatter = writeSubtitle(current.frontmatter, next);
       const updated = {
         frontmatter: nextFrontmatter,
         subtitle: next,
+        author: current.author,
         body: current.body,
       };
       persistMarkdownRef.current(
-        packDocument(updated.frontmatter, updated.subtitle, updated.body)
+        packDocument(
+          updated.frontmatter,
+          updated.subtitle,
+          updated.author,
+          updated.body
+        )
       );
       return updated;
     });
-    if (focusBody) {
-      requestAnimationFrame(() => {
-        editorRef.current?.commands.focus("start");
-      });
-    }
-  }
+  }, []);
 
-  // While focused, show the draft; otherwise show the committed title
-  // (so external renames appear without a syncing effect).
-  const titleFieldValue = titleFocused ? titleDraft : essayTitle;
-  const subtitleFieldValue = subtitleFocused ? subtitleDraft : subtitle;
+  const commitAuthor = useCallback((next: string) => {
+    setDoc((current) => {
+      if (current.author === next) return current;
+      const nextFrontmatter = writeAuthor(current.frontmatter, next);
+      const updated = {
+        frontmatter: nextFrontmatter,
+        subtitle: current.subtitle,
+        author: next,
+        body: current.body,
+      };
+      persistMarkdownRef.current(
+        packDocument(
+          updated.frontmatter,
+          updated.subtitle,
+          updated.author,
+          updated.body
+        )
+      );
+      return updated;
+    });
+  }, []);
 
   const titleField = (
-    <div className="essay-title-block">
-      <input
-        type="text"
-        value={titleFieldValue}
-        onFocus={() => {
-          setTitleFocused(true);
-          setTitleDraft(essayTitle);
-        }}
-        onChange={(e) => setTitleDraft(e.target.value)}
-        onBlur={() => commitTitleField(null)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            commitTitleField("subtitle");
-          }
-        }}
-        disabled={!canRenameDocument && Boolean(nodeId) && !previewMode}
-        aria-label="Essay title"
-        placeholder="Title"
-        className="essay-title-input"
-      />
-      <input
-        ref={subtitleInputRef}
-        type="text"
-        value={subtitleFieldValue}
-        onFocus={() => {
-          setSubtitleFocused(true);
-          setSubtitleDraft(subtitle);
-        }}
-        onChange={(e) => setSubtitleDraft(e.target.value)}
-        onBlur={() => commitSubtitleField(false)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            commitSubtitleField(true);
-          }
-        }}
-        aria-label="Essay subtitle"
-        placeholder="Subtitle (optional)"
-        className="essay-subtitle-input"
-      />
-    </div>
+    <EssayTitleBlock
+      title={essayTitle}
+      subtitle={subtitle}
+      author={author}
+      onTitleCommit={setEssayTitle}
+      onSubtitleCommit={commitSubtitle}
+      onAuthorCommit={commitAuthor}
+      onFocusBody={() => {
+        editorRef.current?.commands.focus("start");
+      }}
+      titleDisabled={!canRenameDocument && Boolean(nodeId) && !previewMode}
+    />
   );
 
   // After a conflict resolution, reload the canonical remote into the editor
@@ -631,9 +629,9 @@ export function DocumentWorkspace({
         setDoc({
           frontmatter: unpacked.frontmatter,
           subtitle: unpacked.subtitle,
+          author: unpacked.author,
           body: unpacked.body,
         });
-        setTitleDraft(unpacked.title);
         setBaseVersion(opened.baseVersion);
       });
     });
@@ -670,11 +668,12 @@ export function DocumentWorkspace({
     flushMarkdownRef.current?.();
     const editor = editorRef.current;
     const nextBody = editor ? serializeBody(editor.getJSON()) : body;
-    const packed = packDocument(frontmatter, subtitle, nextBody);
+    const packed = packDocument(frontmatter, subtitle, author, nextBody);
     if (nextBody !== body) {
       setDoc((current) => ({
         frontmatter: current.frontmatter,
         subtitle: current.subtitle,
+        author: current.author,
         body: nextBody,
       }));
     }
@@ -694,12 +693,17 @@ export function DocumentWorkspace({
     setDoc({
       frontmatter: unpacked.frontmatter,
       subtitle: unpacked.subtitle,
+      author: unpacked.author,
       body: unpacked.body,
     });
-    setTitleDraft(unpacked.title);
     setMode("wysiwyg");
     persistMarkdown(
-      packDocument(unpacked.frontmatter, unpacked.subtitle, unpacked.body)
+      packDocument(
+        unpacked.frontmatter,
+        unpacked.subtitle,
+        unpacked.author,
+        unpacked.body
+      )
     );
   }
 
@@ -716,7 +720,7 @@ export function DocumentWorkspace({
     const nextBody = editor ? serializeBody(editor.getJSON()) : body;
     return mode === "source"
       ? sourceText
-      : packDocument(frontmatter, subtitle, nextBody);
+      : packDocument(frontmatter, subtitle, author, nextBody);
   }
 
   async function exportMarkdownFile() {
@@ -983,11 +987,17 @@ export function DocumentWorkspace({
         onChange={(md) => {
           setDoc((current) => {
             persistMarkdownRef.current(
-              packDocument(current.frontmatter, current.subtitle, md)
+              packDocument(
+                current.frontmatter,
+                current.subtitle,
+                current.author,
+                md
+              )
             );
             return {
               frontmatter: current.frontmatter,
               subtitle: current.subtitle,
+              author: current.author,
               body: md,
             };
           });

@@ -4,12 +4,14 @@ import { parseBody } from "@/lib/markdown/pipeline";
 import { splitFrontmatter } from "@/lib/markdown/frontmatter";
 import { parseTitle } from "@/lib/markdown/titleFrontmatter";
 import { parseSubtitle } from "@/lib/markdown/subtitle";
+import { parseAuthor } from "@/lib/markdown/author";
 
 const PREVIEW_EXTENSIONS = createExtensions();
 
 export type PublicationPreview = {
   title: string;
   subtitle: string | null;
+  author: string | null;
   /** Body HTML with numbered footnote refs + endnotes section. */
   bodyHtml: string;
 };
@@ -109,7 +111,8 @@ export function enhancePublicationFootnotes(
 export function buildPublicationPreview(markdown: string): PublicationPreview {
   const { frontmatter, body } = splitFrontmatter(markdown || "");
   const title = parseTitle(frontmatter) || "Untitled";
-  const subtitle = parseSubtitle(frontmatter);
+  const subtitle = parseSubtitle(frontmatter) || null;
+  const author = parseAuthor(frontmatter) || null;
 
   let rawHtml = "";
   try {
@@ -121,6 +124,7 @@ export function buildPublicationPreview(markdown: string): PublicationPreview {
     return {
       title,
       subtitle,
+      author,
       bodyHtml: `<p class="text-muted">Could not render preview.</p>`,
     };
   }
@@ -129,6 +133,7 @@ export function buildPublicationPreview(markdown: string): PublicationPreview {
     return {
       title,
       subtitle,
+      author,
       bodyHtml: `<p class="text-muted">Nothing to preview yet.</p>`,
     };
   }
@@ -144,15 +149,21 @@ export function buildPublicationPreview(markdown: string): PublicationPreview {
   return {
     title,
     subtitle,
+    author,
     bodyHtml: enhancePublicationFootnotes(rawHtml, renderNoteHtml),
   };
 }
 
 /** Full HTML document for opening Preview in a new browser tab. */
 export function buildPublicationDocument(markdown: string): string {
-  const { title, subtitle, bodyHtml } = buildPublicationPreview(markdown);
+  const { title, subtitle, author, bodyHtml } = buildPublicationPreview(
+    markdown
+  );
   const sub = subtitle
     ? `<p class="document-preview-subtitle">${escapeHtml(subtitle)}</p>`
+    : "";
+  const byline = author
+    ? `<p class="document-preview-author">${escapeHtml(author)}</p>`
     : "";
   return `<!DOCTYPE html>
 <html lang="en">
@@ -187,7 +198,10 @@ export function buildPublicationDocument(markdown: string): string {
     font-size: 2rem; font-weight: 650; line-height: 1.2; margin: 0 0 0.35rem;
   }
   .document-preview-subtitle {
-    color: var(--muted); font-size: 1.1rem; margin: 0 0 1.5rem;
+    color: var(--muted); font-size: 1.1rem; margin: 0 0 0.35rem;
+  }
+  .document-preview-author {
+    color: var(--muted); font-size: 0.95rem; margin: 0 0 1.5rem;
   }
   .editor-prose p { margin: 0 0 1em; }
   .editor-prose h2, .editor-prose h3 { margin: 1.6em 0 0.6em; line-height: 1.25; }
@@ -274,6 +288,7 @@ export function buildPublicationDocument(markdown: string): string {
     <article class="document-preview-article editor-prose">
       <h1 class="document-preview-title">${escapeHtml(title)}</h1>
       ${sub}
+      ${byline}
       <div>${bodyHtml}</div>
     </article>
   </div>

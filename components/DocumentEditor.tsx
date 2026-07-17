@@ -119,12 +119,12 @@ export function DocumentEditor({
       },
     },
     onUpdate: ({ editor: current }) => {
-      const next = serializeBody(current.getJSON());
-      lastEmittedRef.current = next;
-      // TipTap already painted; debounce React/persist work so typing stays snappy.
+      // TipTap already painted; defer markdown serialize + React/persist.
       if (emitTimerRef.current) window.clearTimeout(emitTimerRef.current);
       emitTimerRef.current = window.setTimeout(() => {
         emitTimerRef.current = 0;
+        const next = serializeBody(current.getJSON());
+        lastEmittedRef.current = next;
         onChangeRef.current(next);
       }, 160);
     },

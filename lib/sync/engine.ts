@@ -15,6 +15,18 @@ import {
 } from "@/lib/workspace/api";
 
 export type SyncStatus = {
+  /** Document the status bar is describing (editor focus). */
+  focusNodeId: string | null;
+  localSavedAt: string | null;
+  syncedAt: string | null;
+  dirty: boolean;
+  syncing: boolean;
+  error: string | null;
+  conflictCopyId: string | null;
+  message: string | null;
+};
+
+type NodeSyncSlice = {
   localSavedAt: string | null;
   syncedAt: string | null;
   dirty: boolean;
@@ -29,8 +41,12 @@ type StatusListener = (status: SyncStatus) => void;
 const listeners = new Set<StatusListener>();
 /** One in-flight sync per document — overlapping flushes caused false conflicts. */
 const inflight = new Map<string, Promise<void>>();
+/** Per-document sync fields so inbox/pop-out opens don't clobber the badge. */
+const byNode = new Map<string, NodeSyncSlice>();
 
-let status: SyncStatus = {
+let focusNodeId: string | null = null;
+
+const emptySlice = (): NodeSyncSlice => ({
   localSavedAt: null,
   syncedAt: null,
   dirty: false,
@@ -38,20 +54,45 @@ let status: SyncStatus = {
   error: null,
   conflictCopyId: null,
   message: null,
-};
+});
 
-function emit(patch: Partial<SyncStatus>) {
-  status = { ...status, ...patch };
+function sliceFor(nodeId: string): NodeSyncSlice {
+  return byNode.get(nodeId) ?? emptySlice();
+}
+
+function publish() {
+  const slice = focusNodeId ? sliceFor(focusNodeId) : emptySlice();
+  const status: SyncStatus = {
+    focusNodeId,
+    ...slice,
+  };
   for (const listener of listeners) listener(status);
 }
 
+/**
+ * Update sync fields for one document. The header badge only reflects the
+ * focused editor document (see setSyncFocus).
+ */
+function emitFor(nodeId: string, patch: Partial<NodeSyncSlice>) {
+  const next = { ...sliceFor(nodeId), ...patch };
+  byNode.set(nodeId, next);
+  if (focusNodeId === nodeId) publish();
+}
+
+/** Tell the status bar which open essay to describe. */
+export function setSyncFocus(nodeId: string | null) {
+  focusNodeId = nodeId;
+  publish();
+}
+
 export function getSyncStatus(): SyncStatus {
-  return status;
+  const slice = focusNodeId ? sliceFor(focusNodeId) : emptySlice();
+  return { focusNodeId, ...slice };
 }
 
 export function subscribeSyncStatus(listener: StatusListener): () => void {
   listeners.add(listener);
-  listener(status);
+  listener(getSyncStatus());
   return () => listeners.delete(listener);
 }
 
@@ -74,7 +115,7 @@ export async function openDocument(nodeId: string): Promise<OpenedDocument> {
   if (local?.dirty) {
     // Do not clear conflictCopyId / message — openDocument runs after
     // conflict resolution and was wiping the banner instantly.
-    emit({
+    emitFor(nodeId, {
       dirty: true,
       localSavedAt: local.updatedAt,
       error: null,
@@ -97,7 +138,7 @@ export async function openDocument(nodeId: string): Promise<OpenedDocument> {
         baseVersion: Number(remote.version),
       };
       await putLocalDoc(next);
-      emit({
+      emitFor(nodeId, {
         dirty: false,
         localSavedAt: next.updatedAt,
         syncedAt: remote.updated_at,
@@ -113,7 +154,7 @@ export async function openDocument(nodeId: string): Promise<OpenedDocument> {
   }
 
   const fallback = local!;
-  emit({
+  emitFor(nodeId, {
     dirty: fallback.dirty,
     localSavedAt: fallback.updatedAt,
     error: null,
@@ -150,12 +191,13 @@ export async function saveLocal(
     baseVersion: baseVersion || 1,
   });
   await enqueueSync(nodeId, "put");
-  emit({
+  const prev = sliceFor(nodeId);
+  emitFor(nodeId, {
     dirty: true,
     localSavedAt: updatedAt,
     error: null,
     // Keep an existing conflict banner until the user dismisses / opens it.
-    message: status.conflictCopyId ? status.message : null,
+    message: prev.conflictCopyId ? prev.message : null,
   });
 }
 
@@ -189,7 +231,7 @@ async function catchUpToRemote(
     baseVersion: remoteVersion,
   });
   await dequeueSync(nodeId);
-  emit({
+  emitFor(nodeId, {
     syncing: false,
     dirty: false,
     syncedAt: updatedAt,
@@ -242,7 +284,7 @@ async function handleSaveConflict(
   const resolvedRemote = remote?.markdown ?? result.remoteMarkdown;
   const resolvedVersion = Number(remote?.version ?? remoteVersion);
   await catchUpToRemote(nodeId, resolvedRemote, resolvedVersion);
-  emit({
+  emitFor(nodeId, {
     conflictCopyId: copyId,
     message:
       "This document changed in the cloud while syncing. Your local edits were saved as a conflict copy.",
@@ -264,7 +306,7 @@ async function syncDocumentOnce(nodeId: string): Promise<void> {
     return;
   }
 
-  emit({ syncing: true, error: null });
+  emitFor(nodeId, { syncing: true, error: null });
 
   try {
     const result = await saveDocumentRemote(
@@ -285,7 +327,7 @@ async function syncDocumentOnce(nodeId: string): Promise<void> {
           ...after,
           baseVersion: result.version,
         });
-        emit({
+        emitFor(nodeId, {
           syncing: false,
           dirty: true,
           syncedAt: updatedAt,
@@ -305,7 +347,7 @@ async function syncDocumentOnce(nodeId: string): Promise<void> {
           updatedAt,
         });
         await dequeueSync(nodeId);
-        emit({
+        emitFor(nodeId, {
           syncing: false,
           dirty: false,
           syncedAt: updatedAt,
@@ -324,21 +366,21 @@ async function syncDocumentOnce(nodeId: string): Promise<void> {
     }
 
     if (result.reason === "quota") {
-      emit({
+      emitFor(nodeId, {
         syncing: false,
         error: "Cloud sync blocked: storage quota exceeded.",
       });
       return;
     }
 
-    emit({
+    emitFor(nodeId, {
       syncing: false,
       error: `Cloud sync failed (${result.reason}).`,
     });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Cloud sync failed.";
-    emit({ syncing: false, error: message });
+    emitFor(nodeId, { syncing: false, error: message });
   }
 }
 
@@ -364,6 +406,7 @@ export async function flushSyncQueue(): Promise<void> {
 }
 
 export function formatSyncLabel(s: SyncStatus): string {
+  if (!s.focusNodeId) return "Not synced yet";
   if (s.syncing) return "Syncing…";
   if (s.error) return "Sync error";
   if (s.dirty) return "Saved locally · syncing soon";
