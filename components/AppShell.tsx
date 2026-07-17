@@ -8,6 +8,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -82,18 +83,19 @@ function useSyncStatusLabel() {
  * a few hundred ms) never paint a flash of amber.
  */
 function useStableSyncBanner(status: SyncStatus, delayMs = 400) {
-  const [banner, setBanner] = useState<{
+  const [confirmed, setConfirmed] = useState<{
     message: string;
     conflictCopyId: string | null;
   } | null>(null);
 
   useEffect(() => {
+    // Always defer setState (timeout) — sync setState-in-effect trips lint.
     if (!status.message) {
-      setBanner(null);
-      return;
+      const id = window.setTimeout(() => setConfirmed(null), 0);
+      return () => window.clearTimeout(id);
     }
     const id = window.setTimeout(() => {
-      setBanner({
+      setConfirmed({
         message: status.message!,
         conflictCopyId: status.conflictCopyId,
       });
@@ -101,7 +103,13 @@ function useStableSyncBanner(status: SyncStatus, delayMs = 400) {
     return () => window.clearTimeout(id);
   }, [status.message, status.conflictCopyId, delayMs]);
 
-  return banner;
+  // Hide immediately when the source message clears (don't wait on state).
+  if (!status.message) return null;
+  if (!confirmed || confirmed.message !== status.message) return null;
+  return {
+    message: status.message,
+    conflictCopyId: status.conflictCopyId,
+  };
 }
 
 export function AppShell({
@@ -457,7 +465,15 @@ function AppShellContent({
               >
                 <PanelIcon side="left" />
               </button>
-              <span className="text-sm font-semibold tracking-tight">
+              <span className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight">
+                <Image
+                  src="/icons/blogide-logo.png"
+                  alt=""
+                  width={22}
+                  height={22}
+                  className="size-[22px] rounded-[5px]"
+                  priority
+                />
                 BlogIDE
               </span>
             </div>
