@@ -19,6 +19,8 @@ type Props = {
   activeNodeId: string | null;
   onOpen: (nodeId: string) => void;
   onNewDocument: (parentId: string | null) => void;
+  onImportDocument: (parentId: string | null) => void;
+  onPopOutDocument: (nodeId: string) => void;
   onNewFolder: (parentId: string | null) => void;
   onMoveToTrash: (nodeId: string) => void;
   onRestore: (nodeId: string, parentId: string | null) => void;
@@ -57,6 +59,8 @@ export function FileExplorer({
   activeNodeId,
   onOpen,
   onNewDocument,
+  onImportDocument,
+  onPopOutDocument,
   onNewFolder,
   onMoveToTrash,
   onRestore,
@@ -119,12 +123,27 @@ export function FileExplorer({
         },
         {
           kind: "action",
+          id: "import-doc",
+          label: "Import markdown…",
+          onSelect: () => onImportDocument(node.id),
+        },
+        {
+          kind: "action",
           id: "new-folder",
           label: "New folder",
           onSelect: () => onNewFolder(node.id),
         },
         { kind: "separator", id: "sep-new" }
       );
+    }
+
+    if (node.kind === "document" && !inTrash) {
+      items.push({
+        kind: "action",
+        id: "pop-out",
+        label: "Pop out",
+        onSelect: () => onPopOutDocument(node.id),
+      });
     }
 
     if (!isTrashFolder && !scratch) {
@@ -213,19 +232,27 @@ export function FileExplorer({
         <p className="text-xs font-mono uppercase tracking-wider text-muted">
           Files
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             title="New document"
-            className="flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:border-accent hover:text-accent"
+            className="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:border-accent hover:text-accent"
             onClick={() => onNewDocument(null)}
           >
             + Document
           </button>
           <button
             type="button"
+            title="Import a Markdown file as a new document"
+            className="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:border-accent hover:text-accent"
+            onClick={() => onImportDocument(null)}
+          >
+            Import
+          </button>
+          <button
+            type="button"
             title="New folder"
-            className="flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:border-accent hover:text-accent"
+            className="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:border-accent hover:text-accent"
             onClick={() => onNewFolder(null)}
           >
             + Folder
@@ -251,6 +278,7 @@ export function FileExplorer({
             trashId={trashId}
             onOpen={onOpen}
             onNewDocument={onNewDocument}
+            onNewFolder={onNewFolder}
             onContextMenu={openMenu}
           />
         ))}
@@ -287,6 +315,7 @@ export function FileExplorer({
                     trashId={trashId}
                     onOpen={onOpen}
                     onNewDocument={onNewDocument}
+                    onNewFolder={onNewFolder}
                     onContextMenu={openMenu}
                   />
                 ))
@@ -308,6 +337,43 @@ export function FileExplorer({
   );
 }
 
+function DocPlusIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M4 1.5h5.5L13 5v9.5H4V1.5z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
+      <path d="M9.5 1.5V5H13" stroke="currentColor" strokeWidth="1.2" />
+      <path
+        d="M8 8v4M6 10h4"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function FolderPlusIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M1.5 4.5h4l1.5 1.5H14.5v7.5H1.5V4.5z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
+      <path
+        d="M8 8v4M6 10h4"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function TreeNode({
   node,
   nodes,
@@ -316,6 +382,7 @@ function TreeNode({
   trashId,
   onOpen,
   onNewDocument,
+  onNewFolder,
   onContextMenu,
 }: {
   node: WorkspaceNode;
@@ -325,6 +392,7 @@ function TreeNode({
   trashId: string | null;
   onOpen: (nodeId: string) => void;
   onNewDocument: (parentId: string | null) => void;
+  onNewFolder: (parentId: string | null) => void;
   onContextMenu: (e: MouseEvent, node: WorkspaceNode) => void;
 }) {
   // Trash folder is rendered separately; never nest it in the main tree.
@@ -338,22 +406,40 @@ function TreeNode({
     return (
       <li>
         <div
-          className="flex items-center gap-1 rounded px-2 py-1.5 text-muted hover:bg-panel/50"
+          className="explorer-folder-row group flex items-center gap-0.5 rounded px-2 py-1 text-muted hover:bg-panel/50"
           style={{ paddingLeft }}
           onContextMenu={(e) => onContextMenu(e, node)}
         >
-          <span className="min-w-0 flex-1 truncate font-medium">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">
             {displayName(node)}/
           </span>
           {!isInTrash(node.id, nodes, trashId) && (
-            <button
-              type="button"
-              title={`New document in ${node.name}`}
-              className="inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-sm font-medium text-foreground hover:border-accent hover:text-accent"
-              onClick={() => onNewDocument(node.id)}
-            >
-              +
-            </button>
+            <span className="explorer-folder-actions inline-flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+              <button
+                type="button"
+                title={`New document in ${node.name}`}
+                aria-label={`New document in ${node.name}`}
+                className="explorer-icon-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNewDocument(node.id);
+                }}
+              >
+                <DocPlusIcon />
+              </button>
+              <button
+                type="button"
+                title={`New folder in ${node.name}`}
+                aria-label={`New folder in ${node.name}`}
+                className="explorer-icon-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNewFolder(node.id);
+                }}
+              >
+                <FolderPlusIcon />
+              </button>
+            </span>
           )}
         </div>
         {visibleKids.length > 0 && (
@@ -368,6 +454,7 @@ function TreeNode({
                 trashId={trashId}
                 onOpen={onOpen}
                 onNewDocument={onNewDocument}
+                onNewFolder={onNewFolder}
                 onContextMenu={onContextMenu}
               />
             ))}

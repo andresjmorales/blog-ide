@@ -40,6 +40,7 @@ import {
   moveWorkspaceNode,
   renameWorkspaceNode,
 } from "@/lib/workspace/api";
+import { pickMarkdownFile } from "@/lib/export/document";
 import {
   documentIdsInSubtree,
   getTrashNode,
@@ -56,6 +57,9 @@ import {
   subscribeSyncStatus,
   type SyncStatus,
 } from "@/lib/sync/engine";
+import { openPopOut } from "@/lib/pins/popOutStore";
+import { PopOutLayer } from "@/components/pins/PopOutLayer";
+import { DocumentPreview } from "@/components/DocumentPreview";
 
 const MIN_PANEL = 180;
 const MAX_PANEL = 480;
@@ -328,6 +332,39 @@ function AppShellContent({
     }
   }
 
+  function handlePopOutDocument(nodeId: string) {
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node || node.kind !== "document") return;
+    openPopOut(nodeId, fileNameToTitle(node.name));
+  }
+
+  async function handleImportDocument(parentId: string | null) {
+    if (previewMode) return;
+    const picked = await pickMarkdownFile();
+    if (!picked) return;
+    const baseName = picked.name.replace(/\.(md|markdown|txt)$/i, "").trim();
+    const title = baseName || "Imported";
+    const fileName = titleToFileName(title);
+    let markdown = picked.markdown.replace(/^\uFEFF/, "");
+    if (!/^---\s*\n/.test(markdown)) {
+      markdown = `---\ntitle: ${title}\nstatus: draft\n---\n\n${markdown}`;
+    }
+    try {
+      const id = await createWorkspaceNode({
+        kind: "document",
+        name: fileName,
+        parentId,
+        markdown,
+      });
+      await refreshTree();
+      setActiveNodeId(id);
+    } catch (error) {
+      setTreeError(
+        error instanceof Error ? error.message : "Could not import document."
+      );
+    }
+  }
+
   async function handleNewFolder(parentId: string | null) {
     if (previewMode) return;
     const name = await dialog.prompt({
@@ -554,6 +591,8 @@ function AppShellContent({
                         activeNodeId={activeNodeId}
                         onOpen={setActiveNodeId}
                         onNewDocument={handleNewDocument}
+                        onImportDocument={handleImportDocument}
+                        onPopOutDocument={handlePopOutDocument}
                         onNewFolder={handleNewFolder}
                         onMoveToTrash={handleMoveToTrash}
                         onRestore={handleRestore}
@@ -627,13 +666,7 @@ function AppShellContent({
                         onOpenSettings={() => setSettingsOpen(true)}
                       />
                     ) : (
-                      <div className="overflow-y-auto p-4 text-sm text-muted leading-relaxed">
-                        <p>
-                          The publication-style preview arrives in milestone 5 —
-                          rendered through the same remark/rehype pipeline used
-                          for export.
-                        </p>
-                      </div>
+                      <DocumentPreview markdown={aiDocumentMarkdown ?? ""} />
                     )}
                   </div>
                 </aside>
@@ -646,6 +679,7 @@ function AppShellContent({
             onClose={() => setSettingsOpen(false)}
           />
           <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
+          <PopOutLayer onOpenInEditor={setActiveNodeId} />
         </div>
       </DocumentSessionProvider>
     </EditorPrefsProvider>

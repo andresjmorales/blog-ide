@@ -996,3 +996,279 @@ body {
   background: color-mix(in srgb, #d92d20 14%, transparent);
   color: inherit;
 }
+
+.explorer-icon-btn {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  height: 1.4rem;
+  justify-content: center;
+  padding: 0;
+  width: 1.4rem;
+}
+.explorer-icon-btn:hover {
+  border-color: var(--border);
+  color: var(--accent);
+  background: var(--background);
+}
+@media (hover: none) {
+  .explorer-folder-actions {
+    opacity: 1;
+  }
+}
+
+/* Floating pop-out / pin windows (Phase A0) */
+.pinned-surface {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow:
+    0 12px 40px color-mix(in oklab, #000 18%, transparent),
+    0 2px 8px color-mix(in oklab, #000 8%, transparent);
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  min-width: 280px;
+  overflow: hidden;
+  position: fixed;
+}
+.pinned-surface-titlebar {
+  align-items: center;
+  background: color-mix(in oklab, var(--panel) 85%, var(--background));
+  border-bottom: 1px solid var(--border);
+  cursor: grab;
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.5rem;
+  justify-content: space-between;
+  padding: 0.35rem 0.45rem 0.35rem 0.65rem;
+  touch-action: none;
+  user-select: none;
+}
+.pinned-surface-titlebar:active {
+  cursor: grabbing;
+}
+.pinned-surface-title {
+  color: var(--foreground);
+  flex: 1;
+  font-size: 0.75rem;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pinned-surface-actions {
+  align-items: center;
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 0.25rem;
+}
+.pinned-surface-btn,
+.pinned-surface-close {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.3rem;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.68rem;
+  line-height: 1;
+  padding: 0.28rem 0.4rem;
+}
+.pinned-surface-btn:hover,
+.pinned-surface-close:hover {
+  border-color: var(--border);
+  color: var(--foreground);
+}
+.pinned-surface-close {
+  font-size: 1rem;
+  padding: 0.1rem 0.45rem;
+}
+.pinned-surface-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0.85rem 1rem 1.25rem;
+}
+.pinned-surface-resize {
+  bottom: 0;
+  cursor: nwse-resize;
+  height: 14px;
+  position: absolute;
+  right: 0;
+  touch-action: none;
+  width: 14px;
+}
+.pinned-surface-resize::after {
+  border-bottom: 2px solid var(--border);
+  border-right: 2px solid var(--border);
+  bottom: 4px;
+  content: "";
+  height: 8px;
+  position: absolute;
+  right: 4px;
+  width: 8px;
+}
+.popout-prose {
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+.popout-prose .footnote-ref,
+.popout-prose sup {
+  color: var(--accent);
+  font-size: 0.7em;
+}
+.popout-status {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0;
+}
+.popout-error {
+  color: #b42318;
+}
+.popout-empty {
+  color: var(--muted);
+  font-style: italic;
+}
+.popout-fallback {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+}
+
+.link-hover-card {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  box-shadow: 0 8px 28px color-mix(in oklab, #000 16%, transparent);
+  max-width: 20rem;
+  padding: 0.65rem 0.75rem;
+  position: fixed;
+  width: min(20rem, calc(100vw - 16px));
+  z-index: 80;
+}
+.link-hover-site {
+  color: var(--muted);
+  font-size: 0.65rem;
+  margin: 0 0 0.2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.link-hover-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0 0 0.35rem;
+}
+.link-hover-desc,
+.link-hover-meta {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  margin: 0 0 0.5rem;
+}
+.link-hover-error {
+  color: #b42318;
+  font-size: 0.75rem;
+  margin: 0 0 0.5rem;
+}
+.link-hover-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.link-hover-actions a,
+.link-hover-actions button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+  text-decoration: none;
+}
+.link-hover-actions a:hover,
+.link-hover-actions button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.link-pin-body {
+  font-size: 0.8rem;
+}
+.link-pin-image {
+  border-radius: 0.35rem;
+  display: block;
+  margin-bottom: 0.6rem;
+  max-height: 140px;
+  object-fit: cover;
+  width: 100%;
+}
+.link-pin-site {
+  color: var(--muted);
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.25rem;
+  text-transform: uppercase;
+}
+.link-pin-desc {
+  color: var(--muted);
+  line-height: 1.45;
+  margin: 0 0 0.65rem;
+}
+.link-pin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+}
+.link-pin-extract-note {
+  color: var(--muted);
+  font-size: 0.68rem;
+  margin: 0 0 0.35rem;
+}
+.link-pin-extract-text {
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.document-preview-title {
+  font-size: 1.65rem;
+  font-weight: 650;
+  line-height: 1.2;
+  margin: 0 0 0.35rem;
+}
+.document-preview-subtitle {
+  color: var(--muted);
+  font-size: 1rem;
+  margin: 0 0 1.25rem;
+}
+
+.pdf-pin-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.pdf-pin-iframe {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  flex: 1;
+  min-height: 240px;
+  width: 100%;
+}
+.pdf-pin-hint {
+  color: var(--muted);
+  font-size: 0.68rem;
+  margin: 0.4rem 0 0;
+}

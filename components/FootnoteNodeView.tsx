@@ -254,17 +254,46 @@ export function FootnoteNodeView({
     [cancelHoverClose, footnoteId, noteEditor]
   );
 
+  /** Freeze the floating card at its current viewport spot (pin or drag). */
+  const freezeCardPosition = useCallback(() => {
+    setCardPosition((current) => {
+      if (
+        typeof current.left === "number" &&
+        typeof current.top === "number"
+      ) {
+        cardPositions.set(footnoteId, {
+          left: current.left,
+          top: current.top,
+        });
+        return current;
+      }
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return current;
+      const next = {
+        left: Math.max(8, Math.min(window.innerWidth - 360, rect.left)),
+        top: Math.max(8, Math.min(window.innerHeight - 120, rect.bottom + 8)),
+      };
+      cardPositions.set(footnoteId, next);
+      return next;
+    });
+  }, [footnoteId]);
+
   const togglePinned = useCallback(() => {
     setPinned((currentlyPinned) => {
       const next = !currentlyPinned;
       if (next) {
         pinnedFootnoteIds.add(footnoteId);
+        // Snapshot now so scroll handlers stop tracking the superscript.
+        freezeCardPosition();
       } else {
         pinnedFootnoteIds.delete(footnoteId);
+        // Resume follow-the-ref placement after unpin.
+        cardPositions.delete(footnoteId);
+        setCardPosition({});
       }
       return next;
     });
-  }, [footnoteId]);
+  }, [footnoteId, freezeCardPosition]);
 
   const toggleExpanded = useCallback(() => {
     setExpanded((currentlyExpanded) => {
@@ -281,7 +310,8 @@ export function FootnoteNodeView({
   const pinCard = useCallback(() => {
     pinnedFootnoteIds.add(footnoteId);
     setPinned(true);
-  }, [footnoteId]);
+    freezeCardPosition();
+  }, [footnoteId, freezeCardPosition]);
 
   useEffect(() => {
     if (!open) return;
@@ -290,8 +320,8 @@ export function FootnoteNodeView({
         setCardPosition({});
         return;
       }
-      // Keep a user-dragged position; otherwise follow the superscript.
-      if (hasDraggedPosition) return;
+      // Dragged or pinned cards stay put — do not track the ref on scroll.
+      if (hasDraggedPosition || pinnedRef.current) return;
       const rect = buttonRef.current?.getBoundingClientRect();
       if (!rect) return;
       const cardWidth = Math.min(
@@ -349,7 +379,7 @@ export function FootnoteNodeView({
       window.removeEventListener("resize", positionCard);
       window.removeEventListener("scroll", positionCard, true);
     };
-  }, [open, expanded, hasDraggedPosition]);
+  }, [open, expanded, hasDraggedPosition, pinned]);
 
   useEffect(() => {
     if (!open) return;

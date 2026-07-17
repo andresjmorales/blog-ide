@@ -23,10 +23,18 @@ import { DocumentOutline } from "@/components/DocumentOutline";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { SidenoteRail } from "@/components/SidenoteRail";
 import { DeletedFootnotesPanel } from "@/components/DeletedFootnotesPanel";
+import { LinkHoverCard } from "@/components/editor/LinkHoverCard";
 import { useAppDialog } from "@/components/AppDialog";
 import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 import { transformPastedFootnoteHtml } from "@/lib/import/footnotePaste";
+import {
+  compressImageFile,
+  pickImageFile,
+  pickPdfFile,
+} from "@/lib/assets/imagePipeline";
+import { uploadUserAsset } from "@/lib/assets/upload";
+import { openPdfPin } from "@/lib/pins/pinStore";
 
 type Props = {
   /** Markdown body (frontmatter already stripped by the caller). */
@@ -249,6 +257,7 @@ export function DocumentEditor({
           {railEnabled && editor && (
             <SidenoteRail editor={editor} scrollRoot={scrollEl} />
           )}
+          <LinkHoverCard editor={editor} />
         </div>
       </div>
     </div>
@@ -282,12 +291,47 @@ function Toolbar({
   });
 
   async function insertImage() {
-    const src = await dialog.prompt({
+    const choice = await dialog.confirm({
       title: "Insert image",
-      message: "Path or URL (upload pipeline arrives in milestone 5).",
-      defaultValue: "assets/",
-      confirmLabel: "Next",
+      message: "Upload and compress a local image, or paste a URL instead?",
+      confirmLabel: "Upload file",
+      cancelLabel: "Use URL",
     });
+
+    let src: string | null = null;
+    if (choice) {
+      const file = await pickImageFile();
+      if (!file) return;
+      try {
+        const compressed = await compressImageFile(file);
+        try {
+          const ext = compressed.mime === "image/webp" ? "webp" : "jpg";
+          src = await uploadUserAsset(
+            compressed.blob,
+            file.name.replace(/\.\w+$/, "") + `.${ext}`
+          );
+        } catch {
+          // Storage optional — fall back to a data URL for local use.
+          src = await blobToDataUrl(compressed.blob);
+        }
+      } catch (err) {
+        await dialog.confirm({
+          title: "Image failed",
+          message:
+            err instanceof Error ? err.message : "Could not process image.",
+          confirmLabel: "OK",
+          cancelLabel: "Close",
+        });
+        return;
+      }
+    } else {
+      src = await dialog.prompt({
+        title: "Image URL",
+        message: "Path or URL for the image.",
+        defaultValue: "https://",
+        confirmLabel: "Next",
+      });
+    }
     if (!src) return;
     const alt =
       (await dialog.prompt({
@@ -297,6 +341,17 @@ function Toolbar({
         confirmLabel: "Insert",
       })) ?? "";
     editor.chain().focus().setImage({ src, alt }).run();
+  }
+
+  async function pinPdf() {
+    const file = await pickPdfFile();
+    if (!file) return;
+    const src = URL.createObjectURL(file);
+    openPdfPin({
+      src,
+      title: file.name.replace(/\.pdf$/i, "") || "PDF",
+      revokeOnClose: true,
+    });
   }
 
   return (
@@ -403,8 +458,14 @@ function Toolbar({
       >
         —
       </ToolButton>
-      <ToolButton title="Insert image" onClick={insertImage}>
+      <ToolButton title="Insert image" onClick={() => void insertImage()}>
         <ImageIcon />
+      </ToolButton>
+      <ToolButton
+        title="Pin a PDF to scroll and copy from while writing"
+        onClick={() => void pinPdf()}
+      >
+        PDF
       </ToolButton>
       <ToolButton
         title="Insert footnote (Ctrl+Shift+F)"
@@ -429,6 +490,15 @@ function Toolbar({
       {extra && <div className="ml-auto">{extra}</div>}
     </div>
   );
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
 }
 
 function ToolButton({
