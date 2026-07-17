@@ -141,8 +141,10 @@ export function FootnoteNodeView({
     });
   }, [content, noteEditor]);
 
-  // Push edits into the node attrs as you type so the margin sidenote stays live.
+  // Push edits into the node attrs so the margin sidenote stays live — debounced
+  // so each keystroke does not rewrite the parent document.
   const contentRef = useRef(content);
+  const attrSyncTimer = useRef(0);
   useEffect(() => {
     contentRef.current = content;
   }, [content]);
@@ -150,13 +152,19 @@ export function FootnoteNodeView({
     if (!noteEditor) return;
     const sync = () => {
       const next = noteEditor.getMarkdown().trim();
-      if (next !== contentRef.current) {
-        updateAttributes({ content: next });
-      }
+      if (next === contentRef.current) return;
+      if (attrSyncTimer.current) window.clearTimeout(attrSyncTimer.current);
+      attrSyncTimer.current = window.setTimeout(() => {
+        attrSyncTimer.current = 0;
+        if (next !== contentRef.current) {
+          updateAttributes({ content: next });
+        }
+      }, 200);
     };
     noteEditor.on("update", sync);
     return () => {
       noteEditor.off("update", sync);
+      if (attrSyncTimer.current) window.clearTimeout(attrSyncTimer.current);
     };
   }, [noteEditor, updateAttributes]);
 

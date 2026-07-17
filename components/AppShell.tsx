@@ -23,7 +23,6 @@ import { UserMenu } from "@/components/UserMenu";
 import { AiSidebar } from "@/components/AiSidebar";
 import { EditorPrefsProvider } from "@/components/EditorPrefsContext";
 import { DocumentSessionProvider } from "@/components/DocumentSessionContext";
-import { DeletedFootnotesPanel } from "@/components/DeletedFootnotesPanel";
 import { FileExplorer } from "@/components/FileExplorer";
 import { AppDialogProvider, useAppDialog } from "@/components/AppDialog";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
@@ -46,6 +45,10 @@ import {
   getTrashNode,
   isScratchpad,
 } from "@/lib/workspace/tree";
+import {
+  loadActiveDocumentId,
+  saveActiveDocumentId,
+} from "@/lib/workspace/activeDocument";
 import type { WorkspaceNode } from "@/lib/workspace/types";
 import {
   formatSyncLabel,
@@ -72,6 +75,33 @@ function useSyncStatusLabel() {
   const [status, setStatus] = useState<SyncStatus>(getSyncStatus);
   useEffect(() => subscribeSyncStatus(setStatus), []);
   return { status, label: formatSyncLabel(status) };
+}
+
+/**
+ * Debounce conflict / sync banners so brief races (set then clear within
+ * a few hundred ms) never paint a flash of amber.
+ */
+function useStableSyncBanner(status: SyncStatus, delayMs = 400) {
+  const [banner, setBanner] = useState<{
+    message: string;
+    conflictCopyId: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!status.message) {
+      setBanner(null);
+      return;
+    }
+    const id = window.setTimeout(() => {
+      setBanner({
+        message: status.message!,
+        conflictCopyId: status.conflictCopyId,
+      });
+    }, delayMs);
+    return () => window.clearTimeout(id);
+  }, [status.message, status.conflictCopyId, delayMs]);
+
+  return banner;
 }
 
 export function AppShell({
@@ -121,6 +151,7 @@ function AppShellContent({
   const [treeLoading, setTreeLoading] = useState(false);
   const [treeError, setTreeError] = useState<string | null>(null);
   const { status: syncStatus, label: syncLabel } = useSyncStatusLabel();
+  const syncBanner = useStableSyncBanner(syncStatus);
   const dialog = useAppDialog();
   const resolvedName =
     displayName?.trim() ||
@@ -172,6 +203,12 @@ function AppShellContent({
     }
   }, [previewMode]);
 
+  // Remember the open essay across refreshes (skip null so boot can restore).
+  useEffect(() => {
+    if (previewMode || !activeNodeId) return;
+    saveActiveDocumentId(activeNodeId);
+  }, [activeNodeId, previewMode]);
+
   useEffect(() => {
     if (previewMode) return;
 
@@ -183,7 +220,17 @@ function AppShellContent({
         const list = await listWorkspaceNodes();
         if (cancelled) return;
         setNodes(list);
-        setActiveNodeId((current) => current ?? ids.scratchpadId);
+        const remembered = loadActiveDocumentId();
+        const rememberedOk =
+          remembered != null &&
+          list.some(
+            (node) => node.id === remembered && node.kind === "document"
+          );
+        setActiveNodeId((current) => {
+          if (current) return current;
+          if (rememberedOk) return remembered;
+          return ids.scratchpadId;
+        });
         setTreeError(null);
       } catch (error) {
         if (cancelled) return;
@@ -441,17 +488,17 @@ function AppShellContent({
             </div>
           </header>
 
-          {syncStatus.message && (
+          {syncBanner && (
             <div
               role="status"
               className="flex flex-wrap items-center gap-3 border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm"
             >
-              <span>{syncStatus.message}</span>
-              {syncStatus.conflictCopyId && (
+              <span>{syncBanner.message}</span>
+              {syncBanner.conflictCopyId && (
                 <button
                   type="button"
                   className="rounded border border-border px-2 py-0.5 text-xs hover:bg-panel"
-                  onClick={() => setActiveNodeId(syncStatus.conflictCopyId)}
+                  onClick={() => setActiveNodeId(syncBanner.conflictCopyId)}
                 >
                   Open conflict copy
                 </button>
@@ -500,9 +547,6 @@ function AppShellContent({
                         loading={treeLoading}
                         error={treeError}
                       />
-                      <div className="px-3 pb-3">
-                        <DeletedFootnotesPanel />
-                      </div>
                     </>
                   )}
                 </aside>

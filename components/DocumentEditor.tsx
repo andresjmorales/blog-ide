@@ -21,7 +21,8 @@ import { ImageIcon, ItalicIcon, LinkIcon } from "@/components/icons";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
 import { DocumentOutline } from "@/components/DocumentOutline";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
-import { useStickySidenotes } from "@/components/useStickySidenotes";
+import { SidenoteRail } from "@/components/SidenoteRail";
+import { DeletedFootnotesPanel } from "@/components/DeletedFootnotesPanel";
 import { useAppDialog } from "@/components/AppDialog";
 import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
@@ -33,6 +34,8 @@ type Props = {
   onChange: (markdown: string) => void;
   onDeletedFootnotesChange?: (deleted: DeletedFootnote[]) => void;
   editorRef?: React.MutableRefObject<Editor | null>;
+  /** Flush pending debounced onChange (e.g. before switching to source view). */
+  flushMarkdownRef?: React.MutableRefObject<(() => void) | null>;
   /** Rendered right-aligned in the toolbar row (e.g. the source toggle). */
   toolbarExtra?: React.ReactNode;
   /** Substack-style title field above the body (not a Heading 1). */
@@ -58,6 +61,7 @@ export function DocumentEditor({
   onChange,
   onDeletedFootnotesChange,
   editorRef,
+  flushMarkdownRef,
   toolbarExtra,
   spellcheckLanguages = [],
   onConvertFootnoteLinks,
@@ -67,7 +71,7 @@ export function DocumentEditor({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(true);
-  const stickyEnabled =
+  const railEnabled =
     prefs.sidenotes && prefs.sidenoteLayout === "sticky";
   const spellcheckOn = prefs.spellcheckEnabled;
   const lang = primaryLang(
@@ -76,7 +80,13 @@ export function DocumentEditor({
       : prefs.spellcheckLanguages
   );
 
-  useStickySidenotes(scrollEl, stickyEnabled);
+  // Avoid re-serializing / setContent loops on every parent render.
+  const lastEmittedRef = useRef(markdown);
+  const onChangeRef = useRef(onChange);
+  const emitTimerRef = useRef(0);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   const editor = useEditor({
     // Placeholder is UI-only; it stays out of the shared markdown schema.
@@ -97,10 +107,40 @@ export function DocumentEditor({
         return transformPastedFootnoteHtml(html);
       },
     },
-    onUpdate: ({ editor }) => {
-      onChange(serializeBody(editor.getJSON()));
+    onUpdate: ({ editor: current }) => {
+      const next = serializeBody(current.getJSON());
+      lastEmittedRef.current = next;
+      // TipTap already painted; debounce React/persist work so typing stays snappy.
+      if (emitTimerRef.current) window.clearTimeout(emitTimerRef.current);
+      emitTimerRef.current = window.setTimeout(() => {
+        emitTimerRef.current = 0;
+        onChangeRef.current(next);
+      }, 160);
     },
   });
+
+  useEffect(() => {
+    return () => {
+      if (emitTimerRef.current) window.clearTimeout(emitTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!flushMarkdownRef) return;
+    flushMarkdownRef.current = () => {
+      if (!editor) return;
+      if (emitTimerRef.current) {
+        window.clearTimeout(emitTimerRef.current);
+        emitTimerRef.current = 0;
+      }
+      const next = serializeBody(editor.getJSON());
+      lastEmittedRef.current = next;
+      onChangeRef.current(next);
+    };
+    return () => {
+      flushMarkdownRef.current = null;
+    };
+  }, [editor, flushMarkdownRef]);
 
   useEffect(() => {
     setLinkPromptHandler(async (previous) =>
@@ -130,10 +170,14 @@ export function DocumentEditor({
 
   useEffect(() => {
     if (!editor || !onDeletedFootnotesChange) return;
+    let previous = "";
     const sync = () => {
       const list = Array.isArray(editor.state.doc.attrs.deletedFootnotes)
         ? (editor.state.doc.attrs.deletedFootnotes as DeletedFootnote[])
         : [];
+      const key = JSON.stringify(list);
+      if (key === previous) return;
+      previous = key;
       onDeletedFootnotesChange(list);
     };
     sync();
@@ -144,16 +188,16 @@ export function DocumentEditor({
   }, [editor, onDeletedFootnotesChange]);
 
   // Replace content when the caller switches documents / returns from source
-  // view. Guard against feeding the editor its own onChange output.
+  // view. Compare to last emit — never re-serialize on every keystroke.
   useEffect(() => {
     if (!editor) return;
-    if (serializeBody(editor.getJSON()) !== markdown) {
-      withoutFootnoteDeletionTracking(() => {
-        editor.commands.setContent(parseBody(markdown), {
-          emitUpdate: false,
-        });
+    if (markdown === lastEmittedRef.current) return;
+    lastEmittedRef.current = markdown;
+    withoutFootnoteDeletionTracking(() => {
+      editor.commands.setContent(parseBody(markdown), {
+        emitUpdate: false,
       });
-    }
+    });
   }, [editor, markdown]);
 
   return (
@@ -174,22 +218,37 @@ export function DocumentEditor({
           />
         )}
         <div
-          ref={(node) => {
-            scrollRef.current = node;
-            setScrollEl((current) => (current === node ? current : node));
-          }}
-          className={`min-w-0 flex-1 overflow-y-auto ${
+          className={`relative flex min-w-0 flex-1 ${
             prefs.sidenotes ? "show-sidenotes" : ""
-          } ${stickyEnabled ? "sidenotes-sticky" : ""}`}
+          } ${railEnabled ? "sidenotes-rail" : ""}`}
         >
           <div
-            className={`mx-auto px-6 py-10 ${
-              prefs.sidenotes ? "max-w-5xl" : "max-w-2xl"
-            }`}
+            ref={(node) => {
+              scrollRef.current = node;
+              setScrollEl((current) => (current === node ? current : node));
+            }}
+            className="min-w-0 flex-1 overflow-y-auto"
           >
-            {titleSlot}
-            <EditorContent editor={editor} />
+            <div
+              className={`mx-auto px-6 py-10 ${
+                railEnabled
+                  ? "max-w-2xl"
+                  : prefs.sidenotes
+                    ? "max-w-5xl"
+                    : "max-w-2xl"
+              }`}
+            >
+              {titleSlot}
+              <EditorContent editor={editor} />
+              {/* Anchored / sidenotes-off: keep restore UI per-essay. */}
+              {!railEnabled && (
+                <DeletedFootnotesPanel variant="inline" defaultOpen={false} />
+              )}
+            </div>
           </div>
+          {railEnabled && editor && (
+            <SidenoteRail editor={editor} scrollRoot={scrollEl} />
+          )}
         </div>
       </div>
     </div>

@@ -11,7 +11,7 @@ export type EditorPrefs = {
   rightTab?: "ai" | "preview";
   /** Show margin sidenotes beside the prose. */
   sidenotes?: boolean;
-  /** Anchored to each footnote, or sticky/proximity packing in the gutter. */
+  /** Anchored beside each mark, or a scrollable rail of all notes. */
   sidenoteLayout?: SidenoteLayout;
   /** Open the footnote editor card on superscript hover. */
   footnoteOpenOnHover?: boolean;

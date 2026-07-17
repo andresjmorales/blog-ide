@@ -5,6 +5,9 @@ import { generateHTML } from "@tiptap/core";
 import { createExtensions } from "@/lib/editor/extensions";
 import { parseBody } from "@/lib/markdown/pipeline";
 
+/** Shared schema — creating TipTap extensions per sidenote render is costly. */
+const SIDENOTE_EXTENSIONS = createExtensions();
+
 /**
  * Renders footnote markdown with the same TipTap schema as the editor
  * (bold/italic/links/lists/etc.), for the margin sidenote view.
@@ -25,7 +28,7 @@ export function FootnoteSidenote({
     const trimmed = markdown.trim();
     if (!trimmed) return "";
     try {
-      return generateHTML(parseBody(trimmed), createExtensions());
+      return generateHTML(parseBody(trimmed), SIDENOTE_EXTENSIONS);
     } catch {
       return "";
     }
