@@ -31,9 +31,8 @@ export function UserMenu({
   onSignOut,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const [theme, setThemeState] = useState<ThemeMode>(() =>
-    typeof document !== "undefined" ? getTheme() : "light"
-  );
+  // Synced from DOM/storage when the menu opens (avoids SSR mismatch).
+  const [theme, setThemeState] = useState<ThemeMode>("light");
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
   const initials = initialsFromName(displayName, email);

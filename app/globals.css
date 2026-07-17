@@ -646,7 +646,8 @@ body {
   .show-sidenotes .editor-prose {
     max-width: 42rem;
   }
-  .show-sidenotes .footnote-sidenote {
+  /* Anchored layout: notes sit beside their marks in the margin. */
+  .show-sidenotes:not(.sidenotes-rail) .footnote-sidenote {
     color: var(--muted);
     display: block;
     font-size: 0.75rem;
@@ -658,41 +659,143 @@ body {
     width: 14.5rem;
     z-index: 2;
   }
-  .show-sidenotes.sidenotes-sticky .footnote-sidenote.is-measuring {
-    /* Measure natural height without absolute/translate offsets. */
-    left: -9999px;
-    position: fixed;
-    top: 0;
+  /* Rail layout: hide in-flow copies; the scrollable rail owns the notes. */
+  .show-sidenotes.sidenotes-rail .footnote-node > .footnote-sidenote {
+    display: none;
+  }
+  .sidenote-rail {
+    border-left: 1px solid var(--border);
+    color: var(--muted);
+    display: flex;
+    flex: 0 0 16.5rem;
+    flex-direction: column;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    max-width: 16.5rem;
+    min-height: 0;
+    min-width: 14rem;
+  }
+  .sidenote-rail-toolbar {
+    align-items: center;
+    background: color-mix(in oklab, var(--background) 92%, var(--panel));
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-shrink: 0;
+    gap: 0.5rem;
+    justify-content: space-between;
+    padding: 0.45rem 0.65rem;
+  }
+  .sidenote-rail-label {
+    color: var(--muted);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .sidenote-rail-lock {
+    align-items: center;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    cursor: pointer;
+    display: inline-flex;
+    font-size: 0.65rem;
+    gap: 0.3rem;
+    line-height: 1;
+    padding: 0.28rem 0.55rem;
+  }
+  .sidenote-rail-lock:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .sidenote-rail.is-linked .sidenote-rail-lock {
+    border-color: color-mix(in oklab, var(--accent) 45%, var(--border));
+    color: var(--accent);
+  }
+  .sidenote-rail-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.85rem 0.85rem 2rem;
+    scrollbar-color: var(--border) transparent;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+  }
+  .sidenote-rail-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .sidenote-rail-scroll::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+  }
+  .sidenote-rail-item {
+    margin-bottom: 0.85rem;
+  }
+  .sidenote-rail-item + .sidenote-rail-item {
+    border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+    padding-top: 0.85rem;
+  }
+  .sidenote-rail .footnote-sidenote {
+    color: inherit;
+    display: block;
+    position: static;
+    right: auto;
     transform: none;
-    visibility: hidden;
+    width: 100%;
   }
-  .show-sidenotes.sidenotes-sticky .footnote-sidenote.is-sticky-placed {
-    /* No top transition — animated tops cause mid-scroll overlaps. */
-    overflow: hidden;
-    position: fixed;
-    transform: none;
-    transition: opacity 0.12s ease-out;
+  .sidenote-rail-empty {
+    font-size: 0.72rem;
+    line-height: 1.4;
+    margin: 0;
   }
-  .show-sidenotes.sidenotes-sticky .footnote-sidenote.is-sticky-hidden {
-    opacity: 0;
-    pointer-events: none;
-    visibility: hidden;
+  .sidenote-rail-deleted {
+    background: color-mix(in oklab, var(--background) 92%, var(--panel));
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    max-height: 40%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.45rem 0.65rem 0.55rem;
+    scrollbar-width: thin;
   }
-  .show-sidenotes.sidenotes-sticky .footnote-sidenote.is-sticky-placed:not(.is-primary) {
-    opacity: 0.72;
+  .sidenote-rail-deleted-toggle {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    font-size: 0.68rem;
+    font-weight: 600;
+    justify-content: space-between;
+    letter-spacing: 0.04em;
+    padding: 0.15rem 0;
+    text-align: left;
+    text-transform: uppercase;
+    width: 100%;
   }
-  .show-sidenotes.sidenotes-sticky .footnote-sidenote.is-primary {
+  .sidenote-rail-deleted-toggle:hover {
     color: var(--foreground);
-    opacity: 1;
   }
-  /* Crowded gutter: clip with a fade so notes stay visible as snippets. */
-  .show-sidenotes.sidenotes-sticky .footnote-sidenote.is-truncated {
-    mask-image: linear-gradient(
-      to bottom,
-      #000 0%,
-      #000 calc(100% - 1.1em),
-      transparent 100%
-    );
+  .sidenote-rail-deleted-list {
+    list-style: none;
+    margin: 0.45rem 0 0;
+    padding: 0;
+  }
+  .sidenote-rail-deleted-item {
+    background: color-mix(in oklab, var(--background) 70%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+    font-size: 0.72rem;
+    margin-top: 0.4rem;
+    padding: 0.4rem 0.5rem;
+  }
+  .sidenote-rail-deleted-item:first-child {
+    margin-top: 0;
   }
   .footnote-sidenote-number,
   .footnote-sidenote-body {
@@ -767,6 +870,12 @@ body {
     display: block;
     margin-top: 0.35em;
     max-width: 100%;
+  }
+}
+
+@media (max-width: 1099px) {
+  .sidenote-rail {
+    display: none;
   }
 }
 

@@ -72,12 +72,12 @@ export async function openDocument(nodeId: string): Promise<OpenedDocument> {
   }
 
   if (local?.dirty) {
+    // Do not clear conflictCopyId / message — openDocument runs after
+    // conflict resolution and was wiping the banner instantly.
     emit({
       dirty: true,
       localSavedAt: local.updatedAt,
       error: null,
-      message: null,
-      conflictCopyId: null,
     });
     return {
       nodeId,
@@ -102,8 +102,6 @@ export async function openDocument(nodeId: string): Promise<OpenedDocument> {
         localSavedAt: next.updatedAt,
         syncedAt: remote.updated_at,
         error: null,
-        message: null,
-        conflictCopyId: null,
       });
       return {
         nodeId,
@@ -177,6 +175,81 @@ async function createConflictCopy(
   });
 }
 
+async function catchUpToRemote(
+  nodeId: string,
+  remoteMarkdown: string,
+  remoteVersion: number
+): Promise<void> {
+  const updatedAt = new Date().toISOString();
+  await putLocalDoc({
+    nodeId,
+    markdown: remoteMarkdown,
+    updatedAt,
+    dirty: false,
+    baseVersion: remoteVersion,
+  });
+  await dequeueSync(nodeId);
+  emit({
+    syncing: false,
+    dirty: false,
+    syncedAt: updatedAt,
+    localSavedAt: updatedAt,
+    conflictCopyId: null,
+    message: null,
+    error: null,
+  });
+}
+
+/**
+ * Resolve a save_document conflict. Same-content races (stale baseVersion
+ * after a push that already landed) catch up quietly. Divergent content
+ * creates a conflict copy and adopts the remote document.
+ */
+async function handleSaveConflict(
+  nodeId: string,
+  attempted: LocalDoc,
+  result: Extract<
+    Awaited<ReturnType<typeof saveDocumentRemote>>,
+    { ok: false }
+  >
+): Promise<boolean> {
+  if (result.remoteMarkdown == null) return false;
+
+  const remoteVersion = Number(
+    result.remoteVersion ?? attempted.baseVersion + 1
+  );
+
+  // Same bytes (or whitespace-normalized): just catch up — no copy.
+  if (normalize(attempted.markdown) === normalize(result.remoteMarkdown)) {
+    await catchUpToRemote(nodeId, result.remoteMarkdown, remoteVersion);
+    return true;
+  }
+
+  // Re-read: a concurrent keystroke/sync may have already aligned versions.
+  const remote = await fetchRemoteDocument(nodeId);
+  const fresh = await getLocalDoc(nodeId);
+  if (
+    remote &&
+    fresh &&
+    normalize(fresh.markdown) === normalize(remote.markdown)
+  ) {
+    await catchUpToRemote(nodeId, remote.markdown, Number(remote.version));
+    return true;
+  }
+
+  const localMarkdown = fresh?.markdown ?? attempted.markdown;
+  const copyId = await createConflictCopy(nodeId, localMarkdown);
+  const resolvedRemote = remote?.markdown ?? result.remoteMarkdown;
+  const resolvedVersion = Number(remote?.version ?? remoteVersion);
+  await catchUpToRemote(nodeId, resolvedRemote, resolvedVersion);
+  emit({
+    conflictCopyId: copyId,
+    message:
+      "This document changed in the cloud while syncing. Your local edits were saved as a conflict copy.",
+  });
+  return true;
+}
+
 async function syncDocumentOnce(nodeId: string): Promise<void> {
   const local = await getLocalDoc(nodeId);
   if (!local || !local.dirty) {
@@ -246,52 +319,8 @@ async function syncDocumentOnce(nodeId: string): Promise<void> {
     }
 
     if (result.reason === "conflict" && result.remoteMarkdown != null) {
-      const remoteVersion = Number(result.remoteVersion ?? latest.baseVersion + 1);
-
-      // Same bytes (or whitespace-normalized): just catch up — no copy.
-      if (normalize(latest.markdown) === normalize(result.remoteMarkdown)) {
-        const updatedAt = new Date().toISOString();
-        await putLocalDoc({
-          nodeId,
-          markdown: result.remoteMarkdown,
-          updatedAt,
-          dirty: false,
-          baseVersion: remoteVersion,
-        });
-        await dequeueSync(nodeId);
-        emit({
-          syncing: false,
-          dirty: false,
-          syncedAt: updatedAt,
-          localSavedAt: updatedAt,
-          conflictCopyId: null,
-          message: null,
-          error: null,
-        });
-        return;
-      }
-
-      const copyId = await createConflictCopy(nodeId, latest.markdown);
-      const updatedAt = new Date().toISOString();
-      await putLocalDoc({
-        nodeId,
-        markdown: result.remoteMarkdown,
-        updatedAt,
-        dirty: false,
-        baseVersion: remoteVersion,
-      });
-      await dequeueSync(nodeId);
-      emit({
-        syncing: false,
-        dirty: false,
-        syncedAt: updatedAt,
-        localSavedAt: updatedAt,
-        conflictCopyId: copyId,
-        message:
-          "This document changed in the cloud while syncing. Your local edits were saved as a conflict copy.",
-        error: null,
-      });
-      return;
+      const handled = await handleSaveConflict(nodeId, latest, result);
+      if (handled) return;
     }
 
     if (result.reason === "quota") {

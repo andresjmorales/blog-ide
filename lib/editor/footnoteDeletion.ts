@@ -43,7 +43,7 @@ function readDeleted(doc: ProseMirrorNode): DeletedFootnote[] {
 
 /**
  * When footnoteRef atoms disappear from the document, archive them on
- * doc.attrs.deletedFootnotes for later restore from the Files panel.
+ * doc.attrs.deletedFootnotes for later restore from the sidenote rail.
  */
 export const FootnoteDeletionTracker = Extension.create({
   name: "footnoteDeletionTracker",

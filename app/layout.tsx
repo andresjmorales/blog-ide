@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
+import { ThemeBoot } from "@/components/ThemeBoot";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,14 +45,9 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var k="blogide.theme",v=localStorage.getItem(k),t=v==="light"||v==="dark"?v:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t}catch(e){}})();`,
-          }}
-        />
-      </head>
       <body className="min-h-full flex flex-col">
+        <Script src="/theme-init.js" strategy="beforeInteractive" />
+        <ThemeBoot />
         {children}
         <ServiceWorkerRegistration />
       </body>

@@ -197,8 +197,9 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
         <section className="settings-section">
           <h3>Sidebar / Sidenotes</h3>
           <p className="settings-help">
-            Sticky packing keeps margin notes on screen as you scroll. Floating
-            footnote editors are unchanged.
+            The scrollable rail lists every footnote. When linked, essay scroll
+            smoothly drives the rail; unlock it to scroll notes independently.
+            Anchored places each note beside its mark.
           </p>
           <label className="settings-row">
             <span>Show sidenotes</span>
@@ -221,7 +222,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
                 })
               }
             >
-              <option value="sticky">Sticky (proximity packing)</option>
+              <option value="sticky">Scrollable rail</option>
               <option value="anchored">Anchored to footnotes</option>
             </select>
           </label>

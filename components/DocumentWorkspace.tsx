@@ -6,7 +6,11 @@ import { DocumentEditor } from "@/components/DocumentEditor";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { splitFrontmatter } from "@/lib/markdown/frontmatter";
 import { compactDiff, unifiedLineDiff } from "@/lib/markdown/diff";
-import { isLossy, previewRoundTrip } from "@/lib/markdown/pipeline";
+import {
+  isLossy,
+  previewRoundTrip,
+  serializeBody,
+} from "@/lib/markdown/pipeline";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 import { getLocalDoc } from "@/lib/db/indexed";
 import {
@@ -141,6 +145,7 @@ export function DocumentWorkspace({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [baseVersion, setBaseVersion] = useState(1);
   const editorRef = useRef<Editor | null>(null);
+  const flushMarkdownRef = useRef<(() => void) | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const baseVersionRef = useRef(1);
@@ -329,12 +334,14 @@ export function DocumentWorkspace({
 
   const packedMarkdown = packDocument(frontmatter, subtitle, body);
 
+  // Keep the AI panel from re-rendering on every keystroke.
   useEffect(() => {
-    if (mode === "source") {
-      onMarkdownForAi?.(sourceText || packedMarkdown);
-    } else {
-      onMarkdownForAi?.(packedMarkdown);
-    }
+    const markdown =
+      mode === "source" ? sourceText || packedMarkdown : packedMarkdown;
+    const timer = window.setTimeout(() => {
+      onMarkdownForAi?.(markdown);
+    }, 400);
+    return () => window.clearTimeout(timer);
   }, [mode, sourceText, packedMarkdown, onMarkdownForAi]);
 
   const applyMarkdown = useCallback(
@@ -590,11 +597,18 @@ export function DocumentWorkspace({
     </div>
   );
 
-  // After a conflict resolution, reload the canonical remote into the editor.
+  // After a conflict resolution, reload the canonical remote into the editor
+  // once per conflict copy (not on every later status emit).
+  const handledConflictRef = useRef<string | null>(null);
+  useEffect(() => {
+    handledConflictRef.current = null;
+  }, [nodeId]);
   useEffect(() => {
     if (!persistEnabled || !nodeId) return;
     return subscribeSyncStatus((status) => {
       if (!status.conflictCopyId || !status.message) return;
+      if (handledConflictRef.current === status.conflictCopyId) return;
+      handledConflictRef.current = status.conflictCopyId;
       void openDocument(nodeId).then((opened) => {
         if (nodeIdRef.current !== nodeId) return;
         const unpacked = unpackDocument(opened.markdown);
@@ -637,7 +651,18 @@ export function DocumentWorkspace({
   }, [persistEnabled, nodeId, onRequestTreeRefresh]);
 
   function toSource() {
-    setSourceText(packDocument(frontmatter, subtitle, body));
+    flushMarkdownRef.current?.();
+    const editor = editorRef.current;
+    const nextBody = editor ? serializeBody(editor.getJSON()) : body;
+    const packed = packDocument(frontmatter, subtitle, nextBody);
+    if (nextBody !== body) {
+      setDoc((current) => ({
+        frontmatter: current.frontmatter,
+        subtitle: current.subtitle,
+        body: nextBody,
+      }));
+    }
+    setSourceText(packed);
     setMode("source");
   }
 
@@ -833,11 +858,20 @@ export function DocumentWorkspace({
         key={nodeId ?? "preview"}
         markdown={body}
         onChange={(md) => {
-          setDoc({ frontmatter, subtitle, body: md });
-          persistMarkdown(packDocument(frontmatter, subtitle, md));
+          setDoc((current) => {
+            persistMarkdownRef.current(
+              packDocument(current.frontmatter, current.subtitle, md)
+            );
+            return {
+              frontmatter: current.frontmatter,
+              subtitle: current.subtitle,
+              body: md,
+            };
+          });
         }}
         onDeletedFootnotesChange={onDeletedFootnotesChange}
         editorRef={editorRef}
+        flushMarkdownRef={flushMarkdownRef}
         titleSlot={titleField}
         onConvertFootnoteLinks={() => {
           void convertFootnoteLinks();

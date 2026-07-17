@@ -27,9 +27,9 @@ export function AiSidebar({
   onApplyMarkdown,
   onOpenSettings,
 }: Props) {
-  const [keys, setKeys] = useState<AiKeys>(() =>
-    typeof window === "undefined" ? {} : loadAiKeys()
-  );
+  // Always start empty so SSR and the first client paint match; load keys after mount.
+  const [keys, setKeys] = useState<AiKeys>({});
+  const [keysReady, setKeysReady] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -43,7 +43,9 @@ export function AiSidebar({
   useEffect(() => {
     function refresh() {
       setKeys(loadAiKeys());
+      setKeysReady(true);
     }
+    refresh();
     window.addEventListener("blogide-ai-keys", refresh);
     window.addEventListener("focus", refresh);
     return () => {
@@ -116,6 +118,14 @@ export function AiSidebar({
     } finally {
       setBusy(false);
     }
+  }
+
+  if (!keysReady) {
+    return (
+      <div className="flex h-full flex-col gap-3 p-4 text-sm text-muted">
+        <p>Loading assistant…</p>
+      </div>
+    );
   }
 
   if (!provider) {

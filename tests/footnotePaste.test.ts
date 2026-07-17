@@ -103,7 +103,7 @@ describe("footnotePaste", () => {
 
   it("repairs the Substack example fixture without doubling notes", () => {
     const fixture = readFileSync(
-      resolve(__dirname, "../.local/substack-footnotes-example.md"),
+      resolve(__dirname, "fixtures/import/substack-footnotes-example.md"),
       "utf8"
     );
     const { markdown, converted } = convertMarkdownFootnoteLinks(fixture);
