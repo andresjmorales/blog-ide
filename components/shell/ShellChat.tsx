@@ -42,7 +42,8 @@ export function ShellChat({
     [nodes, channels]
   );
   const [filter, setFilter] = useState<string>("all");
-  const [composeChannelId, setComposeChannelId] = useState("");
+  /** Null = use default notes channel when available. */
+  const [composeChannelId, setComposeChannelId] = useState<string | null>(null);
   const [notes, setNotes] = useState<ListedNote[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,11 +52,8 @@ export function ShellChat({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (defaultChannel && !composeChannelId) {
-      setComposeChannelId(defaultChannel.id);
-    }
-  }, [defaultChannel, composeChannelId]);
+  const composeChannel =
+    channels.find((c) => c.id === composeChannelId) ?? defaultChannel;
 
   const loadNotes = useCallback(async () => {
     if (channels.length === 0) {
@@ -91,7 +89,10 @@ export function ShellChat({
   }, [channels]);
 
   useEffect(() => {
-    void loadNotes();
+    const id = window.setTimeout(() => {
+      void loadNotes();
+    }, 0);
+    return () => window.clearTimeout(id);
   }, [loadNotes, refreshKey]);
 
   const visible = useMemo(() => {
@@ -102,9 +103,6 @@ export function ShellChat({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [visible.length, filter]);
-
-  const composeChannel =
-    channels.find((c) => c.id === composeChannelId) ?? defaultChannel;
 
   async function send() {
     const text = input.trim();
@@ -242,7 +240,7 @@ export function ShellChat({
       >
         <select
           value={composeChannel?.id ?? ""}
-          onChange={(e) => setComposeChannelId(e.target.value)}
+          onChange={(e) => setComposeChannelId(e.target.value || null)}
           className="shrink-0 rounded border border-border bg-background px-1.5 py-1 font-mono text-[0.7rem] outline-none focus:border-accent"
           disabled={channels.length === 0}
         >

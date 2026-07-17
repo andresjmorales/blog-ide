@@ -71,6 +71,7 @@ import { ShellPanel } from "@/components/shell/ShellPanel";
 import {
   loadMobileSurface,
   saveMobileSurface,
+  subscribeMobileSurface,
   type MobileSurface,
 } from "@/lib/capture/mobileSurface";
 import { closeShellPin, openShellPin } from "@/lib/pins/pinStore";
@@ -108,6 +109,15 @@ function useIsMobileViewport() {
     subscribeMobileViewport,
     getMobileViewport,
     () => false
+  );
+}
+
+/** Explicit Shell vs full-app preference from localStorage (null = use default). */
+function useStoredMobileSurface() {
+  return useSyncExternalStore(
+    subscribeMobileSurface,
+    loadMobileSurface,
+    () => null
   );
 }
 
@@ -184,9 +194,7 @@ function AppShellContent({
   const prefsRef = useRef(storedPrefs);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [mobileSurface, setMobileSurface] = useState<MobileSurface | null>(
-    null
-  );
+  const mobileSurface = useStoredMobileSurface();
   const [shellRefreshKey, setShellRefreshKey] = useState(0);
   const [aiDocumentMarkdown, setAiDocumentMarkdown] = useState<string | null>(
     null
@@ -214,10 +222,6 @@ function AppShellContent({
     prefsRef.current = storedPrefs;
   }, [storedPrefs]);
 
-  useEffect(() => {
-    if (hydrated) setMobileSurface(loadMobileSurface());
-  }, [hydrated]);
-
   const update = useCallback((patch: Partial<EditorPrefs>, persist = true) => {
     setPrefs((p) => {
       const next = { ...p, ...patch };
@@ -231,12 +235,10 @@ function AppShellContent({
   }, []);
 
   const enterAppSurface = useCallback(() => {
-    setMobileSurface("app");
     saveMobileSurface("app");
   }, []);
 
   const enterCaptureSurface = useCallback(() => {
-    setMobileSurface("capture");
     saveMobileSurface("capture");
     update({ leftOpen: false, rightOpen: false, shellOpen: false });
   }, [update]);

@@ -41,7 +41,8 @@ export function TerminalCapture({
     () => getNotesChannel(nodes) ?? channels[0] ?? null,
     [nodes, channels]
   );
-  const [channelId, setChannelId] = useState<string>("");
+  /** User override; null means derive from localStorage / default channel. */
+  const [channelOverride, setChannelOverride] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -49,17 +50,15 @@ export function TerminalCapture({
   const [history, setHistory] = useState<HistoryLine[]>([]);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    const remembered = loadLastCaptureChannelId();
-    if (remembered && channels.some((c) => c.id === remembered)) {
-      setChannelId(remembered);
-      return;
-    }
-    if (defaultChannel) setChannelId(defaultChannel.id);
-  }, [channels, defaultChannel]);
+  const rememberedId = loadLastCaptureChannelId();
+  const preferredId =
+    channelOverride ??
+    (rememberedId && channels.some((c) => c.id === rememberedId)
+      ? rememberedId
+      : null);
 
   const activeChannel =
-    channels.find((c) => c.id === channelId) ?? defaultChannel;
+    channels.find((c) => c.id === preferredId) ?? defaultChannel;
 
   const loadHistory = useCallback(async () => {
     if (!activeChannel) {
@@ -89,12 +88,16 @@ export function TerminalCapture({
   }, [activeChannel]);
 
   useEffect(() => {
-    void loadHistory();
+    // Defer so the async loader's initial setState is not sync-in-effect.
+    const id = window.setTimeout(() => {
+      void loadHistory();
+    }, 0);
+    return () => window.clearTimeout(id);
   }, [loadHistory, refreshKey]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [history.length, channelId]);
+  }, [history.length, activeChannel?.id]);
 
   async function send() {
     const text = input.trim();
@@ -200,7 +203,7 @@ export function TerminalCapture({
             <select
               value={activeChannel?.id ?? ""}
               onChange={(e) => {
-                setChannelId(e.target.value);
+                setChannelOverride(e.target.value);
                 saveLastCaptureChannelId(e.target.value);
               }}
               className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1 font-mono text-xs outline-none focus:border-accent"
