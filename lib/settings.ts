@@ -9,6 +9,12 @@ export type EditorPrefs = {
   leftOpen?: boolean;
   rightOpen?: boolean;
   rightTab?: "ai" | "preview";
+  /** Desktop Shell (Inbox capture) panel open. */
+  shellOpen?: boolean;
+  /** Desktop Shell panel height in px. */
+  shellHeight?: number;
+  /** On phone, land on Shell/terminal by default (vs full editor). */
+  mobileOpenShell?: boolean;
   /** Show margin sidenotes beside the prose. */
   sidenotes?: boolean;
   /** Anchored beside each mark, or a scrollable rail of all notes. */
@@ -27,6 +33,9 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   leftOpen: true,
   rightOpen: true,
   rightTab: "ai",
+  shellOpen: false,
+  shellHeight: 220,
+  mobileOpenShell: true,
   sidenotes: true,
   sidenoteLayout: "sticky",
   footnoteOpenOnHover: true,

@@ -10,7 +10,7 @@ AI. Markdown-native, local-first, MIT licensed, and self-hostable by design.
 | --- | --- |
 | **M1 — Shell & auth** | Done — Supabase auth, beta-code gate, three-panel shell, PWA, theme |
 | **M2 — Editor & round-trip** | Done — TipTap §5.1 nodes, source toggle, fixture CI |
-| **M3 — Persistence** | Core done — workspace tree, IndexedDB autosave, optimistic sync, Trash, 200 MB quota. Still open: Storage assets, GitHub backup, phone quick-capture |
+| **M3 — Persistence** | Core done — workspace tree, IndexedDB autosave, optimistic sync, Trash, Inbox channels, 20 MB default quota, phone terminal capture + desktop Shell. Still open: Storage polish, optional GitHub backup |
 | **M4 — Footnotes** | Done — inline notes, rail / anchored sidenotes, pin/drag cards, deleted-note archive, Substack paste repair |
 | **M5 — Images & preview** | Largely done — pop-out docs, link hover/Pin, Preview tab, image compress/upload, pinned PDFs ([plan](./.local/plan.md)) |
 | **M6 — AI & export** | Partial — BYOK AI sidebar + Copy/Export/Import ship now; canned actions, richer HTML, DOCX still open |
@@ -82,7 +82,7 @@ npm run dev
 ```
 
 Open http://localhost:3000 → **Sign up** → enter your beta code → create an account.  
-On first editor load, BlogIDE bootstraps `essays/`, `drafts/`, and pinned `scratchpad.md`. Edits save to IndexedDB immediately and sync to Supabase.
+On first editor load, BlogIDE bootstraps `essays/`, `drafts/`, pinned `scratchpad.md`, and an `Inbox/` folder (default `notes.md` channel). Edits save to IndexedDB immediately and sync to Supabase. On a phone, you land in a terminal-style quick-capture screen; on desktop, open **Shell** for the same Inbox notes.
 
 Optional: open **Account settings** to paste Anthropic or OpenAI keys for the AI sidebar (keys stay on the device; requests go through a thin proxy).
 

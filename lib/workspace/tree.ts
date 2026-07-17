@@ -6,6 +6,33 @@ export function getTrashNode(
   return nodes.find((n) => n.system_key === "trash");
 }
 
+export function getInboxNode(
+  nodes: WorkspaceNode[]
+): WorkspaceNode | undefined {
+  return nodes.find((n) => n.system_key === "inbox");
+}
+
+/** Document channels under the Inbox folder. */
+export function listInboxChannels(nodes: WorkspaceNode[]): WorkspaceNode[] {
+  const inbox = getInboxNode(nodes);
+  if (!inbox) return [];
+  return nodes
+    .filter((n) => n.parent_id === inbox.id && n.kind === "document")
+    .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
+}
+
+export function getNotesChannel(
+  nodes: WorkspaceNode[]
+): WorkspaceNode | undefined {
+  return listInboxChannels(nodes).find(
+    (n) => n.name.toLowerCase() === "notes.md"
+  );
+}
+
+export function isSystemFolder(node: WorkspaceNode): boolean {
+  return node.system_key === "trash" || node.system_key === "inbox";
+}
+
 /** True if node is the Trash folder or nested under it. */
 export function isInTrash(
   nodeId: string,
@@ -85,6 +112,11 @@ export function eligibleMoveFolders(
       return true;
     })
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Channel label without .md — for terminal / Shell UI. */
+export function channelDisplayName(node: WorkspaceNode): string {
+  return node.name.replace(/\.md$/i, "");
 }
 
 export function folderPathLabel(

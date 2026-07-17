@@ -326,7 +326,7 @@ async function syncDocumentOnce(nodeId: string): Promise<void> {
     if (result.reason === "quota") {
       emit({
         syncing: false,
-        error: "Cloud sync blocked: storage quota exceeded (200 MB).",
+        error: "Cloud sync blocked: storage quota exceeded.",
       });
       return;
     }

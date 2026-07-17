@@ -8,9 +8,11 @@ import {
 import {
   eligibleMoveFolders,
   folderPathLabel,
+  getInboxNode,
   getTrashNode,
   isInTrash,
   isScratchpad,
+  isSystemFolder,
 } from "@/lib/workspace/tree";
 import type { WorkspaceNode } from "@/lib/workspace/types";
 
@@ -70,16 +72,27 @@ export function FileExplorer({
 }: Props) {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [trashOpen, setTrashOpen] = useState(true);
+  const [inboxOpen, setInboxOpen] = useState(true);
 
   const trash = getTrashNode(nodes);
   const trashId = trash?.id ?? null;
+  const inbox = getInboxNode(nodes);
+  const inboxId = inbox?.id ?? null;
 
   const mainRoots = useMemo(
     () =>
       childrenOf(nodes, null).filter(
-        (n) => n.system_key !== "trash" && !isInTrash(n.id, nodes, trashId)
+        (n) =>
+          n.system_key !== "trash" &&
+          n.system_key !== "inbox" &&
+          !isInTrash(n.id, nodes, trashId)
       ),
     [nodes, trashId]
+  );
+
+  const inboxChildren = useMemo(
+    () => (inboxId ? childrenOf(nodes, inboxId) : []),
+    [nodes, inboxId]
   );
 
   const trashChildren = useMemo(
@@ -95,11 +108,28 @@ export function FileExplorer({
 
   function buildMenuItems(node: WorkspaceNode): ContextMenuItem[] {
     const inTrash = isInTrash(node.id, nodes, trashId);
-    const isTrashFolder = node.system_key === "trash";
+    const systemFolder = isSystemFolder(node);
     const scratch = isScratchpad(node);
     const items: ContextMenuItem[] = [];
 
-    if (isTrashFolder) {
+    if (systemFolder) {
+      if (node.system_key === "inbox") {
+        return [
+          {
+            kind: "action",
+            id: "inbox-new-channel",
+            label: "New channel",
+            onSelect: () => onNewDocument(node.id),
+          },
+          {
+            kind: "action",
+            id: "inbox-info",
+            label: "System Inbox",
+            disabled: true,
+            onSelect: () => {},
+          },
+        ];
+      }
       return [
         {
           kind: "action",
@@ -138,7 +168,7 @@ export function FileExplorer({
       });
     }
 
-    if (!isTrashFolder && !scratch) {
+    if (!scratch) {
       items.push({
         kind: "action",
         id: "rename",
@@ -270,6 +300,47 @@ export function FileExplorer({
         ))}
       </ul>
 
+      {inbox && (
+        <div className="mt-4 border-t border-border pt-3">
+          <button
+            type="button"
+            className="flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-xs font-mono uppercase tracking-wider text-muted hover:bg-panel hover:text-foreground"
+            onClick={() => setInboxOpen((o) => !o)}
+            onContextMenu={(e) => openMenu(e, inbox)}
+          >
+            <span className="inline-block w-3">{inboxOpen ? "▾" : "▸"}</span>
+            Inbox
+            {inboxChildren.length > 0 && (
+              <span className="ml-auto normal-case tracking-normal">
+                {inboxChildren.length}
+              </span>
+            )}
+          </button>
+          {inboxOpen && (
+            <ul className="mt-0.5 space-y-0.5 text-sm">
+              {inboxChildren.length === 0 ? (
+                <li className="px-2 py-1 text-xs text-muted">No channels</li>
+              ) : (
+                inboxChildren.map((node) => (
+                  <TreeNode
+                    key={node.id}
+                    node={node}
+                    nodes={nodes}
+                    depth={0}
+                    activeNodeId={activeNodeId}
+                    trashId={trashId}
+                    onOpen={onOpen}
+                    onNewDocument={onNewDocument}
+                    onNewFolder={onNewFolder}
+                    onContextMenu={openMenu}
+                  />
+                ))
+              )}
+            </ul>
+          )}
+        </div>
+      )}
+
       {trash && (
         <div className="mt-4 border-t border-border pt-3">
           <button
@@ -381,9 +452,9 @@ function TreeNode({
   onNewFolder: (parentId: string | null) => void;
   onContextMenu: (e: MouseEvent, node: WorkspaceNode) => void;
 }) {
-  // Trash folder is rendered separately; never nest it in the main tree.
+  // System folders are rendered separately; never nest them in the main tree.
   const visibleKids = childrenOf(nodes, node.id).filter(
-    (c) => c.system_key !== "trash"
+    (c) => c.system_key !== "trash" && c.system_key !== "inbox"
   );
 
   const paddingLeft = 8 + depth * 12;
