@@ -18,7 +18,6 @@ import {
   promptForLink,
 } from "@/lib/editor/linkShortcut";
 import {
-  GrabHandle,
   ImageIcon,
   ItalicIcon,
   LinkIcon,
@@ -28,6 +27,7 @@ import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
 import { FootnoteSidenote } from "@/components/FootnoteSidenote";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { useAppDialog } from "@/components/AppDialog";
+import { claimFloatZ } from "@/lib/pins/pinStore";
 import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
 
 // ProseMirror may recreate an atom NodeView when its selection changes.
@@ -82,6 +82,7 @@ export function FootnoteNodeView({
     left?: number;
     top?: number;
   }>(() => cardPositions.get(footnoteId) ?? {});
+  const [cardZ, setCardZ] = useState(40);
   const content = String(node.attrs.content ?? "");
   // Only user drags are sticky; auto-placement should follow the ref on scroll.
   const hasDraggedPosition = cardPositions.has(footnoteId);
@@ -225,6 +226,7 @@ export function FootnoteNodeView({
         stickyFootnoteIds.add(footnoteId);
         setSticky(true);
       }
+      setCardZ(claimFloatZ());
       setOpen(true);
       // Scroll after open so the card stays mounted; place near sidenote first
       // when the superscript is off-screen (avoids a "ghost" first click).
@@ -254,17 +256,46 @@ export function FootnoteNodeView({
     [cancelHoverClose, footnoteId, noteEditor]
   );
 
+  /** Freeze the floating card at its current viewport spot (pin or drag). */
+  const freezeCardPosition = useCallback(() => {
+    setCardPosition((current) => {
+      if (
+        typeof current.left === "number" &&
+        typeof current.top === "number"
+      ) {
+        cardPositions.set(footnoteId, {
+          left: current.left,
+          top: current.top,
+        });
+        return current;
+      }
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return current;
+      const next = {
+        left: Math.max(8, Math.min(window.innerWidth - 360, rect.left)),
+        top: Math.max(8, Math.min(window.innerHeight - 120, rect.bottom + 8)),
+      };
+      cardPositions.set(footnoteId, next);
+      return next;
+    });
+  }, [footnoteId]);
+
   const togglePinned = useCallback(() => {
     setPinned((currentlyPinned) => {
       const next = !currentlyPinned;
       if (next) {
         pinnedFootnoteIds.add(footnoteId);
+        // Snapshot now so scroll handlers stop tracking the superscript.
+        freezeCardPosition();
       } else {
         pinnedFootnoteIds.delete(footnoteId);
+        // Resume follow-the-ref placement after unpin.
+        cardPositions.delete(footnoteId);
+        setCardPosition({});
       }
       return next;
     });
-  }, [footnoteId]);
+  }, [footnoteId, freezeCardPosition]);
 
   const toggleExpanded = useCallback(() => {
     setExpanded((currentlyExpanded) => {
@@ -281,7 +312,8 @@ export function FootnoteNodeView({
   const pinCard = useCallback(() => {
     pinnedFootnoteIds.add(footnoteId);
     setPinned(true);
-  }, [footnoteId]);
+    freezeCardPosition();
+  }, [footnoteId, freezeCardPosition]);
 
   useEffect(() => {
     if (!open) return;
@@ -290,8 +322,8 @@ export function FootnoteNodeView({
         setCardPosition({});
         return;
       }
-      // Keep a user-dragged position; otherwise follow the superscript.
-      if (hasDraggedPosition) return;
+      // Dragged or pinned cards stay put — do not track the ref on scroll.
+      if (hasDraggedPosition || pinnedRef.current) return;
       const rect = buttonRef.current?.getBoundingClientRect();
       if (!rect) return;
       const cardWidth = Math.min(
@@ -349,7 +381,7 @@ export function FootnoteNodeView({
       window.removeEventListener("resize", positionCard);
       window.removeEventListener("scroll", positionCard, true);
     };
-  }, [open, expanded, hasDraggedPosition]);
+  }, [open, expanded, hasDraggedPosition, pinned]);
 
   useEffect(() => {
     if (!open) return;
@@ -399,6 +431,10 @@ export function FootnoteNodeView({
   const beginDrag = useCallback(
     (event: React.PointerEvent<HTMLElement>) => {
       if (window.innerWidth < 768) return;
+      if (event.button !== 0) return;
+      // Pin / Done stay clickable — only the bar itself drags.
+      const target = event.target as HTMLElement;
+      if (target.closest("button, a, input, textarea, select")) return;
       const card = event.currentTarget.closest(
         ".footnote-card"
       ) as HTMLElement | null;
@@ -408,6 +444,7 @@ export function FootnoteNodeView({
       event.stopPropagation();
       // Dragging implies the user wants the card to stay put.
       pinCard();
+      setCardZ(claimFloatZ());
       event.currentTarget.setPointerCapture(event.pointerId);
       dragRef.current = {
         pointerId: event.pointerId,
@@ -500,7 +537,11 @@ export function FootnoteNodeView({
             }`}
             data-footnote-id={footnoteId}
             contentEditable={false}
-            style={{ left: cardPosition.left, top: cardPosition.top }}
+            style={{
+              left: cardPosition.left,
+              top: cardPosition.top,
+              zIndex: cardZ,
+            }}
             onMouseEnter={cancelHoverClose}
             onMouseLeave={() => {
               if (prefs.footnoteOpenOnHover) scheduleHoverClose();
@@ -509,25 +550,21 @@ export function FootnoteNodeView({
               // Interacting with the card counts as engaging it.
               stickyFootnoteIds.add(footnoteId);
               setSticky(true);
+              setCardZ(claimFloatZ());
             }}
           >
-            <span className="footnote-card-heading">
+            <span
+              className="footnote-card-heading"
+              title="Drag to move"
+              onPointerDown={beginDrag}
+              onPointerMove={onDragMove}
+              onPointerUp={endDrag}
+              onPointerCancel={endDrag}
+            >
               <span className="footnote-card-title">
                 <span>Footnote {number}</span>
               </span>
               <span className="footnote-card-actions">
-                <button
-                  type="button"
-                  className="footnote-grab"
-                  title="Drag to move"
-                  aria-label="Drag footnote"
-                  onPointerDown={beginDrag}
-                  onPointerMove={onDragMove}
-                  onPointerUp={endDrag}
-                  onPointerCancel={endDrag}
-                >
-                  <GrabHandle />
-                </button>
                 <button
                   type="button"
                   onClick={togglePinned}

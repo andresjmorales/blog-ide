@@ -57,16 +57,20 @@ export function HelpPanel({ open, onClose }: Props) {
             on screen while you write. The sidenote rail lists every note; keep
             it Linked to scroll with the essay, or Free to browse notes on their
             own. Deleted notes for the current essay stay in a collapsed section
-            at the bottom of the rail so you can restore or dismiss them.
+            at the bottom of the rail so you can restore or dismiss them. Pin a
+            footnote card to freeze it on screen while you scroll.
           </p>
         </section>
 
         <section className="settings-section">
           <h3>Files</h3>
           <p className="settings-help">
-            Right-click the Files panel to move items, send them to Trash, or
-            delete permanently. Edits save locally first, then sync to your
-            cloud workspace when online.
+            Use the icon buttons (new document / new folder) or hover a folder
+            for the same actions. New document can also Import from .md / .txt.
+            Nest folders (e.g. essays/Veganism/). Pop out any document to keep a
+            scratchpad floating. Hover links for Open Graph previews — Pin keeps
+            them on screen. Toolbar PDF pins a local PDF. Preview tab shows
+            publication-style HTML. Edits save locally first, then sync online.
           </p>
         </section>
 

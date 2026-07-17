@@ -4,21 +4,21 @@ An IDE for writing blogs and essays: a cross between a rich WYSIWYG editor and a
 with first-class footnotes, autosave, a project-style workspace, and optional
 AI. Markdown-native, local-first, MIT licensed, and self-hostable by design.
 
-Full design: [`.local/blogide-spec.md`](./.local/blogide-spec.md).
-
 ## Status
 
-- **M1 — Shell & auth**: Supabase auth with beta-code gate, settings storage, three-panel layout, PWA manifest.
-- **M2 — Editor & round-trip**: TipTap editor with the full §5.1 node set, bidirectional markdown serialization, source-view toggle with lossy-parse warning, round-trip fixture test suite.
-- **M3 — Persistence (core)**: workspace tree in Supabase, IndexedDB autosave, optimistic sync with conflict copies, 200 MB quota accounting. GitHub backup and Storage assets still deferred.
-- **M4 — Footnotes**: first-class inline references, nested footnote editor, GFM serialization, and sidenote view.
-
-Images pipeline and the AI sidebar land in later milestones.
+| Milestone | State |
+| --- | --- |
+| **M1 — Shell & auth** | Done — Supabase auth, beta-code gate, three-panel shell, PWA, theme |
+| **M2 — Editor & round-trip** | Done — TipTap §5.1 nodes, source toggle, fixture CI |
+| **M3 — Persistence** | Core done — workspace tree, IndexedDB autosave, optimistic sync, Trash, 200 MB quota. Still open: Storage assets, GitHub backup, phone quick-capture |
+| **M4 — Footnotes** | Done — inline notes, rail / anchored sidenotes, pin/drag cards, deleted-note archive, Substack paste repair |
+| **M5 — Images & preview** | Largely done — pop-out docs, link hover/Pin, Preview tab, image compress/upload, pinned PDFs ([plan](./.local/plan.md)) |
+| **M6 — AI & export** | Partial — BYOK AI sidebar + Copy/Export/Import ship now; canned actions, richer HTML, DOCX still open |
 
 ## Stack
 
 Next.js, TypeScript, Tailwind CSS, TipTap, Supabase, and IndexedDB. GitHub
-backup and the Anthropic assistant are optional integrations. See
+backup and the Anthropic/OpenAI assistants are optional integrations. See
 [ARCHITECTURE.md](./ARCHITECTURE.md) for boundaries, persistence, quota, and
 the repository map.
 
@@ -84,8 +84,10 @@ npm run dev
 Open http://localhost:3000 → **Sign up** → enter your beta code → create an account.  
 On first editor load, BlogIDE bootstraps `essays/`, `drafts/`, and pinned `scratchpad.md`. Edits save to IndexedDB immediately and sync to Supabase.
 
+Optional: open **Account settings** to paste Anthropic or OpenAI keys for the AI sidebar (keys stay on the device; requests go through a thin proxy).
+
 ```bash
-npm test   # round-trip suite (spec §5.1)
+npm test   # round-trip + footnote/import suites
 ```
 
 > Without real Supabase credentials, the app runs in an unauthenticated **preview mode**: auth is skipped and `/editor` shows the shell without cloud sync.

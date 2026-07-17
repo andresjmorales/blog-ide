@@ -42,6 +42,11 @@ import { convertMarkdownFootnoteLinks } from "@/lib/import/footnotePaste";
 import { getActiveProvider, loadAiKeys } from "@/lib/ai/keys";
 import { chatCompletion, IMPORT_CLEANUP_SYSTEM } from "@/lib/ai/client";
 import { useAppDialog } from "@/components/AppDialog";
+import {
+  copyDocumentForPaste,
+  downloadMarkdown,
+} from "@/lib/export/document";
+import { openPopOut } from "@/lib/pins/popOutStore";
 
 const SAMPLE_DOC = `---
 title: Welcome to BlogIDE
@@ -694,12 +699,89 @@ export function DocumentWorkspace({
       )
     : [];
 
+  async function exportMarkdownFile() {
+    flushMarkdownRef.current?.();
+    const editor = editorRef.current;
+    const nextBody = editor ? serializeBody(editor.getJSON()) : body;
+    const markdown =
+      mode === "source"
+        ? sourceText
+        : packDocument(frontmatter, subtitle, nextBody);
+    downloadMarkdown(markdown, documentName ?? `${essayTitle}.md`);
+  }
+
+  async function copyForExport() {
+    flushMarkdownRef.current?.();
+    const editor = editorRef.current;
+    const nextBody = editor ? serializeBody(editor.getJSON()) : body;
+    const markdown =
+      mode === "source"
+        ? sourceText
+        : packDocument(frontmatter, subtitle, nextBody);
+    const html =
+      mode === "wysiwyg" && editor
+        ? editor.getHTML()
+        : `<pre>${markdown
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")}</pre>`;
+    try {
+      await copyDocumentForPaste({
+        markdown,
+        html,
+        title: essayTitle,
+      });
+    } catch {
+      await dialog.confirm({
+        title: "Copy failed",
+        message:
+          "Could not write to the clipboard. Try downloading .md instead.",
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
+    }
+  }
+
+  const exportButtons = (
+    <>
+      <button
+        type="button"
+        onClick={() => void copyForExport()}
+        className="rounded border border-border px-2.5 py-1 text-xs text-muted hover:bg-panel hover:text-foreground"
+        title="Copy markdown + HTML for pasting into Substack or Docs"
+      >
+        Copy
+      </button>
+      <button
+        type="button"
+        onClick={() => void exportMarkdownFile()}
+        className="rounded border border-border px-2.5 py-1 text-xs text-muted hover:bg-panel hover:text-foreground"
+        title="Download this essay as a Markdown file"
+      >
+        Export
+      </button>
+      {nodeId && !previewMode && (
+        <button
+          type="button"
+          onClick={() => {
+            flushMarkdownRef.current?.();
+            openPopOut(nodeId, essayTitle);
+          }}
+          className="rounded border border-border px-2.5 py-1 text-xs text-muted hover:bg-panel hover:text-foreground"
+          title="Pop out this essay in a floating window (stay visible while you open another doc)"
+        >
+          Pop out
+        </button>
+      )}
+    </>
+  );
+
   const toggleButton =
     mode === "wysiwyg" ? (
       <button
         type="button"
         onClick={toSource}
-        className="rounded border border-border px-2.5 py-1 text-xs font-mono text-muted hover:text-foreground hover:bg-panel"
+        className="rounded border border-border px-2.5 py-1 text-xs font-mono text-muted hover:bg-panel hover:text-foreground"
         title="Edit raw markdown"
       >
         Markdown
@@ -708,7 +790,7 @@ export function DocumentWorkspace({
       <button
         type="button"
         onClick={() => toWysiwyg()}
-        className="rounded border border-border px-2.5 py-1 text-xs text-muted hover:text-foreground hover:bg-panel"
+        className="rounded border border-border px-2.5 py-1 text-xs text-muted hover:bg-panel hover:text-foreground"
         title="Back to rich text editing"
       >
         Rich text
@@ -747,6 +829,7 @@ export function DocumentWorkspace({
             Markdown source
           </span>
           <span className="flex items-center gap-1">
+            {exportButtons}
             <button
               type="button"
               onClick={() => setEssaySettingsOpen(true)}
@@ -883,6 +966,7 @@ export function DocumentWorkspace({
         }
         toolbarExtra={
           <span className="flex items-center gap-1">
+            {exportButtons}
             <button
               type="button"
               onClick={() => setEssaySettingsOpen(true)}
