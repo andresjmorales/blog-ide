@@ -122,7 +122,15 @@ function useStoredMobileSurface() {
 
 function useSyncStatusLabel() {
   const [status, setStatus] = useState<SyncStatus>(getSyncStatus);
+  const [nowTick, setNowTick] = useState(0);
   useEffect(() => subscribeSyncStatus(setStatus), []);
+  // Refresh relative "Synced Xm ago" without waiting for another sync event.
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTick((n) => n + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+  // nowTick forces a re-read of relative times ("just now" → "1m ago").
+  void nowTick;
   return { status, label: formatSyncLabel(status) };
 }
 
@@ -195,9 +203,7 @@ function AppShellContent({
   const [helpOpen, setHelpOpen] = useState(false);
   const mobileSurface = useStoredMobileSurface();
   const [shellRefreshKey, setShellRefreshKey] = useState(0);
-  const [aiDocumentMarkdown, setAiDocumentMarkdown] = useState<string | null>(
-    null
-  );
+  const getMarkdownForAiRef = useRef<() => string | null>(() => null);
   const applyMarkdownRef = useRef<(markdown: string) => void>(() => {});
   const [deletedFootnotes, setDeletedFootnotes] = useState<DeletedFootnote[]>(
     []
@@ -677,7 +683,8 @@ function AppShellContent({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {activeRightTab === "ai" && (
           <AiSidebar
-            documentMarkdown={aiDocumentMarkdown}
+            essayAvailable={Boolean(previewMode || activeNodeId)}
+            getDocumentMarkdown={() => getMarkdownForAiRef.current()}
             onApplyMarkdown={(markdown) => applyMarkdownRef.current(markdown)}
             onOpenSettings={() => setSettingsOpen(true)}
           />
@@ -831,7 +838,9 @@ function AppShellContent({
                 registerDeletedActions={registerDeletedActions}
                 onRequestTreeRefresh={refreshTree}
                 onRenameDocument={handleRenameDocument}
-                onMarkdownForAi={setAiDocumentMarkdown}
+                registerGetMarkdownForAi={(get) => {
+                  getMarkdownForAiRef.current = get;
+                }}
                 registerApplyMarkdown={(apply) => {
                   applyMarkdownRef.current = apply;
                 }}

@@ -24,14 +24,17 @@ type Message = {
 };
 
 type Props = {
-  /** Current essay markdown for cleanup / context actions. */
-  documentMarkdown?: string | null;
+  /** True when an essay is open (enables Include essay / Clean import). */
+  essayAvailable?: boolean;
+  /** Fresh markdown snapshot — called only on Send / Clean import. */
+  getDocumentMarkdown?: () => string | null;
   onApplyMarkdown?: (markdown: string) => void;
   onOpenSettings?: () => void;
 };
 
 export function AiSidebar({
-  documentMarkdown,
+  essayAvailable = false,
+  getDocumentMarkdown,
   onApplyMarkdown,
   onOpenSettings,
 }: Props) {
@@ -47,7 +50,7 @@ export function AiSidebar({
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const dialog = useAppDialog();
 
-  const hasEssay = Boolean(documentMarkdown?.trim());
+  const hasEssay = essayAvailable;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -89,12 +92,15 @@ export function AiSidebar({
     setMessages(history);
     setInput("");
 
-    const didIncludeEssay =
-      !system && includeEssay && hasEssay && Boolean(documentMarkdown);
+    const essayMarkdown =
+      !system && includeEssay && hasEssay
+        ? getDocumentMarkdown?.()?.trim() || null
+        : null;
+    const didIncludeEssay = Boolean(essayMarkdown);
     const essaySystem =
       system ??
-      (didIncludeEssay && documentMarkdown
-        ? essayChatSystem(documentMarkdown)
+      (didIncludeEssay && essayMarkdown
+        ? essayChatSystem(essayMarkdown)
         : undefined);
 
     try {
@@ -116,7 +122,8 @@ export function AiSidebar({
   }
 
   async function cleanImport() {
-    if (!documentMarkdown?.trim()) {
+    const documentMarkdown = getDocumentMarkdown?.()?.trim() || null;
+    if (!documentMarkdown) {
       setError("Open an essay first.");
       return;
     }

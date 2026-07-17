@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeEssayTitle } from "@/lib/markdown/docTitle";
+import { parseAuthor, writeAuthor } from "@/lib/markdown/author";
 import {
   migrateLegacySubtitle,
   parseSubtitle,
@@ -48,5 +49,12 @@ describe("titleFrontmatter", () => {
     const migrated = migrateLegacySubtitle(legacy);
     expect(migrated.subtitle).toBe("Old deck");
     expect(migrated.body).toBe("Paragraph one.\n");
+  });
+
+  it("stores author in frontmatter", () => {
+    const fm = writeAuthor("---\ntitle: Essay\n---\n", "Ada Lovelace");
+    expect(parseAuthor(fm)).toBe("Ada Lovelace");
+    expect(fm).toContain("author: Ada Lovelace");
+    expect(parseAuthor(writeAuthor(fm, ""))).toBe("");
   });
 });

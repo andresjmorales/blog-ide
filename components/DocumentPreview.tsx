@@ -8,7 +8,7 @@ import { buildPublicationPreview } from "@/lib/preview/publicationHtml";
  * Primary entry point today: ⋯ → Preview in new tab via openPublicationPreviewTab.
  */
 export function DocumentPreview({ markdown }: { markdown: string }) {
-  const { title, subtitle, bodyHtml } = useMemo(
+  const { title, subtitle, author, bodyHtml } = useMemo(
     () => buildPublicationPreview(markdown),
     [markdown]
   );
@@ -19,6 +19,9 @@ export function DocumentPreview({ markdown }: { markdown: string }) {
         <h1 className="document-preview-title">{title}</h1>
         {subtitle && (
           <p className="document-preview-subtitle">{subtitle}</p>
+        )}
+        {author && (
+          <p className="document-preview-author">{author}</p>
         )}
         <div dangerouslySetInnerHTML={{ __html: bodyHtml }} />
       </article>
