@@ -28,6 +28,11 @@ import {
   writeTitle,
 } from "@/lib/markdown/titleFrontmatter";
 import { normalizeEssayTitle } from "@/lib/markdown/docTitle";
+import {
+  migrateLegacySubtitle,
+  parseSubtitle,
+  writeSubtitle,
+} from "@/lib/markdown/subtitle";
 import { EssaySettingsPanel } from "@/components/EssaySettingsPanel";
 
 const SAMPLE_DOC = `---
@@ -37,6 +42,39 @@ status: draft
 
 This is preview mode. Connect Supabase to persist documents.
 `;
+
+function unpackDocument(
+  markdown: string,
+  fallbackFileName?: string | null
+) {
+  const normalized = normalizeEssayTitle(markdown, fallbackFileName);
+  const legacy = migrateLegacySubtitle(normalized.body);
+  let frontmatter = normalized.frontmatter;
+  let subtitle = parseSubtitle(frontmatter);
+  if (!subtitle && legacy.subtitle) {
+    subtitle = legacy.subtitle;
+    frontmatter = writeSubtitle(frontmatter, subtitle);
+  }
+  const changed =
+    normalized.changed ||
+    frontmatter !== normalized.frontmatter ||
+    legacy.body !== normalized.body;
+  return {
+    frontmatter,
+    subtitle,
+    body: legacy.body,
+    title: normalized.title,
+    changed,
+  };
+}
+
+function packDocument(
+  frontmatter: string,
+  subtitle: string,
+  body: string
+): string {
+  return writeSubtitle(frontmatter, subtitle) + body;
+}
 
 type Mode = "wysiwyg" | "source";
 
@@ -68,17 +106,21 @@ export function DocumentWorkspace({
   onRequestTreeRefresh,
   onRenameDocument,
 }: Props) {
-  const [{ frontmatter, body }, setDoc] = useState(() => {
-    const normalized = normalizeEssayTitle(SAMPLE_DOC);
+  const [{ frontmatter, subtitle, body }, setDoc] = useState(() => {
+    const unpacked = unpackDocument(SAMPLE_DOC);
     return {
-      frontmatter: normalized.frontmatter,
-      body: normalized.body,
+      frontmatter: unpacked.frontmatter,
+      subtitle: unpacked.subtitle,
+      body: unpacked.body,
     };
   });
   const [titleDraft, setTitleDraft] = useState(
-    () => normalizeEssayTitle(SAMPLE_DOC).title
+    () => unpackDocument(SAMPLE_DOC).title
   );
   const [titleFocused, setTitleFocused] = useState(false);
+  const [subtitleFocused, setSubtitleFocused] = useState(false);
+  const [subtitleDraft, setSubtitleDraft] = useState("");
+  const subtitleInputRef = useRef<HTMLInputElement | null>(null);
   const documentNameRef = useRef(documentName);
   const [mode, setMode] = useState<Mode>("wysiwyg");
   const [sourceText, setSourceText] = useState("");
@@ -156,12 +198,13 @@ export function DocumentWorkspace({
 
     async function load() {
       if (!persistEnabled || !nodeId) {
-        const normalized = normalizeEssayTitle(SAMPLE_DOC);
+        const unpacked = unpackDocument(SAMPLE_DOC);
         setDoc({
-          frontmatter: normalized.frontmatter,
-          body: normalized.body,
+          frontmatter: unpacked.frontmatter,
+          subtitle: unpacked.subtitle,
+          body: unpacked.body,
         });
-        setTitleDraft(normalized.title);
+        setTitleDraft(unpacked.title);
         setBaseVersion(1);
         setLoadError(null);
         return;
@@ -174,23 +217,27 @@ export function DocumentWorkspace({
         await flushSyncQueue();
         const opened = await openDocument(nodeId);
         if (cancelled) return;
-        const normalized = normalizeEssayTitle(
+        const unpacked = unpackDocument(
           opened.markdown,
           documentNameRef.current
         );
         setDoc({
-          frontmatter: normalized.frontmatter,
-          body: normalized.body,
+          frontmatter: unpacked.frontmatter,
+          subtitle: unpacked.subtitle,
+          body: unpacked.body,
         });
-        setTitleDraft(normalized.title);
+        setTitleDraft(unpacked.title);
         setBaseVersion(opened.baseVersion);
-        if (normalized.changed) {
+        const packed = packDocument(
+          unpacked.frontmatter,
+          unpacked.subtitle,
+          unpacked.body
+        );
+        if (unpacked.changed) {
           // Persist migration of legacy `# Title` out of the body.
-          persistMarkdownRef.current(
-            normalized.frontmatter + normalized.body
-          );
+          persistMarkdownRef.current(packed);
         }
-        onDocumentLoaded?.(normalized.frontmatter + normalized.body);
+        onDocumentLoaded?.(packed);
         if (opened.dirty) {
           void syncDocument(nodeId).then(() => onRequestTreeRefresh?.());
         }
@@ -282,8 +329,14 @@ export function DocumentWorkspace({
         const current = parseTitle(prev.frontmatter);
         if (current === fromFile) return prev;
         const nextFrontmatter = writeTitle(prev.frontmatter, fromFile);
-        const next = { frontmatter: nextFrontmatter, body: prev.body };
-        persistMarkdownRef.current(nextFrontmatter + next.body);
+        const next = {
+          frontmatter: nextFrontmatter,
+          subtitle: prev.subtitle,
+          body: prev.body,
+        };
+        persistMarkdownRef.current(
+          packDocument(next.frontmatter, next.subtitle, next.body)
+        );
         return next;
       });
     }, 0);
@@ -296,8 +349,14 @@ export function DocumentWorkspace({
         current.frontmatter,
         languages
       );
-      const next = { frontmatter: nextFrontmatter, body: current.body };
-      persistMarkdownRef.current(nextFrontmatter + next.body);
+      const next = {
+        frontmatter: nextFrontmatter,
+        subtitle: current.subtitle,
+        body: current.body,
+      };
+      persistMarkdownRef.current(
+        packDocument(next.frontmatter, next.subtitle, next.body)
+      );
       return next;
     });
   }, []);
@@ -308,8 +367,14 @@ export function DocumentWorkspace({
       setTitleDraft(cleaned);
       setDoc((current) => {
         const nextFrontmatter = writeTitle(current.frontmatter, cleaned);
-        const next = { frontmatter: nextFrontmatter, body: current.body };
-        persistMarkdownRef.current(nextFrontmatter + next.body);
+        const next = {
+          frontmatter: nextFrontmatter,
+          subtitle: current.subtitle,
+          body: current.body,
+        };
+        persistMarkdownRef.current(
+          packDocument(next.frontmatter, next.subtitle, next.body)
+        );
         return next;
       });
       if (
@@ -330,7 +395,7 @@ export function DocumentWorkspace({
     [persistEnabled, nodeId, canRenameDocument, documentName]
   );
 
-  function commitTitleField(focusBody = false) {
+  function commitTitleField(focusNext: "subtitle" | "body" | null = null) {
     const next = titleDraft.trim() || "Untitled";
     if (next !== essayTitle) {
       setEssayTitle(next);
@@ -338,6 +403,31 @@ export function DocumentWorkspace({
       setTitleDraft(next);
     }
     setTitleFocused(false);
+    if (focusNext === "subtitle") {
+      requestAnimationFrame(() => subtitleInputRef.current?.focus());
+    } else if (focusNext === "body") {
+      requestAnimationFrame(() => {
+        editorRef.current?.commands.focus("start");
+      });
+    }
+  }
+
+  function commitSubtitleField(focusBody = false) {
+    const next = subtitleDraft;
+    setSubtitleFocused(false);
+    setDoc((current) => {
+      if (current.subtitle === next) return current;
+      const nextFrontmatter = writeSubtitle(current.frontmatter, next);
+      const updated = {
+        frontmatter: nextFrontmatter,
+        subtitle: next,
+        body: current.body,
+      };
+      persistMarkdownRef.current(
+        packDocument(updated.frontmatter, updated.subtitle, updated.body)
+      );
+      return updated;
+    });
     if (focusBody) {
       requestAnimationFrame(() => {
         editorRef.current?.commands.focus("start");
@@ -348,28 +438,51 @@ export function DocumentWorkspace({
   // While focused, show the draft; otherwise show the committed title
   // (so external renames appear without a syncing effect).
   const titleFieldValue = titleFocused ? titleDraft : essayTitle;
+  const subtitleFieldValue = subtitleFocused ? subtitleDraft : subtitle;
 
   const titleField = (
-    <input
-      type="text"
-      value={titleFieldValue}
-      onFocus={() => {
-        setTitleFocused(true);
-        setTitleDraft(essayTitle);
-      }}
-      onChange={(e) => setTitleDraft(e.target.value)}
-      onBlur={() => commitTitleField(false)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          commitTitleField(true);
-        }
-      }}
-      disabled={!canRenameDocument && Boolean(nodeId) && !previewMode}
-      aria-label="Essay title"
-      placeholder="Title"
-      className="essay-title-input"
-    />
+    <div className="essay-title-block">
+      <input
+        type="text"
+        value={titleFieldValue}
+        onFocus={() => {
+          setTitleFocused(true);
+          setTitleDraft(essayTitle);
+        }}
+        onChange={(e) => setTitleDraft(e.target.value)}
+        onBlur={() => commitTitleField(null)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commitTitleField("subtitle");
+          }
+        }}
+        disabled={!canRenameDocument && Boolean(nodeId) && !previewMode}
+        aria-label="Essay title"
+        placeholder="Title"
+        className="essay-title-input"
+      />
+      <input
+        ref={subtitleInputRef}
+        type="text"
+        value={subtitleFieldValue}
+        onFocus={() => {
+          setSubtitleFocused(true);
+          setSubtitleDraft(subtitle);
+        }}
+        onChange={(e) => setSubtitleDraft(e.target.value)}
+        onBlur={() => commitSubtitleField(false)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commitSubtitleField(true);
+          }
+        }}
+        aria-label="Essay subtitle"
+        placeholder="Subtitle (optional)"
+        className="essay-subtitle-input"
+      />
+    </div>
   );
 
   // After a conflict resolution, reload the canonical remote into the editor.
@@ -379,12 +492,13 @@ export function DocumentWorkspace({
       if (!status.conflictCopyId || !status.message) return;
       void openDocument(nodeId).then((opened) => {
         if (nodeIdRef.current !== nodeId) return;
-        const normalized = normalizeEssayTitle(opened.markdown);
+        const unpacked = unpackDocument(opened.markdown);
         setDoc({
-          frontmatter: normalized.frontmatter,
-          body: normalized.body,
+          frontmatter: unpacked.frontmatter,
+          subtitle: unpacked.subtitle,
+          body: unpacked.body,
         });
-        setTitleDraft(normalized.title);
+        setTitleDraft(unpacked.title);
         setBaseVersion(opened.baseVersion);
       });
     });
@@ -418,7 +532,7 @@ export function DocumentWorkspace({
   }, [persistEnabled, nodeId, onRequestTreeRefresh]);
 
   function toSource() {
-    setSourceText(frontmatter + body);
+    setSourceText(packDocument(frontmatter, subtitle, body));
     setMode("source");
   }
 
@@ -430,14 +544,17 @@ export function DocumentWorkspace({
     }
     setLossyWarning(false);
     setLossyDiffOpen(false);
-    const normalized = normalizeEssayTitle(sourceText, documentName);
+    const unpacked = unpackDocument(sourceText, documentName);
     setDoc({
-      frontmatter: normalized.frontmatter,
-      body: normalized.body,
+      frontmatter: unpacked.frontmatter,
+      subtitle: unpacked.subtitle,
+      body: unpacked.body,
     });
-    setTitleDraft(normalized.title);
+    setTitleDraft(unpacked.title);
     setMode("wysiwyg");
-    persistMarkdown(normalized.frontmatter + normalized.body);
+    persistMarkdown(
+      packDocument(unpacked.frontmatter, unpacked.subtitle, unpacked.body)
+    );
   }
 
   const lossyDiffLines = lossyWarning
@@ -611,8 +728,8 @@ export function DocumentWorkspace({
         key={nodeId ?? "preview"}
         markdown={body}
         onChange={(md) => {
-          setDoc({ frontmatter, body: md });
-          persistMarkdown(frontmatter + md);
+          setDoc({ frontmatter, subtitle, body: md });
+          persistMarkdown(packDocument(frontmatter, subtitle, md));
         }}
         onDeletedFootnotesChange={onDeletedFootnotesChange}
         editorRef={editorRef}

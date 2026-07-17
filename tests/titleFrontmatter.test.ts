@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { normalizeEssayTitle } from "@/lib/markdown/docTitle";
 import {
+  migrateLegacySubtitle,
+  parseSubtitle,
+  writeSubtitle,
+} from "@/lib/markdown/subtitle";
+import {
   fileNameToTitle,
   parseTitle,
   titleToFileName,
@@ -29,5 +34,19 @@ describe("titleFrontmatter", () => {
     expect(next.title).toBe("New Title 1");
     expect(next.body).toBe("Body.\n");
     expect(next.frontmatter).toContain("title: New Title 1");
+  });
+
+  it("stores subtitle in frontmatter", () => {
+    const fm = writeSubtitle("---\ntitle: Essay\n---\n", "A short deck");
+    expect(parseSubtitle(fm)).toBe("A short deck");
+    expect(fm).toContain("subtitle: A short deck");
+  });
+
+  it("migrates a legacy body subtitle marker", () => {
+    const legacy =
+      "<!--blogide-subtitle-->\nOld deck\n\nParagraph one.\n";
+    const migrated = migrateLegacySubtitle(legacy);
+    expect(migrated.subtitle).toBe("Old deck");
+    expect(migrated.body).toBe("Paragraph one.\n");
   });
 });

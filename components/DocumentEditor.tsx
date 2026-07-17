@@ -19,6 +19,7 @@ import {
 } from "@/lib/editor/linkShortcut";
 import { ImageIcon, ItalicIcon, LinkIcon } from "@/components/icons";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
+import { DocumentOutline } from "@/components/DocumentOutline";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { useStickySidenotes } from "@/components/useStickySidenotes";
 import { useAppDialog } from "@/components/AppDialog";
@@ -61,6 +62,7 @@ export function DocumentEditor({
   const dialog = useAppDialog();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
+  const [outlineOpen, setOutlineOpen] = useState(true);
   const stickyEnabled =
     prefs.sidenotes && prefs.sidenoteLayout === "sticky";
   const spellcheckOn = prefs.spellcheckEnabled;
@@ -150,22 +152,31 @@ export function DocumentEditor({
   return (
     <div className="flex flex-col h-full">
       {editor && <Toolbar editor={editor} extra={toolbarExtra} />}
-      <div
-        ref={(node) => {
-          scrollRef.current = node;
-          setScrollEl((current) => (current === node ? current : node));
-        }}
-        className={`flex-1 overflow-y-auto ${
-          prefs.sidenotes ? "show-sidenotes" : ""
-        } ${stickyEnabled ? "sidenotes-sticky" : ""}`}
-      >
+      <div className="flex min-h-0 flex-1">
+        {editor && (
+          <DocumentOutline
+            editor={editor}
+            open={outlineOpen}
+            onToggle={() => setOutlineOpen((open) => !open)}
+          />
+        )}
         <div
-          className={`mx-auto px-6 py-10 ${
-            prefs.sidenotes ? "max-w-5xl" : "max-w-2xl"
-          }`}
+          ref={(node) => {
+            scrollRef.current = node;
+            setScrollEl((current) => (current === node ? current : node));
+          }}
+          className={`min-w-0 flex-1 overflow-y-auto ${
+            prefs.sidenotes ? "show-sidenotes" : ""
+          } ${stickyEnabled ? "sidenotes-sticky" : ""}`}
         >
-          {titleSlot}
-          <EditorContent editor={editor} />
+          <div
+            className={`mx-auto px-6 py-10 ${
+              prefs.sidenotes ? "max-w-5xl" : "max-w-2xl"
+            }`}
+          >
+            {titleSlot}
+            <EditorContent editor={editor} />
+          </div>
         </div>
       </div>
     </div>
