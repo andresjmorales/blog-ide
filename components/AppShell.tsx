@@ -8,7 +8,6 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -466,13 +465,14 @@ function AppShellContent({
                 <PanelIcon side="left" />
               </button>
               <span className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight">
-                <Image
-                  src="/icons/blogide-logo.png"
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/icons/blogide.svg"
                   alt=""
                   width={22}
                   height={22}
-                  className="size-[22px] rounded-[5px]"
-                  priority
+                  className="size-[22px]"
+                  draggable={false}
                 />
                 BlogIDE
               </span>

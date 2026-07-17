@@ -12,9 +12,9 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#2f6b4f",
     icons: [
       {
-        src: "/icons/blogide-logo.png",
-        sizes: "387x387",
-        type: "image/png",
+        src: "/icons/blogide.svg",
+        sizes: "any",
+        type: "image/svg+xml",
         purpose: "any",
       },
       {
