@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type Ref } from "react";
 import { generateHTML } from "@tiptap/core";
 import { createExtensions } from "@/lib/editor/extensions";
 import { parseBody } from "@/lib/markdown/pipeline";
@@ -12,13 +12,14 @@ import { parseBody } from "@/lib/markdown/pipeline";
 export function FootnoteSidenote({
   number,
   markdown,
-  onNumberClick,
-  onBodyClick,
+  rootRef,
+  onActivate,
 }: {
   number: number;
   markdown: string;
-  onNumberClick?: () => void;
-  onBodyClick?: () => void;
+  rootRef?: Ref<HTMLSpanElement>;
+  /** Number or body — both scroll to the mark and open the editor. */
+  onActivate?: () => void;
 }) {
   const html = useMemo(() => {
     const trimmed = markdown.trim();
@@ -31,7 +32,17 @@ export function FootnoteSidenote({
   }, [markdown]);
 
   return (
-    <span className="footnote-sidenote" contentEditable={false}>
+    <span
+      ref={rootRef}
+      className="footnote-sidenote"
+      contentEditable={false}
+      onWheel={(event) => {
+        const el = event.currentTarget;
+        if (el.scrollHeight > el.clientHeight + 1) {
+          event.stopPropagation();
+        }
+      }}
+    >
       <button
         type="button"
         className="footnote-sidenote-number"
@@ -40,7 +51,7 @@ export function FootnoteSidenote({
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          onNumberClick?.();
+          onActivate?.();
         }}
       >
         {number}
@@ -54,13 +65,13 @@ export function FootnoteSidenote({
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          onBodyClick?.();
+          onActivate?.();
         }}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             event.stopPropagation();
-            onBodyClick?.();
+            onActivate?.();
           }
         }}
       >

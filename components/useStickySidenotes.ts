@@ -3,10 +3,14 @@
 import { useEffect } from "react";
 import { packStickySidenotes } from "@/lib/editor/sidenoteLayout";
 
+/** Soft cap before packing; packing may expand up to this when space allows. */
+const MAX_NOTE_HEIGHT = 320;
+
 /**
  * When sticky sidenotes are enabled, reposition each `.footnote-sidenote`
  * with `position: fixed` so notes pack into the visible gutter without
- * overlapping. Floating footnote editor cards are untouched.
+ * overlapping. Crowded notes truncate with an ellipsis; only when even
+ * minimum-height rows won't fit do older notes leave the gutter.
  */
 export function useStickySidenotes(
   scrollRoot: HTMLElement | null,
@@ -27,12 +31,14 @@ export function useStickySidenotes(
       if (nodes.length === 0) return;
 
       const scrollRect = scrollRoot.getBoundingClientRect();
-      const focusY = scrollRect.top + scrollRect.height * 0.35;
+      const focusY = scrollRect.top + scrollRect.height * 0.4;
       const prose =
         scrollRoot.querySelector<HTMLElement>(".editor-prose") ?? scrollRoot;
       const proseRect = prose.getBoundingClientRect();
       const right = Math.max(12, window.innerWidth - proseRect.right - 16);
       const width = Math.min(232, Math.max(160, right - 8));
+      const gutterTop = scrollRect.top + 8;
+      const gutterBottom = scrollRect.bottom - 8;
 
       const measured = nodes.flatMap((node) => {
         const id = node.getAttribute("data-footnote-id");
@@ -41,15 +47,25 @@ export function useStickySidenotes(
           node.querySelector<HTMLElement>(".footnote-ref") ?? node;
         if (!id || !sidenote) return [];
 
-        // Measure natural height while temporarily unfixed.
-        sidenote.classList.remove("is-sticky-placed");
+        sidenote.classList.remove(
+          "is-sticky-placed",
+          "is-primary",
+          "is-sticky-hidden",
+          "is-truncated"
+        );
+        sidenote.classList.add("is-measuring");
         sidenote.style.top = "";
         sidenote.style.right = "";
         sidenote.style.width = `${width}px`;
-        const height = Math.max(sidenote.offsetHeight, 28);
-        const naturalTop = anchor.getBoundingClientRect().top;
+        sidenote.style.maxHeight = "";
+        sidenote.style.height = "";
 
-        return [{ id, naturalTop, height, sidenote }];
+        const naturalHeight = Math.max(sidenote.scrollHeight, 28);
+        const height = Math.min(naturalHeight, MAX_NOTE_HEIGHT);
+        const naturalTop = anchor.getBoundingClientRect().top;
+        sidenote.classList.remove("is-measuring");
+
+        return [{ id, naturalTop, height, naturalHeight, sidenote }];
       });
 
       const packed = packStickySidenotes(
@@ -58,20 +74,26 @@ export function useStickySidenotes(
           naturalTop,
           height,
         })),
-        scrollRect.top + 8,
-        scrollRect.bottom - 8,
+        gutterTop,
+        gutterBottom,
         focusY
       );
 
       const byId = new Map(packed.map((item) => [item.id, item]));
+
       for (const item of measured) {
         const place = byId.get(item.id);
-        if (!place) continue;
+        if (!place) {
+          item.sidenote.classList.add("is-sticky-hidden");
+          continue;
+        }
         item.sidenote.classList.add("is-sticky-placed");
         item.sidenote.classList.toggle("is-primary", place.primary);
+        item.sidenote.classList.toggle("is-truncated", place.truncated);
         item.sidenote.style.top = `${place.top}px`;
         item.sidenote.style.right = `${right - width}px`;
         item.sidenote.style.width = `${width}px`;
+        item.sidenote.style.maxHeight = `${place.height}px`;
       }
     }
 
@@ -91,7 +113,6 @@ export function useStickySidenotes(
     schedule();
     scrollRoot.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
-    // Structural edits only — packing style changes must not re-enter.
     const observer = new MutationObserver(schedule);
     observer.observe(scrollRoot, {
       childList: true,
@@ -108,10 +129,18 @@ export function useStickySidenotes(
       scrollRoot
         .querySelectorAll<HTMLElement>(".footnote-sidenote")
         .forEach((sidenote) => {
-          sidenote.classList.remove("is-sticky-placed", "is-primary");
+          sidenote.classList.remove(
+            "is-sticky-placed",
+            "is-primary",
+            "is-sticky-hidden",
+            "is-truncated",
+            "is-measuring"
+          );
           sidenote.style.top = "";
           sidenote.style.right = "";
           sidenote.style.width = "";
+          sidenote.style.maxHeight = "";
+          sidenote.style.height = "";
         });
     };
   }, [enabled, scrollRoot]);

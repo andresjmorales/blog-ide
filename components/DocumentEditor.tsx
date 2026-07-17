@@ -25,6 +25,7 @@ import { useStickySidenotes } from "@/components/useStickySidenotes";
 import { useAppDialog } from "@/components/AppDialog";
 import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
+import { transformPastedFootnoteHtml } from "@/lib/import/footnotePaste";
 
 type Props = {
   /** Markdown body (frontmatter already stripped by the caller). */
@@ -38,6 +39,8 @@ type Props = {
   titleSlot?: React.ReactNode;
   /** Effective spellcheck language tags for this essay. */
   spellcheckLanguages?: string[];
+  /** Convert already-pasted footnote hyperlinks in the full document. */
+  onConvertFootnoteLinks?: () => void;
 };
 
 function withFootnoteNodeView(extension: AnyExtension): AnyExtension {
@@ -57,6 +60,7 @@ export function DocumentEditor({
   editorRef,
   toolbarExtra,
   spellcheckLanguages = [],
+  onConvertFootnoteLinks,
 }: Props) {
   const { prefs } = useEditorPrefs();
   const dialog = useAppDialog();
@@ -88,6 +92,9 @@ export function DocumentEditor({
         "aria-label": "Document editor",
         spellcheck: spellcheckOn ? "true" : "false",
         lang,
+      },
+      transformPastedHTML(html) {
+        return transformPastedFootnoteHtml(html);
       },
     },
     onUpdate: ({ editor }) => {
@@ -151,7 +158,13 @@ export function DocumentEditor({
 
   return (
     <div className="flex flex-col h-full">
-      {editor && <Toolbar editor={editor} extra={toolbarExtra} />}
+      {editor && (
+        <Toolbar
+          editor={editor}
+          extra={toolbarExtra}
+          onConvertFootnoteLinks={onConvertFootnoteLinks}
+        />
+      )}
       <div className="flex min-h-0 flex-1">
         {editor && (
           <DocumentOutline
@@ -183,7 +196,15 @@ export function DocumentEditor({
   );
 }
 
-function Toolbar({ editor, extra }: { editor: Editor; extra?: React.ReactNode }) {
+function Toolbar({
+  editor,
+  extra,
+  onConvertFootnoteLinks,
+}: {
+  editor: Editor;
+  extra?: React.ReactNode;
+  onConvertFootnoteLinks?: () => void;
+}) {
   const dialog = useAppDialog();
   const state = useEditorState({
     editor,
@@ -336,6 +357,15 @@ function Toolbar({ editor, extra }: { editor: Editor; extra?: React.ReactNode })
       <span className="mx-1.5 h-4 w-px bg-border" aria-hidden />
 
       <SpecialCharsMenu editor={editor} />
+
+      {onConvertFootnoteLinks && (
+        <ToolButton
+          title="Convert pasted footnote links into BlogIDE footnotes"
+          onClick={onConvertFootnoteLinks}
+        >
+          Fix notes
+        </ToolButton>
+      )}
 
       {extra && <div className="ml-auto">{extra}</div>}
     </div>

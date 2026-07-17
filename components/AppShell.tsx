@@ -20,6 +20,7 @@ import { DocumentWorkspace } from "@/components/DocumentWorkspace";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { HelpPanel } from "@/components/HelpPanel";
 import { UserMenu } from "@/components/UserMenu";
+import { AiSidebar } from "@/components/AiSidebar";
 import { EditorPrefsProvider } from "@/components/EditorPrefsContext";
 import { DocumentSessionProvider } from "@/components/DocumentSessionContext";
 import { DeletedFootnotesPanel } from "@/components/DeletedFootnotesPanel";
@@ -105,6 +106,10 @@ function AppShellContent({
   const prefsRef = useRef(storedPrefs);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [aiDocumentMarkdown, setAiDocumentMarkdown] = useState<string | null>(
+    null
+  );
+  const applyMarkdownRef = useRef<(markdown: string) => void>(() => {});
   const [deletedFootnotes, setDeletedFootnotes] = useState<DeletedFootnote[]>(
     []
   );
@@ -520,6 +525,10 @@ function AppShellContent({
                 registerDeletedActions={registerDeletedActions}
                 onRequestTreeRefresh={refreshTree}
                 onRenameDocument={handleRenameDocument}
+                onMarkdownForAi={setAiDocumentMarkdown}
+                registerApplyMarkdown={(apply) => {
+                  applyMarkdownRef.current = apply;
+                }}
               />
             </main>
 
@@ -548,18 +557,23 @@ function AppShellContent({
                       </button>
                     ))}
                   </div>
-                  <div className="flex-1 overflow-y-auto p-4 text-sm text-muted leading-relaxed">
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                     {prefs.rightTab === "ai" ? (
-                      <p>
-                        The AI sidebar (bring-your-own Anthropic key) arrives in
-                        milestone 6. Your key never touches the server.
-                      </p>
+                      <AiSidebar
+                        documentMarkdown={aiDocumentMarkdown}
+                        onApplyMarkdown={(markdown) =>
+                          applyMarkdownRef.current(markdown)
+                        }
+                        onOpenSettings={() => setSettingsOpen(true)}
+                      />
                     ) : (
-                      <p>
-                        The publication-style preview arrives in milestone 5 —
-                        rendered through the same remark/rehype pipeline used for
-                        export.
-                      </p>
+                      <div className="overflow-y-auto p-4 text-sm text-muted leading-relaxed">
+                        <p>
+                          The publication-style preview arrives in milestone 5 —
+                          rendered through the same remark/rehype pipeline used
+                          for export.
+                        </p>
+                      </div>
                     )}
                   </div>
                 </aside>

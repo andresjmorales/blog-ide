@@ -584,6 +584,20 @@ body {
   border-color: var(--accent);
   outline: none;
 }
+.settings-link-btn {
+  align-self: flex-start;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  padding: 0;
+  text-decoration: underline;
+}
+.settings-link-btn:hover {
+  color: var(--accent);
+}
 
 .user-avatar {
   align-items: center;
@@ -644,10 +658,25 @@ body {
     width: 14.5rem;
     z-index: 2;
   }
+  .show-sidenotes.sidenotes-sticky .footnote-sidenote.is-measuring {
+    /* Measure natural height without absolute/translate offsets. */
+    left: -9999px;
+    position: fixed;
+    top: 0;
+    transform: none;
+    visibility: hidden;
+  }
   .show-sidenotes.sidenotes-sticky .footnote-sidenote.is-sticky-placed {
+    /* No top transition — animated tops cause mid-scroll overlaps. */
+    overflow: hidden;
     position: fixed;
     transform: none;
-    transition: top 0.12s ease-out, opacity 0.12s ease-out;
+    transition: opacity 0.12s ease-out;
+  }
+  .show-sidenotes.sidenotes-sticky .footnote-sidenote.is-sticky-hidden {
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
   }
   .show-sidenotes.sidenotes-sticky .footnote-sidenote.is-sticky-placed:not(.is-primary) {
     opacity: 0.72;
@@ -655,6 +684,15 @@ body {
   .show-sidenotes.sidenotes-sticky .footnote-sidenote.is-primary {
     color: var(--foreground);
     opacity: 1;
+  }
+  /* Crowded gutter: clip with a fade so notes stay visible as snippets. */
+  .show-sidenotes.sidenotes-sticky .footnote-sidenote.is-truncated {
+    mask-image: linear-gradient(
+      to bottom,
+      #000 0%,
+      #000 calc(100% - 1.1em),
+      transparent 100%
+    );
   }
   .footnote-sidenote-number,
   .footnote-sidenote-body {

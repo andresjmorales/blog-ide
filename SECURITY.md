@@ -25,11 +25,11 @@ Never commit or include these values in reports:
 
 - Supabase service-role keys;
 - GitHub personal access tokens;
-- Anthropic API keys;
+- Anthropic / OpenAI API keys;
 - `.env.local` contents;
 - private document content.
 
-The browser may eventually store user-supplied GitHub and Anthropic keys in
-IndexedDB. They must never be sent to BlogIDE's server or Supabase. The
-Supabase service-role key is server-only and must never use a `NEXT_PUBLIC_`
-environment variable.
+User-supplied Anthropic/OpenAI keys are stored in the browser (localStorage)
+and may be forwarded ephemerally through a Next.js proxy for CORS. They must
+never be persisted in Supabase or server env. The Supabase service-role key is
+server-only and must never use a `NEXT_PUBLIC_` environment variable.

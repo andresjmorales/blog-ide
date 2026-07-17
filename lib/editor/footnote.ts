@@ -80,7 +80,18 @@ export const FootnoteRef = Node.create({
   },
 
   parseHTML() {
-    return [{ tag: "sup[data-footnote-ref]" }];
+    return [
+      {
+        tag: "sup[data-footnote-ref]",
+        getAttrs: (element) => {
+          if (!(element instanceof HTMLElement)) return false;
+          return {
+            id: element.getAttribute("data-id") || createFootnoteId(),
+            content: element.getAttribute("data-content") || "",
+          };
+        },
+      },
+    ];
   },
 
   renderHTML({ node, HTMLAttributes }) {
@@ -88,6 +99,8 @@ export const FootnoteRef = Node.create({
       "sup",
       mergeAttributes(HTMLAttributes, {
         "data-footnote-ref": "",
+        "data-id": node.attrs.id,
+        "data-content": node.attrs.content || "",
         class: "footnote-ref",
         title: node.attrs.content || "Empty footnote",
       }),

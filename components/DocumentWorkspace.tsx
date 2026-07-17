@@ -34,6 +34,10 @@ import {
   writeSubtitle,
 } from "@/lib/markdown/subtitle";
 import { EssaySettingsPanel } from "@/components/EssaySettingsPanel";
+import { convertMarkdownFootnoteLinks } from "@/lib/import/footnotePaste";
+import { getActiveProvider, loadAiKeys } from "@/lib/ai/keys";
+import { chatCompletion, IMPORT_CLEANUP_SYSTEM } from "@/lib/ai/client";
+import { useAppDialog } from "@/components/AppDialog";
 
 const SAMPLE_DOC = `---
 title: Welcome to BlogIDE
@@ -93,6 +97,9 @@ type Props = {
   onDocumentLoaded?: (markdown: string) => void;
   onRequestTreeRefresh?: () => void;
   onRenameDocument?: (nodeId: string, fileName: string) => Promise<void>;
+  /** Keep the AI sidebar in sync with the open essay. */
+  onMarkdownForAi?: (markdown: string | null) => void;
+  registerApplyMarkdown?: (apply: (markdown: string) => void) => void;
 };
 
 export function DocumentWorkspace({
@@ -105,7 +112,10 @@ export function DocumentWorkspace({
   onDocumentLoaded,
   onRequestTreeRefresh,
   onRenameDocument,
+  onMarkdownForAi,
+  registerApplyMarkdown,
 }: Props) {
+  const dialog = useAppDialog();
   const [{ frontmatter, subtitle, body }, setDoc] = useState(() => {
     const unpacked = unpackDocument(SAMPLE_DOC);
     return {
@@ -316,6 +326,101 @@ export function DocumentWorkspace({
   useEffect(() => {
     persistMarkdownRef.current = persistMarkdown;
   }, [persistMarkdown]);
+
+  const packedMarkdown = packDocument(frontmatter, subtitle, body);
+
+  useEffect(() => {
+    if (mode === "source") {
+      onMarkdownForAi?.(sourceText || packedMarkdown);
+    } else {
+      onMarkdownForAi?.(packedMarkdown);
+    }
+  }, [mode, sourceText, packedMarkdown, onMarkdownForAi]);
+
+  const applyMarkdown = useCallback(
+    (markdown: string) => {
+      const unpacked = unpackDocument(markdown, documentName);
+      const packed = packDocument(
+        unpacked.frontmatter,
+        unpacked.subtitle,
+        unpacked.body
+      );
+      setDoc({
+        frontmatter: unpacked.frontmatter,
+        subtitle: unpacked.subtitle,
+        body: unpacked.body,
+      });
+      setTitleDraft(unpacked.title);
+      if (mode === "source") setSourceText(packed);
+      persistMarkdownRef.current(packed);
+      onMarkdownForAi?.(packed);
+    },
+    [documentName, mode, onMarkdownForAi]
+  );
+
+  useEffect(() => {
+    registerApplyMarkdown?.(applyMarkdown);
+  }, [registerApplyMarkdown, applyMarkdown]);
+
+  const convertFootnoteLinks = useCallback(async () => {
+    const full =
+      mode === "source" ? sourceText : packDocument(frontmatter, subtitle, body);
+    const { markdown, converted } = convertMarkdownFootnoteLinks(full);
+    if (converted > 0) {
+      applyMarkdown(markdown);
+      return;
+    }
+
+    const keys = loadAiKeys();
+    const provider = getActiveProvider(keys);
+    if (keys.importAssist && provider) {
+      const ok = await dialog.confirm({
+        title: "AI import assist?",
+        message:
+          "No simple footnote links were found. Run AI cleanup for footnotes, headings, and quote-like indentation?",
+        confirmLabel: "Clean with AI",
+      });
+      if (!ok) return;
+      try {
+        const reply = await chatCompletion({
+          messages: [
+            {
+              role: "user",
+              content: `Clean up this pasted essay for BlogIDE:\n\n${full}`,
+            },
+          ],
+          system: IMPORT_CLEANUP_SYSTEM,
+          provider,
+        });
+        applyMarkdown(reply.trim());
+      } catch (error) {
+        await dialog.confirm({
+          title: "AI cleanup failed",
+          message:
+            error instanceof Error ? error.message : "Could not clean import.",
+          confirmLabel: "OK",
+          cancelLabel: "Dismiss",
+        });
+      }
+      return;
+    }
+
+    await dialog.confirm({
+      title: "Nothing to convert",
+      message:
+        "No Substack-style footnote links or split note blocks matched. Re-paste from Substack, or enable AI import assist in Account settings.",
+      confirmLabel: "OK",
+      cancelLabel: "Close",
+    });
+  }, [
+    mode,
+    sourceText,
+    frontmatter,
+    subtitle,
+    body,
+    applyMarkdown,
+    dialog,
+  ]);
 
   // External rename (Files panel) → update frontmatter title.
   // Queue the write so we don't setState synchronously inside the effect body.
@@ -734,6 +839,9 @@ export function DocumentWorkspace({
         onDeletedFootnotesChange={onDeletedFootnotesChange}
         editorRef={editorRef}
         titleSlot={titleField}
+        onConvertFootnoteLinks={() => {
+          void convertFootnoteLinks();
+        }}
         spellcheckLanguages={
           documentLanguages.length > 0
             ? documentLanguages

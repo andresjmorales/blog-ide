@@ -1,9 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import type { SidenoteLayout } from "@/lib/settings";
 import { SPELLCHECK_LANGUAGE_OPTIONS } from "@/lib/markdown/spellcheckFrontmatter";
+import {
+  loadAiKeys,
+  maskKey,
+  saveAiKeys,
+  type AiKeys,
+  type AiProvider,
+} from "@/lib/ai/keys";
 
 type Props = {
   open: boolean;
@@ -11,8 +18,6 @@ type Props = {
 };
 
 export function SettingsPanel({ open, onClose }: Props) {
-  const { prefs, updatePrefs } = useEditorPrefs();
-
   useEffect(() => {
     if (!open) return;
     function onKeyDown(event: KeyboardEvent) {
@@ -24,6 +29,17 @@ export function SettingsPanel({ open, onClose }: Props) {
 
   if (!open) return null;
 
+  // Remount so drafts reset from localStorage without syncing in an effect.
+  return <SettingsDialog key={String(open)} onClose={onClose} />;
+}
+
+function SettingsDialog({ onClose }: { onClose: () => void }) {
+  const { prefs, updatePrefs } = useEditorPrefs();
+  const [aiKeys, setAiKeys] = useState<AiKeys>(() => loadAiKeys());
+  const [anthropicDraft, setAnthropicDraft] = useState("");
+  const [openaiDraft, setOpenaiDraft] = useState("");
+  const [keysSaved, setKeysSaved] = useState(false);
+
   const defaultLangs = prefs.spellcheckLanguages;
 
   function toggleDefaultLang(code: string) {
@@ -33,6 +49,30 @@ export function SettingsPanel({ open, onClose }: Props) {
     updatePrefs({
       spellcheckLanguages: next.length > 0 ? next : ["en-US"],
     });
+  }
+
+  function saveKeys() {
+    const patch: AiKeys = {
+      preferred: aiKeys.preferred,
+      importAssist: aiKeys.importAssist,
+    };
+    if (anthropicDraft.trim()) patch.anthropic = anthropicDraft.trim();
+    if (openaiDraft.trim()) patch.openai = openaiDraft.trim();
+    const next = saveAiKeys(patch);
+    setAiKeys(next);
+    setAnthropicDraft("");
+    setOpenaiDraft("");
+    setKeysSaved(true);
+  }
+
+  function clearProvider(provider: AiProvider) {
+    const next = saveAiKeys({
+      ...aiKeys,
+      [provider]: "",
+    });
+    setAiKeys(next);
+    if (provider === "anthropic") setAnthropicDraft("");
+    else setOpenaiDraft("");
   }
 
   return (
@@ -55,6 +95,104 @@ export function SettingsPanel({ open, onClose }: Props) {
             Close
           </button>
         </div>
+
+        <section className="settings-section">
+          <h3>AI API keys</h3>
+          <p className="settings-help">
+            Bring your own Anthropic and/or OpenAI key. Keys are stored only in
+            this browser and sent to the provider when you use the assistant —
+            never saved to BlogIDE&apos;s database.
+          </p>
+          <label className="settings-row settings-row-stack">
+            <span>Anthropic API key</span>
+            <input
+              type="password"
+              autoComplete="off"
+              placeholder={
+                aiKeys.anthropic
+                  ? `Saved · ${maskKey(aiKeys.anthropic)}`
+                  : "sk-ant-…"
+              }
+              value={anthropicDraft}
+              onChange={(e) => setAnthropicDraft(e.target.value)}
+              className="settings-text-input"
+            />
+            {aiKeys.anthropic && (
+              <button
+                type="button"
+                className="settings-link-btn"
+                onClick={() => clearProvider("anthropic")}
+              >
+                Remove Anthropic key
+              </button>
+            )}
+          </label>
+          <label className="settings-row settings-row-stack">
+            <span>OpenAI API key</span>
+            <input
+              type="password"
+              autoComplete="off"
+              placeholder={
+                aiKeys.openai ? `Saved · ${maskKey(aiKeys.openai)}` : "sk-…"
+              }
+              value={openaiDraft}
+              onChange={(e) => setOpenaiDraft(e.target.value)}
+              className="settings-text-input"
+            />
+            {aiKeys.openai && (
+              <button
+                type="button"
+                className="settings-link-btn"
+                onClick={() => clearProvider("openai")}
+              >
+                Remove OpenAI key
+              </button>
+            )}
+          </label>
+          <label className="settings-row">
+            <span>Preferred provider</span>
+            <select
+              value={aiKeys.preferred ?? "anthropic"}
+              onChange={(e) => {
+                const preferred = e.target.value as AiProvider;
+                const next = saveAiKeys({ ...aiKeys, preferred });
+                setAiKeys(next);
+              }}
+            >
+              <option value="anthropic">Anthropic</option>
+              <option value="openai">OpenAI</option>
+            </select>
+          </label>
+          <label className="settings-row">
+            <span>AI import assist</span>
+            <input
+              type="checkbox"
+              checked={Boolean(aiKeys.importAssist)}
+              onChange={(e) => {
+                const next = saveAiKeys({
+                  ...aiKeys,
+                  importAssist: e.target.checked,
+                });
+                setAiKeys(next);
+              }}
+            />
+          </label>
+          <p className="settings-help">
+            When on, Clean import / Fix notes can ask the model to rewrite messy
+            Substack or Docs paste (footnote links, headings, indented quotes).
+            Deterministic paste conversion still runs either way.
+          </p>
+          <button
+            type="button"
+            className="rounded border border-border px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent"
+            onClick={saveKeys}
+          >
+            Save API keys
+          </button>
+          {keysSaved && (
+            <p className="mt-2 text-xs text-muted">Keys saved on this device.</p>
+          )}
+        </section>
 
         <section className="settings-section">
           <h3>Sidebar / Sidenotes</h3>

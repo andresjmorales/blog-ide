@@ -47,6 +47,7 @@ export function FootnoteNodeView({
   selected,
 }: NodeViewProps) {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const sidenoteRef = useRef<HTMLSpanElement | null>(null);
   const footnoteId = String(node.attrs.id ?? "");
   const [open, setOpen] = useState(
     () =>
@@ -206,21 +207,38 @@ export function FootnoteNodeView({
     (options?: {
       scrollToAnchor?: boolean;
       focusEditor?: boolean;
+      /** Prefer positioning near this element when the superscript is off-screen. */
+      anchorEl?: HTMLElement | null;
       /** true = click/sidenote; false/omit for hover preview */
       sticky?: boolean;
     }) => {
       cancelHoverClose();
-      if (options?.scrollToAnchor) {
-        buttonRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        });
-      }
       if (options?.sticky) {
         stickyFootnoteIds.add(footnoteId);
         setSticky(true);
       }
       setOpen(true);
+      // Scroll after open so the card stays mounted; place near sidenote first
+      // when the superscript is off-screen (avoids a "ghost" first click).
+      if (options?.anchorEl) {
+        const rect = options.anchorEl.getBoundingClientRect();
+        const cardWidth = Math.min(352, window.innerWidth - 24);
+        setCardPosition({
+          left: Math.max(
+            12,
+            Math.min(window.innerWidth - cardWidth - 12, rect.left - cardWidth - 12)
+          ),
+          top: Math.max(12, Math.min(window.innerHeight - 240, rect.top)),
+        });
+      }
+      if (options?.scrollToAnchor) {
+        requestAnimationFrame(() => {
+          buttonRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        });
+      }
       if (options?.focusEditor !== false) {
         requestAnimationFrame(() => noteEditor?.commands.focus("end"));
       }
@@ -283,23 +301,31 @@ export function FootnoteNodeView({
         window.innerWidth - cardWidth - 12,
         editorBounds.right - cardWidth - 12
       );
-      const preferredTop = rect.bottom + 8;
-      // When the superscript is off-screen (common with sticky sidenotes),
-      // keep the floating editor inside the viewport instead of following it off.
       const minimumTop = 12;
       const maximumTop = Math.max(
         minimumTop,
         window.innerHeight - cardHeight - 12
       );
-      let top = preferredTop;
-      if (rect.bottom < 0 || rect.top > window.innerHeight) {
-        top = Math.min(
-          maximumTop,
-          Math.max(minimumTop, window.innerHeight * 0.2)
-        );
-      } else {
-        top = Math.min(maximumTop, Math.max(minimumTop, preferredTop));
+      const offscreen = rect.bottom < 0 || rect.top > window.innerHeight;
+      const sidenoteRect = sidenoteRef.current?.getBoundingClientRect();
+      // Prefer the visible sticky sidenote while the superscript is off-screen.
+      if (offscreen && sidenoteRect && sidenoteRect.bottom > 0) {
+        setCardPosition({
+          left: Math.max(
+            minimumLeft,
+            Math.min(maximumLeft, sidenoteRect.left - cardWidth - 12)
+          ),
+          top: Math.min(
+            maximumTop,
+            Math.max(minimumTop, sidenoteRect.top)
+          ),
+        });
+        return;
       }
+      const preferredTop = rect.bottom + 8;
+      const top = offscreen
+        ? Math.min(maximumTop, Math.max(minimumTop, window.innerHeight * 0.2))
+        : Math.min(maximumTop, Math.max(minimumTop, preferredTop));
       setCardPosition({
         left: Math.max(
           minimumLeft,
@@ -333,6 +359,8 @@ export function FootnoteNodeView({
   useEffect(() => {
     // Pinned cards ignore outside clicks. Hover-only and click-sticky both
     // dismiss on outside pointer (hover also dismisses on mouse leave).
+    // Defer attaching so the same gesture that opened the card cannot close it
+    // (important when opening from a sticky sidenote while the ref is off-screen).
     if (!open || pinned) return;
     function closeOnOutsidePointer(event: PointerEvent) {
       const targetFootnote =
@@ -345,9 +373,13 @@ export function FootnoteNodeView({
         commitAndClose();
       }
     }
-    document.addEventListener("pointerdown", closeOnOutsidePointer);
-    return () =>
+    const timer = window.setTimeout(() => {
+      document.addEventListener("pointerdown", closeOnOutsidePointer);
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
       document.removeEventListener("pointerdown", closeOnOutsidePointer);
+    };
   }, [commitAndClose, footnoteId, open, pinned]);
 
   useEffect(() => {
@@ -441,11 +473,13 @@ export function FootnoteNodeView({
       <FootnoteSidenote
         number={number}
         markdown={content}
-        onNumberClick={() =>
-          openCard({ scrollToAnchor: true, sticky: true })
-        }
-        onBodyClick={() =>
-          openCard({ scrollToAnchor: false, sticky: true })
+        rootRef={sidenoteRef}
+        onActivate={() =>
+          openCard({
+            scrollToAnchor: true,
+            sticky: true,
+            anchorEl: sidenoteRef.current,
+          })
         }
       />
 
