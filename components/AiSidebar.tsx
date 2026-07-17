@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { chatCompletion, IMPORT_CLEANUP_SYSTEM } from "@/lib/ai/client";
+import { useAppDialog } from "@/components/AppDialog";
+import { ChatMarkdown } from "@/components/ChatMarkdown";
+import { EditorOverflowMenu } from "@/components/EditorOverflowMenu";
+import {
+  chatCompletion,
+  essayChatSystem,
+  IMPORT_CLEANUP_SYSTEM,
+  unwrapMarkdownReply,
+} from "@/lib/ai/client";
 import {
   getActiveProvider,
   loadAiKeys,
@@ -34,7 +42,12 @@ export function AiSidebar({
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** On for the first attach in a thread; unchecked after a successful include. */
+  const [includeEssay, setIncludeEssay] = useState(true);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const dialog = useAppDialog();
+
+  const hasEssay = Boolean(documentMarkdown?.trim());
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -61,6 +74,12 @@ export function AiSidebar({
       )}`
     : "No API key";
 
+  function clearChat() {
+    setMessages([]);
+    setError(null);
+    setIncludeEssay(true);
+  }
+
   async function send(text: string, system?: string) {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
@@ -69,16 +88,26 @@ export function AiSidebar({
     const history: Message[] = [...messages, { role: "user", content: trimmed }];
     setMessages(history);
     setInput("");
+
+    const didIncludeEssay =
+      !system && includeEssay && hasEssay && Boolean(documentMarkdown);
+    const essaySystem =
+      system ??
+      (didIncludeEssay && documentMarkdown
+        ? essayChatSystem(documentMarkdown)
+        : undefined);
+
     try {
       const reply = await chatCompletion({
         messages: history,
-        system,
+        system: essaySystem,
         provider: provider ?? undefined,
       });
       setMessages((current) => [
         ...current,
         { role: "assistant", content: reply },
       ]);
+      if (didIncludeEssay) setIncludeEssay(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed.");
     } finally {
@@ -112,12 +141,30 @@ export function AiSidebar({
         },
         { role: "assistant", content: reply },
       ]);
-      onApplyMarkdown?.(reply.trim());
+      onApplyMarkdown?.(unwrapMarkdownReply(reply));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Cleanup failed.");
     } finally {
       setBusy(false);
     }
+  }
+
+  async function applyReply(content: string) {
+    if (!onApplyMarkdown) return;
+    const markdown = unwrapMarkdownReply(content);
+    if (!markdown) {
+      setError("Nothing to apply.");
+      return;
+    }
+    const ok = await dialog.confirm({
+      title: "Replace essay?",
+      message:
+        "This will replace the open document with the assistant’s reply. You can undo with the editor if needed.",
+      confirmLabel: "Apply",
+      cancelLabel: "Cancel",
+    });
+    if (!ok) return;
+    onApplyMarkdown(markdown);
   }
 
   if (!keysReady) {
@@ -146,51 +193,82 @@ export function AiSidebar({
     );
   }
 
+  const settingsItems = [
+    {
+      id: "key",
+      label: keyHint,
+      disabled: true,
+      onSelect: () => {},
+    },
+    ...(keys.importAssist
+      ? [
+          {
+            id: "import-assist",
+            label: "Import assist on",
+            disabled: true,
+            onSelect: () => {},
+          },
+        ]
+      : []),
+    {
+      id: "clean",
+      label: "Clean import",
+      disabled: busy || !hasEssay,
+      onSelect: () => {
+        void cleanImport();
+      },
+    },
+    {
+      id: "keys",
+      label: "API keys…",
+      onSelect: () => onOpenSettings?.(),
+    },
+    ...(messages.length > 0
+      ? [
+          {
+            id: "clear",
+            label: "Clear chat",
+            onSelect: clearChat,
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div className="flex h-full min-h-0 flex-col text-sm">
-      <div className="border-b border-border px-3 py-2 text-[0.7rem] text-muted">
-        {keyHint}
-        {keys.importAssist ? " · Import assist on" : ""}
-      </div>
-
-      <div className="flex flex-wrap gap-1.5 border-b border-border px-3 py-2">
-        <button
-          type="button"
-          disabled={busy || !documentMarkdown}
-          onClick={() => void cleanImport()}
-          className="rounded border border-border px-2 py-1 text-xs text-foreground hover:border-accent hover:text-accent disabled:opacity-40"
-          title="Rewrite pasted Substack/Docs footnotes and formatting into BlogIDE markdown"
-        >
-          Clean import
-        </button>
-        <button
-          type="button"
-          className="rounded border border-border px-2 py-1 text-xs text-muted hover:text-foreground"
-          onClick={onOpenSettings}
-        >
-          Keys…
-        </button>
+      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <div className="text-sm font-medium">AI assistant</div>
+        <EditorOverflowMenu items={settingsItems} />
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
-        {messages.length === 0 && (
-          <p className="text-xs leading-relaxed text-muted">
-            Ask for critique, tighter wording, or title ideas. Use{" "}
-            <strong className="font-medium text-foreground">Clean import</strong>{" "}
-            after pasting from Substack or Docs when footnotes arrive as plain
-            links.
-          </p>
-        )}
         {messages.map((message, index) => (
           <div
             key={`${message.role}-${index}`}
-            className={`rounded-md px-2.5 py-2 text-xs leading-relaxed whitespace-pre-wrap ${
+            className={`rounded-md px-2.5 py-2 text-xs leading-relaxed ${
               message.role === "user"
                 ? "bg-accent/10 text-foreground"
                 : "bg-panel text-foreground"
             }`}
           >
-            {message.content}
+            {message.role === "assistant" ? (
+              <ChatMarkdown markdown={message.content} />
+            ) : (
+              <div className="whitespace-pre-wrap">{message.content}</div>
+            )}
+            {message.role === "assistant" && onApplyMarkdown && (
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void applyReply(message.content)}
+                  className="rounded border border-border px-2 py-0.5 text-[0.7rem] text-muted hover:border-accent hover:text-accent disabled:opacity-40"
+                  title="Replace the open essay with this reply"
+                >
+                  Apply to essay
+                </button>
+              </div>
+            )}
           </div>
         ))}
         {busy && <p className="text-xs text-muted">Thinking…</p>}
@@ -211,7 +289,11 @@ export function AiSidebar({
           value={input}
           onChange={(event) => setInput(event.target.value)}
           rows={3}
-          placeholder="Message the assistant…"
+          placeholder={
+            includeEssay && hasEssay
+              ? "Ask about this essay…"
+              : "Message the assistant…"
+          }
           className="mb-2 w-full resize-none rounded border border-border bg-background px-2.5 py-2 text-xs outline-none focus:border-accent"
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
@@ -220,13 +302,39 @@ export function AiSidebar({
             }
           }}
         />
-        <button
-          type="submit"
-          disabled={busy || !input.trim()}
-          className="rounded bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
-        >
-          Send
-        </button>
+        <p className="mb-2 text-[0.7rem] leading-relaxed text-muted">
+          Include essay attaches the open doc to this send (then turns off). Use{" "}
+          <span className="text-foreground">Apply to essay</span> on a reply to
+          replace the document. Clean import lives in ⋯.
+        </p>
+        <div className="flex items-center justify-between gap-3">
+          <label
+            className={`flex min-w-0 cursor-pointer items-center gap-1.5 text-xs ${
+              !hasEssay ? "opacity-40" : "text-foreground"
+            }`}
+            title={
+              hasEssay
+                ? "Attach the open essay to the next message, then uncheck"
+                : "Open an essay to attach it"
+            }
+          >
+            <input
+              type="checkbox"
+              className="accent-[var(--accent)]"
+              checked={includeEssay && hasEssay}
+              disabled={!hasEssay}
+              onChange={(event) => setIncludeEssay(event.target.checked)}
+            />
+            Include essay
+          </label>
+          <button
+            type="submit"
+            disabled={busy || !input.trim()}
+            className="shrink-0 rounded bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+          >
+            Send
+          </button>
+        </div>
       </form>
     </div>
   );
