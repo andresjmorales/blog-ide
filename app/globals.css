@@ -1292,6 +1292,85 @@ body {
   margin: 0 0 1.25rem;
 }
 
+/* Substack-like preview footnotes: numbered refs + hover tip + endnotes. */
+.document-preview .preview-fn-ref {
+  color: var(--accent);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 0.7em;
+  font-weight: 700;
+  margin: 0 0.08em;
+  position: relative;
+  text-decoration: none;
+  vertical-align: super;
+}
+.document-preview .preview-fn-ref:hover::after,
+.document-preview .preview-fn-ref:focus-visible::after {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  bottom: calc(100% + 6px);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 14%);
+  color: var(--foreground);
+  content: attr(data-tip);
+  font-size: 0.8rem;
+  font-weight: 400;
+  left: 50%;
+  line-height: 1.4;
+  max-width: 16rem;
+  padding: 0.45rem 0.6rem;
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: normal;
+  width: max-content;
+  z-index: 5;
+}
+.document-preview .preview-footnotes {
+  border-top: 1px solid var(--border);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+}
+.document-preview .preview-footnotes-heading {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.75rem;
+  text-transform: uppercase;
+}
+.document-preview .preview-footnotes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.document-preview .preview-footnotes-item {
+  border-radius: 4px;
+  display: grid;
+  gap: 0.35rem 0.5rem;
+  grid-template-columns: auto 1fr;
+  margin: 0 0 0.85rem;
+  scroll-margin-top: 2rem;
+}
+.document-preview .preview-footnotes-item:target {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.document-preview [id^="fnref-"] {
+  scroll-margin-top: 2rem;
+}
+.document-preview .preview-footnotes-back {
+  color: var(--accent);
+  font-weight: 650;
+  text-decoration: none;
+}
+.document-preview .preview-footnotes-body > *:first-child {
+  margin-top: 0;
+}
+.document-preview .preview-footnotes-body > *:last-child {
+  margin-bottom: 0;
+}
+
 .pdf-pin-viewer {
   display: flex;
   flex-direction: column;

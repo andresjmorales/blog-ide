@@ -21,6 +21,8 @@ type Props = {
   activeNodeId: string | null;
   onOpen: (nodeId: string) => void;
   onNewDocument: (parentId: string | null) => void;
+  /** Create an Inbox channel document (different prompt than New essay). */
+  onNewChannel: (inboxId: string) => void;
   onPopOutDocument: (nodeId: string) => void;
   onNewFolder: (parentId: string | null) => void;
   onMoveToTrash: (nodeId: string) => void;
@@ -60,6 +62,7 @@ export function FileExplorer({
   activeNodeId,
   onOpen,
   onNewDocument,
+  onNewChannel,
   onPopOutDocument,
   onNewFolder,
   onMoveToTrash,
@@ -119,7 +122,7 @@ export function FileExplorer({
             kind: "action",
             id: "inbox-new-channel",
             label: "New channel",
-            onSelect: () => onNewDocument(node.id),
+            onSelect: () => onNewChannel(node.id),
           },
           {
             kind: "action",

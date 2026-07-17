@@ -69,8 +69,9 @@ export function HelpPanel({ open, onClose }: Props) {
             for the same actions. New document can also Import from .md / .txt.
             Nest folders (e.g. essays/Veganism/). Pop out any document to keep a
             scratchpad floating. Hover links for Open Graph previews — Pin keeps
-            them on screen. Toolbar PDF pins a local PDF. Preview tab shows
-            publication-style HTML. Edits save locally first, then sync online.
+            them on screen. Toolbar PDF pins a local PDF. Use ⋯ → Preview in
+            new tab for publication-style HTML with Substack-like footnotes.
+            Edits save locally first, then sync online.
           </p>
         </section>
 
