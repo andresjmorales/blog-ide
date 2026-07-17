@@ -11,6 +11,9 @@ import {
   useState,
 } from "react";
 
+/** Resolved when the optional secondary action is chosen (e.g. Import). */
+export const PROMPT_SECONDARY = "__blogide_prompt_secondary__";
+
 type PromptOptions = {
   title: string;
   message?: string;
@@ -18,6 +21,8 @@ type PromptOptions = {
   confirmLabel?: string;
   cancelLabel?: string;
   placeholder?: string;
+  /** Shown under the field — e.g. "Import from file (.md, .txt)" */
+  secondaryLabel?: string;
 };
 
 type ConfirmOptions = {
@@ -161,6 +166,15 @@ function DialogSurface({
               onChange={(event) => setValue(event.target.value)}
               className="app-dialog-input"
             />
+            {active.secondaryLabel && (
+              <button
+                type="button"
+                className="app-dialog-secondary"
+                onClick={() => onClosePrompt(PROMPT_SECONDARY)}
+              >
+                {active.secondaryLabel}
+              </button>
+            )}
             <div className="app-dialog-actions">
               <button
                 type="button"

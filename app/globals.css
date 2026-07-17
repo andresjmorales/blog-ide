@@ -332,9 +332,11 @@ body {
   font-size: 0.875rem;
   line-height: 1.5;
   min-height: 8rem;
-  padding: 0.75rem;
+  overflow: hidden;
+  padding: 0 0 0.75rem;
   position: fixed;
   width: min(22rem, calc(100vw - 2rem));
+  /* z-index set inline via claimFloatZ() so footnotes stack above pins */
   z-index: 40;
 }
 .footnote-card.is-pinned {
@@ -346,42 +348,42 @@ body {
 }
 .footnote-card-heading {
   align-items: center;
+  background: color-mix(in oklab, var(--panel) 85%, var(--background));
+  border-bottom: 1px solid var(--border);
   color: var(--muted);
+  cursor: grab;
   display: flex;
+  flex-shrink: 0;
   font-size: 0.7rem;
   font-weight: 650;
+  gap: 0.5rem;
   justify-content: space-between;
   letter-spacing: 0.08em;
   margin-bottom: 0.5rem;
+  padding: 0.4rem 0.55rem 0.4rem 0.75rem;
   text-transform: uppercase;
+  touch-action: none;
+  user-select: none;
+}
+.footnote-card-heading:active {
+  cursor: grabbing;
 }
 .footnote-card-title {
   align-items: center;
   display: inline-flex;
+  flex: 1;
   gap: 0.4rem;
+  min-width: 0;
 }
-.footnote-grab {
-  align-items: center;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  color: var(--muted);
-  cursor: grab;
-  display: inline-flex;
-  justify-content: center;
-  min-height: 1.55rem;
-  min-width: 1.55rem;
-  opacity: 0.7;
-  padding: 0.15rem;
-  touch-action: none;
+.footnote-card .footnote-card-toolbar,
+.footnote-card .footnote-card-editor,
+.footnote-card .footnote-card-hint,
+.footnote-card .ProseMirror {
+  margin-left: 0.75rem;
+  margin-right: 0.75rem;
 }
-.footnote-grab:hover,
-.footnote-card.is-pinned .footnote-grab {
-  border-color: var(--border);
-  color: var(--accent);
-  opacity: 1;
-}
-.footnote-grab:active {
-  cursor: grabbing;
+.footnote-card .footnote-card-hint {
+  display: block;
 }
 .footnote-card-actions,
 .footnote-card-toolbar {
@@ -891,8 +893,8 @@ body {
     top: auto;
     width: 100vw;
   }
-  .footnote-grab {
-    display: none;
+  .footnote-card-heading {
+    cursor: default;
   }
 }
 
@@ -944,6 +946,22 @@ body {
 }
 .app-dialog-input:focus {
   border-color: var(--accent);
+}
+.app-dialog-secondary {
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  display: block;
+  font-size: 0.8rem;
+  margin: -0.35rem 0 0.85rem;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.app-dialog-secondary:hover {
+  color: var(--foreground);
 }
 .app-dialog-actions {
   display: flex;
@@ -997,6 +1015,27 @@ body {
   color: inherit;
 }
 
+.explorer-toolbar {
+  display: flex;
+  gap: 0.35rem;
+}
+.explorer-toolbar-btn {
+  align-items: center;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  height: 1.75rem;
+  justify-content: center;
+  padding: 0;
+  width: 1.75rem;
+}
+.explorer-toolbar-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 .explorer-icon-btn {
   align-items: center;
   background: transparent;

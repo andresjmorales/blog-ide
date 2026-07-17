@@ -19,7 +19,6 @@ type Props = {
   activeNodeId: string | null;
   onOpen: (nodeId: string) => void;
   onNewDocument: (parentId: string | null) => void;
-  onImportDocument: (parentId: string | null) => void;
   onPopOutDocument: (nodeId: string) => void;
   onNewFolder: (parentId: string | null) => void;
   onMoveToTrash: (nodeId: string) => void;
@@ -59,7 +58,6 @@ export function FileExplorer({
   activeNodeId,
   onOpen,
   onNewDocument,
-  onImportDocument,
   onPopOutDocument,
   onNewFolder,
   onMoveToTrash,
@@ -120,12 +118,6 @@ export function FileExplorer({
           id: "new-doc",
           label: "New document",
           onSelect: () => onNewDocument(node.id),
-        },
-        {
-          kind: "action",
-          id: "import-doc",
-          label: "Import markdown…",
-          onSelect: () => onImportDocument(node.id),
         },
         {
           kind: "action",
@@ -232,30 +224,24 @@ export function FileExplorer({
         <p className="text-xs font-mono uppercase tracking-wider text-muted">
           Files
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="explorer-toolbar">
           <button
             type="button"
             title="New document"
-            className="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:border-accent hover:text-accent"
+            aria-label="New document"
+            className="explorer-toolbar-btn"
             onClick={() => onNewDocument(null)}
           >
-            + Document
-          </button>
-          <button
-            type="button"
-            title="Import a Markdown file as a new document"
-            className="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:border-accent hover:text-accent"
-            onClick={() => onImportDocument(null)}
-          >
-            Import
+            <DocPlusIcon />
           </button>
           <button
             type="button"
             title="New folder"
-            className="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:border-accent hover:text-accent"
+            aria-label="New folder"
+            className="explorer-toolbar-btn"
             onClick={() => onNewFolder(null)}
           >
-            + Folder
+            <FolderPlusIcon />
           </button>
         </div>
       </div>

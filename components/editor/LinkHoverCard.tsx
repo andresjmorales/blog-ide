@@ -32,7 +32,8 @@ export function LinkHoverCard({ editor }: { editor: Editor | null }) {
 
   const scheduleHide = useCallback(() => {
     window.clearTimeout(hideTimer.current);
-    hideTimer.current = window.setTimeout(() => setCard(null), 280);
+    // Short grace so the cursor can reach Pin/Open without the card vanishing.
+    hideTimer.current = window.setTimeout(() => setCard(null), 100);
   }, []);
 
   const cancelHide = useCallback(() => {
@@ -88,16 +89,23 @@ export function LinkHoverCard({ editor }: { editor: Editor | null }) {
 
     function onOut(event: MouseEvent) {
       const related = event.relatedTarget;
+      // Keep open only when moving onto the preview card itself.
+      if (related instanceof Node && cardRef.current?.contains(related)) {
+        return;
+      }
+      // Moving to another http link — onOver will cancel hide and retarget.
+      const nextLink =
+        related instanceof Element
+          ? (related.closest("a[href]") as HTMLAnchorElement | null)
+          : null;
       if (
-        related instanceof Node &&
-        (root.contains(related) || cardRef.current?.contains(related))
+        nextLink &&
+        root.contains(nextLink) &&
+        nextLink.href.startsWith("http")
       ) {
         return;
       }
-      const target = event.target;
-      if (target instanceof Element && target.closest("a[href]")) {
-        scheduleHide();
-      }
+      scheduleHide();
     }
 
     root.addEventListener("mouseover", onOver);

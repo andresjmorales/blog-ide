@@ -1,3 +1,5 @@
+import { decodeHtmlEntities } from "@/lib/preview/htmlEntities";
+
 export type LinkPreview = {
   url: string;
   title: string;
@@ -18,18 +20,9 @@ function metaContent(html: string, ...keys: string[]): string {
       "i"
     );
     const match = html.match(prop) || html.match(prop2);
-    if (match?.[1]) return decodeEntities(match[1].trim());
+    if (match?.[1]) return decodeHtmlEntities(match[1].trim());
   }
   return "";
-}
-
-function decodeEntities(value: string): string {
-  return value
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
 }
 
 function absoluteUrl(base: string, maybe: string | null): string | null {
@@ -63,9 +56,9 @@ export function extractOpenGraph(html: string, pageUrl: string): LinkPreview {
 
   return {
     url: pageUrl,
-    title: decodeEntities(title).slice(0, 300),
-    description: description.slice(0, 600),
-    siteName: siteName.slice(0, 120),
+    title: decodeHtmlEntities(title).slice(0, 300),
+    description: decodeHtmlEntities(description).slice(0, 600),
+    siteName: decodeHtmlEntities(siteName).slice(0, 120),
     image,
     author,
   };

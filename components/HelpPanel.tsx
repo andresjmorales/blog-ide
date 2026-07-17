@@ -65,13 +65,12 @@ export function HelpPanel({ open, onClose }: Props) {
         <section className="settings-section">
           <h3>Files</h3>
           <p className="settings-help">
-            Hover a folder to reveal +document / +folder icons (VS Code-style),
-            or use the context menu. Nest folders (e.g. essays/Veganism/). Pop
-            out any document to keep a scratchpad floating. Hover links in the
-            essay for Open Graph previews — Pin keeps them on screen; Read
-            extract pulls approximate page text. Use the toolbar PDF button to
-            pin a local PDF. The right-panel Preview tab shows publication-style
-            HTML. Edits save locally first, then sync when online.
+            Use the icon buttons (new document / new folder) or hover a folder
+            for the same actions. New document can also Import from .md / .txt.
+            Nest folders (e.g. essays/Veganism/). Pop out any document to keep a
+            scratchpad floating. Hover links for Open Graph previews — Pin keeps
+            them on screen. Toolbar PDF pins a local PDF. Preview tab shows
+            publication-style HTML. Edits save locally first, then sync online.
           </p>
         </section>
 

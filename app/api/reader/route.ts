@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { assertSafePublicUrl } from "@/lib/preview/ssrf";
 import { cacheGet, cacheSet } from "@/lib/preview/cache";
 import { extractOpenGraph } from "@/lib/preview/openGraph";
+import { decodeHtmlEntities } from "@/lib/preview/htmlEntities";
 
 export const runtime = "nodejs";
 
@@ -29,15 +30,17 @@ function extractMainText(html: string): string {
     cleaned.match(/<main[\s\S]*?<\/main>/i)?.[0] ||
     cleaned;
 
-  const text = article
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<\/h[1-6]>/gi, "\n\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim();
+  const text = decodeHtmlEntities(
+    article
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p>/gi, "\n\n")
+      .replace(/<\/h[1-6]>/gi, "\n\n")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .replace(/[ \t]{2,}/g, " ")
+      .trim()
+  );
 
   return text.slice(0, 12_000);
 }
@@ -48,7 +51,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing url" }, { status: 400 });
   }
 
-  const cached = cacheGet<ReaderPayload>(`reader:${url}`);
+  // v2: decode HTML entities in extract text
+  const cached = cacheGet<ReaderPayload>(`reader:v2:${url}`);
   if (cached) return NextResponse.json(cached);
 
   try {
@@ -95,7 +99,7 @@ export async function GET(request: Request) {
       siteName: og.siteName,
       text,
     };
-    cacheSet(`reader:${url}`, payload);
+    cacheSet(`reader:v2:${url}`, payload);
     return NextResponse.json(payload);
   } catch (error) {
     const message =

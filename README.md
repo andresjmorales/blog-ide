@@ -4,8 +4,6 @@ An IDE for writing blogs and essays: a cross between a rich WYSIWYG editor and a
 with first-class footnotes, autosave, a project-style workspace, and optional
 AI. Markdown-native, local-first, MIT licensed, and self-hostable by design.
 
-Full design: [`.local/blogide-spec.md`](./.local/blogide-spec.md) · Roadmap: [`.local/ROADMAP.md`](./.local/ROADMAP.md) · Preview plan: [`.local/plan.md`](./.local/plan.md).
-
 ## Status
 
 | Milestone | State |

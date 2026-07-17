@@ -24,7 +24,11 @@ import { AiSidebar } from "@/components/AiSidebar";
 import { EditorPrefsProvider } from "@/components/EditorPrefsContext";
 import { DocumentSessionProvider } from "@/components/DocumentSessionContext";
 import { FileExplorer } from "@/components/FileExplorer";
-import { AppDialogProvider, useAppDialog } from "@/components/AppDialog";
+import {
+  AppDialogProvider,
+  PROMPT_SECONDARY,
+  useAppDialog,
+} from "@/components/AppDialog";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { deleteLocalDoc } from "@/lib/db/indexed";
@@ -311,7 +315,12 @@ function AppShellContent({
       message: "Title for the essay (also used as the file name).",
       defaultValue: "Untitled",
       confirmLabel: "Create",
+      secondaryLabel: "Import from file (.md, .txt)",
     });
+    if (name === PROMPT_SECONDARY) {
+      await handleImportDocument(parentId);
+      return;
+    }
     if (!name?.trim()) return;
     const title = name.trim().replace(/\.md$/i, "");
     const fileName = titleToFileName(title);
@@ -591,7 +600,6 @@ function AppShellContent({
                         activeNodeId={activeNodeId}
                         onOpen={setActiveNodeId}
                         onNewDocument={handleNewDocument}
-                        onImportDocument={handleImportDocument}
                         onPopOutDocument={handlePopOutDocument}
                         onNewFolder={handleNewFolder}
                         onMoveToTrash={handleMoveToTrash}

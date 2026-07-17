@@ -60,6 +60,12 @@ function emit() {
   for (const listener of listeners) listener();
 }
 
+/** Shared stacking for pins + footnote cards — always above previous floats. */
+export function claimFloatZ(): number {
+  nextZ += 1;
+  return nextZ;
+}
+
 function clampGeometry(partial: Partial<Geometry>): Geometry {
   const maxW =
     typeof window !== "undefined" ? window.innerWidth : DEFAULT_WIDTH + 40;
@@ -99,9 +105,9 @@ export function subscribePinWindows(listener: Listener): () => void {
 }
 
 function raiseId(id: string) {
-  nextZ += 1;
+  const zIndex = claimFloatZ();
   windows = windows.map((w) =>
-    w.id === id ? { ...w, zIndex: nextZ } : w
+    w.id === id ? { ...w, zIndex } : w
   );
   emit();
 }
@@ -157,7 +163,6 @@ export function openDocumentPin(nodeId: string, title: string): void {
     raiseId(id);
     return;
   }
-  nextZ += 1;
   windows = [
     ...windows,
     {
@@ -166,7 +171,7 @@ export function openDocumentPin(nodeId: string, title: string): void {
       nodeId,
       title,
       ...defaultPlacement(),
-      zIndex: nextZ,
+      zIndex: claimFloatZ(),
     },
   ];
   emit();
@@ -185,7 +190,6 @@ export function openLinkPin(input: {
     raiseId(id);
     return;
   }
-  nextZ += 1;
   windows = [
     ...windows,
     {
@@ -197,7 +201,7 @@ export function openLinkPin(input: {
       siteName: input.siteName,
       image: input.image,
       ...defaultPlacement({ width: 360, height: 320 }),
-      zIndex: nextZ,
+      zIndex: claimFloatZ(),
     },
   ];
   emit();
@@ -214,7 +218,6 @@ export function openPdfPin(input: {
     raiseId(id);
     return;
   }
-  nextZ += 1;
   windows = [
     ...windows,
     {
@@ -224,7 +227,7 @@ export function openPdfPin(input: {
       title: input.title,
       revokeOnClose: input.revokeOnClose,
       ...defaultPlacement({ width: 440, height: 560 }),
-      zIndex: nextZ,
+      zIndex: claimFloatZ(),
     },
   ];
   emit();
