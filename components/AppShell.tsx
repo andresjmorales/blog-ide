@@ -64,7 +64,6 @@ import {
 } from "@/lib/sync/engine";
 import { openPopOut } from "@/lib/pins/popOutStore";
 import { PopOutLayer } from "@/components/pins/PopOutLayer";
-import { DocumentPreview } from "@/components/DocumentPreview";
 import { TerminalCapture } from "@/components/mobile/TerminalCapture";
 import { ShellButton } from "@/components/shell/ShellButton";
 import { ShellPanel } from "@/components/shell/ShellPanel";
@@ -213,7 +212,9 @@ function AppShellContent({
   const { status: syncStatus, label: syncLabel } = useSyncStatusLabel();
   const syncBanner = useStableSyncBanner(syncStatus);
   const dialog = useAppDialog();
+  const [accountName, setAccountName] = useState(displayName?.trim() ?? "");
   const resolvedName =
+    accountName.trim() ||
     displayName?.trim() ||
     (previewMode ? "Preview" : userEmail.split("@")[0] || "Account");
   const activeNode = nodes.find((n) => n.id === activeNodeId) ?? null;
@@ -421,6 +422,33 @@ function AppShellContent({
     }
   }
 
+  async function handleNewChannel(inboxId: string) {
+    if (previewMode) return;
+    const name = await dialog.prompt({
+      title: "New channel",
+      message: "Name for this Inbox channel (e.g. ideas, quotes).",
+      defaultValue: "channel",
+      confirmLabel: "Create",
+    });
+    if (!name?.trim()) return;
+    const title = name.trim().replace(/\.md$/i, "");
+    const fileName = titleToFileName(title);
+    try {
+      const id = await createWorkspaceNode({
+        kind: "document",
+        name: fileName,
+        parentId: inboxId,
+        markdown: `---\ntitle: ${title}\nstatus: draft\n---\n\n`,
+      });
+      await refreshTree();
+      setActiveNodeId(id);
+    } catch (error) {
+      setTreeError(
+        error instanceof Error ? error.message : "Could not create channel."
+      );
+    }
+  }
+
   function handlePopOutDocument(nodeId: string) {
     const node = nodes.find((n) => n.id === nodeId);
     if (!node || node.kind !== "document") return;
@@ -609,6 +637,7 @@ function AppShellContent({
         if (isMobile) update({ leftOpen: false });
       }}
       onNewDocument={handleNewDocument}
+      onNewChannel={handleNewChannel}
       onPopOutDocument={handlePopOutDocument}
       onNewFolder={handleNewFolder}
       onMoveToTrash={handleMoveToTrash}
@@ -621,32 +650,41 @@ function AppShellContent({
     />
   );
 
+  /** Right panel tabs — AI only for now; add e.g. comments later. */
+  const rightTabs = [{ id: "ai" as const, label: "AI assistant" }];
+  const activeRightTab =
+    rightTabs.find((t) => t.id === prefs.rightTab)?.id ?? "ai";
+
   const rightPanel = (
     <>
-      <div className="flex border-b border-border text-sm">
-        {(["ai", "preview"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => update({ rightTab: tab })}
-            className={`flex-1 px-3 py-2 capitalize ${
-              prefs.rightTab === tab
-                ? "border-b-2 border-accent font-medium"
-                : "text-muted hover:text-foreground"
-            }`}
-          >
-            {tab === "ai" ? "AI assistant" : "Preview"}
-          </button>
-        ))}
-      </div>
+      {rightTabs.length > 1 ? (
+        <div className="flex border-b border-border text-sm">
+          {rightTabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => update({ rightTab: tab.id })}
+              className={`flex-1 px-3 py-2 ${
+                activeRightTab === tab.id
+                  ? "border-b-2 border-accent font-medium"
+                  : "text-muted hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="border-b border-border px-3 py-2 text-sm font-medium">
+          {rightTabs[0]?.label}
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {prefs.rightTab === "ai" ? (
+        {activeRightTab === "ai" && (
           <AiSidebar
             documentMarkdown={aiDocumentMarkdown}
             onApplyMarkdown={(markdown) => applyMarkdownRef.current(markdown)}
             onOpenSettings={() => setSettingsOpen(true)}
           />
-        ) : (
-          <DocumentPreview markdown={aiDocumentMarkdown ?? ""} />
         )}
       </div>
     </>
@@ -855,6 +893,10 @@ function AppShellContent({
           <SettingsPanel
             open={settingsOpen}
             onClose={() => setSettingsOpen(false)}
+            email={previewMode ? "" : userEmail}
+            displayName={resolvedName}
+            previewMode={previewMode}
+            onDisplayNameChange={setAccountName}
           />
           <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
           {!isMobile && (

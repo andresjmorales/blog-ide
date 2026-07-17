@@ -11,13 +11,26 @@ import {
   type AiKeys,
   type AiProvider,
 } from "@/lib/ai/keys";
+import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 type Props = {
   open: boolean;
   onClose: () => void;
+  email?: string;
+  displayName?: string;
+  previewMode?: boolean;
+  onDisplayNameChange?: (name: string) => void;
 };
 
-export function SettingsPanel({ open, onClose }: Props) {
+export function SettingsPanel({
+  open,
+  onClose,
+  email = "",
+  displayName = "",
+  previewMode = false,
+  onDisplayNameChange,
+}: Props) {
   useEffect(() => {
     if (!open) return;
     function onKeyDown(event: KeyboardEvent) {
@@ -30,15 +43,43 @@ export function SettingsPanel({ open, onClose }: Props) {
   if (!open) return null;
 
   // Remount so drafts reset from localStorage without syncing in an effect.
-  return <SettingsDialog key={String(open)} onClose={onClose} />;
+  return (
+    <SettingsDialog
+      key={String(open)}
+      onClose={onClose}
+      email={email}
+      displayName={displayName}
+      previewMode={previewMode}
+      onDisplayNameChange={onDisplayNameChange}
+    />
+  );
 }
 
-function SettingsDialog({ onClose }: { onClose: () => void }) {
+function SettingsDialog({
+  onClose,
+  email,
+  displayName,
+  previewMode,
+  onDisplayNameChange,
+}: {
+  onClose: () => void;
+  email: string;
+  displayName: string;
+  previewMode: boolean;
+  onDisplayNameChange?: (name: string) => void;
+}) {
   const { prefs, updatePrefs } = useEditorPrefs();
   const [aiKeys, setAiKeys] = useState<AiKeys>(() => loadAiKeys());
   const [anthropicDraft, setAnthropicDraft] = useState("");
   const [openaiDraft, setOpenaiDraft] = useState("");
   const [keysSaved, setKeysSaved] = useState(false);
+  const [nameDraft, setNameDraft] = useState(displayName);
+  const [nameStatus, setNameStatus] = useState<string | null>(null);
+  const [nameBusy, setNameBusy] = useState(false);
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [passwordStatus, setPasswordStatus] = useState<string | null>(null);
+  const [passwordBusy, setPasswordBusy] = useState(false);
 
   const defaultLangs = prefs.spellcheckLanguages;
 
@@ -95,6 +136,143 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
             Close
           </button>
         </div>
+
+        <section className="settings-section">
+          <h3>Account</h3>
+          {previewMode || !isSupabaseConfigured() ? (
+            <p className="settings-help">
+              Sign in with Supabase to edit your display name and password.
+            </p>
+          ) : (
+            <>
+              <label className="settings-row settings-row-stack">
+                <span>Email</span>
+                <input
+                  type="email"
+                  value={email}
+                  readOnly
+                  className="settings-text-input opacity-80"
+                />
+              </label>
+              <label className="settings-row settings-row-stack">
+                <span>Display name</span>
+                <input
+                  type="text"
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  className="settings-text-input"
+                  placeholder="Your name"
+                  autoComplete="name"
+                />
+              </label>
+              <button
+                type="button"
+                className="rounded border border-border px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-40"
+                disabled={nameBusy || !nameDraft.trim()}
+                onClick={() => {
+                  void (async () => {
+                    setNameBusy(true);
+                    setNameStatus(null);
+                    try {
+                      const supabase = createClient();
+                      const trimmed = nameDraft.trim();
+                      const { error } = await supabase.auth.updateUser({
+                        data: {
+                          full_name: trimmed,
+                          name: trimmed,
+                          display_name: trimmed,
+                        },
+                      });
+                      if (error) throw error;
+                      onDisplayNameChange?.(trimmed);
+                      setNameStatus("Name saved.");
+                    } catch (err) {
+                      setNameStatus(
+                        err instanceof Error
+                          ? err.message
+                          : "Could not update name."
+                      );
+                    } finally {
+                      setNameBusy(false);
+                    }
+                  })();
+                }}
+              >
+                Save name
+              </button>
+              {nameStatus && (
+                <p className="mt-2 text-xs text-muted">{nameStatus}</p>
+              )}
+
+              <h4 className="mt-5 mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+                Change password
+              </h4>
+              <label className="settings-row settings-row-stack">
+                <span>New password</span>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="settings-text-input"
+                  autoComplete="new-password"
+                  placeholder="At least 8 characters"
+                />
+              </label>
+              <label className="settings-row settings-row-stack">
+                <span>Confirm password</span>
+                <input
+                  type="password"
+                  value={passwordConfirm}
+                  onChange={(e) => setPasswordConfirm(e.target.value)}
+                  className="settings-text-input"
+                  autoComplete="new-password"
+                />
+              </label>
+              <button
+                type="button"
+                className="rounded border border-border px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-40"
+                disabled={passwordBusy || !password}
+                onClick={() => {
+                  void (async () => {
+                    setPasswordBusy(true);
+                    setPasswordStatus(null);
+                    try {
+                      if (password.length < 8) {
+                        throw new Error(
+                          "Password must be at least 8 characters."
+                        );
+                      }
+                      if (password !== passwordConfirm) {
+                        throw new Error("Passwords do not match.");
+                      }
+                      const supabase = createClient();
+                      const { error } = await supabase.auth.updateUser({
+                        password,
+                      });
+                      if (error) throw error;
+                      setPassword("");
+                      setPasswordConfirm("");
+                      setPasswordStatus("Password updated.");
+                    } catch (err) {
+                      setPasswordStatus(
+                        err instanceof Error
+                          ? err.message
+                          : "Could not update password."
+                      );
+                    } finally {
+                      setPasswordBusy(false);
+                    }
+                  })();
+                }}
+              >
+                Update password
+              </button>
+              {passwordStatus && (
+                <p className="mt-2 text-xs text-muted">{passwordStatus}</p>
+              )}
+            </>
+          )}
+        </section>
 
         <section className="settings-section">
           <h3>AI API keys</h3>

@@ -9,7 +9,9 @@ import {
 } from "react";
 import type { Editor } from "@tiptap/core";
 import { DocumentEditor } from "@/components/DocumentEditor";
+import { EditorOverflowMenu } from "@/components/EditorOverflowMenu";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
+import { openPublicationPreviewTab } from "@/lib/preview/publicationHtml";
 import { splitFrontmatter } from "@/lib/markdown/frontmatter";
 import { compactDiff, unifiedLineDiff } from "@/lib/markdown/diff";
 import {
@@ -708,25 +710,25 @@ export function DocumentWorkspace({
       )
     : [];
 
-  async function exportMarkdownFile() {
+  function currentMarkdown(): string {
     flushMarkdownRef.current?.();
     const editor = editorRef.current;
     const nextBody = editor ? serializeBody(editor.getJSON()) : body;
-    const markdown =
-      mode === "source"
-        ? sourceText
-        : packDocument(frontmatter, subtitle, nextBody);
-    downloadMarkdown(markdown, documentName ?? `${essayTitle}.md`);
+    return mode === "source"
+      ? sourceText
+      : packDocument(frontmatter, subtitle, nextBody);
+  }
+
+  async function exportMarkdownFile() {
+    downloadMarkdown(
+      currentMarkdown(),
+      documentName ?? `${essayTitle}.md`
+    );
   }
 
   async function copyForExport() {
-    flushMarkdownRef.current?.();
+    const markdown = currentMarkdown();
     const editor = editorRef.current;
-    const nextBody = editor ? serializeBody(editor.getJSON()) : body;
-    const markdown =
-      mode === "source"
-        ? sourceText
-        : packDocument(frontmatter, subtitle, nextBody);
     const html =
       mode === "wysiwyg" && editor
         ? editor.getHTML()
@@ -751,24 +753,68 @@ export function DocumentWorkspace({
     }
   }
 
-  const exportButtons = (
+  const overflowItems = [
+    {
+      id: "copy",
+      label: "Copy",
+      onSelect: () => {
+        void copyForExport();
+      },
+    },
+    {
+      id: "export",
+      label: "Export .md",
+      onSelect: () => {
+        void exportMarkdownFile();
+      },
+    },
+    {
+      id: "preview",
+      label: "Preview in new tab",
+      onSelect: () => {
+        try {
+          openPublicationPreviewTab(currentMarkdown());
+        } catch (err) {
+          void dialog.confirm({
+            title: "Preview blocked",
+            message:
+              err instanceof Error
+                ? err.message
+                : "Could not open the preview tab.",
+            confirmLabel: "OK",
+            cancelLabel: "Close",
+          });
+        }
+      },
+    },
+    {
+      id: "mode",
+      label: mode === "wysiwyg" ? "See markdown" : "Rich text",
+      onSelect: () => {
+        if (mode === "wysiwyg") toSource();
+        else toWysiwyg();
+      },
+    },
+    ...(mode === "wysiwyg"
+      ? [
+          {
+            id: "fix-notes",
+            label: "Fix notes",
+            onSelect: () => {
+              void convertFootnoteLinks();
+            },
+          },
+        ]
+      : []),
+    {
+      id: "essay-settings",
+      label: "Essay settings",
+      onSelect: () => setEssaySettingsOpen(true),
+    },
+  ];
+
+  const toolbarActions = (
     <>
-      <button
-        type="button"
-        onClick={() => void copyForExport()}
-        className="rounded border border-border px-2.5 py-1 text-xs text-muted hover:bg-panel hover:text-foreground"
-        title="Copy markdown + HTML for pasting into Substack or Docs"
-      >
-        Copy
-      </button>
-      <button
-        type="button"
-        onClick={() => void exportMarkdownFile()}
-        className="rounded border border-border px-2.5 py-1 text-xs text-muted hover:bg-panel hover:text-foreground"
-        title="Download this essay as a Markdown file"
-      >
-        Export
-      </button>
       {nodeId && !previewMode && (
         <button
           type="button"
@@ -777,34 +823,29 @@ export function DocumentWorkspace({
             openPopOut(nodeId, essayTitle);
           }}
           className="rounded border border-border px-2.5 py-1 text-xs text-muted hover:bg-panel hover:text-foreground"
-          title="Pop out this essay in a floating window (stay visible while you open another doc)"
+          title="Pop out this essay in a floating window"
         >
           Pop out
         </button>
       )}
+      {mode === "wysiwyg" && (
+        <button
+          type="button"
+          onClick={() => updatePrefs({ sidenotes: !prefs.sidenotes })}
+          aria-pressed={prefs.sidenotes}
+          className={`hidden rounded border border-border px-2.5 py-1 text-xs md:inline-block ${
+            prefs.sidenotes
+              ? "bg-accent/15 text-accent"
+              : "text-muted hover:bg-panel hover:text-foreground"
+          }`}
+          title="Show footnotes in the margin"
+        >
+          Sidenotes
+        </button>
+      )}
+      <EditorOverflowMenu items={overflowItems} />
     </>
   );
-
-  const toggleButton =
-    mode === "wysiwyg" ? (
-      <button
-        type="button"
-        onClick={toSource}
-        className="rounded border border-border px-2.5 py-1 text-xs font-mono text-muted hover:bg-panel hover:text-foreground"
-        title="Edit raw markdown"
-      >
-        Markdown
-      </button>
-    ) : (
-      <button
-        type="button"
-        onClick={() => toWysiwyg()}
-        className="rounded border border-border px-2.5 py-1 text-xs text-muted hover:bg-panel hover:text-foreground"
-        title="Back to rich text editing"
-      >
-        Rich text
-      </button>
-    );
 
   if (loading) {
     return (
@@ -837,18 +878,7 @@ export function DocumentWorkspace({
           <span className="text-xs font-mono uppercase tracking-wider text-muted">
             Markdown source
           </span>
-          <span className="flex items-center gap-1">
-            {exportButtons}
-            <button
-              type="button"
-              onClick={() => setEssaySettingsOpen(true)}
-              className="rounded border border-border px-2.5 py-1 text-xs text-muted hover:bg-panel hover:text-foreground"
-              title="Essay settings"
-            >
-              Essay settings
-            </button>
-            {toggleButton}
-          </span>
+          <span className="flex items-center gap-1">{toolbarActions}</span>
         </div>
 
         {lossyWarning && (
@@ -967,41 +997,12 @@ export function DocumentWorkspace({
         flushMarkdownRef={flushMarkdownRef}
         titleSlot={titleField}
         shellDock={shellDock}
-        onConvertFootnoteLinks={() => {
-          void convertFootnoteLinks();
-        }}
         spellcheckLanguages={
           documentLanguages.length > 0
             ? documentLanguages
             : prefs.spellcheckLanguages
         }
-        toolbarExtra={
-          <span className="flex items-center gap-1">
-            {exportButtons}
-            <button
-              type="button"
-              onClick={() => setEssaySettingsOpen(true)}
-              className="rounded border border-border px-2.5 py-1 text-xs text-muted hover:bg-panel hover:text-foreground"
-              title="Essay settings"
-            >
-              Essay settings
-            </button>
-            <button
-              type="button"
-              onClick={() => updatePrefs({ sidenotes: !prefs.sidenotes })}
-              aria-pressed={prefs.sidenotes}
-              className={`hidden rounded border border-border px-2.5 py-1 text-xs md:inline-block ${
-                prefs.sidenotes
-                  ? "bg-accent/15 text-accent"
-                  : "text-muted hover:bg-panel hover:text-foreground"
-              }`}
-              title="Show footnotes in the margin"
-            >
-              Sidenotes
-            </button>
-            {toggleButton}
-          </span>
-        }
+        toolbarExtra={toolbarActions}
       />
       <EssaySettingsPanel
         open={essaySettingsOpen}

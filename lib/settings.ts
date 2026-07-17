@@ -8,7 +8,8 @@ export type EditorPrefs = {
   rightWidth?: number; // px
   leftOpen?: boolean;
   rightOpen?: boolean;
-  rightTab?: "ai" | "preview";
+  /** Right panel tab id (`ai` today; reserved for future panels). */
+  rightTab?: "ai" | (string & {});
   /** Desktop Shell (Inbox capture) panel open. */
   shellOpen?: boolean;
   /** Desktop Shell panel height in px. */

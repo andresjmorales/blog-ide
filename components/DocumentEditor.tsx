@@ -50,8 +50,6 @@ type Props = {
   titleSlot?: React.ReactNode;
   /** Effective spellcheck language tags for this essay. */
   spellcheckLanguages?: string[];
-  /** Convert already-pasted footnote hyperlinks in the full document. */
-  onConvertFootnoteLinks?: () => void;
   /**
    * Docked Shell (or similar) under the prose column only — Outline and
    * sidenote rail stay full-height beside it (Cursor-style bottom panel).
@@ -77,7 +75,6 @@ export function DocumentEditor({
   flushMarkdownRef,
   toolbarExtra,
   spellcheckLanguages = [],
-  onConvertFootnoteLinks,
   shellDock,
 }: Props) {
   const { prefs } = useEditorPrefs();
@@ -217,11 +214,7 @@ export function DocumentEditor({
   return (
     <div className="flex flex-col h-full">
       {editor && (
-        <Toolbar
-          editor={editor}
-          extra={toolbarExtra}
-          onConvertFootnoteLinks={onConvertFootnoteLinks}
-        />
+        <Toolbar editor={editor} extra={toolbarExtra} />
       )}
       <div className="flex min-h-0 flex-1">
         {editor && (
@@ -275,11 +268,9 @@ export function DocumentEditor({
 function Toolbar({
   editor,
   extra,
-  onConvertFootnoteLinks,
 }: {
   editor: Editor;
   extra?: React.ReactNode;
-  onConvertFootnoteLinks?: () => void;
 }) {
   const dialog = useAppDialog();
   const state = useEditorState({
@@ -486,16 +477,7 @@ function Toolbar({
 
       <SpecialCharsMenu editor={editor} />
 
-      {onConvertFootnoteLinks && (
-        <ToolButton
-          title="Convert pasted footnote links into BlogIDE footnotes"
-          onClick={onConvertFootnoteLinks}
-        >
-          Fix notes
-        </ToolButton>
-      )}
-
-      {extra && <div className="ml-auto">{extra}</div>}
+      {extra && <div className="ml-auto flex items-center gap-1">{extra}</div>}
     </div>
   );
 }
