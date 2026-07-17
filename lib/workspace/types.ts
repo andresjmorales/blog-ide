@@ -9,7 +9,7 @@ export type WorkspaceNode = {
   position: number;
   url: string | null;
   pinned: boolean;
-  /** Reserved system folders, e.g. "trash". */
+  /** Reserved system folders, e.g. "trash" | "inbox". */
   system_key: string | null;
   created_at: string;
   updated_at: string;
@@ -29,6 +29,8 @@ export type DefaultWorkspaceIds = {
   essaysId: string;
   draftsId: string;
   scratchpadId: string;
+  inboxId?: string;
+  notesChannelId?: string;
   trashId?: string;
 };
 

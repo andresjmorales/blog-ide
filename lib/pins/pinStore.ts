@@ -3,7 +3,7 @@
  * Document helpers keep the Phase A0 API (`openPopOut`, etc.).
  */
 
-export type PinKind = "document" | "link" | "pdf";
+export type PinKind = "document" | "link" | "pdf" | "shell";
 
 type Geometry = {
   left: number;
@@ -39,7 +39,13 @@ export type PdfPin = PinBase & {
   revokeOnClose?: boolean;
 };
 
-export type PinWindow = DocumentPin | LinkPin | PdfPin;
+export type ShellPin = PinBase & {
+  kind: "shell";
+};
+
+export type PinWindow = DocumentPin | LinkPin | PdfPin | ShellPin;
+
+export const SHELL_PIN_ID = "shell:inbox";
 
 /** @deprecated Use DocumentPin / PinWindow — kept for PopOutDocument props. */
 export type PopOutWindow = DocumentPin;
@@ -231,6 +237,35 @@ export function openPdfPin(input: {
     },
   ];
   emit();
+}
+
+/** Floating Pushbullet / iMessage-style Inbox Shell. */
+export function openShellPin(): void {
+  const existing = windows.find((w) => w.id === SHELL_PIN_ID);
+  if (existing) {
+    raiseId(SHELL_PIN_ID);
+    return;
+  }
+  windows = [
+    ...windows,
+    {
+      id: SHELL_PIN_ID,
+      kind: "shell",
+      title: "Shell · Inbox",
+      // Narrow chat column — short notes don't need editor-width chrome.
+      ...defaultPlacement({ width: 320, height: 480 }),
+      zIndex: claimFloatZ(),
+    },
+  ];
+  emit();
+}
+
+export function closeShellPin(): void {
+  closePin(SHELL_PIN_ID);
+}
+
+export function isShellPinOpen(): boolean {
+  return windows.some((w) => w.id === SHELL_PIN_ID);
 }
 
 /* —— Phase A0 aliases —— */

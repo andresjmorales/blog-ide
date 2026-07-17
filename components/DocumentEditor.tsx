@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   EditorContent,
   ReactNodeViewRenderer,
@@ -52,6 +52,11 @@ type Props = {
   spellcheckLanguages?: string[];
   /** Convert already-pasted footnote hyperlinks in the full document. */
   onConvertFootnoteLinks?: () => void;
+  /**
+   * Docked Shell (or similar) under the prose column only — Outline and
+   * sidenote rail stay full-height beside it (Cursor-style bottom panel).
+   */
+  shellDock?: ReactNode;
 };
 
 function withFootnoteNodeView(extension: AnyExtension): AnyExtension {
@@ -73,6 +78,7 @@ export function DocumentEditor({
   toolbarExtra,
   spellcheckLanguages = [],
   onConvertFootnoteLinks,
+  shellDock,
 }: Props) {
   const { prefs } = useEditorPrefs();
   const dialog = useAppDialog();
@@ -225,8 +231,9 @@ export function DocumentEditor({
             onToggle={() => setOutlineOpen((open) => !open)}
           />
         )}
+        {/* Prose + optional bottom dock — between Outline and Notes rail. */}
         <div
-          className={`relative flex min-w-0 flex-1 ${
+          className={`relative flex min-h-0 min-w-0 flex-1 flex-col ${
             prefs.sidenotes ? "show-sidenotes" : ""
           } ${railEnabled ? "sidenotes-rail" : ""}`}
         >
@@ -235,7 +242,7 @@ export function DocumentEditor({
               scrollRef.current = node;
               setScrollEl((current) => (current === node ? current : node));
             }}
-            className="min-w-0 flex-1 overflow-y-auto"
+            className="min-h-0 min-w-0 flex-1 overflow-y-auto"
           >
             <div
               className={`mx-auto px-6 py-10 ${
@@ -254,11 +261,12 @@ export function DocumentEditor({
               )}
             </div>
           </div>
-          {railEnabled && editor && (
-            <SidenoteRail editor={editor} scrollRoot={scrollEl} />
-          )}
+          {shellDock}
           <LinkHoverCard editor={editor} />
         </div>
+        {railEnabled && editor && (
+          <SidenoteRail editor={editor} scrollRoot={scrollEl} />
+        )}
       </div>
     </div>
   );

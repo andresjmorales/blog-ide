@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { Editor } from "@tiptap/core";
 import { DocumentEditor } from "@/components/DocumentEditor";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
@@ -109,6 +115,8 @@ type Props = {
   /** Keep the AI sidebar in sync with the open essay. */
   onMarkdownForAi?: (markdown: string | null) => void;
   registerApplyMarkdown?: (apply: (markdown: string) => void) => void;
+  /** Docked under the prose column (between Outline and sidenotes). */
+  shellDock?: ReactNode;
 };
 
 export function DocumentWorkspace({
@@ -123,6 +131,7 @@ export function DocumentWorkspace({
   onRenameDocument,
   onMarkdownForAi,
   registerApplyMarkdown,
+  shellDock,
 }: Props) {
   const dialog = useAppDialog();
   const [{ frontmatter, subtitle, body }, setDoc] = useState(() => {
@@ -823,8 +832,8 @@ export function DocumentWorkspace({
 
   if (mode === "source") {
     return (
-      <div className="flex flex-col h-full">
-        <div className="flex items-center justify-between border-b border-border px-3 py-1.5 shrink-0">
+      <div className="flex h-full flex-col">
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-1.5">
           <span className="text-xs font-mono uppercase tracking-wider text-muted">
             Markdown source
           </span>
@@ -920,8 +929,9 @@ export function DocumentWorkspace({
             (documentLanguages[0] ?? prefs.spellcheckLanguages[0]) || "en"
           }
           aria-label="Markdown source"
-          className="flex-1 w-full resize-none bg-transparent px-6 py-6 font-mono text-sm leading-relaxed outline-none"
+          className="min-h-0 w-full flex-1 resize-none bg-transparent px-6 py-6 font-mono text-sm leading-relaxed outline-none"
         />
+        {shellDock}
         <EssaySettingsPanel
           open={essaySettingsOpen}
           onClose={() => setEssaySettingsOpen(false)}
@@ -956,6 +966,7 @@ export function DocumentWorkspace({
         editorRef={editorRef}
         flushMarkdownRef={flushMarkdownRef}
         titleSlot={titleField}
+        shellDock={shellDock}
         onConvertFootnoteLinks={() => {
           void convertFootnoteLinks();
         }}

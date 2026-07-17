@@ -195,6 +195,25 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
         </section>
 
         <section className="settings-section">
+          <h3>Mobile</h3>
+          <label className="settings-row">
+            <span>Open Shell on phone</span>
+            <input
+              type="checkbox"
+              checked={prefs.mobileOpenShell}
+              onChange={(event) =>
+                updatePrefs({ mobileOpenShell: event.target.checked })
+              }
+            />
+          </label>
+          <p className="settings-help">
+            When on, phone-sized windows land on the Shell terminal first. Turn
+            off to open the editor instead. You can still switch with Shell /
+            Enter full app.
+          </p>
+        </section>
+
+        <section className="settings-section">
           <h3>Sidebar / Sidenotes</h3>
           <p className="settings-help">
             The scrollable rail lists every footnote. When linked, essay scroll

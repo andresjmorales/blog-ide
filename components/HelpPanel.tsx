@@ -75,6 +75,18 @@ export function HelpPanel({ open, onClose }: Props) {
         </section>
 
         <section className="settings-section">
+          <h3>Inbox &amp; Shell</h3>
+          <p className="settings-help">
+            Notes to self land in Inbox channels (default <code>notes</code>) as
+            a chat-style stream. On desktop, <strong>Shell</strong> opens a
+            floating window; <strong>Pop in</strong> docks it under the essay
+            only — Outline and Notes stay full-height beside it (like
+            Cursor&apos;s terminal). On phone, Shell opens by default (Account
+            settings → Mobile). Scratchpad stays for writing scraps.
+          </p>
+        </section>
+
+        <section className="settings-section">
           <h3>Shortcuts</h3>
           <ul className="settings-help list-disc space-y-1 pl-4">
             <li>

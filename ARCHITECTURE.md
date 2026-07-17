@@ -45,9 +45,11 @@ working layer:
 4. Concurrent dirty edits create a conflict-copy document rather than losing
    either version.
 
-Each user has a hard 200 MiB combined quota across UTF-8 markdown bytes and
-binary Storage objects. Authoritative accounting must happen in transactional
-database/server operations, never in client-provided counters.
+Each user has a hard combined quota (default **20 MiB** on the free hosted
+tier) across UTF-8 markdown bytes and binary Storage objects. Authoritative
+accounting must happen in transactional database/server operations, never in
+client-provided counters. Paid hosted plans may raise `quota_bytes` per user
+later.
 
 ## Workspace model
 

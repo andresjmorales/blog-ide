@@ -49,6 +49,7 @@ import {
   documentIdsInSubtree,
   getTrashNode,
   isScratchpad,
+  isSystemFolder,
 } from "@/lib/workspace/tree";
 import {
   loadActiveDocumentId,
@@ -64,9 +65,21 @@ import {
 import { openPopOut } from "@/lib/pins/popOutStore";
 import { PopOutLayer } from "@/components/pins/PopOutLayer";
 import { DocumentPreview } from "@/components/DocumentPreview";
+import { TerminalCapture } from "@/components/mobile/TerminalCapture";
+import { ShellButton } from "@/components/shell/ShellButton";
+import { ShellPanel } from "@/components/shell/ShellPanel";
+import {
+  loadMobileSurface,
+  saveMobileSurface,
+  type MobileSurface,
+} from "@/lib/capture/mobileSurface";
+import { closeShellPin, openShellPin } from "@/lib/pins/pinStore";
 
 const MIN_PANEL = 180;
 const MAX_PANEL = 480;
+const MIN_SHELL = 140;
+const MAX_SHELL = 480;
+const MD_BREAKPOINT = 768;
 
 const noopSubscribe = () => () => {};
 
@@ -75,6 +88,25 @@ function useHydrated() {
   return useSyncExternalStore(
     noopSubscribe,
     () => true,
+    () => false
+  );
+}
+
+function subscribeMobileViewport(onStoreChange: () => void) {
+  const mq = window.matchMedia(`(max-width: ${MD_BREAKPOINT - 1}px)`);
+  mq.addEventListener("change", onStoreChange);
+  return () => mq.removeEventListener("change", onStoreChange);
+}
+
+function getMobileViewport() {
+  return window.matchMedia(`(max-width: ${MD_BREAKPOINT - 1}px)`).matches;
+}
+
+/** True when viewport is below the md breakpoint (phone / small tablet). */
+function useIsMobileViewport() {
+  return useSyncExternalStore(
+    subscribeMobileViewport,
+    getMobileViewport,
     () => false
   );
 }
@@ -146,11 +178,16 @@ function AppShellContent({
     mergePrefs(typeof window === "undefined" ? {} : loadLocalPrefs())
   );
   const hydrated = useHydrated();
+  const isMobile = useIsMobileViewport();
   const prefs = hydrated ? storedPrefs : mergePrefs({});
-  const dragging = useRef<"left" | "right" | null>(null);
+  const dragging = useRef<"left" | "right" | "shell" | null>(null);
   const prefsRef = useRef(storedPrefs);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [mobileSurface, setMobileSurface] = useState<MobileSurface | null>(
+    null
+  );
+  const [shellRefreshKey, setShellRefreshKey] = useState(0);
   const [aiDocumentMarkdown, setAiDocumentMarkdown] = useState<string | null>(
     null
   );
@@ -177,6 +214,10 @@ function AppShellContent({
     prefsRef.current = storedPrefs;
   }, [storedPrefs]);
 
+  useEffect(() => {
+    if (hydrated) setMobileSurface(loadMobileSurface());
+  }, [hydrated]);
+
   const update = useCallback((patch: Partial<EditorPrefs>, persist = true) => {
     setPrefs((p) => {
       const next = { ...p, ...patch };
@@ -184,6 +225,36 @@ function AppShellContent({
       return next;
     });
   }, []);
+
+  const bumpShellRefresh = useCallback(() => {
+    setShellRefreshKey((k) => k + 1);
+  }, []);
+
+  const enterAppSurface = useCallback(() => {
+    setMobileSurface("app");
+    saveMobileSurface("app");
+  }, []);
+
+  const enterCaptureSurface = useCallback(() => {
+    setMobileSurface("capture");
+    saveMobileSurface("capture");
+    update({ leftOpen: false, rightOpen: false, shellOpen: false });
+  }, [update]);
+
+  /** Desktop: always pop-out. Phone: full-screen terminal. */
+  const openShell = useCallback(() => {
+    if (isMobile) {
+      enterCaptureSurface();
+      return;
+    }
+    update({ shellOpen: false });
+    openShellPin();
+  }, [enterCaptureSurface, isMobile, update]);
+
+  const popShellIn = useCallback(() => {
+    closeShellPin();
+    update({ shellOpen: true });
+  }, [update]);
 
   const registerDeletedActions = useCallback(
     (actions: {
@@ -271,12 +342,18 @@ function AppShellContent({
       if (dragging.current === "left") {
         const w = Math.min(MAX_PANEL, Math.max(MIN_PANEL, e.clientX));
         setPrefs((p) => ({ ...p, leftWidth: w }));
-      } else {
+      } else if (dragging.current === "right") {
         const w = Math.min(
           MAX_PANEL,
           Math.max(MIN_PANEL, window.innerWidth - e.clientX)
         );
         setPrefs((p) => ({ ...p, rightWidth: w }));
+      } else if (dragging.current === "shell") {
+        const h = Math.min(
+          MAX_SHELL,
+          Math.max(MIN_SHELL, window.innerHeight - e.clientY)
+        );
+        setPrefs((p) => ({ ...p, shellHeight: h }));
       }
     }
     function onUp() {
@@ -295,9 +372,10 @@ function AppShellContent({
     };
   }, []);
 
-  function startDrag(side: "left" | "right") {
+  function startDrag(side: "left" | "right" | "shell") {
     dragging.current = side;
-    document.body.style.cursor = "col-resize";
+    document.body.style.cursor =
+      side === "shell" ? "row-resize" : "col-resize";
     document.body.style.userSelect = "none";
   }
 
@@ -412,7 +490,7 @@ function AppShellContent({
   async function handleMoveToTrash(nodeId: string) {
     if (previewMode) return;
     const node = nodes.find((n) => n.id === nodeId);
-    if (!node || isScratchpad(node) || node.system_key === "trash") return;
+    if (!node || isScratchpad(node) || isSystemFolder(node)) return;
     const trash = getTrashNode(nodes);
     if (!trash) {
       setTreeError("Trash folder is missing. Re-run supabase/schema.sql.");
@@ -428,7 +506,7 @@ function AppShellContent({
   async function handleRename(nodeId: string) {
     if (previewMode) return;
     const node = nodes.find((n) => n.id === nodeId);
-    if (!node || node.system_key === "trash" || isScratchpad(node)) return;
+    if (!node || isSystemFolder(node) || isScratchpad(node)) return;
 
     const currentTitle =
       node.kind === "document"
@@ -468,7 +546,7 @@ function AppShellContent({
   async function handleDeleteForever(nodeId: string) {
     if (previewMode) return;
     const node = nodes.find((n) => n.id === nodeId);
-    if (!node || isScratchpad(node) || node.system_key === "trash") return;
+    if (!node || isScratchpad(node) || isSystemFolder(node)) return;
 
     const label =
       node.kind === "folder" ? `${node.name}/ and its contents` : node.name;
@@ -497,11 +575,105 @@ function AppShellContent({
     }
   }
 
+  const effectiveSurface: MobileSurface =
+    mobileSurface ??
+    (isMobile ? (prefs.mobileOpenShell ? "capture" : "app") : "app");
+  const showTerminal =
+    !previewMode && hydrated && effectiveSurface === "capture";
+
+  const fileExplorer = previewMode ? (
+    <div className="p-3">
+      <p className="mb-3 text-xs font-mono uppercase tracking-wider text-muted">
+        Files
+      </p>
+      <ul className="space-y-0.5 text-sm">
+        <li className="rounded bg-panel px-2 py-1.5 font-medium">
+          scratchpad.md
+          <span className="ml-2 text-[10px] font-mono uppercase text-muted">
+            preview
+          </span>
+        </li>
+      </ul>
+      <p className="mt-6 text-xs leading-relaxed text-muted">
+        Connect Supabase and sign in to persist your workspace tree.
+      </p>
+    </div>
+  ) : (
+    <FileExplorer
+      nodes={nodes}
+      activeNodeId={activeNodeId}
+      onOpen={(nodeId) => {
+        setActiveNodeId(nodeId);
+        if (isMobile) update({ leftOpen: false });
+      }}
+      onNewDocument={handleNewDocument}
+      onPopOutDocument={handlePopOutDocument}
+      onNewFolder={handleNewFolder}
+      onMoveToTrash={handleMoveToTrash}
+      onRestore={handleRestore}
+      onMoveTo={handleMoveTo}
+      onRename={handleRename}
+      onDeleteForever={handleDeleteForever}
+      loading={treeLoading}
+      error={treeError}
+    />
+  );
+
+  const rightPanel = (
+    <>
+      <div className="flex border-b border-border text-sm">
+        {(["ai", "preview"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => update({ rightTab: tab })}
+            className={`flex-1 px-3 py-2 capitalize ${
+              prefs.rightTab === tab
+                ? "border-b-2 border-accent font-medium"
+                : "text-muted hover:text-foreground"
+            }`}
+          >
+            {tab === "ai" ? "AI assistant" : "Preview"}
+          </button>
+        ))}
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {prefs.rightTab === "ai" ? (
+          <AiSidebar
+            documentMarkdown={aiDocumentMarkdown}
+            onApplyMarkdown={(markdown) => applyMarkdownRef.current(markdown)}
+            onOpenSettings={() => setSettingsOpen(true)}
+          />
+        ) : (
+          <DocumentPreview markdown={aiDocumentMarkdown ?? ""} />
+        )}
+      </div>
+    </>
+  );
+
+  if (showTerminal) {
+    return (
+      <EditorPrefsProvider prefs={prefs} updatePrefs={update}>
+        <DocumentSessionProvider value={sessionValue}>
+          <TerminalCapture
+            nodes={nodes}
+            displayName={resolvedName}
+            onEnterApp={enterAppSurface}
+            refreshKey={shellRefreshKey}
+            onRefreshTree={async () => {
+              await refreshTree();
+              bumpShellRefresh();
+            }}
+          />
+        </DocumentSessionProvider>
+      </EditorPrefsProvider>
+    );
+  }
+
   return (
     <EditorPrefsProvider prefs={prefs} updatePrefs={update}>
       <DocumentSessionProvider value={sessionValue}>
-        <div className="flex flex-col h-dvh">
-          <header className="flex items-center justify-between border-b border-border px-3 h-11 shrink-0">
+        <div className="flex h-dvh flex-col">
+          <header className="flex h-11 shrink-0 items-center justify-between border-b border-border px-3">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => update({ leftOpen: !prefs.leftOpen })}
@@ -522,6 +694,14 @@ function AppShellContent({
                 />
                 BlogIDE
               </span>
+              {!previewMode && (
+                <ShellButton
+                  nodes={nodes}
+                  dockOpen={prefs.shellOpen && !isMobile}
+                  onClick={openShell}
+                  refreshKey={shellRefreshKey}
+                />
+              )}
             </div>
             <div className="flex items-center gap-2 text-xs text-muted">
               <span
@@ -568,59 +748,42 @@ function AppShellContent({
             </div>
           )}
 
-          <div className="flex flex-1 min-h-0">
+          <div className="relative flex min-h-0 flex-1">
+            {/* Desktop left panel */}
             {prefs.leftOpen && (
               <>
                 <aside
                   style={{ width: prefs.leftWidth }}
-                  className="shrink-0 border-r border-border bg-panel/60 overflow-y-auto hidden md:block"
+                  className="hidden shrink-0 overflow-y-auto border-r border-border bg-panel/60 md:block"
                 >
-                  {previewMode ? (
-                    <div className="p-3">
-                      <p className="text-xs font-mono uppercase tracking-wider text-muted mb-3">
-                        Files
-                      </p>
-                      <ul className="space-y-0.5 text-sm">
-                        <li className="rounded px-2 py-1.5 bg-panel font-medium">
-                          scratchpad.md
-                          <span className="ml-2 text-[10px] font-mono uppercase text-muted">
-                            preview
-                          </span>
-                        </li>
-                      </ul>
-                      <p className="mt-6 text-xs text-muted leading-relaxed">
-                        Connect Supabase and sign in to persist your workspace
-                        tree.
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <FileExplorer
-                        nodes={nodes}
-                        activeNodeId={activeNodeId}
-                        onOpen={setActiveNodeId}
-                        onNewDocument={handleNewDocument}
-                        onPopOutDocument={handlePopOutDocument}
-                        onNewFolder={handleNewFolder}
-                        onMoveToTrash={handleMoveToTrash}
-                        onRestore={handleRestore}
-                        onMoveTo={handleMoveTo}
-                        onRename={handleRename}
-                        onDeleteForever={handleDeleteForever}
-                        loading={treeLoading}
-                        error={treeError}
-                      />
-                    </>
-                  )}
+                  {fileExplorer}
                 </aside>
                 <div
                   onPointerDown={() => startDrag("left")}
-                  className="w-1 cursor-col-resize hover:bg-accent/40 shrink-0 hidden md:block"
+                  className="hidden w-1 shrink-0 cursor-col-resize hover:bg-accent/40 md:block"
                 />
               </>
             )}
 
-            <main className="flex-1 min-w-0 min-h-0">
+            {/* Mobile left drawer */}
+            {isMobile && prefs.leftOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Close file tree"
+                  className="absolute inset-0 z-30 bg-black/40 md:hidden"
+                  onClick={() => update({ leftOpen: false })}
+                />
+                <aside
+                  style={{ width: Math.min(prefs.leftWidth, 300) }}
+                  className="absolute inset-y-0 left-0 z-40 overflow-y-auto border-r border-border bg-panel shadow-lg md:hidden"
+                >
+                  {fileExplorer}
+                </aside>
+              </>
+            )}
+
+            <main className="min-h-0 min-w-0 flex-1">
               <DocumentWorkspace
                 nodeId={previewMode ? null : activeNodeId}
                 documentName={activeNode?.name ?? null}
@@ -636,47 +799,52 @@ function AppShellContent({
                 registerApplyMarkdown={(apply) => {
                   applyMarkdownRef.current = apply;
                 }}
+                shellDock={
+                  !previewMode && prefs.shellOpen && !isMobile ? (
+                    <ShellPanel
+                      nodes={nodes}
+                      height={prefs.shellHeight}
+                      onResizeStart={() => startDrag("shell")}
+                      onClose={() => update({ shellOpen: false })}
+                      onPopOut={() => update({ shellOpen: false })}
+                      refreshKey={shellRefreshKey}
+                      onNotesChanged={bumpShellRefresh}
+                    />
+                  ) : null
+                }
               />
             </main>
 
+            {/* Desktop right panel */}
             {prefs.rightOpen && (
               <>
                 <div
                   onPointerDown={() => startDrag("right")}
-                  className="w-1 cursor-col-resize hover:bg-accent/40 shrink-0 hidden md:block"
+                  className="hidden w-1 shrink-0 cursor-col-resize hover:bg-accent/40 md:block"
                 />
                 <aside
                   style={{ width: prefs.rightWidth }}
-                  className="shrink-0 border-l border-border bg-panel/60 flex-col hidden md:flex"
+                  className="hidden shrink-0 flex-col border-l border-border bg-panel/60 md:flex"
                 >
-                  <div className="flex border-b border-border text-sm">
-                    {(["ai", "preview"] as const).map((tab) => (
-                      <button
-                        key={tab}
-                        onClick={() => update({ rightTab: tab })}
-                        className={`flex-1 px-3 py-2 capitalize ${
-                          prefs.rightTab === tab
-                            ? "border-b-2 border-accent font-medium"
-                            : "text-muted hover:text-foreground"
-                        }`}
-                      >
-                        {tab === "ai" ? "AI assistant" : "Preview"}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                    {prefs.rightTab === "ai" ? (
-                      <AiSidebar
-                        documentMarkdown={aiDocumentMarkdown}
-                        onApplyMarkdown={(markdown) =>
-                          applyMarkdownRef.current(markdown)
-                        }
-                        onOpenSettings={() => setSettingsOpen(true)}
-                      />
-                    ) : (
-                      <DocumentPreview markdown={aiDocumentMarkdown ?? ""} />
-                    )}
-                  </div>
+                  {rightPanel}
+                </aside>
+              </>
+            )}
+
+            {/* Mobile right drawer */}
+            {isMobile && prefs.rightOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Close right panel"
+                  className="absolute inset-0 z-30 bg-black/40 md:hidden"
+                  onClick={() => update({ rightOpen: false })}
+                />
+                <aside
+                  style={{ width: Math.min(prefs.rightWidth, 320) }}
+                  className="absolute inset-y-0 right-0 z-40 flex flex-col border-l border-border bg-panel shadow-lg md:hidden"
+                >
+                  {rightPanel}
                 </aside>
               </>
             )}
@@ -687,7 +855,15 @@ function AppShellContent({
             onClose={() => setSettingsOpen(false)}
           />
           <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
-          <PopOutLayer onOpenInEditor={setActiveNodeId} />
+          {!isMobile && (
+            <PopOutLayer
+              onOpenInEditor={setActiveNodeId}
+              nodes={nodes}
+              shellRefreshKey={shellRefreshKey}
+              onShellNotesChanged={bumpShellRefresh}
+              onShellPopIn={popShellIn}
+            />
+          )}
         </div>
       </DocumentSessionProvider>
     </EditorPrefsProvider>

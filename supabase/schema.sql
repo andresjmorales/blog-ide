@@ -20,13 +20,15 @@ create table if not exists user_settings (
   -- NOTE: GitHub token and Anthropic key are NOT stored here (spec §8).
   editor_prefs jsonb default '{}',
   used_bytes bigint not null default 0,
-  quota_bytes bigint not null default 209715200,
+  quota_bytes bigint not null default 20971520,
   updated_at timestamptz default now()
 );
 
 -- Additive columns for projects created before M3.
 alter table user_settings add column if not exists used_bytes bigint not null default 0;
-alter table user_settings add column if not exists quota_bytes bigint not null default 209715200;
+alter table user_settings add column if not exists quota_bytes bigint not null default 20971520;
+alter table user_settings alter column quota_bytes set default 20971520;
+update user_settings set quota_bytes = 20971520 where quota_bytes = 209715200;
 
 create table if not exists workspace_nodes (
   id uuid primary key default gen_random_uuid(),
@@ -154,6 +156,8 @@ declare
   essays_id uuid;
   drafts_id uuid;
   scratch_id uuid;
+  inbox_id uuid;
+  notes_id uuid;
   trash_id uuid;
   scratch_md text := $md$---
 title: Scratchpad
@@ -162,6 +166,12 @@ status: draft
 # Scratchpad
 
 Quick notes land here. Persistence is live — edits autosave locally, then sync to Supabase.
+$md$;
+  notes_md text := $md$---
+title: Notes
+status: draft
+---
+
 $md$;
 begin
   if uid is null then
@@ -215,6 +225,38 @@ begin
     );
   end if;
 
+  select id into inbox_id
+  from workspace_nodes
+  where user_id = uid and system_key = 'inbox'
+  limit 1;
+
+  if inbox_id is null then
+    insert into workspace_nodes (user_id, parent_id, kind, name, position, system_key)
+    values (uid, null, 'folder', 'Inbox', 90, 'inbox')
+    returning id into inbox_id;
+  end if;
+
+  select id into notes_id
+  from workspace_nodes
+  where user_id = uid and parent_id = inbox_id and kind = 'document' and name = 'notes.md'
+  limit 1;
+
+  if notes_id is null then
+    insert into workspace_nodes (user_id, parent_id, kind, name, position)
+    values (uid, inbox_id, 'document', 'notes.md', 0)
+    returning id into notes_id;
+
+    insert into documents (node_id, user_id, markdown, status, version, size_bytes)
+    values (
+      notes_id,
+      uid,
+      notes_md,
+      'draft',
+      1,
+      public.utf8_bytes(notes_md)
+    );
+  end if;
+
   select id into trash_id
   from workspace_nodes
   where user_id = uid and system_key = 'trash'
@@ -232,6 +274,8 @@ begin
     'essaysId', essays_id,
     'draftsId', drafts_id,
     'scratchpadId', scratch_id,
+    'inboxId', inbox_id,
+    'notesChannelId', notes_id,
     'trashId', trash_id
   );
 end;
@@ -421,8 +465,8 @@ begin
     raise exception 'Node not found';
   end if;
 
-  if node.system_key = 'trash' then
-    raise exception 'Cannot move the Trash folder';
+  if node.system_key in ('trash', 'inbox') then
+    raise exception 'Cannot move a system folder';
   end if;
 
   if p_parent_id is not null then
@@ -489,8 +533,8 @@ begin
     raise exception 'Node not found';
   end if;
 
-  if node.system_key = 'trash' then
-    raise exception 'Cannot delete the Trash folder';
+  if node.system_key in ('trash', 'inbox') then
+    raise exception 'Cannot delete a system folder';
   end if;
 
   delete from workspace_nodes
