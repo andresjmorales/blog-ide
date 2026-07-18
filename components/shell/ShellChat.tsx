@@ -27,6 +27,11 @@ type Props = {
   refreshKey?: number | string;
   /** Called after send/delete so dock + pop-out stay in sync. */
   onNotesChanged?: () => void;
+  /**
+   * Pop-out: show `$` instead of `[timestamp channel]` (details on hover).
+   * Docked Shell keeps the full bracket prefix.
+   */
+  compactMeta?: boolean;
   className?: string;
 };
 
@@ -34,6 +39,7 @@ export function ShellChat({
   nodes,
   refreshKey,
   onNotesChanged,
+  compactMeta = false,
   className = "",
 }: Props) {
   const channels = useMemo(() => listInboxChannels(nodes), [nodes]);
@@ -152,12 +158,17 @@ export function ShellChat({
   }
 
   return (
-    <div className={`flex min-h-0 flex-1 flex-col ${className}`}>
-      <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
+    <div
+      className={`flex min-h-0 flex-1 flex-col bg-panel/40 font-mono text-[0.8rem] ${className}`}
+    >
+      <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-[0.7rem] text-muted">
+        <span className="text-accent" aria-hidden>
+          $
+        </span>
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[0.7rem] outline-none focus:border-accent"
+          className="rounded border border-border bg-background px-1.5 py-0.5 outline-none focus:border-accent"
         >
           <option value="all">All channels</option>
           {channels.map((ch) => (
@@ -168,71 +179,81 @@ export function ShellChat({
         </select>
         <button
           type="button"
-          className="rounded px-1.5 py-0.5 font-mono text-[0.65rem] text-muted hover:text-foreground"
+          className="rounded px-1.5 py-0.5 text-muted hover:text-foreground"
           onClick={() => void loadNotes()}
           title="Refresh"
         >
-          Refresh
+          refresh
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3">
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {loading && notes.length === 0 && (
-          <p className="font-mono text-xs text-muted">Loading inbox…</p>
+          <p className="text-muted"># loading inbox…</p>
         )}
         {!loading && visible.length === 0 && (
-          <p className="font-mono text-xs text-muted">
-            No notes yet — send one below (Pushbullet-style, not a markdown dump).
+          <p className="text-muted">
+            # empty — type a note below (timestamped capture, not a markdown dump)
           </p>
         )}
-            {visible.map((note) => {
+        {visible.map((note) => {
           const key = captureNoteKey(note.channelId, note);
+          const channelTag =
+            filter === "all" ? ` ${note.channelName}` : "";
+          const metaLabel = `[${note.at}${channelTag}]`;
           return (
             <div
               key={key}
-              className="group flex items-end justify-start gap-1.5"
+              className="group flex items-start gap-2 border-b border-border/50 py-1.5 last:border-b-0"
             >
-              <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-accent/15 px-3 py-2 text-sm leading-relaxed text-foreground shadow-sm">
-                <p className="whitespace-pre-wrap">{note.text}</p>
-                <p className="mt-1 font-mono text-[0.65rem] text-muted">
-                  {note.at}
-                  {filter === "all" ? ` · ${note.channelName}` : ""}
-                </p>
+              <div className="min-w-0 flex-1 leading-relaxed">
+                {compactMeta ? (
+                  <span
+                    className="text-accent"
+                    title={metaLabel}
+                    aria-label={metaLabel}
+                  >
+                    $
+                  </span>
+                ) : (
+                  <span className="text-muted">{metaLabel}</span>
+                )}{" "}
+                <span className="whitespace-pre-wrap text-foreground">
+                  {note.text}
+                </span>
               </div>
-              <div className="flex shrink-0 flex-col gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+              <div className="flex shrink-0 gap-0.5 opacity-40 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                 <button
                   type="button"
                   title="Copy note"
                   aria-label="Copy note"
-                  className="rounded border border-border bg-background p-1 text-muted hover:text-accent"
+                  className="rounded border border-transparent px-1 py-0.5 text-[0.65rem] text-muted hover:border-border hover:text-accent"
                   onClick={() => void copyNote(note)}
                 >
-                  {copiedKey === key ? <CheckIcon /> : <ClipboardIcon />}
+                  {copiedKey === key ? "ok" : "cp"}
                 </button>
                 <button
                   type="button"
                   title="Dismiss note"
                   aria-label="Dismiss note"
-                  className="rounded border border-border bg-background p-1 text-muted hover:text-red-600 dark:hover:text-red-400"
+                  className="rounded border border-transparent px-1 py-0.5 text-[0.65rem] text-muted hover:border-border hover:text-red-600 dark:hover:text-red-400"
                   onClick={() => void dismissNote(note)}
                   disabled={busy}
                 >
-                  <TrashIcon />
+                  rm
                 </button>
               </div>
             </div>
           );
         })}
         {error && (
-          <p className="font-mono text-xs text-red-600 dark:text-red-400">
-            {error}
-          </p>
+          <p className="mt-2 text-red-600 dark:text-red-400">! {error}</p>
         )}
         <div ref={bottomRef} />
       </div>
 
       <form
-        className="flex items-end gap-2 border-t border-border px-3 py-2"
+        className="flex items-center gap-2 border-t border-border px-3 py-2"
         onSubmit={(e) => {
           e.preventDefault();
           void send();
@@ -241,8 +262,9 @@ export function ShellChat({
         <select
           value={composeChannel?.id ?? ""}
           onChange={(e) => setComposeChannelId(e.target.value || null)}
-          className="shrink-0 rounded border border-border bg-background px-1.5 py-1 font-mono text-[0.7rem] outline-none focus:border-accent"
+          className="shrink-0 rounded border border-border bg-background px-1.5 py-1 text-[0.7rem] outline-none focus:border-accent"
           disabled={channels.length === 0}
+          title="Channel"
         >
           {channels.map((ch) => (
             <option key={ch.id} value={ch.id}>
@@ -250,70 +272,23 @@ export function ShellChat({
             </option>
           ))}
         </select>
+        <span className="shrink-0 text-accent" aria-hidden>
+          &gt;
+        </span>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Note to self…"
-          className="min-w-0 flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-accent"
+          placeholder="note to self…"
+          className="min-w-0 flex-1 border-0 bg-transparent py-1 outline-none placeholder:text-muted"
         />
         <button
           type="submit"
           disabled={busy || !input.trim() || !composeChannel}
-          className="shrink-0 rounded-full bg-accent px-3 py-1.5 font-mono text-[0.7rem] font-medium text-white disabled:opacity-40"
+          className="shrink-0 rounded border border-border px-2 py-1 text-[0.7rem] text-muted hover:border-accent hover:text-accent disabled:opacity-40"
         >
-          Send
+          enter
         </button>
       </form>
     </div>
-  );
-}
-
-function ClipboardIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <rect
-        x="5"
-        y="3.5"
-        width="8"
-        height="10"
-        rx="1.2"
-        stroke="currentColor"
-        strokeWidth="1.2"
-      />
-      <path
-        d="M3.5 11.5V2.5h7"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path
-        d="M3.5 4.5h9M6 4.5V3h4v1.5M5.5 4.5l.5 9h4l.5-9"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path
-        d="M3.5 8.5 6.5 11.5 12.5 4.5"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }

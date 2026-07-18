@@ -38,11 +38,43 @@ const FOOTNOTE_DEFINITION_RE = /^\[\^([^\]\r\n]+)\]:[ \t]?(.*)$/;
 const FOOTNOTE_REFERENCE_RE = /\[\^([^\]\r\n]+)\]/g;
 const FOOTNOTE_SENTINEL_RE =
   /\[\[blogide-fn:([A-Za-z0-9._~-]+):([A-Za-z0-9._~-]*)\]\]/g;
+/** GFM continuation: at least four spaces or a tab. */
+const FOOTNOTE_CONTINUATION_RE = /^(?: {4}|\t)(.*)$/;
+
+/**
+ * True when footnote body needs the indented multi-line definition form
+ * (lists, quotes, code fences, multiple paragraphs).
+ */
+export function footnoteNeedsBlockForm(content: string): boolean {
+  const trimmed = content.replace(/\n+$/, "");
+  if (!trimmed) return false;
+  if (trimmed.includes("\n")) return true;
+  return /^(?:[-*+] |\d+\. |> |```|~~~)/.test(trimmed);
+}
+
+/** Emit a GFM footnote definition, indenting block content by four spaces. */
+export function formatFootnoteDefinition(
+  label: string | number,
+  content: string
+): string {
+  const trimmed = content.replace(/\n+$/, "");
+  if (!trimmed) return `[^${label}]:`;
+  if (!footnoteNeedsBlockForm(trimmed)) {
+    return `[^${label}]: ${trimmed}`;
+  }
+  const indented = trimmed
+    .split("\n")
+    .map((line) => (line.length === 0 ? "" : `    ${line}`))
+    .join("\n");
+  return `[^${label}]:\n${indented}`;
+}
 
 /**
  * Definitions live outside the ProseMirror document on disk. Before TipTap
  * parses the body, fold referenced definitions into inline atom sentinels and
  * retain unreferenced definitions on the doc attrs for lossless re-emission.
+ *
+ * Supports GFM multi-line definitions (continuation lines indented ≥4 spaces).
  */
 function prepareFootnotes(body: string): PreparedFootnotes {
   const definitions = new Map<
@@ -50,19 +82,60 @@ function prepareFootnotes(body: string): PreparedFootnotes {
     { content: string; raw: string; order: number }
   >();
   const bodyLines: string[] = [];
+  const lines = body.split("\n");
+  let i = 0;
 
-  body.split("\n").forEach((line, order) => {
+  while (i < lines.length) {
+    const line = lines[i]!;
     const match = line.match(FOOTNOTE_DEFINITION_RE);
-    if (match) {
-      definitions.set(match[1], {
-        content: match[2],
-        raw: line,
-        order,
-      });
-    } else {
+    if (!match) {
       bodyLines.push(line);
+      i += 1;
+      continue;
     }
-  });
+
+    const label = match[1]!;
+    const contentParts: string[] = [];
+    if (match[2]) contentParts.push(match[2]);
+    const rawLines: string[] = [line];
+    const order = i;
+    i += 1;
+
+    while (i < lines.length) {
+      const next = lines[i]!;
+      if (/^[ \t]*$/.test(next)) {
+        // Keep blank lines only when an indented continuation follows.
+        let j = i + 1;
+        while (j < lines.length && /^[ \t]*$/.test(lines[j]!)) j += 1;
+        const peek = lines[j];
+        if (
+          peek &&
+          FOOTNOTE_CONTINUATION_RE.test(peek) &&
+          !FOOTNOTE_DEFINITION_RE.test(peek)
+        ) {
+          contentParts.push("");
+          rawLines.push(next);
+          i += 1;
+          continue;
+        }
+        break;
+      }
+      const cont = next.match(FOOTNOTE_CONTINUATION_RE);
+      if (cont && !FOOTNOTE_DEFINITION_RE.test(next)) {
+        contentParts.push(cont[1] ?? "");
+        rawLines.push(next);
+        i += 1;
+        continue;
+      }
+      break;
+    }
+
+    definitions.set(label, {
+      content: contentParts.join("\n").replace(/^\n+/, "").replace(/\n+$/, ""),
+      raw: rawLines.join("\n"),
+      order,
+    });
+  }
 
   const referencedLabels = new Set<string>();
   let occurrence = 0;
@@ -109,7 +182,7 @@ export function serializeBody(doc: JSONContent): string {
     (_raw, _encodedId: string, encodedContent: string) => {
       number += 1;
       const content = decodeFootnoteValue(encodedContent);
-      definitions.push(`[^${number}]:${content ? ` ${content}` : ""}`);
+      definitions.push(formatFootnoteDefinition(number, content));
       return `[^${number}]`;
     }
   );

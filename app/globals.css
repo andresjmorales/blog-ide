@@ -521,7 +521,27 @@ body {
 .footnote-card-editor ul,
 .footnote-card-editor ol {
   margin: 0.35em 0;
+  padding-left: 1.35em;
+}
+.footnote-card-editor ul {
+  list-style: disc;
+}
+.footnote-card-editor ol {
+  list-style: decimal;
+}
+.footnote-card-editor li + li {
+  margin-top: 0.15em;
+}
+.footnote-sidenote-body ul,
+.footnote-sidenote-body ol {
+  margin: 0.3em 0;
   padding-left: 1.2em;
+}
+.footnote-sidenote-body ul {
+  list-style: disc;
+}
+.footnote-sidenote-body ol {
+  list-style: decimal;
 }
 .footnote-card-editor blockquote {
   border-left: 2px solid var(--border);
@@ -1436,6 +1456,36 @@ body {
 }
 .document-preview .preview-footnotes-body > *:last-child {
   margin-bottom: 0;
+}
+.document-preview .preview-footnotes-body ul,
+.document-preview .preview-footnotes-body ol {
+  margin: 0.4em 0;
+  padding-left: 1.25em;
+}
+.document-preview .preview-footnotes-body ul {
+  list-style: disc;
+}
+.document-preview .preview-footnotes-body ol {
+  list-style: decimal;
+}
+.document-preview .preview-footnotes-body li + li {
+  margin-top: 0.2em;
+}
+.document-preview .preview-footnotes-body blockquote {
+  border-left: 2px solid var(--border);
+  color: var(--muted);
+  margin: 0.4em 0;
+  padding-left: 0.65em;
+}
+.document-preview .preview-footnotes-body pre {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.85em;
+  margin: 0.4em 0;
+  overflow-x: auto;
+  padding: 0.5em 0.65em;
 }
 
 .pdf-pin-viewer {

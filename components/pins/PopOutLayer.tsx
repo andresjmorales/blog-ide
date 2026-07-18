@@ -115,6 +115,7 @@ export function PopOutLayer({
                   nodes={nodes}
                   refreshKey={shellRefreshKey}
                   onNotesChanged={onShellNotesChanged}
+                  compactMeta
                 />
               </div>
             </PinnedSurface>
