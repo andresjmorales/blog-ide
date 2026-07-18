@@ -24,6 +24,12 @@ import { AiSidebar } from "@/components/AiSidebar";
 import { EditorPrefsProvider } from "@/components/EditorPrefsContext";
 import { DocumentSessionProvider } from "@/components/DocumentSessionContext";
 import { FileExplorer } from "@/components/FileExplorer";
+import { DockRegion } from "@/components/panels/DockRegion";
+import { PanelsMenu } from "@/components/panels/PanelsMenu";
+import {
+  PersistentPanel,
+  usePanelTargets,
+} from "@/components/panels/PersistentPanel";
 import {
   AppDialogProvider,
   PROMPT_SECONDARY,
@@ -66,14 +72,33 @@ import { openPopOut } from "@/lib/pins/popOutStore";
 import { PopOutLayer } from "@/components/pins/PopOutLayer";
 import { TerminalCapture } from "@/components/mobile/TerminalCapture";
 import { ShellButton } from "@/components/shell/ShellButton";
-import { ShellPanel } from "@/components/shell/ShellPanel";
+import { ShellChat } from "@/components/shell/ShellChat";
 import {
   loadMobileSurface,
   saveMobileSurface,
   subscribeMobileSurface,
   type MobileSurface,
 } from "@/lib/capture/mobileSurface";
-import { closeShellPin, openShellPin } from "@/lib/pins/pinStore";
+import {
+  closeDockablePanelPin,
+  openShellPin,
+  openToolPanelPin,
+} from "@/lib/pins/pinStore";
+import {
+  closePanel,
+  dockHasVisiblePanels,
+  isPanelDocked,
+  movePanel,
+  PANEL_LABELS,
+  popInPanel,
+  popOutPanel,
+  setActiveTab,
+  setDockSize,
+  togglePanel,
+  type DockSide,
+  type PanelId,
+  type PanelLayout,
+} from "@/lib/panels/layout";
 
 const MIN_PANEL = 180;
 const MAX_PANEL = 480;
@@ -218,6 +243,11 @@ function AppShellContent({
   const { status: syncStatus, label: syncLabel } = useSyncStatusLabel();
   const syncBanner = useStableSyncBanner(syncStatus);
   const dialog = useAppDialog();
+  const {
+    targets: panelTargets,
+    register: registerPanelSlot,
+    unregister: unregisterPanelSlot,
+  } = usePanelTargets();
   const [accountName, setAccountName] = useState(displayName?.trim() ?? "");
   const resolvedName =
     accountName.trim() ||
@@ -236,6 +266,51 @@ function AppShellContent({
       return next;
     });
   }, []);
+
+  const panelLayout = prefs.panelLayout;
+
+  const commitLayout = useCallback(
+    (next: PanelLayout, persist = true) => {
+      update(
+        {
+          panelLayout: next,
+          leftWidth: next.sizes.left,
+          rightWidth: next.sizes.right,
+          shellHeight: next.sizes.bottom,
+          leftOpen: next.visible.files,
+          rightOpen: next.visible.ai,
+          shellOpen: next.visible.shell,
+        },
+        persist
+      );
+    },
+    [update]
+  );
+
+  const syncFloatingPins = useCallback(
+    (prev: PanelLayout, next: PanelLayout) => {
+      for (const id of ["files", "ai", "shell"] as PanelId[]) {
+        const was = prev.floating.includes(id);
+        const now = next.floating.includes(id);
+        if (was === now) continue;
+        if (now) {
+          if (id === "shell") openShellPin();
+          else openToolPanelPin(id, PANEL_LABELS[id]);
+        } else {
+          closeDockablePanelPin(id);
+        }
+      }
+    },
+    []
+  );
+
+  const applyLayout = useCallback(
+    (next: PanelLayout, persist = true) => {
+      syncFloatingPins(panelLayout, next);
+      commitLayout(next, persist);
+    },
+    [commitLayout, panelLayout, syncFloatingPins]
+  );
 
   const bumpShellRefresh = useCallback(() => {
     setShellRefreshKey((k) => k + 1);
@@ -256,14 +331,22 @@ function AppShellContent({
       enterCaptureSurface();
       return;
     }
-    update({ shellOpen: false });
-    openShellPin();
-  }, [enterCaptureSurface, isMobile, update]);
+    applyLayout(popOutPanel(panelLayout, "shell"));
+  }, [applyLayout, enterCaptureSurface, isMobile, panelLayout]);
 
-  const popShellIn = useCallback(() => {
-    closeShellPin();
-    update({ shellOpen: true });
-  }, [update]);
+  const handlePopInPanel = useCallback(
+    (panelId: PanelId, side: DockSide) => {
+      applyLayout(popInPanel(panelLayout, panelId, side));
+    },
+    [applyLayout, panelLayout]
+  );
+
+  const handleFloatClosed = useCallback(
+    (panelId: PanelId) => {
+      commitLayout(closePanel(panelLayout, panelId));
+    },
+    [commitLayout, panelLayout]
+  );
 
   const registerDeletedActions = useCallback(
     (actions: {
@@ -350,19 +433,31 @@ function AppShellContent({
       if (!dragging.current) return;
       if (dragging.current === "left") {
         const w = Math.min(MAX_PANEL, Math.max(MIN_PANEL, e.clientX));
-        setPrefs((p) => ({ ...p, leftWidth: w }));
+        setPrefs((p) => ({
+          ...p,
+          leftWidth: w,
+          panelLayout: setDockSize(p.panelLayout, "left", w),
+        }));
       } else if (dragging.current === "right") {
         const w = Math.min(
           MAX_PANEL,
           Math.max(MIN_PANEL, window.innerWidth - e.clientX)
         );
-        setPrefs((p) => ({ ...p, rightWidth: w }));
+        setPrefs((p) => ({
+          ...p,
+          rightWidth: w,
+          panelLayout: setDockSize(p.panelLayout, "right", w),
+        }));
       } else if (dragging.current === "shell") {
         const h = Math.min(
           MAX_SHELL,
           Math.max(MIN_SHELL, window.innerHeight - e.clientY)
         );
-        setPrefs((p) => ({ ...p, shellHeight: h }));
+        setPrefs((p) => ({
+          ...p,
+          shellHeight: h,
+          panelLayout: setDockSize(p.panelLayout, "bottom", h),
+        }));
       }
     }
     function onUp() {
@@ -656,42 +751,35 @@ function AppShellContent({
     />
   );
 
-  /** Right panel tabs — AI only for now; add e.g. comments later. */
-  const rightTabs = [{ id: "ai" as const, label: "AI assistant" }];
-  const activeRightTab =
-    rightTabs.find((t) => t.id === prefs.rightTab)?.id ?? "ai";
-
-  const rightPanel = (
-    <>
-      {rightTabs.length > 1 && (
-        <div className="flex border-b border-border text-sm">
-          {rightTabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => update({ rightTab: tab.id })}
-              className={`flex-1 px-3 py-2 ${
-                activeRightTab === tab.id
-                  ? "border-b-2 border-accent font-medium"
-                  : "text-muted hover:text-foreground"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      )}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {activeRightTab === "ai" && (
-          <AiSidebar
-            essayAvailable={Boolean(previewMode || activeNodeId)}
-            getDocumentMarkdown={() => getMarkdownForAiRef.current()}
-            onApplyMarkdown={(markdown) => applyMarkdownRef.current(markdown)}
-            onOpenSettings={() => setSettingsOpen(true)}
-          />
-        )}
-      </div>
-    </>
+  const aiPanel = (
+    <AiSidebar
+      essayAvailable={Boolean(previewMode || activeNodeId)}
+      getDocumentMarkdown={() => getMarkdownForAiRef.current()}
+      onApplyMarkdown={(markdown) => applyMarkdownRef.current(markdown)}
+      onOpenSettings={() => setSettingsOpen(true)}
+    />
   );
+
+  const shellFloating = panelLayout.floating.includes("shell");
+
+  const dockHandlers = {
+    onSelectTab: (side: DockSide) => (id: PanelId) => {
+      commitLayout(setActiveTab(panelLayout, side, id));
+    },
+    onMoveTo: (id: PanelId, side: DockSide) => {
+      applyLayout(movePanel(panelLayout, id, side));
+    },
+    onPopOut: (id: PanelId) => {
+      applyLayout(popOutPanel(panelLayout, id));
+    },
+    onClose: (id: PanelId) => {
+      applyLayout(closePanel(panelLayout, id));
+    },
+  };
+
+  /** Mobile drawers still use Files / AI content without dock chrome. */
+  const mobileFilesDrawer = fileExplorer;
+  const mobileAiDrawer = aiPanel;
 
   if (showTerminal) {
     return (
@@ -716,15 +804,32 @@ function AppShellContent({
     <EditorPrefsProvider prefs={prefs} updatePrefs={update}>
       <DocumentSessionProvider value={sessionValue}>
         <div className="flex h-dvh flex-col">
-          <header className="flex h-11 shrink-0 items-center justify-between border-b border-border px-3">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => update({ leftOpen: !prefs.leftOpen })}
-                title="Toggle file tree"
-                className="rounded p-1.5 text-muted hover:bg-panel hover:text-foreground"
-              >
-                <PanelIcon side="left" />
-              </button>
+          <header className="relative flex h-11 shrink-0 items-center justify-between border-b border-border px-3">
+            <div className="z-10 flex items-center gap-2">
+              {isMobile ? (
+                <button
+                  onClick={() => update({ leftOpen: !prefs.leftOpen })}
+                  title="Toggle Files"
+                  className="rounded p-1.5 text-muted hover:bg-panel hover:text-foreground"
+                >
+                  <PanelIcon side="left" />
+                </button>
+              ) : (
+                <PanelsMenu
+                  layout={panelLayout}
+                  onToggle={(id) => applyLayout(togglePanel(panelLayout, id))}
+                />
+              )}
+              {!previewMode && (
+                <ShellButton
+                  nodes={nodes}
+                  dockOpen={isPanelDocked(panelLayout, "shell") && !isMobile}
+                  onClick={openShell}
+                  refreshKey={shellRefreshKey}
+                />
+              )}
+            </div>
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <span className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -737,16 +842,8 @@ function AppShellContent({
                 />
                 BlogIDE
               </span>
-              {!previewMode && (
-                <ShellButton
-                  nodes={nodes}
-                  dockOpen={prefs.shellOpen && !isMobile}
-                  onClick={openShell}
-                  refreshKey={shellRefreshKey}
-                />
-              )}
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted">
+            <div className="z-10 flex items-center gap-2 text-xs text-muted">
               <span
                 className={`hidden sm:inline ${
                   syncStatus.error ? "text-red-600 dark:text-red-400" : ""
@@ -763,13 +860,15 @@ function AppShellContent({
                 onHelp={() => setHelpOpen(true)}
                 onSignOut={() => void signOut()}
               />
-              <button
-                onClick={() => update({ rightOpen: !prefs.rightOpen })}
-                title="Toggle right panel"
-                className="rounded p-1.5 text-muted hover:bg-panel hover:text-foreground"
-              >
-                <PanelIcon side="right" />
-              </button>
+              {isMobile && (
+                <button
+                  onClick={() => update({ rightOpen: !prefs.rightOpen })}
+                  title="Toggle AI"
+                  className="rounded p-1.5 text-muted hover:bg-panel hover:text-foreground"
+                >
+                  <PanelIcon side="right" />
+                </button>
+              )}
             </div>
           </header>
 
@@ -792,14 +891,24 @@ function AppShellContent({
           )}
 
           <div className="relative flex min-h-0 flex-1">
-            {/* Desktop left panel */}
-            {prefs.leftOpen && (
+            {/* Desktop left dock */}
+            {!isMobile && dockHasVisiblePanels(panelLayout, "left") && (
               <>
                 <aside
-                  style={{ width: prefs.leftWidth }}
-                  className="hidden shrink-0 overflow-y-auto border-r border-border bg-panel/60 md:block"
+                  style={{ width: panelLayout.sizes.left }}
+                  className="hidden min-h-0 shrink-0 flex-col border-r border-border md:flex"
                 >
-                  {fileExplorer}
+                  <DockRegion
+                    side="left"
+                    layout={panelLayout}
+                    registerSlot={registerPanelSlot}
+                    unregisterSlot={unregisterPanelSlot}
+                    onSelectTab={dockHandlers.onSelectTab("left")}
+                    onMoveTo={dockHandlers.onMoveTo}
+                    onPopOut={dockHandlers.onPopOut}
+                    onClose={dockHandlers.onClose}
+                    className="min-h-0 flex-1"
+                  />
                 </aside>
                 <div
                   onPointerDown={() => startDrag("left")}
@@ -821,7 +930,10 @@ function AppShellContent({
                   style={{ width: Math.min(prefs.leftWidth, 300) }}
                   className="absolute inset-y-0 left-0 z-40 overflow-y-auto border-r border-border bg-panel shadow-lg md:hidden"
                 >
-                  {fileExplorer}
+                  <p className="border-b border-border px-3 py-2 text-xs font-medium text-muted">
+                    Files
+                  </p>
+                  {mobileFilesDrawer}
                 </aside>
               </>
             )}
@@ -845,33 +957,49 @@ function AppShellContent({
                   applyMarkdownRef.current = apply;
                 }}
                 shellDock={
-                  !previewMode && prefs.shellOpen && !isMobile ? (
-                    <ShellPanel
-                      nodes={nodes}
-                      height={prefs.shellHeight}
+                  !previewMode &&
+                  !isMobile &&
+                  dockHasVisiblePanels(panelLayout, "bottom") ? (
+                    <DockRegion
+                      side="bottom"
+                      layout={panelLayout}
+                      registerSlot={registerPanelSlot}
+                      unregisterSlot={unregisterPanelSlot}
+                      onSelectTab={dockHandlers.onSelectTab("bottom")}
+                      onMoveTo={dockHandlers.onMoveTo}
+                      onPopOut={dockHandlers.onPopOut}
+                      onClose={dockHandlers.onClose}
                       onResizeStart={() => startDrag("shell")}
-                      onClose={() => update({ shellOpen: false })}
-                      onPopOut={() => update({ shellOpen: false })}
-                      refreshKey={shellRefreshKey}
-                      onNotesChanged={bumpShellRefresh}
+                      className="w-full shrink-0 border-t border-border bg-panel/95"
+                      style={{ height: panelLayout.sizes.bottom }}
                     />
                   ) : null
                 }
               />
             </main>
 
-            {/* Desktop right panel */}
-            {prefs.rightOpen && (
+            {/* Desktop right dock */}
+            {!isMobile && dockHasVisiblePanels(panelLayout, "right") && (
               <>
                 <div
                   onPointerDown={() => startDrag("right")}
                   className="hidden w-1 shrink-0 cursor-col-resize hover:bg-accent/40 md:block"
                 />
                 <aside
-                  style={{ width: prefs.rightWidth }}
-                  className="hidden shrink-0 flex-col border-l border-border bg-panel/60 md:flex"
+                  style={{ width: panelLayout.sizes.right }}
+                  className="hidden min-h-0 shrink-0 flex-col border-l border-border md:flex"
                 >
-                  {rightPanel}
+                  <DockRegion
+                    side="right"
+                    layout={panelLayout}
+                    registerSlot={registerPanelSlot}
+                    unregisterSlot={unregisterPanelSlot}
+                    onSelectTab={dockHandlers.onSelectTab("right")}
+                    onMoveTo={dockHandlers.onMoveTo}
+                    onPopOut={dockHandlers.onPopOut}
+                    onClose={dockHandlers.onClose}
+                    className="min-h-0 flex-1"
+                  />
                 </aside>
               </>
             )}
@@ -889,7 +1017,10 @@ function AppShellContent({
                   style={{ width: Math.min(prefs.rightWidth, 320) }}
                   className="absolute inset-y-0 right-0 z-40 flex flex-col border-l border-border bg-panel shadow-lg md:hidden"
                 >
-                  {rightPanel}
+                  <p className="border-b border-border px-3 py-2 text-xs font-medium text-muted">
+                    AI assistant
+                  </p>
+                  {mobileAiDrawer}
                 </aside>
               </>
             )}
@@ -905,13 +1036,32 @@ function AppShellContent({
           />
           <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
           {!isMobile && (
-            <PopOutLayer
-              onOpenInEditor={setActiveNodeId}
-              nodes={nodes}
-              shellRefreshKey={shellRefreshKey}
-              onShellNotesChanged={bumpShellRefresh}
-              onShellPopIn={popShellIn}
-            />
+            <>
+              <PersistentPanel
+                target={panelTargets.files}
+                className="min-h-0 flex-1 overflow-y-auto"
+              >
+                {fileExplorer}
+              </PersistentPanel>
+              <PersistentPanel target={panelTargets.ai}>
+                {aiPanel}
+              </PersistentPanel>
+              <PersistentPanel target={panelTargets.shell}>
+                <ShellChat
+                  nodes={nodes}
+                  refreshKey={shellRefreshKey}
+                  onNotesChanged={bumpShellRefresh}
+                  compactMeta={shellFloating}
+                />
+              </PersistentPanel>
+              <PopOutLayer
+                onOpenInEditor={setActiveNodeId}
+                onPopInPanel={handlePopInPanel}
+                onFloatClosed={handleFloatClosed}
+                registerPanelSlot={registerPanelSlot}
+                unregisterPanelSlot={unregisterPanelSlot}
+              />
+            </>
           )}
         </div>
       </DocumentSessionProvider>

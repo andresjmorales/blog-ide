@@ -1,5 +1,10 @@
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import {
+  DEFAULT_PANEL_LAYOUT,
+  panelLayoutFromLegacy,
+  type PanelLayout,
+} from "@/lib/panels/layout";
 
 export type SidenoteLayout = "anchored" | "sticky";
 
@@ -8,12 +13,14 @@ export type EditorPrefs = {
   rightWidth?: number; // px
   leftOpen?: boolean;
   rightOpen?: boolean;
-  /** Right panel tab id (`ai` today; reserved for future panels). */
+  /** @deprecated Prefer panelLayout — kept for mobile drawers / migration. */
   rightTab?: "ai" | (string & {});
-  /** Desktop Shell (Inbox capture) panel open. */
+  /** @deprecated Prefer panelLayout.visible.shell */
   shellOpen?: boolean;
-  /** Desktop Shell panel height in px. */
+  /** Desktop Shell / bottom dock height in px. */
   shellHeight?: number;
+  /** IDE dock layout (Files / AI / Shell). */
+  panelLayout?: PanelLayout;
   /** On phone, land on Shell/terminal by default (vs full editor). */
   mobileOpenShell?: boolean;
   /** Show margin sidenotes beside the prose. */
@@ -36,6 +43,7 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   rightTab: "ai",
   shellOpen: false,
   shellHeight: 220,
+  panelLayout: DEFAULT_PANEL_LAYOUT,
   mobileOpenShell: true,
   sidenotes: true,
   sidenoteLayout: "sticky",
@@ -56,14 +64,31 @@ export function loadLocalPrefs(): EditorPrefs {
 }
 
 export function mergePrefs(partial: EditorPrefs = {}): Required<EditorPrefs> {
-  return { ...DEFAULT_EDITOR_PREFS, ...partial };
+  const merged = { ...DEFAULT_EDITOR_PREFS, ...partial };
+  const panelLayout = panelLayoutFromLegacy({
+    ...merged,
+    panelLayout: partial.panelLayout ?? merged.panelLayout,
+  });
+  return {
+    ...merged,
+    panelLayout,
+    leftWidth: panelLayout.sizes.left,
+    rightWidth: panelLayout.sizes.right,
+    shellHeight: panelLayout.sizes.bottom,
+    leftOpen: panelLayout.visible.files,
+    rightOpen: panelLayout.visible.ai,
+    shellOpen: panelLayout.visible.shell,
+  };
 }
 
-/** Persist prefs locally (instant) and to user_settings (fire-and-forget). */
-export function savePrefs(prefs: EditorPrefs) {
-  localStorage.setItem(LOCAL_KEY, JSON.stringify(prefs));
+let remotePrefsTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingRemotePrefs: EditorPrefs | null = null;
 
-  if (!isSupabaseConfigured()) return;
+function flushRemotePrefs() {
+  remotePrefsTimer = null;
+  const prefs = pendingRemotePrefs;
+  pendingRemotePrefs = null;
+  if (!prefs || !isSupabaseConfigured()) return;
 
   const supabase = createClient();
   supabase.auth.getUser().then(({ data: { user } }) => {
@@ -80,4 +105,15 @@ export function savePrefs(prefs: EditorPrefs) {
       )
       .then(() => {});
   });
+}
+
+/** Persist prefs locally (instant) and to user_settings (debounced). */
+export function savePrefs(prefs: EditorPrefs) {
+  localStorage.setItem(LOCAL_KEY, JSON.stringify(prefs));
+
+  if (!isSupabaseConfigured()) return;
+
+  pendingRemotePrefs = prefs;
+  if (remotePrefsTimer) clearTimeout(remotePrefsTimer);
+  remotePrefsTimer = setTimeout(flushRemotePrefs, 450);
 }

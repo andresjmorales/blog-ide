@@ -243,11 +243,6 @@ export function AiSidebar({
 
   return (
     <div className="flex h-full min-h-0 flex-col text-sm">
-      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
-        <div className="text-sm font-medium">AI assistant</div>
-        <EditorOverflowMenu items={settingsItems} />
-      </div>
-
       <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
         {messages.map((message, index) => (
           <div
@@ -309,11 +304,6 @@ export function AiSidebar({
             }
           }}
         />
-        <p className="mb-2 text-[0.7rem] leading-relaxed text-muted">
-          Include essay attaches the open doc to this send (then turns off). Use{" "}
-          <span className="text-foreground">Apply to essay</span> on a reply to
-          replace the document. Clean import lives in ⋯.
-        </p>
         <div className="flex items-center justify-between gap-3">
           <label
             className={`flex min-w-0 cursor-pointer items-center gap-1.5 text-xs ${
@@ -334,13 +324,16 @@ export function AiSidebar({
             />
             Include essay
           </label>
-          <button
-            type="submit"
-            disabled={busy || !input.trim()}
-            className="shrink-0 rounded bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
-          >
-            Send
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <EditorOverflowMenu items={settingsItems} />
+            <button
+              type="submit"
+              disabled={busy || !input.trim()}
+              className="rounded bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+            >
+              Send
+            </button>
+          </div>
         </div>
       </form>
     </div>
