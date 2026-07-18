@@ -206,6 +206,15 @@ export function buildPublicationDocument(markdown: string): string {
   .editor-prose p { margin: 0 0 1em; }
   .editor-prose h2, .editor-prose h3 { margin: 1.6em 0 0.6em; line-height: 1.25; }
   .editor-prose img { max-width: 100%; height: auto; }
+  .editor-prose ul, .editor-prose ol { margin: 0.75em 0; padding-left: 1.4em; }
+  .editor-prose ul { list-style: disc; }
+  .editor-prose ol { list-style: decimal; }
+  .editor-prose li + li { margin-top: 0.25em; }
+  .editor-prose pre {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 4px;
+    font-family: ui-monospace, monospace; font-size: 0.9em; overflow-x: auto; padding: 0.75em 1em;
+  }
+  .editor-prose code { font-family: ui-monospace, monospace; font-size: 0.9em; }
   .editor-prose blockquote {
     border-left: 3px solid var(--border); margin: 1em 0; padding-left: 1em; color: var(--muted);
   }
@@ -281,6 +290,18 @@ export function buildPublicationDocument(markdown: string): string {
   }
   .preview-footnotes-body > *:first-child { margin-top: 0; }
   .preview-footnotes-body > *:last-child { margin-bottom: 0; }
+  .preview-footnotes-body ul,
+  .preview-footnotes-body ol { margin: 0.4em 0; padding-left: 1.25em; }
+  .preview-footnotes-body ul { list-style: disc; }
+  .preview-footnotes-body ol { list-style: decimal; }
+  .preview-footnotes-body li + li { margin-top: 0.2em; }
+  .preview-footnotes-body pre {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 4px;
+    font-family: ui-monospace, monospace; font-size: 0.85em; overflow-x: auto; padding: 0.5em 0.65em;
+  }
+  .preview-footnotes-body blockquote {
+    border-left: 2px solid var(--border); color: var(--muted); margin: 0.4em 0; padding-left: 0.65em;
+  }
 </style>
 </head>
 <body>

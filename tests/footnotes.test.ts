@@ -74,6 +74,46 @@ describe("footnote markdown pipeline", () => {
     expect(isLossy(markdown)).toBe(false);
   });
 
+  it("round-trips ordered lists inside footnote definitions", () => {
+    const markdown = [
+      "A claim.[^1]",
+      "",
+      "[^1]:",
+      "    1. First",
+      "    2. Second",
+      "",
+    ].join("\n");
+    const notes = footnotesIn(parseBody(markdown));
+    expect(notes).toHaveLength(1);
+    expect(notes[0]?.content).toContain("1. First");
+    expect(notes[0]?.content).toContain("2. Second");
+    const back = serializeBody(parseBody(markdown));
+    expect(back).toContain("[^1]:");
+    expect(back).toMatch(/ {4}1\. First/);
+    expect(back).toMatch(/ {4}2\. Second/);
+    expect(isLossy(markdown)).toBe(false);
+  });
+
+  it("keeps blockquotes and fenced code inside footnote attrs", () => {
+    const markdown = [
+      "See note.[^q]",
+      "",
+      "[^q]:",
+      "    > quoted aside",
+      "",
+      "    ```",
+      "    const x = 1;",
+      "    ```",
+      "",
+    ].join("\n");
+    const notes = footnotesIn(parseBody(markdown));
+    expect(notes[0]?.content).toContain("> quoted aside");
+    expect(notes[0]?.content).toContain("const x = 1;");
+    const out = serializeBody(parseBody(markdown));
+    expect(out).toContain("quoted aside");
+    expect(out).toContain("const x = 1;");
+  });
+
   it("omits the deleted-footnotes trailer when the archive is empty", () => {
     const markdown = "A claim.[^1]\n\n[^1]: Keep me.\n";
     expect(serializeBody(parseBody(markdown))).not.toContain(
