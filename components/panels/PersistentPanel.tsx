@@ -3,8 +3,10 @@
 import {
   useCallback,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -71,6 +73,15 @@ export function PanelSlot({
   );
 }
 
+function subscribeNoop() {
+  return () => {};
+}
+
+/** True after hydration; false during SSR. */
+function useIsClient() {
+  return useSyncExternalStore(subscribeNoop, () => true, () => false);
+}
+
 export function PersistentPanel({
   target,
   children,
@@ -80,24 +91,14 @@ export function PersistentPanel({
   children: ReactNode;
   className?: string;
 }) {
-  const [host, setHost] = useState<HTMLDivElement | null>(null);
+  const isClient = useIsClient();
   const parkRef = useRef<HTMLDivElement | null>(null);
 
-  useLayoutEffect(() => {
-    const el = document.createElement("div");
-    el.className = className;
-    setHost(el);
-    return () => {
-      el.remove();
-      setHost(null);
-    };
-    // Host is created once; className synced below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useLayoutEffect(() => {
-    if (host) host.className = className;
-  }, [host, className]);
+  // Create once on the client (not in an effect — avoids cascading setState).
+  const host = useMemo(() => {
+    if (!isClient) return null;
+    return document.createElement("div");
+  }, [isClient]);
 
   useLayoutEffect(() => {
     if (!host) return;
@@ -107,10 +108,21 @@ export function PersistentPanel({
     }
   }, [host, target]);
 
+  useLayoutEffect(() => {
+    return () => {
+      host?.remove();
+    };
+  }, [host]);
+
   return (
     <>
       <div ref={parkRef} className="hidden" aria-hidden />
-      {host ? createPortal(children, host) : null}
+      {host
+        ? createPortal(
+            <div className={className}>{children}</div>,
+            host
+          )
+        : null}
     </>
   );
 }
