@@ -253,10 +253,7 @@ export function FileExplorer({
 
   return (
     <div className="p-3">
-      <div className="mb-3 flex flex-col gap-2">
-        <p className="text-xs font-mono uppercase tracking-wider text-muted">
-          Files
-        </p>
+      <div className="mb-3">
         <div className="explorer-toolbar">
           <button
             type="button"

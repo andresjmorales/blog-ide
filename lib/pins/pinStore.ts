@@ -3,7 +3,7 @@
  * Document helpers keep the Phase A0 API (`openPopOut`, etc.).
  */
 
-export type PinKind = "document" | "link" | "pdf" | "shell";
+export type PinKind = "document" | "link" | "pdf" | "shell" | "toolPanel";
 
 type Geometry = {
   left: number;
@@ -43,9 +43,24 @@ export type ShellPin = PinBase & {
   kind: "shell";
 };
 
-export type PinWindow = DocumentPin | LinkPin | PdfPin | ShellPin;
+/** Floating Files / AI assistant panels. */
+export type ToolPanelPin = PinBase & {
+  kind: "toolPanel";
+  panelId: "files" | "ai";
+};
+
+export type PinWindow =
+  | DocumentPin
+  | LinkPin
+  | PdfPin
+  | ShellPin
+  | ToolPanelPin;
 
 export const SHELL_PIN_ID = "shell:inbox";
+
+export function toolPanelPinId(panelId: "files" | "ai"): string {
+  return `toolPanel:${panelId}`;
+}
 
 /** @deprecated Use DocumentPin / PinWindow — kept for PopOutDocument props. */
 export type PopOutWindow = DocumentPin;
@@ -266,6 +281,45 @@ export function closeShellPin(): void {
 
 export function isShellPinOpen(): boolean {
   return windows.some((w) => w.id === SHELL_PIN_ID);
+}
+
+export function openToolPanelPin(
+  panelId: "files" | "ai",
+  title: string
+): void {
+  const id = toolPanelPinId(panelId);
+  const existing = windows.find((w) => w.id === id);
+  if (existing) {
+    windows = windows.map((w) => (w.id === id ? { ...w, title } : w));
+    raiseId(id);
+    return;
+  }
+  windows = [
+    ...windows,
+    {
+      id,
+      kind: "toolPanel",
+      panelId,
+      title,
+      ...defaultPlacement({
+        width: panelId === "files" ? 280 : 360,
+        height: 520,
+      }),
+      zIndex: claimFloatZ(),
+    },
+  ];
+  emit();
+}
+
+export function closeToolPanelPin(panelId: "files" | "ai"): void {
+  closePin(toolPanelPinId(panelId));
+}
+
+export function closeDockablePanelPin(
+  panelId: "files" | "ai" | "shell"
+): void {
+  if (panelId === "shell") closeShellPin();
+  else closeToolPanelPin(panelId);
 }
 
 /* —— Phase A0 aliases —— */
