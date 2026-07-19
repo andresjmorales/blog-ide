@@ -46,6 +46,24 @@ describe("footnotePaste", () => {
     expect(next).not.toContain("footnotes");
   });
 
+  it("preserves links and emphasis inside Substack-style footnote bodies", () => {
+    if (typeof DOMParser === "undefined") return;
+    const html = `
+      <p>Claim<a class="footnote-anchor" href="#footnote-1" id="footnote-anchor-1">1</a>.</p>
+      <div class="footnote" id="footnote-1">
+        <a href="#footnote-anchor-1">1</a>
+        <p>See <a href="https://example.com/doc">the source</a> and
+        <em>note</em> the <strong>emphasis</strong>.</p>
+      </div>
+    `;
+    const next = transformPastedFootnoteHtml(html);
+    expect(next).toContain("data-footnote-ref");
+    expect(next).toContain("[the source](https://example.com/doc)");
+    expect(next).toContain("*note*");
+    expect(next).toContain("**emphasis**");
+    expect(next.match(/data-footnote-ref/g)?.length).toBe(1);
+  });
+
   it("converts markdown footnote hyperlinks to GFM", () => {
     const md = "A claim[1](#footnote-1).\n\n1. Supporting detail.\n";
     const { markdown, converted } = convertMarkdownFootnoteLinks(md);

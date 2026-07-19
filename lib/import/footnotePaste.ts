@@ -30,6 +30,61 @@ function textOf(el: Element): string {
   return (el.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Convert a footnote definition DOM fragment to markdown so links and
+ * basic emphasis survive Substack/HTML paste into attrs.content.
+ */
+function htmlFragmentToMarkdown(root: Element): string {
+  function walk(node: Node): string {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return (node.textContent ?? "").replace(/\s+/g, " ");
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return "";
+    const el = node as Element;
+    const tag = el.tagName.toLowerCase();
+    if (tag === "script" || tag === "style") return "";
+    if (tag === "br") return "\n";
+
+    const children = [...el.childNodes].map(walk).join("");
+
+    if (tag === "a") {
+      if (isBackReferenceAnchor(el)) return "";
+      const href = (el.getAttribute("href") ?? "").trim();
+      const label = children.replace(/\s+/g, " ").trim();
+      if (!label) return "";
+      // Number-only back/jump markers (often left after class cleanup).
+      if (/^\[?\d+\]?$/.test(label) && (!href || href.startsWith("#"))) {
+        return "";
+      }
+      if (href && !href.startsWith("#")) return `[${label}](${href})`;
+      return label;
+    }
+    if (tag === "strong" || tag === "b") {
+      const inner = children.trim();
+      return inner ? `**${inner}**` : "";
+    }
+    if (tag === "em" || tag === "i") {
+      const inner = children.trim();
+      return inner ? `*${inner}*` : "";
+    }
+    if (tag === "code") {
+      const inner = (el.textContent ?? "").replace(/`/g, "\\`");
+      return inner ? `\`${inner}\`` : "";
+    }
+    if (tag === "p" || tag === "div" || tag === "li" || tag === "section") {
+      const inner = children.replace(/[ \t]+\n/g, "\n").trim();
+      return inner ? `${inner}\n\n` : "";
+    }
+    return children;
+  }
+
+  return walk(root)
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 function labelFromDefHref(href: string): string | null {
   return href.match(DEF_HREF_RE)?.[1] ?? null;
 }
@@ -104,7 +159,7 @@ function findDefinition(
         if (isBackReferenceAnchor(a)) a.remove();
         else if (/^\[?\d+\]?$/.test(textOf(a))) a.remove();
       });
-      let text = textOf(clone);
+      let text = htmlFragmentToMarkdown(clone);
       text = text.replace(new RegExp(`^\\s*${label}[.)]?\\s*`), "").trim();
       if (text) return { element: block, text };
     } catch {

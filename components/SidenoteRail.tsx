@@ -23,11 +23,20 @@ const LINK_EASE = 0.22;
 export function SidenoteRail({
   editor,
   scrollRoot,
+  onRootChange,
 }: {
   editor: Editor;
   scrollRoot: HTMLElement | null;
+  /** Expose the rail DOM for link hover previews (same as the main editor). */
+  onRootChange?: (el: HTMLElement | null) => void;
 }) {
   const railRef = useRef<HTMLDivElement | null>(null);
+  const asideRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    onRootChange?.(asideRef.current);
+    return () => onRootChange?.(null);
+  }, [onRootChange]);
   const linkedRef = useRef(true);
   const [linked, setLinked] = useState(true);
 
@@ -168,6 +177,7 @@ export function SidenoteRail({
 
   return (
     <aside
+      ref={asideRef}
       className={`sidenote-rail ${linked ? "is-linked" : "is-unlocked"}`}
       aria-label="Footnotes"
     >

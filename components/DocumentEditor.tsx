@@ -81,6 +81,9 @@ export function DocumentEditor({
   const dialog = useAppDialog();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
+  const [sidenoteRailEl, setSidenoteRailEl] = useState<HTMLElement | null>(
+    null
+  );
   const [outlineOpen, setOutlineOpen] = useState(true);
   const railEnabled =
     prefs.sidenotes && prefs.sidenoteLayout === "sticky";
@@ -255,10 +258,17 @@ export function DocumentEditor({
             </div>
           </div>
           {shellDock}
-          <LinkHoverCard editor={editor} />
+          <LinkHoverCard
+            editor={editor}
+            roots={sidenoteRailEl ? [sidenoteRailEl] : []}
+          />
         </div>
         {railEnabled && editor && (
-          <SidenoteRail editor={editor} scrollRoot={scrollEl} />
+          <SidenoteRail
+            editor={editor}
+            scrollRoot={scrollEl}
+            onRootChange={setSidenoteRailEl}
+          />
         )}
       </div>
     </div>

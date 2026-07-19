@@ -66,6 +66,15 @@ export function FootnoteSidenote({
         title="Edit footnote"
         aria-label={`Edit footnote ${number}`}
         onClick={(event) => {
+          // Links use the shared hover preview (Open / Pin); don't open the card.
+          if (
+            event.target instanceof Element &&
+            event.target.closest("a[href]")
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
           event.preventDefault();
           event.stopPropagation();
           onActivate?.();

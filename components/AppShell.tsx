@@ -240,6 +240,9 @@ function AppShellContent({
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
   const [treeLoading, setTreeLoading] = useState(false);
   const [treeError, setTreeError] = useState<string | null>(null);
+  /** Empty tree after wake/stale auth — keep prior nodes and offer Retry. */
+  const [treeStale, setTreeStale] = useState(false);
+  const nodesRef = useRef<WorkspaceNode[]>([]);
   const { status: syncStatus, label: syncLabel } = useSyncStatusLabel();
   const syncBanner = useStableSyncBanner(syncStatus);
   const dialog = useAppDialog();
@@ -258,6 +261,10 @@ function AppShellContent({
   useEffect(() => {
     prefsRef.current = storedPrefs;
   }, [storedPrefs]);
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
   const update = useCallback((patch: Partial<EditorPrefs>, persist = true) => {
     setPrefs((p) => {
@@ -368,18 +375,58 @@ function AppShellContent({
     [deletedFootnotes]
   );
 
-  const refreshTree = useCallback(async () => {
+  const refreshTree = useCallback(
+    async (opts?: { allowEmptyWipe?: boolean }) => {
+      if (previewMode) return false;
+      try {
+        const list = await listWorkspaceNodes();
+        // Stale/missing session often returns [] with no error under RLS —
+        // don't blank a tree the user already had loaded.
+        if (
+          list.length === 0 &&
+          nodesRef.current.length > 0 &&
+          !opts?.allowEmptyWipe
+        ) {
+          setTreeStale(true);
+          return false;
+        }
+        setNodes(list);
+        setTreeError(null);
+        setTreeStale(false);
+        return true;
+      } catch (error) {
+        setTreeError(
+          error instanceof Error ? error.message : "Could not load files."
+        );
+        return false;
+      }
+    },
+    [previewMode]
+  );
+
+  /** Revalidate auth after idle tabs (Firefox throttles token refresh). */
+  const recoverWorkspace = useCallback(async () => {
     if (previewMode) return;
     try {
-      const list = await listWorkspaceNodes();
-      setNodes(list);
-      setTreeError(null);
-    } catch (error) {
-      setTreeError(
-        error instanceof Error ? error.message : "Could not load files."
-      );
+      const supabase = createClient();
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        await supabase.auth.refreshSession();
+      } else {
+        // Nudge refresh so a near-expiry token is renewed on wake.
+        const expiresAt = sessionData.session.expires_at ?? 0;
+        if (expiresAt * 1000 < Date.now() + 60_000) {
+          await supabase.auth.refreshSession();
+        }
+      }
+      const ok = await refreshTree();
+      if (!ok && nodesRef.current.length > 0) {
+        setTreeStale(true);
+      }
+    } catch {
+      if (nodesRef.current.length > 0) setTreeStale(true);
     }
-  }, [previewMode]);
+  }, [previewMode, refreshTree]);
 
   // Remember the open essay across refreshes (skip null so boot can restore).
   useEffect(() => {
@@ -410,6 +457,7 @@ function AppShellContent({
           return ids.scratchpadId;
         });
         setTreeError(null);
+        setTreeStale(false);
       } catch (error) {
         if (cancelled) return;
         setTreeError(
@@ -427,6 +475,33 @@ function AppShellContent({
       cancelled = true;
     };
   }, [previewMode]);
+
+  useEffect(() => {
+    if (previewMode) return;
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    function scheduleRecover() {
+      if (document.visibilityState !== "visible") return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        void recoverWorkspace();
+      }, 120);
+    }
+
+    function onPageShow(event: PageTransitionEvent) {
+      if (event.persisted) scheduleRecover();
+    }
+
+    document.addEventListener("visibilitychange", scheduleRecover);
+    window.addEventListener("focus", scheduleRecover);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", scheduleRecover);
+      window.removeEventListener("focus", scheduleRecover);
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  }, [previewMode, recoverWorkspace]);
 
   useEffect(() => {
     function onMove(e: PointerEvent) {
@@ -871,6 +946,33 @@ function AppShellContent({
               )}
             </div>
           </header>
+
+          {treeStale && (
+            <div
+              role="status"
+              className="flex flex-wrap items-center gap-3 border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm"
+            >
+              <span>
+                Workspace files may be out of date after the tab was idle.
+                Your open essay is still local — Retry before making tree
+                changes.
+              </span>
+              <button
+                type="button"
+                className="rounded border border-border px-2 py-0.5 text-xs hover:bg-panel"
+                onClick={() => void recoverWorkspace()}
+              >
+                Retry
+              </button>
+              <button
+                type="button"
+                className="rounded border border-border px-2 py-0.5 text-xs hover:bg-panel"
+                onClick={() => window.location.reload()}
+              >
+                Reload app
+              </button>
+            </div>
+          )}
 
           {syncBanner && (
             <div
