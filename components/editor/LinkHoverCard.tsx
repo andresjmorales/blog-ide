@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { fetchLinkPreview } from "@/lib/preview/client";
 import type { LinkPreview } from "@/lib/preview/openGraph";
@@ -16,13 +16,25 @@ type CardState = {
 };
 
 /**
- * Hovering an in-editor link shows an OG preview with Pin / Open.
+ * Hovering a link in the editor (or sidenote rail) shows an OG preview with Pin / Open.
  */
-export function LinkHoverCard({ editor }: { editor: Editor | null }) {
+export function LinkHoverCard({
+  editor,
+  roots: extraRoots = [],
+}: {
+  editor: Editor | null;
+  /** Extra DOM roots (e.g. sidenote rail) that also contain http links. */
+  roots?: Array<HTMLElement | null | undefined>;
+}) {
   const [card, setCard] = useState<CardState | null>(null);
   const hideTimer = useRef(0);
   const showTimer = useRef(0);
   const cardRef = useRef<HTMLDivElement | null>(null);
+
+  const rootsKey = useMemo(
+    () => extraRoots.map((el) => (el ? "1" : "0")).join(""),
+    [extraRoots]
+  );
 
   const hide = useCallback(() => {
     window.clearTimeout(hideTimer.current);
@@ -41,14 +53,21 @@ export function LinkHoverCard({ editor }: { editor: Editor | null }) {
   }, []);
 
   useEffect(() => {
-    if (!editor) return;
-    const root = editor.view.dom;
+    const roots = [
+      editor?.view.dom ?? null,
+      ...extraRoots,
+    ].filter((el): el is HTMLElement => Boolean(el));
+    if (roots.length === 0) return;
+
+    function inRoots(node: Node | null): boolean {
+      return Boolean(node && roots.some((root) => root.contains(node)));
+    }
 
     function onOver(event: MouseEvent) {
       const target = event.target;
       if (!(target instanceof Element)) return;
       const anchor = target.closest("a[href]") as HTMLAnchorElement | null;
-      if (!anchor || !root.contains(anchor)) return;
+      if (!anchor || !inRoots(anchor)) return;
       const href = anchor.href;
       if (!href.startsWith("http")) return;
 
@@ -100,7 +119,7 @@ export function LinkHoverCard({ editor }: { editor: Editor | null }) {
           : null;
       if (
         nextLink &&
-        root.contains(nextLink) &&
+        inRoots(nextLink) &&
         nextLink.href.startsWith("http")
       ) {
         return;
@@ -108,15 +127,21 @@ export function LinkHoverCard({ editor }: { editor: Editor | null }) {
       scheduleHide();
     }
 
-    root.addEventListener("mouseover", onOver);
-    root.addEventListener("mouseout", onOut);
+    for (const root of roots) {
+      root.addEventListener("mouseover", onOver);
+      root.addEventListener("mouseout", onOut);
+    }
     return () => {
-      root.removeEventListener("mouseover", onOver);
-      root.removeEventListener("mouseout", onOut);
+      for (const root of roots) {
+        root.removeEventListener("mouseover", onOver);
+        root.removeEventListener("mouseout", onOut);
+      }
       window.clearTimeout(hideTimer.current);
       window.clearTimeout(showTimer.current);
     };
-  }, [editor, scheduleHide]);
+    // rootsKey tracks mount/unmount of extra roots without depending on array identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor, rootsKey, scheduleHide]);
 
   if (!card) return null;
 
