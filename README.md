@@ -5,7 +5,7 @@ second brain, with first-class footnotes, autosave, a project-style workspace,
 and optional AI. Markdown-native, local-first, MIT licensed, and self-hostable
 by design.
 
-## What you get
+## Features
 
 - **WYSIWYG editor with a markdown soul** — TipTap rich text, source toggle, and
   byte-for-byte round-trip for supported constructs
@@ -21,9 +21,6 @@ by design.
   import cleanup assist
 - **Export / import** — copy markdown + HTML, download `.md`, import markdown
   from the Files panel
-
-Internal milestone tracking lives in gitignored `.local/ROADMAP.md` (not shipped
-with the repo).
 
 ## Stack
 
