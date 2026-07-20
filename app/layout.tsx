@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { ThemeBoot } from "@/components/ThemeBoot";
+import { PRODUCT_DESCRIPTION, PRODUCT_NAME } from "@/lib/brand";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,14 +17,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "BlogIDE",
-  description:
-    "An IDE for essays: a rich WYSIWYG editor meets a second brain, with first-class footnotes, autosave, and optional AI. Markdown-native and local-first.",
-  applicationName: "BlogIDE",
+  title: PRODUCT_NAME,
+  description: PRODUCT_DESCRIPTION,
+  applicationName: PRODUCT_NAME,
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "BlogIDE",
+    title: PRODUCT_NAME,
   },
 };
 

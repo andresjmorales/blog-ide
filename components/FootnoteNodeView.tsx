@@ -642,7 +642,7 @@ function FootnoteToolbar({
   async function insertImage() {
     const src = await dialog.prompt({
       title: "Insert image",
-      message: "Path or URL (upload pipeline arrives in milestone 5).",
+      message: "Path or URL (or insert via the essay image tools).",
       defaultValue: "assets/",
       confirmLabel: "Next",
     });

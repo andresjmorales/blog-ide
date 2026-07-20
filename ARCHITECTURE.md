@@ -9,30 +9,32 @@ markdown.
 ### Browser
 
 - Next.js/React application shell and TipTap editor.
-- IndexedDB working copy and offline queue (M3).
-- Local-only GitHub PAT and Anthropic API key storage when those optional
-  integrations arrive.
-- Immediate editing, source-mode switching, footnotes, and export.
+- IndexedDB working copy and offline sync queue.
+- Local-only API keys (Anthropic / OpenAI) and optional future GitHub PAT.
+- Immediate editing, source-mode switching, footnotes, pins/previews, and export.
 
 ### Supabase
 
 - Auth and beta-code-gated signup.
 - Postgres source of truth for the workspace tree, markdown documents,
-  metadata, user settings, optimistic versions, and quota accounting (M3).
-- Private Storage bucket for images and other binary assets (M3).
+  metadata, user settings, optimistic versions, and quota accounting.
+- Private Storage bucket for images and other binary assets.
 - Row-level security on every user-owned table and object path.
 
 ### Next.js server
 
 - Beta-code redemption using the server-only Supabase service-role key.
-- SSRF-hardened link metadata extraction (planned).
-- Optional Pandoc export where the deployment supports it (planned).
+- SSRF-hardened link metadata and reader extract (`/api/link-preview`,
+  `/api/reader`).
+- Thin AI chat proxy (`/api/ai/chat`) — the user’s key is sent per request and
+  not stored server-side.
+- Optional Pandoc export where a deployment enables it (not required).
 
 ### Optional external services
 
-- GitHub is a one-way backup/export target, not required onboarding and not
-  overflow media storage.
-- Anthropic is called directly from the browser with the user's own key.
+- GitHub is intended as a one-way backup/export target, not required
+  onboarding and not overflow media storage.
+- Anthropic / OpenAI are called with the user’s own key via the proxy above.
 
 ## Persistence model
 
@@ -83,11 +85,9 @@ lib/db/               IndexedDB working copy
 lib/sync/             Autosave / Supabase sync engine
 lib/workspace/        Workspace tree + document RPC clients
 lib/supabase/         Browser, server, and service-role clients
+lib/pins/             Floating pin / pop-out session store
+lib/preview/          Publication HTML, SSRF helpers, OG helpers
 supabase/schema.sql   Database bootstrap, RLS, and RPCs
 supabase/migrations/  Timestamped copies for db push workflows
 tests/                Round-trip and focused behavior tests
-.local/               Product specification and internal roadmap
 ```
-
-The detailed product decisions remain in
-[`.local/blogide-spec.md`](./.local/blogide-spec.md).
