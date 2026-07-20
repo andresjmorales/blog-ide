@@ -34,6 +34,47 @@ function escapeHtml(value: string): string {
 }
 
 /**
+ * TipTap generateHTML emits <img data-caption="…">; turn those into
+ * <figure>/<figcaption> for Preview (and any other HTML consumers).
+ */
+export function enhancePublicationCaptions(rawHtml: string): string {
+  if (!rawHtml || typeof DOMParser === "undefined") return rawHtml;
+
+  const doc = new DOMParser().parseFromString(
+    `<div id="root">${rawHtml}</div>`,
+    "text/html"
+  );
+  const root = doc.getElementById("root");
+  if (!root) return rawHtml;
+
+  for (const img of [
+    ...root.querySelectorAll("img[data-caption]"),
+  ] as HTMLImageElement[]) {
+    const caption = (img.getAttribute("data-caption") || "").trim();
+    if (!caption) {
+      img.removeAttribute("data-caption");
+      continue;
+    }
+    if (img.closest("figure")) {
+      img.removeAttribute("data-caption");
+      continue;
+    }
+
+    const figure = doc.createElement("figure");
+    figure.className = "content-figure";
+    const figcaption = doc.createElement("figcaption");
+    figcaption.className = "content-caption";
+    figcaption.textContent = caption;
+    img.removeAttribute("data-caption");
+    img.parentNode?.insertBefore(figure, img);
+    figure.appendChild(img);
+    figure.appendChild(figcaption);
+  }
+
+  return root.innerHTML;
+}
+
+/**
  * Turn TipTap footnote `?` markers into numbered refs + endnotes list.
  * Pure DOM transform — testable without the TipTap generateHTML path.
  */
@@ -150,7 +191,10 @@ export function buildPublicationPreview(markdown: string): PublicationPreview {
     title,
     subtitle,
     author,
-    bodyHtml: enhancePublicationFootnotes(rawHtml, renderNoteHtml),
+    bodyHtml: enhancePublicationFootnotes(
+      enhancePublicationCaptions(rawHtml),
+      renderNoteHtml
+    ),
   };
 }
 
@@ -206,6 +250,16 @@ export function buildPublicationDocument(markdown: string): string {
   .editor-prose p { margin: 0 0 1em; }
   .editor-prose h2, .editor-prose h3 { margin: 1.6em 0 0.6em; line-height: 1.25; }
   .editor-prose img { max-width: 100%; height: auto; }
+  .editor-prose .content-figure { margin: 1.25em 0; }
+  .editor-prose .content-figure img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+  .editor-prose .content-caption {
+    color: var(--muted);
+    font-family: system-ui, sans-serif;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    margin-top: 0.5rem;
+    text-align: center;
+  }
   .editor-prose ul, .editor-prose ol { margin: 0.75em 0; padding-left: 1.4em; }
   .editor-prose ul { list-style: disc; }
   .editor-prose ol { list-style: decimal; }
@@ -217,7 +271,10 @@ export function buildPublicationDocument(markdown: string): string {
   .editor-prose code { font-family: ui-monospace, monospace; font-size: 0.9em; }
   .editor-prose blockquote {
     border-left: 3px solid var(--border); margin: 1em 0; padding-left: 1em; color: var(--muted);
+    font-style: normal;
   }
+  .editor-prose blockquote em,
+  .editor-prose blockquote i { font-style: italic; }
   .preview-fn-ref {
     color: var(--accent);
     cursor: pointer;

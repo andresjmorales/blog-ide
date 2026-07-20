@@ -1,10 +1,13 @@
 import StarterKit from "@tiptap/starter-kit";
-import Image from "@tiptap/extension-image";
 import { Markdown } from "@tiptap/markdown";
 import { Extension, type AnyExtension, type JSONContent } from "@tiptap/core";
 import { FootnoteRef } from "@/lib/editor/footnote";
 import { FootnoteDeletionTracker } from "@/lib/editor/footnoteDeletion";
 import { LinkShortcut } from "@/lib/editor/linkShortcut";
+import {
+  ImageCaptionMarkdown,
+  ImageWithCaption,
+} from "@/lib/editor/imageCaption";
 
 /**
  * Spec §5.1: unknown constructs on parse are preserved as literal text —
@@ -51,7 +54,8 @@ export function createExtensions(): AnyExtension[] {
       // Adds a phantom trailing paragraph that pollutes serialization.
       trailingNode: false,
     }),
-    Image,
+    ImageWithCaption,
+    ImageCaptionMarkdown,
     FootnoteRef,
     FootnoteDeletionTracker,
     LinkShortcut,

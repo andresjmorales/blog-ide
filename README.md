@@ -90,6 +90,19 @@ Optional: open **Account settings** to paste Anthropic or OpenAI keys for the AI
 npm test   # round-trip + footnote/import suites
 ```
 
+### Image captions
+
+Captions use an **adjacent line** under the image (no blank line). In the rich editor, click the gray **Add caption** field under an image. Markdown looks like:
+
+```md
+![](assets/essay/cover.webp)
+Lao Tzu, founder of Taoism
+```
+
+A blank line between the image and the next paragraph means “not a caption” (alt text stays on the image for accessibility and is never shown as the caption).
+
+**Substack paste:** Substack usually inserts a blank line before the caption if one exists. Those will not become captions automatically; delete the blank line, or paste the desired caption into **Add caption**. Exported BlogIDE markdown may not map to Substack’s native caption UI when pasting back.
+
 > Without real Supabase credentials, the app runs in an unauthenticated **preview mode**: auth is skipped and `/editor` shows the shell without cloud sync.
 
 ## Security notes

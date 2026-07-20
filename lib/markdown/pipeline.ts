@@ -1,6 +1,7 @@
 import { MarkdownManager } from "@tiptap/markdown";
 import type { JSONContent } from "@tiptap/core";
 import { createExtensions } from "@/lib/editor/extensions";
+import { prepareImageCaptions } from "@/lib/editor/imageCaption";
 import {
   decodeFootnoteValue,
   encodeFootnoteValue,
@@ -162,7 +163,8 @@ function prepareFootnotes(body: string): PreparedFootnotes {
 export function parseBody(body: string): JSONContent {
   const { body: withoutTrailer, deleted } = stripDeletedFootnotesTrailer(body);
   const prepared = prepareFootnotes(withoutTrailer);
-  const doc = getManager().parse(prepared.markdown);
+  const withCaptions = prepareImageCaptions(prepared.markdown);
+  const doc = getManager().parse(withCaptions);
   doc.attrs = {
     ...doc.attrs,
     orphanFootnotes: prepared.orphans,

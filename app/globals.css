@@ -293,6 +293,13 @@ body {
   border-left: 3px solid var(--border);
   padding-left: 1em;
   color: var(--muted);
+  font-style: normal;
+}
+.editor-prose blockquote p {
+  font-style: normal;
+}
+.editor-prose blockquote em,
+.editor-prose blockquote i {
   font-style: italic;
 }
 .editor-prose ul,
@@ -348,6 +355,36 @@ body {
 }
 .editor-prose img.ProseMirror-selectednode {
   outline: 2px solid var(--accent);
+}
+
+/* Image + Substack-style caption field (adjacent markdown caption) */
+.editor-prose .blogide-figure {
+  margin: 0;
+}
+.editor-prose .blogide-figure img {
+  display: block;
+  max-width: 100%;
+  border-radius: 8px;
+}
+.editor-prose .blogide-figure.is-selected img {
+  outline: 2px solid var(--accent);
+}
+.editor-prose .blogide-figcaption-input {
+  display: block;
+  width: 100%;
+  margin-top: 0.45rem;
+  border: none;
+  background: transparent;
+  text-align: center;
+  font: inherit;
+  font-size: 0.92em;
+  line-height: 1.4;
+  color: var(--muted);
+  outline: none;
+}
+.editor-prose .blogide-figcaption-input::placeholder {
+  color: var(--muted);
+  opacity: 0.65;
 }
 .editor-prose s {
   color: var(--muted);
@@ -1360,6 +1397,24 @@ body {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.document-preview .content-figure {
+  margin: 1.25em 0;
+}
+.document-preview .content-figure img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+.document-preview .content-caption {
+  color: var(--muted);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  margin-top: 0.5rem;
+  text-align: center;
 }
 
 .document-preview-title {
