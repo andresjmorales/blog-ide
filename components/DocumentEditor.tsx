@@ -13,6 +13,7 @@ import { createExtensions } from "@/lib/editor/extensions";
 import { parseBody, serializeBody } from "@/lib/markdown/pipeline";
 import { withoutFootnoteDeletionTracking } from "@/lib/editor/footnoteDeletion";
 import { FootnoteNodeView } from "@/components/FootnoteNodeView";
+import { ImageCaptionNodeView } from "@/components/ImageCaptionNodeView";
 import {
   promptForLink,
   setLinkPromptHandler,
@@ -57,13 +58,22 @@ type Props = {
   shellDock?: ReactNode;
 };
 
-function withFootnoteNodeView(extension: AnyExtension): AnyExtension {
-  if (extension.name !== "footnoteRef") return extension;
-  return extension.extend({
-    addNodeView() {
-      return ReactNodeViewRenderer(FootnoteNodeView);
-    },
-  });
+function withEditorNodeViews(extension: AnyExtension): AnyExtension {
+  if (extension.name === "footnoteRef") {
+    return extension.extend({
+      addNodeView() {
+        return ReactNodeViewRenderer(FootnoteNodeView);
+      },
+    });
+  }
+  if (extension.name === "image") {
+    return extension.extend({
+      addNodeView() {
+        return ReactNodeViewRenderer(ImageCaptionNodeView);
+      },
+    });
+  }
+  return extension;
 }
 
 export function DocumentEditor({
@@ -105,7 +115,7 @@ export function DocumentEditor({
   const editor = useEditor({
     // Placeholder is UI-only; it stays out of the shared markdown schema.
     extensions: [
-      ...createExtensions().map(withFootnoteNodeView),
+      ...createExtensions().map(withEditorNodeViews),
       Placeholder.configure({ placeholder: "Start writing…" }),
     ],
     content: parseBody(markdown),

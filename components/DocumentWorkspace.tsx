@@ -177,6 +177,21 @@ export function DocumentWorkspace({
   const persistMarkdownRef = useRef<(full: string) => void>(() => {});
   const onRenameRef = useRef(onRenameDocument);
 
+  // Reset during render when switching docs so the previous essay never paints /
+  // autosaves under the new id (avoids setState-in-effect).
+  const [docNodeId, setDocNodeId] = useState(nodeId);
+  if (docNodeId !== nodeId) {
+    setDocNodeId(nodeId);
+    setDoc({
+      frontmatter: "---\ntitle: Untitled\nstatus: draft\n---\n",
+      subtitle: "",
+      author: "",
+      body: "",
+    });
+    setLoading(Boolean(persistEnabled && nodeId));
+    setLoadError(null);
+  }
+
   useEffect(() => {
     onRenameRef.current = onRenameDocument;
   }, [onRenameDocument]);
@@ -459,12 +474,15 @@ export function DocumentWorkspace({
 
   // External rename (Files panel) → update frontmatter title.
   // Queue the write so we don't setState synchronously inside the effect body.
+  // Skip while loading: otherwise a new doc can briefly inherit the previous body
+  // and autosave it under the new node id (looks like "New document" cloned the open essay).
   useEffect(() => {
-    if (!documentName || syncingNameRef.current) return;
+    if (loading || !documentName || syncingNameRef.current) return;
     if (prevDocumentNameRef.current === documentName) return;
     prevDocumentNameRef.current = documentName;
     const fromFile = fileNameToTitle(documentName);
     const timer = window.setTimeout(() => {
+      if (loading) return;
       setDoc((prev) => {
         const current = parseTitle(prev.frontmatter);
         if (current === fromFile) return prev;
@@ -487,7 +505,7 @@ export function DocumentWorkspace({
       });
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [documentName]);
+  }, [documentName, loading]);
 
   const setDocumentLanguages = useCallback((languages: string[]) => {
     setDoc((current) => {

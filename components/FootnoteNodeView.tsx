@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import StarterKit from "@tiptap/starter-kit";
-import Image from "@tiptap/extension-image";
+import { ImageWithCaption } from "@/lib/editor/imageCaption";
 import { Markdown } from "@tiptap/markdown";
 import {
   EditorContent,
@@ -117,7 +117,7 @@ export function FootnoteNodeView({
           defaultProtocol: "https",
         },
       }),
-      Image,
+      ImageWithCaption,
       LinkShortcut,
       Markdown,
     ],
