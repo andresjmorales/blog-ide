@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BetaCodeForm } from "@/components/BetaCodeForm";
+import { PRODUCT_DESCRIPTION, PRODUCT_NAME } from "@/lib/brand";
 
 export default function LandingPage() {
   return (
@@ -8,12 +9,11 @@ export default function LandingPage() {
         <p className="text-sm font-mono uppercase tracking-widest text-muted mb-4">
           Private beta
         </p>
-        <h1 className="text-5xl font-semibold tracking-tight mb-4">BlogIDE</h1>
+        <h1 className="text-5xl font-semibold tracking-tight mb-4">
+          {PRODUCT_NAME}
+        </h1>
         <p className="text-lg text-muted mb-10 leading-relaxed">
-          An IDE for essays: a cross between a rich WYSIWYG editor and a second
-          brain, with first-class footnotes, autosave, a project-style
-          workspace, and optional AI. Markdown-native, local-first, and yours
-          to keep.
+          {PRODUCT_DESCRIPTION}
         </p>
 
         <BetaCodeForm />

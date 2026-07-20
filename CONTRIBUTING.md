@@ -1,7 +1,7 @@
 # Contributing to BlogIDE
 
-BlogIDE is early-stage software built in deployable milestones. Small,
-well-tested changes that preserve the markdown format are preferred.
+BlogIDE is early-stage software. Small, well-tested changes that preserve the
+markdown format are preferred.
 
 ## Local setup
 

@@ -1,26 +1,35 @@
 # BlogIDE
 
-An IDE for writing blogs and essays: a cross between a rich WYSIWYG editor and a second brain,
-with first-class footnotes, autosave, a project-style workspace, and optional
-AI. Markdown-native, local-first, MIT licensed, and self-hostable by design.
+An IDE for writing blogs and essays: a cross between a rich WYSIWYG editor and a
+second brain, with first-class footnotes, autosave, a project-style workspace,
+and optional AI. Markdown-native, local-first, MIT licensed, and self-hostable
+by design.
 
-## Status
+## What you get
 
-| Milestone | State |
-| --- | --- |
-| **M1 — Shell & auth** | Done — Supabase auth, beta-code gate, three-panel shell, PWA, theme |
-| **M2 — Editor & round-trip** | Done — TipTap §5.1 nodes, source toggle, fixture CI |
-| **M3 — Persistence** | Core done — workspace tree, IndexedDB autosave, optimistic sync, Trash, Inbox channels, 20 MB default quota, phone terminal capture + desktop Shell. Still open: Storage polish, optional GitHub backup |
-| **M4 — Footnotes** | Done — inline notes, rail / anchored sidenotes, pin/drag cards, deleted-note archive, Substack paste repair |
-| **M5 — Images & preview** | Largely done — pop-out docs, link hover/Pin, Preview in new tab, image compress/upload, pinned PDFs ([plan](./.local/plan.md)) |
-| **M6 — AI & export** | Partial — BYOK AI sidebar + Copy/Export/Import ship now; canned actions, richer HTML, DOCX still open |
+- **WYSIWYG editor with a markdown soul** — TipTap rich text, source toggle, and
+  byte-for-byte round-trip for supported constructs
+- **First-class footnotes** — inline notes, sidenote rail or anchored notes,
+  pin/drag cards, deleted-note archive, Substack-style paste repair
+- **Workspace** — folder/document/link tree, Trash, Inbox channels, scratchpad
+  bootstrap, phone terminal capture + desktop Shell
+- **Local-first sync** — IndexedDB autosave, optimistic Supabase sync, conflict
+  copies, hard per-user quota (default 20 MiB combined)
+- **Research surfaces** — pop-out documents, link hover/Pin, PDF pins, publication
+  Preview in a new tab, client image compress + Storage upload
+- **Optional AI** — BYOK Anthropic / OpenAI keys (device-local), sidebar chat,
+  import cleanup assist
+- **Export / import** — copy markdown + HTML, download `.md`, import markdown
+  from the Files panel
+
+Internal milestone tracking lives in gitignored `.local/ROADMAP.md` (not shipped
+with the repo).
 
 ## Stack
 
 Next.js, TypeScript, Tailwind CSS, TipTap, Supabase, and IndexedDB. GitHub
-backup and the Anthropic/OpenAI assistants are optional integrations. See
-[ARCHITECTURE.md](./ARCHITECTURE.md) for boundaries, persistence, quota, and
-the repository map.
+backup and model APIs are optional. See [ARCHITECTURE.md](./ARCHITECTURE.md)
+for boundaries, persistence, quota, and the repository map.
 
 ## Getting started
 
