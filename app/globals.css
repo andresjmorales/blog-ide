@@ -949,8 +949,10 @@ body {
     display: inline;
     margin: 0;
   }
+  /* Keep body inline beside the number, but preserve paragraph breaks. */
   .footnote-sidenote-body p + p::before {
-    content: " ";
+    content: "\A\A";
+    white-space: pre;
   }
   .footnote-sidenote-body strong {
     color: var(--foreground);
@@ -1434,7 +1436,12 @@ body {
   margin: 0 0 1.25rem;
 }
 
-/* Substack-like preview footnotes: numbered refs + hover tip + endnotes. */
+/* Substack-like preview footnotes: numbered refs + formatted hover tip + endnotes. */
+.document-preview .preview-fn {
+  position: relative;
+  font-size: inherit;
+  line-height: inherit;
+}
 .document-preview .preview-fn-ref {
   color: var(--accent);
   cursor: pointer;
@@ -1444,28 +1451,70 @@ body {
   margin: 0 0.08em;
   position: relative;
   text-decoration: none;
-  vertical-align: super;
+  top: -0.45em;
+  vertical-align: baseline;
 }
-.document-preview .preview-fn-ref:hover::after,
-.document-preview .preview-fn-ref:focus-visible::after {
+.document-preview .preview-fn-tip {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 6px;
   bottom: calc(100% + 6px);
   box-shadow: 0 8px 24px rgb(0 0 0 / 14%);
   color: var(--foreground);
-  content: attr(data-tip);
-  font-size: 0.8rem;
+  display: none;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.85rem;
   font-weight: 400;
   left: 50%;
-  line-height: 1.4;
-  max-width: 16rem;
-  padding: 0.45rem 0.6rem;
+  line-height: 1.45;
+  max-width: min(20rem, 80vw);
+  padding: 0.5rem 0.65rem;
   position: absolute;
+  text-align: left;
   transform: translateX(-50%);
   white-space: normal;
   width: max-content;
   z-index: 5;
+}
+/* Invisible bridge so you can move from the marker into the tip (and click links). */
+.document-preview .preview-fn-tip::after {
+  content: "";
+  height: 12px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 100%;
+}
+.document-preview .preview-fn:hover .preview-fn-tip,
+.document-preview .preview-fn:focus-within .preview-fn-tip {
+  display: block;
+}
+.document-preview .preview-fn-tip > *:first-child {
+  margin-top: 0;
+}
+.document-preview .preview-fn-tip > *:last-child {
+  margin-bottom: 0;
+}
+.document-preview .preview-fn-tip p {
+  margin: 0 0 0.45em;
+}
+.document-preview .preview-fn-tip a {
+  color: var(--accent);
+}
+.document-preview .preview-fn-tip em {
+  font-style: italic;
+}
+.document-preview .preview-fn-tip strong {
+  font-weight: 700;
+}
+.document-preview .preview-fn-tip code {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.9em;
+}
+.document-preview .preview-fn-tip ul,
+.document-preview .preview-fn-tip ol {
+  margin: 0.35em 0;
+  padding-left: 1.2em;
 }
 .document-preview .preview-footnotes {
   border-top: 1px solid var(--border);
@@ -1510,6 +1559,12 @@ body {
   margin-top: 0;
 }
 .document-preview .preview-footnotes-body > *:last-child {
+  margin-bottom: 0;
+}
+.document-preview .preview-footnotes-body p {
+  margin: 0 0 0.65em;
+}
+.document-preview .preview-footnotes-body p:last-child {
   margin-bottom: 0;
 }
 .document-preview .preview-footnotes-body ul,
