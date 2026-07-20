@@ -16,21 +16,70 @@ export type PublicationPreview = {
   bodyHtml: string;
 };
 
-/** Plain text for hover tips (strip light markdown noise). */
-function footnoteTipText(markdown: string): string {
-  return markdown
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/[*_`~]+/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+/**
+ * Hover tips sit mid-paragraph, so tip markup must be phrasing-only.
+ * Block tags like `<p>` get hoisted by the browser and leave an empty tip shell.
+ */
+export function toInlineTipHtml(noteHtml: string, doc?: Document): string {
+  const owner =
+    doc ??
+    (typeof DOMParser !== "undefined"
+      ? new DOMParser().parseFromString("<div></div>", "text/html")
+      : null);
+  if (!owner) {
+    return noteHtml.replace(/<\/?p\b[^>]*>/gi, "").trim();
+  }
+
+  const wrap = owner.createElement("div");
+  wrap.innerHTML = noteHtml.trim();
+  const parts: string[] = [];
+
+  for (const node of [...wrap.childNodes]) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent ?? "";
+      if (text.trim()) parts.push(text);
+      continue;
+    }
+    if (!(node instanceof HTMLElement)) continue;
+
+    const tag = node.tagName.toLowerCase();
+    if (tag === "p" || tag === "div") {
+      const inner = node.innerHTML.trim();
+      if (inner) parts.push(inner);
+      continue;
+    }
+    if (tag === "ul" || tag === "ol") {
+      const items = [...node.querySelectorAll(":scope > li")];
+      parts.push(
+        items
+          .map((li, i) =>
+            tag === "ol" ? `${i + 1}. ${li.innerHTML}` : `• ${li.innerHTML}`
+          )
+          .join("<br>")
+      );
+      continue;
+    }
+    if (tag === "pre" || tag === "blockquote") {
+      const text = (node.textContent || "").trim();
+      if (text) parts.push(escapeHtml(text));
+      continue;
+    }
+    parts.push(node.outerHTML);
+  }
+
+  // Paragraph gap (not a single <br>) so multi-line notes stay readable.
+  const joined = parts.filter(Boolean).join("<br><br>");
+  if (joined) return joined;
+  const fallback = (wrap.textContent || "").trim();
+  return fallback ? escapeHtml(fallback) : "";
 }
 
 /**
@@ -95,12 +144,11 @@ export function enhancePublicationFootnotes(
   const refs = [
     ...root.querySelectorAll("sup[data-footnote-ref]"),
   ] as HTMLElement[];
-  const notes: { n: number; tip: string; html: string }[] = [];
+  const notes: { n: number; html: string }[] = [];
 
   refs.forEach((sup, index) => {
     const n = index + 1;
     const content = sup.getAttribute("data-content") || "";
-    const tip = footnoteTipText(content) || "Empty footnote";
     let noteHtml = "";
     try {
       noteHtml = content.trim() ? renderNoteHtml(content.trim()) : "<p></p>";
@@ -113,12 +161,27 @@ export function enhancePublicationFootnotes(
     link.className = "preview-fn-ref";
     link.textContent = String(n);
     link.setAttribute("data-fn", String(n));
-    link.setAttribute("data-tip", tip);
     link.setAttribute("aria-label", `Footnote ${n}`);
-    sup.replaceChildren(link);
-    sup.id = `fnref-${n}`;
-    sup.removeAttribute("title");
-    notes.push({ n, tip, html: noteHtml });
+
+    // Real HTML tip (CSS attr() cannot carry formatting / clickable links).
+    // Use a <span> wrapper + inline tip HTML so mid-paragraph reparse
+    // does not hoist <p> out of the tip (empty "blob" on hover).
+    const tip = doc.createElement("span");
+    tip.className = "preview-fn-tip";
+    tip.setAttribute("role", "tooltip");
+    const tipHtml = content.trim() ? toInlineTipHtml(noteHtml, doc) : "";
+    if (tipHtml) {
+      tip.innerHTML = tipHtml;
+    } else {
+      tip.textContent = "Empty footnote";
+    }
+
+    const wrapper = doc.createElement("span");
+    wrapper.id = `fnref-${n}`;
+    wrapper.className = "preview-fn";
+    wrapper.replaceChildren(link, tip);
+    sup.replaceWith(wrapper);
+    notes.push({ n, html: noteHtml });
   });
 
   if (notes.length > 0) {
@@ -146,7 +209,7 @@ export function enhancePublicationFootnotes(
 }
 
 /**
- * Build publication HTML: numbered superscripts, hover tip text, and a
+ * Build publication HTML: numbered superscripts, formatted hover tips, and a
  * Substack-style footnotes list at the bottom.
  */
 export function buildPublicationPreview(markdown: string): PublicationPreview {
@@ -275,6 +338,11 @@ export function buildPublicationDocument(markdown: string): string {
   }
   .editor-prose blockquote em,
   .editor-prose blockquote i { font-style: italic; }
+  .preview-fn {
+    position: relative;
+    font-size: inherit;
+    line-height: inherit;
+  }
   .preview-fn-ref {
     color: var(--accent);
     cursor: pointer;
@@ -284,29 +352,53 @@ export function buildPublicationDocument(markdown: string): string {
     margin: 0 0.08em;
     position: relative;
     text-decoration: none;
-    vertical-align: super;
+    top: -0.45em;
+    vertical-align: baseline;
   }
-  .preview-fn-ref:hover::after,
-  .preview-fn-ref:focus-visible::after {
+  .preview-fn-tip {
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 6px;
     bottom: calc(100% + 6px);
     box-shadow: 0 8px 24px rgb(0 0 0 / 14%);
     color: var(--foreground);
-    content: attr(data-tip);
+    display: none;
+    font-family: Georgia, "Times New Roman", serif;
     font-size: 0.85rem;
     font-weight: 400;
     left: 50%;
-    line-height: 1.4;
-    max-width: 16rem;
-    padding: 0.45rem 0.6rem;
+    line-height: 1.45;
+    max-width: min(20rem, 80vw);
+    padding: 0.5rem 0.65rem;
     position: absolute;
+    text-align: left;
     transform: translateX(-50%);
     white-space: normal;
     width: max-content;
     z-index: 5;
   }
+  /* Invisible bridge so you can move from the marker into the tip. */
+  .preview-fn-tip::after {
+    content: "";
+    height: 12px;
+    left: 0;
+    position: absolute;
+    right: 0;
+    top: 100%;
+  }
+  .preview-fn:hover .preview-fn-tip,
+  .preview-fn:focus-within .preview-fn-tip {
+    display: block;
+  }
+  .preview-fn-tip > *:first-child { margin-top: 0; }
+  .preview-fn-tip > *:last-child { margin-bottom: 0; }
+  .preview-fn-tip p { margin: 0 0 0.45em; }
+  .preview-fn-tip a { color: var(--accent); }
+  .preview-fn-tip em { font-style: italic; }
+  .preview-fn-tip strong { font-weight: 700; }
+  .preview-fn-tip code { font-family: ui-monospace, monospace; font-size: 0.9em; }
+  .preview-fn-tip ul,
+  .preview-fn-tip ol { margin: 0.35em 0; padding-left: 1.2em; }
   .preview-footnotes {
     border-top: 1px solid var(--border);
     font-family: system-ui, sans-serif;
@@ -347,6 +439,8 @@ export function buildPublicationDocument(markdown: string): string {
   }
   .preview-footnotes-body > *:first-child { margin-top: 0; }
   .preview-footnotes-body > *:last-child { margin-bottom: 0; }
+  .preview-footnotes-body p { margin: 0 0 0.65em; }
+  .preview-footnotes-body p:last-child { margin-bottom: 0; }
   .preview-footnotes-body ul,
   .preview-footnotes-body ol { margin: 0.4em 0; padding-left: 1.25em; }
   .preview-footnotes-body ul { list-style: disc; }
@@ -378,10 +472,13 @@ export function openPublicationPreviewTab(markdown: string): void {
   const html = buildPublicationDocument(markdown);
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
-  const win = window.open(url, "_blank", "noopener,noreferrer");
+  // Do not pass noopener/noreferrer as window features: Chromium and Firefox
+  // then return null even when the tab opens, which falsely looks blocked.
+  const win = window.open(url, "_blank");
   if (!win) {
     URL.revokeObjectURL(url);
     throw new Error("Pop-up blocked. Allow pop-ups to open Preview.");
   }
+  win.opener = null;
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

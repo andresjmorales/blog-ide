@@ -26,10 +26,15 @@ export function createFootnoteId(): string {
 }
 
 export function encodeFootnoteValue(value: string): string {
-  // encodeURIComponent intentionally leaves !'()* unescaped, but our
-  // markdown sentinel only permits an inert URL-safe alphabet.
+  // encodeURIComponent leaves A-Z a-z 0-9 -_.!~*'() unescaped. Our sentinel
+  // tokenizer only allows [A-Za-z0-9._~-], so percent-encode the leftovers,
+  // then map % → _ (the only non-alnum we emit).
+  //
+  // Critical: also encode `_` itself. Otherwise a URL like Google Docs
+  // `.../d/1vi50...BU_p8p...` survives encode, then decode replaces `_` with
+  // `%` → invalid `%p8` → decodeURIComponent throws → empty footnote body.
   return encodeURIComponent(value)
-    .replace(/[!'()*]/g, (character) =>
+    .replace(/[!'()*._~-]/g, (character) =>
       `%${character.charCodeAt(0).toString(16).toUpperCase()}`
     )
     .replace(/%/g, "_");
@@ -37,9 +42,16 @@ export function encodeFootnoteValue(value: string): string {
 
 export function decodeFootnoteValue(value: string): string {
   try {
+    // Current scheme: every _ stands for %.
     return decodeURIComponent(value.replace(/_/g, "%"));
   } catch {
-    return "";
+    try {
+      // Legacy sentinels left literal underscores in the payload; only _XX
+      // hex pairs were percent escapes (spaces, brackets, etc.).
+      return decodeURIComponent(value.replace(/_([0-9A-Fa-f]{2})/g, "%$1"));
+    } catch {
+      return "";
+    }
   }
 }
 

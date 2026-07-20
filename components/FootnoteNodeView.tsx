@@ -144,22 +144,33 @@ export function FootnoteNodeView({
 
   // Push edits into the node attrs so the margin sidenote stays live — debounced
   // so each keystroke does not rewrite the parent document.
+  //
+  // Only sync while the card is open. The nested editor mounts for every
+  // footnote (even closed ones); an early empty getMarkdown() captured in the
+  // debounce closure used to overwrite good attrs.content after paste / mode
+  // switch — especially visible on the first link-heavy Substack note.
   const contentRef = useRef(content);
   const attrSyncTimer = useRef(0);
   useEffect(() => {
     contentRef.current = content;
   }, [content]);
   useEffect(() => {
-    if (!noteEditor) return;
+    if (!noteEditor || !open) return;
     const sync = () => {
-      const next = noteEditor.getMarkdown().trim();
-      if (next === contentRef.current) return;
+      const snapshot = noteEditor.getMarkdown().trim();
+      if (snapshot === contentRef.current) return;
       if (attrSyncTimer.current) window.clearTimeout(attrSyncTimer.current);
       attrSyncTimer.current = window.setTimeout(() => {
         attrSyncTimer.current = 0;
-        if (next !== contentRef.current) {
-          updateAttributes({ content: next });
-        }
+        // Re-read at commit time — do not trust the scheduling-time snapshot.
+        // Otherwise a stale empty `next` from mount can wipe real content after
+        // setContent has already loaded the footnote body.
+        const latest = noteEditor.getMarkdown().trim();
+        if (latest === contentRef.current) return;
+        // Refuse to blank a non-empty note from an unfocused editor (mount /
+        // setContent races). Intentional clears still work while focused.
+        if (!latest && contentRef.current && !noteEditor.isFocused) return;
+        updateAttributes({ content: latest });
       }, 200);
     };
     noteEditor.on("update", sync);
@@ -167,7 +178,7 @@ export function FootnoteNodeView({
       noteEditor.off("update", sync);
       if (attrSyncTimer.current) window.clearTimeout(attrSyncTimer.current);
     };
-  }, [noteEditor, updateAttributes]);
+  }, [noteEditor, open, updateAttributes]);
 
   const commitContent = useCallback(() => {
     if (!noteEditor) return;

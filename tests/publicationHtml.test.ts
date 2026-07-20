@@ -15,11 +15,63 @@ describe("enhancePublicationFootnotes", () => {
     expect(html).toContain('href="#fn-2"');
     expect(html).toContain('id="fn-1"');
     expect(html).toContain('href="#fnref-1"');
-    expect(html).toContain('data-tip="First note"');
+    expect(html).toContain('class="preview-fn"');
+    expect(html).toContain("preview-fn-tip");
     expect(html).toContain("preview-footnotes");
     expect(html).toContain("First note");
     expect(html).toContain("Second note");
+    expect(html).not.toContain("data-tip=");
     expect(html).not.toMatch(/>\?</);
+  });
+
+  it("keeps formatting (links/emphasis) inside hover tips", () => {
+    const raw = `<p>Claim<sup data-footnote-ref data-id="a" data-content="See [source](https://example.com) and *more*." class="footnote-ref">?</sup>.</p>`;
+    const html = enhancePublicationFootnotes(raw, (md) => {
+      if (md.includes("example.com")) {
+        return `<p>See <a href="https://example.com">source</a> and <em>more</em>.</p>`;
+      }
+      return `<p>${md}</p>`;
+    });
+    expect(html).toContain('class="preview-fn-tip"');
+    expect(html).toContain('href="https://example.com"');
+    expect(html).toContain("<em>more</em>");
+    // Tip and endnote both carry the formatted body.
+    expect(html.match(/href="https:\/\/example\.com"/g)?.length).toBe(2);
+  });
+
+  it("keeps tip content after HTML reparse (no block hoist)", () => {
+    const raw = `<p>Hi<sup data-footnote-ref data-id="a" data-content="note" class="footnote-ref">?</sup>.</p>`;
+    const html = enhancePublicationFootnotes(
+      raw,
+      () => `<p>Hello <em>world</em> and <a href="https://example.com">link</a>.</p>`
+    );
+    const doc = new DOMParser().parseFromString(
+      `<div id="root">${html}</div>`,
+      "text/html"
+    );
+    const tip = doc.querySelector(".preview-fn-tip");
+    expect(tip?.textContent).toContain("Hello");
+    expect(tip?.textContent).toContain("world");
+    expect(tip?.querySelector("em")?.textContent).toBe("world");
+    expect(tip?.querySelector('a[href="https://example.com"]')?.textContent).toBe(
+      "link"
+    );
+    // Block <p> must not survive inside the tip (would be hoisted empty).
+    expect(tip?.querySelector("p")).toBeNull();
+  });
+
+  it("preserves paragraph breaks inside hover tips", () => {
+    const raw = `<p>Hi<sup data-footnote-ref data-id="a" data-content="note" class="footnote-ref">?</sup>.</p>`;
+    const html = enhancePublicationFootnotes(
+      raw,
+      () => `<p>First paragraph.</p><p>Second paragraph.</p>`
+    );
+    expect(html).toContain("First paragraph.<br><br>Second paragraph.");
+    const body = html.match(
+      /preview-footnotes-body">([\s\S]*?)<\/div>/
+    )?.[1];
+    expect(body).toContain("<p>First paragraph.</p>");
+    expect(body).toContain("<p>Second paragraph.</p>");
   });
 });
 
