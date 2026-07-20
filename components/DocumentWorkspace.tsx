@@ -177,6 +177,21 @@ export function DocumentWorkspace({
   const persistMarkdownRef = useRef<(full: string) => void>(() => {});
   const onRenameRef = useRef(onRenameDocument);
 
+  // Reset during render when switching docs so the previous essay never paints /
+  // autosaves under the new id (avoids setState-in-effect).
+  const [docNodeId, setDocNodeId] = useState(nodeId);
+  if (docNodeId !== nodeId) {
+    setDocNodeId(nodeId);
+    setDoc({
+      frontmatter: "---\ntitle: Untitled\nstatus: draft\n---\n",
+      subtitle: "",
+      author: "",
+      body: "",
+    });
+    setLoading(Boolean(persistEnabled && nodeId));
+    setLoadError(null);
+  }
+
   useEffect(() => {
     onRenameRef.current = onRenameDocument;
   }, [onRenameDocument]);
@@ -193,15 +208,6 @@ export function DocumentWorkspace({
     nodeIdRef.current = nodeId;
     // Seed with this render's name so a newly opened doc isn't treated as a rename.
     prevDocumentNameRef.current = documentName;
-    // Clear immediately so the previous essay never paints / autosaves under the new id.
-    setDoc({
-      frontmatter: "---\ntitle: Untitled\nstatus: draft\n---\n",
-      subtitle: "",
-      author: "",
-      body: "",
-    });
-    setLoading(Boolean(persistEnabled && nodeId));
-    setLoadError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when switching documents
   }, [nodeId]);
 
