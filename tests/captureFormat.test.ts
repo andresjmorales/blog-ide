@@ -6,6 +6,7 @@ import {
   parseCaptureNotes,
   removeCaptureBulletFromMarkdown,
 } from "@/lib/capture/format";
+import { parseBody, serializeBody } from "@/lib/markdown/pipeline";
 
 describe("capture format", () => {
   it("formats a stamped bullet", () => {
@@ -62,5 +63,33 @@ not a bullet
     expect(next).not.toContain("drop me");
     expect(next).toContain("keep");
     expect(next).toContain("also keep");
+  });
+
+  it("parses bullets escaped by an editor round-trip (channel looked empty)", () => {
+    // Opening a channel doc in the editor re-serializes `[` as `\[`.
+    const md = "- \\[2026-07-17 12:30\\] check the sync badge\n";
+    const notes = parseCaptureNotes(md);
+    expect(notes).toHaveLength(1);
+    expect(notes[0].at).toBe("2026-07-17 12:30");
+    expect(notes[0].text).toBe("check the sync badge");
+  });
+
+  it("survives a real markdown pipeline round-trip", () => {
+    const original = "- [2026-07-17 12:30] check the sync badge";
+    const roundTripped = serializeBody(parseBody(original));
+    expect(roundTripped).not.toBe(original); // escapes ARE added
+    const notes = parseCaptureNotes(roundTripped);
+    expect(notes).toHaveLength(1);
+    expect(notes[0].text).toBe("check the sync badge");
+  });
+
+  it("removes an escaped bullet by its parsed note", () => {
+    const md = "- \\[2026-07-17 13:05\\] drop me\n- \\[2026-07-17 14:00\\] keep\n";
+    const next = removeCaptureBulletFromMarkdown(md, {
+      at: "2026-07-17 13:05",
+      text: "drop me",
+    });
+    expect(next).not.toContain("drop me");
+    expect(next).toContain("keep");
   });
 });

@@ -2,7 +2,9 @@
  * Optional essay author byline. Stored in YAML frontmatter as `author:`.
  */
 
-const AUTHOR_LINE_RE = /^author:\s*(.*)$/m;
+// Horizontal whitespace only: `\s*` would cross the newline on a bare
+// `author:` line and swallow the following field.
+const AUTHOR_LINE_RE = /^author:[ \t]*(.*)$/m;
 
 export function parseAuthor(frontmatter: string): string {
   const match = frontmatter.match(AUTHOR_LINE_RE);
@@ -20,10 +22,9 @@ export function writeAuthor(frontmatter: string, author: string): string {
   }
 
   if (AUTHOR_LINE_RE.test(frontmatter)) {
-    if (!line) {
-      return frontmatter.replace(/\n?author:\s*.*(?=\n)/, "");
-    }
-    return frontmatter.replace(AUTHOR_LINE_RE, line);
+    // Keep an existing key as a bare `author:` when cleared — template
+    // fields must survive edits so exports match the publishing schema.
+    return frontmatter.replace(AUTHOR_LINE_RE, line ?? "author:");
   }
 
   if (!line) return frontmatter;

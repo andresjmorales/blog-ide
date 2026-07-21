@@ -4,7 +4,9 @@
  * Kept as a simple line rewrite so the rest of frontmatter stays verbatim.
  */
 
-const LANGS_LINE_RE = /^spellcheck_langs:\s*(.*)$/m;
+// Horizontal whitespace only: `\s*` would cross the newline on a bare
+// `spellcheck_langs:` line and swallow the following field.
+const LANGS_LINE_RE = /^spellcheck_langs:[ \t]*(.*)$/m;
 
 export const SPELLCHECK_LANGUAGE_OPTIONS: Array<{
   code: string;

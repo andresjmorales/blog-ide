@@ -189,6 +189,10 @@ body {
   flex-shrink: 0;
   width: 2.25rem;
 }
+/* Hidden below the sidenote breakpoint (rail is desktop-only). */
+.footnote-rail-collapsed {
+  display: none;
+}
 .doc-outline.is-open {
   width: 13.5rem;
 }
@@ -213,11 +217,17 @@ body {
   background: var(--panel);
   color: var(--foreground);
 }
+/* Collapsed: arrow on top, vertical "Outline" label below (mirrors the
+   collapsed Footnotes strip). */
 .doc-outline:not(.is-open) .doc-outline-toggle-label {
-  display: none;
+  letter-spacing: 0.08em;
+  margin-top: 0.6rem;
+  writing-mode: vertical-rl;
 }
 .doc-outline:not(.is-open) .doc-outline-toggle {
-  justify-content: center;
+  flex-direction: column-reverse;
+  gap: 0.6rem;
+  justify-content: flex-start;
   letter-spacing: 0;
   padding: 0.55rem 0.15rem;
 }
@@ -841,9 +851,9 @@ html.app-shell-lock body {
     cursor: pointer;
     display: inline-flex;
     font-size: 0.65rem;
-    gap: 0.3rem;
+    justify-content: center;
     line-height: 1;
-    padding: 0.28rem 0.55rem;
+    padding: 0.3rem;
   }
   .sidenote-rail-lock:hover {
     border-color: var(--accent);
@@ -852,6 +862,66 @@ html.app-shell-lock body {
   .sidenote-rail.is-linked .sidenote-rail-lock {
     border-color: color-mix(in oklab, var(--accent) 45%, var(--border));
     color: var(--accent);
+  }
+  /* Whole label + arrow area collapses (like the Outline header); the lock
+     sits to its left, not centered. */
+  .sidenote-rail-toggle {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    flex: 1;
+    font: inherit;
+    gap: 0.5rem;
+    justify-content: space-between;
+    padding: 0;
+  }
+  .sidenote-rail-toggle:hover {
+    color: var(--foreground);
+  }
+  .sidenote-rail-toggle > span[aria-hidden] {
+    font-size: 0.85rem;
+    line-height: 1;
+  }
+  /* Collapsed Footnotes rail: slim strip mirroring the Outline pane. */
+  .footnote-rail-collapsed {
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    width: 2.25rem;
+  }
+  .footnote-rail-collapsed-toggle {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    font-size: 0.7rem;
+    justify-content: center;
+    padding: 0.55rem 0.15rem;
+    width: 100%;
+  }
+  .footnote-rail-collapsed-toggle::after {
+    color: var(--muted);
+    content: "Footnotes";
+    font-size: 0.62rem;
+    font-weight: 650;
+    letter-spacing: 0.08em;
+    margin-top: 0.6rem;
+    text-transform: uppercase;
+    writing-mode: vertical-rl;
+  }
+  .footnote-rail-collapsed-toggle {
+    flex-direction: column;
+  }
+  .footnote-rail-collapsed-toggle:hover {
+    background: var(--panel);
+    color: var(--foreground);
   }
   .sidenote-rail-scroll {
     flex: 1;

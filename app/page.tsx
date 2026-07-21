@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BetaCodeForm } from "@/components/BetaCodeForm";
+import { GitHubFooter } from "@/components/GitHubFooter";
 import { PRODUCT_DESCRIPTION, PRODUCT_NAME } from "@/lib/brand";
 
 export default function LandingPage() {
@@ -26,15 +27,7 @@ export default function LandingPage() {
         </p>
       </div>
 
-      <footer className="mt-16 text-xs text-muted">
-        MIT licensed · self-hostable ·{" "}
-        <a
-          href="https://github.com/moralesq/blog-ide"
-          className="underline underline-offset-4"
-        >
-          source
-        </a>
-      </footer>
+      <GitHubFooter />
     </main>
   );
 }

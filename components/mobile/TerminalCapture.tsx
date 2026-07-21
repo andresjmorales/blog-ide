@@ -218,7 +218,7 @@ export function TerminalCapture({
         >
           <p className="text-muted">
             <span className="text-accent">$</span> notes to self — history looks
-            like prior commands. Desktop Shell shows the same stream.
+            like prior commands. The desktop Inbox panel shows the same stream.
           </p>
           <div className="mt-4 space-y-3">
             {loading && history.length === 0 && (

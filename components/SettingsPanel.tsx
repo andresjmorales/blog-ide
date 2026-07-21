@@ -70,8 +70,7 @@ function SettingsDialog({
 }) {
   const { prefs, updatePrefs } = useEditorPrefs();
   const [aiKeys, setAiKeys] = useState<AiKeys>(() => loadAiKeys());
-  const [anthropicDraft, setAnthropicDraft] = useState("");
-  const [openaiDraft, setOpenaiDraft] = useState("");
+  const [keyDraft, setKeyDraft] = useState("");
   const [keysSaved, setKeysSaved] = useState(false);
   const [nameDraft, setNameDraft] = useState(displayName);
   const [nameStatus, setNameStatus] = useState<string | null>(null);
@@ -92,28 +91,22 @@ function SettingsDialog({
     });
   }
 
+  const provider: AiProvider = aiKeys.preferred ?? "anthropic";
+  const providerLabel = provider === "anthropic" ? "Anthropic" : "OpenAI";
+  const savedKey = provider === "anthropic" ? aiKeys.anthropic : aiKeys.openai;
+
   function saveKeys() {
-    const patch: AiKeys = {
-      preferred: aiKeys.preferred,
-      importAssist: aiKeys.importAssist,
-    };
-    if (anthropicDraft.trim()) patch.anthropic = anthropicDraft.trim();
-    if (openaiDraft.trim()) patch.openai = openaiDraft.trim();
-    const next = saveAiKeys(patch);
+    if (!keyDraft.trim()) return;
+    const next = saveAiKeys({ ...aiKeys, [provider]: keyDraft.trim() });
     setAiKeys(next);
-    setAnthropicDraft("");
-    setOpenaiDraft("");
+    setKeyDraft("");
     setKeysSaved(true);
   }
 
-  function clearProvider(provider: AiProvider) {
-    const next = saveAiKeys({
-      ...aiKeys,
-      [provider]: "",
-    });
+  function clearProviderKey() {
+    const next = saveAiKeys({ ...aiKeys, [provider]: "" });
     setAiKeys(next);
-    if (provider === "anthropic") setAnthropicDraft("");
-    else setOpenaiDraft("");
+    setKeyDraft("");
   }
 
   return (
@@ -281,65 +274,52 @@ function SettingsDialog({
             this browser and sent to the provider when you use the assistant —
             never saved to BlogIDE&apos;s database.
           </p>
-          <label className="settings-row settings-row-stack">
-            <span>Anthropic API key</span>
-            <input
-              type="password"
-              autoComplete="off"
-              placeholder={
-                aiKeys.anthropic
-                  ? `Saved · ${maskKey(aiKeys.anthropic)}`
-                  : "sk-ant-…"
-              }
-              value={anthropicDraft}
-              onChange={(e) => setAnthropicDraft(e.target.value)}
-              className="settings-text-input"
-            />
-            {aiKeys.anthropic && (
-              <button
-                type="button"
-                className="settings-link-btn"
-                onClick={() => clearProvider("anthropic")}
-              >
-                Remove Anthropic key
-              </button>
-            )}
-          </label>
-          <label className="settings-row settings-row-stack">
-            <span>OpenAI API key</span>
-            <input
-              type="password"
-              autoComplete="off"
-              placeholder={
-                aiKeys.openai ? `Saved · ${maskKey(aiKeys.openai)}` : "sk-…"
-              }
-              value={openaiDraft}
-              onChange={(e) => setOpenaiDraft(e.target.value)}
-              className="settings-text-input"
-            />
-            {aiKeys.openai && (
-              <button
-                type="button"
-                className="settings-link-btn"
-                onClick={() => clearProvider("openai")}
-              >
-                Remove OpenAI key
-              </button>
-            )}
-          </label>
           <label className="settings-row">
-            <span>Preferred provider</span>
+            <span>Provider</span>
             <select
-              value={aiKeys.preferred ?? "anthropic"}
+              value={provider}
               onChange={(e) => {
                 const preferred = e.target.value as AiProvider;
                 const next = saveAiKeys({ ...aiKeys, preferred });
                 setAiKeys(next);
+                setKeyDraft("");
               }}
             >
               <option value="anthropic">Anthropic</option>
               <option value="openai">OpenAI</option>
             </select>
+          </label>
+          <label className="settings-row settings-row-stack">
+            <span>{providerLabel} API key</span>
+            <input
+              type="password"
+              autoComplete="off"
+              placeholder={
+                savedKey
+                  ? `Saved · ${maskKey(savedKey)}`
+                  : provider === "anthropic"
+                    ? "sk-ant-…"
+                    : "sk-…"
+              }
+              value={keyDraft}
+              onChange={(e) => setKeyDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  saveKeys();
+                }
+              }}
+              className="settings-text-input"
+            />
+            {savedKey && (
+              <button
+                type="button"
+                className="settings-link-btn"
+                onClick={clearProviderKey}
+              >
+                Remove {providerLabel} key
+              </button>
+            )}
           </label>
           <label className="settings-row">
             <span>AI import assist</span>
@@ -375,7 +355,7 @@ function SettingsDialog({
         <section className="settings-section">
           <h3>Mobile</h3>
           <label className="settings-row">
-            <span>Open Shell on phone</span>
+            <span>Open Inbox on phone</span>
             <input
               type="checkbox"
               checked={prefs.mobileOpenShell}
@@ -385,34 +365,23 @@ function SettingsDialog({
             />
           </label>
           <p className="settings-help">
-            When on, phone-sized windows land on the Shell terminal first. Turn
-            off to open the editor instead. You can still switch with Shell /
+            When on, phone-sized windows land on the Inbox capture terminal first.
+            Turn off to open the editor instead. You can still switch with Inbox /
             Enter full app.
           </p>
         </section>
 
         <section className="settings-section">
-          <h3>Sidebar / Sidenotes</h3>
+          <h3>Footnotes</h3>
           <p className="settings-help">
-            The scrollable rail lists every footnote. When linked, essay scroll
-            smoothly drives the rail; unlock it to scroll notes independently.
-            Anchored places each note beside its mark.
+            Show and hide margin footnotes from the Footnotes rail beside the
+            essay. This chooses how they are laid out: a scrollable rail of
+            all notes, or each note anchored beside its mark.
           </p>
           <label className="settings-row">
-            <span>Show sidenotes</span>
-            <input
-              type="checkbox"
-              checked={prefs.sidenotes}
-              onChange={(event) =>
-                updatePrefs({ sidenotes: event.target.checked })
-              }
-            />
-          </label>
-          <label className="settings-row">
-            <span>Sidenote layout</span>
+            <span>Layout</span>
             <select
               value={prefs.sidenoteLayout}
-              disabled={!prefs.sidenotes}
               onChange={(event) =>
                 updatePrefs({
                   sidenoteLayout: event.target.value as SidenoteLayout,
@@ -434,6 +403,16 @@ function SettingsDialog({
               checked={prefs.footnoteOpenOnHover}
               onChange={(event) =>
                 updatePrefs({ footnoteOpenOnHover: event.target.checked })
+              }
+            />
+          </label>
+          <label className="settings-row">
+            <span>Hyperlink previews on hover</span>
+            <input
+              type="checkbox"
+              checked={prefs.linkPreviews}
+              onChange={(event) =>
+                updatePrefs({ linkPreviews: event.target.checked })
               }
             />
           </label>

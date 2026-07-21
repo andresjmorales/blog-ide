@@ -6,7 +6,16 @@ export type CaptureNote = {
   atMs: number;
 };
 
-const BULLET_RE = /^- \[(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\] (.+)$/;
+const BULLET_RE = /^[-*] \[(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\] (.+)$/;
+
+/**
+ * Undo markdown character escapes. Opening a channel document in the editor
+ * re-serializes bullets as `- \[2026-07-17 12:30\] …`, which used to make
+ * the Shell parser skip every note ("channel looks empty").
+ */
+function unescapeMarkdown(line: string): string {
+  return line.replace(/\\([\\`*_{}[\]()#+\-.!>~|])/g, "$1");
+}
 
 /** Format a capture line for appending to a channel document. */
 export function formatCaptureBullet(
@@ -30,7 +39,7 @@ export function formatCaptureStamp(at: Date = new Date()): string {
 export function parseCaptureNotes(markdown: string): CaptureNote[] {
   const notes: CaptureNote[] = [];
   for (const line of markdown.split(/\r?\n/)) {
-    const match = BULLET_RE.exec(line.trim());
+    const match = BULLET_RE.exec(unescapeMarkdown(line.trim()));
     if (!match) continue;
     const at = match[1];
     const text = match[2];
@@ -70,9 +79,17 @@ export function removeCaptureBulletFromMarkdown(
   markdown: string,
   note: Pick<CaptureNote, "at" | "text">
 ): string {
-  const target = `- [${note.at}] ${note.text}`;
+  // Notes come from parseCaptureNotes (unescaped), but the stored line may
+  // carry editor round-trip escapes — compare both sides normalized, and
+  // tolerate `*` bullets the same way the parser does.
+  const target = `[${note.at}] ${note.text}`;
   const lines = markdown.split(/\r?\n/);
-  const index = lines.findIndex((line) => line.trim() === target);
+  const index = lines.findIndex((line) => {
+    const normalized = unescapeMarkdown(line.trim());
+    return (
+      normalized === `- ${target}` || normalized === `* ${target}`
+    );
+  });
   if (index === -1) return markdown;
   lines.splice(index, 1);
   return lines.join("\n").replace(/\n{3,}/g, "\n\n");

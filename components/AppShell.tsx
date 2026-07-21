@@ -42,6 +42,7 @@ import {
   fileNameToTitle,
   titleToFileName,
 } from "@/lib/markdown/titleFrontmatter";
+import { newEssayFrontmatter } from "@/lib/markdown/frontmatter";
 import {
   createWorkspaceNode,
   deleteWorkspaceNode,
@@ -664,7 +665,7 @@ function AppShellContent({
         name: fileName,
         parentId,
         // Title lives in frontmatter + the Title field — not as Heading 1.
-        markdown: `---\ntitle: ${title}\nstatus: draft\n---\n\n`,
+        markdown: newEssayFrontmatter(title),
       });
       await refreshTree();
       setActiveNodeId(id);
@@ -717,7 +718,7 @@ function AppShellContent({
     const fileName = uniqueSiblingName(nodes, parentId, titleToFileName(title));
     let markdown = picked.markdown.replace(/^\uFEFF/, "");
     if (!/^---\s*\n/.test(markdown)) {
-      markdown = `---\ntitle: ${title}\nstatus: draft\n---\n\n${markdown}`;
+      markdown = newEssayFrontmatter(title) + markdown;
     }
     try {
       const id = await createWorkspaceNode({
@@ -937,7 +938,6 @@ function AppShellContent({
     />
   );
 
-  const shellFloating = panelLayout.floating.includes("shell");
 
   const dockHandlers = {
     onSelectTab: (side: DockSide) => (id: PanelId) => {
@@ -1025,12 +1025,13 @@ function AppShellContent({
             </div>
             <div className="z-10 flex items-center gap-2 text-xs text-muted">
               <span
-                className={`hidden sm:inline ${
+                className={`hidden items-center gap-1.5 sm:inline-flex ${
                   syncStatus.error ? "text-red-600 dark:text-red-400" : ""
                 }`}
                 title={syncStatus.error ?? syncStatus.message ?? undefined}
               >
                 {previewMode ? "Preview mode · not synced" : syncLabel}
+                {!previewMode && <SyncStateIcon status={syncStatus} />}
               </span>
               {!previewMode && (
                 <span
@@ -1039,7 +1040,7 @@ function AppShellContent({
                   aria-label={syncStatus.error ?? syncLabel}
                   role="status"
                 >
-                  <MobileSyncBadge status={syncStatus} />
+                  <SyncStateIcon status={syncStatus} />
                 </span>
               )}
               <UserMenu
@@ -1268,7 +1269,7 @@ function AppShellContent({
                   nodes={nodes}
                   refreshKey={shellRefreshKey}
                   onNotesChanged={bumpShellRefresh}
-                  compactMeta={shellFloating}
+                  compactMeta
                 />
               </PersistentPanel>
               <PopOutLayer
@@ -1286,11 +1287,28 @@ function AppShellContent({
   );
 }
 
+function CheckCircle({ className }: { className: string }) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden className={className}>
+      <circle cx="8" cy="8" r="7" fill="currentColor" />
+      <path
+        d="M4.8 8.2l2.2 2.2 4.2-4.6"
+        fill="none"
+        stroke="var(--background)"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /**
- * Mobile-only sync indicator: spinner while a save/sync is pending, a
- * filled "read receipt" check once the essay is synced, red alert on error.
+ * Sync state at a glance (mobile badge + desktop label suffix):
+ * gray check = edits saved locally, cloud push pending;
+ * spinner = pushing; accent check = synced; red = error.
  */
-function MobileSyncBadge({ status }: { status: SyncStatus }) {
+function SyncStateIcon({ status }: { status: SyncStatus }) {
   if (!status.focusNodeId) return null;
 
   if (status.error) {
@@ -1313,7 +1331,7 @@ function MobileSyncBadge({ status }: { status: SyncStatus }) {
     );
   }
 
-  if (status.syncing || status.dirty) {
+  if (status.syncing) {
     return (
       <svg
         width="15"
@@ -1342,26 +1360,13 @@ function MobileSyncBadge({ status }: { status: SyncStatus }) {
     );
   }
 
+  // Typing / debounce window: saved locally, cloud copy now stale.
+  if (status.dirty) {
+    return <CheckCircle className="text-muted/70" />;
+  }
+
   if (status.syncedAt) {
-    return (
-      <svg
-        width="15"
-        height="15"
-        viewBox="0 0 16 16"
-        aria-hidden
-        className="text-accent"
-      >
-        <circle cx="8" cy="8" r="7" fill="currentColor" />
-        <path
-          d="M4.8 8.2l2.2 2.2 4.2-4.6"
-          fill="none"
-          stroke="var(--background)"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    );
+    return <CheckCircle className="text-accent" />;
   }
 
   return null;

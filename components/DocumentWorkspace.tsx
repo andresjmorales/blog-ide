@@ -110,7 +110,10 @@ function packDocument(
   author: string,
   body: string
 ): string {
-  return writeAuthor(writeSubtitle(frontmatter, subtitle), author) + body;
+  const fm = writeAuthor(writeSubtitle(frontmatter, subtitle), author);
+  if (!fm) return body;
+  // Blank line between the closing --- and the essay content.
+  return `${fm}\n${body.replace(/^\n+/, "")}`;
 }
 
 type Mode = "wysiwyg" | "source";
@@ -163,6 +166,7 @@ export function DocumentWorkspace({
   });
   const documentNameRef = useRef(documentName);
   const [mode, setMode] = useState<Mode>("wysiwyg");
+  const modeRef = useRef(mode);
   const [sourceText, setSourceText] = useState("");
   const [lossyWarning, setLossyWarning] = useState(false);
   const [lossyDiffOpen, setLossyDiffOpen] = useState(false);
@@ -185,7 +189,7 @@ export function DocumentWorkspace({
   const nodeIdRef = useRef(nodeId);
   const syncingNameRef = useRef(false);
   const prevDocumentNameRef = useRef<string | null | undefined>(documentName);
-  const { prefs, updatePrefs } = useEditorPrefs();
+  const { prefs } = useEditorPrefs();
   const persistEnabled = isSupabaseConfigured() && !previewMode && !!nodeId;
   const documentLanguages = parseSpellcheckLangs(frontmatter);
   const essayTitle =
@@ -211,6 +215,10 @@ export function DocumentWorkspace({
       author: "",
       body: "",
     });
+    // Clear the previous document's raw markdown so a source-mode switch can
+    // never render (and then autosave) the old essay under the new id. The
+    // loader repopulates it once the new document arrives.
+    setSourceText("");
     setLoading(Boolean(persistEnabled && nodeId));
     setLoadError(null);
   }
@@ -228,6 +236,10 @@ export function DocumentWorkspace({
   }, [baseVersion]);
 
   useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
+
+  useEffect(() => {
     nodeIdRef.current = nodeId;
     // Seed with this render's name so a newly opened doc isn't treated as a rename.
     prevDocumentNameRef.current = documentName;
@@ -241,6 +253,18 @@ export function DocumentWorkspace({
       setSyncFocus(null);
     };
   }, [nodeId]);
+
+  // Browser tab names the essay being edited.
+  useEffect(() => {
+    const title = essayTitle.trim();
+    document.title =
+      title && title !== "Untitled"
+        ? `${title} · BlogIDE Editor`
+        : "BlogIDE Editor";
+    return () => {
+      document.title = "BlogIDE";
+    };
+  }, [essayTitle]);
 
   const restoreDeletedFootnote = useCallback((id: string) => {
     const editor = editorRef.current;
@@ -330,6 +354,12 @@ export function DocumentWorkspace({
           unpacked.author,
           unpacked.body
         );
+        // Keep the source view showing THIS document. Without this, switching
+        // essays while in markdown mode left the previous essay's text in the
+        // textarea, and a keystroke would save it over the new document.
+        if (modeRef.current === "source") {
+          setSourceText(packed);
+        }
         if (unpacked.changed) {
           // Persist migration of legacy `# Title` out of the body.
           persistMarkdownRef.current(packed);
@@ -937,7 +967,7 @@ export function DocumentWorkspace({
     // View
     {
       id: "mode",
-      label: mode === "wysiwyg" ? "See markdown" : "Rich text",
+      label: mode === "wysiwyg" ? "View raw markdown" : "Rich text editor",
       onSelect: () => {
         if (mode === "wysiwyg") toSource();
         else toWysiwyg();
@@ -1023,21 +1053,6 @@ export function DocumentWorkspace({
           title="Pop out this essay in a floating window"
         >
           Pop out
-        </button>
-      )}
-      {mode === "wysiwyg" && (
-        <button
-          type="button"
-          onClick={() => updatePrefs({ sidenotes: !prefs.sidenotes })}
-          aria-pressed={prefs.sidenotes}
-          className={`hidden rounded border border-border px-2.5 py-1 text-xs md:inline-block ${
-            prefs.sidenotes
-              ? "bg-accent/15 text-accent"
-              : "text-muted hover:bg-panel hover:text-foreground"
-          }`}
-          title="Show footnotes in the margin"
-        >
-          Sidenotes
         </button>
       )}
       <EditorOverflowMenu items={overflowItems} />
