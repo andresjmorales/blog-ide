@@ -249,15 +249,18 @@ export function FileExplorer({
       });
     }
 
-    items.push({ kind: "separator", id: "sep-del" });
-    items.push({
-      kind: "action",
-      id: "delete",
-      label: "Delete permanently",
-      danger: true,
-      disabled: scratch,
-      onSelect: () => onDeleteForever(node.id),
-    });
+    // Permanent deletion only from the Trash: everything else goes through
+    // Move to Trash first, so one mis-click can't destroy an essay.
+    if (inTrash) {
+      items.push({ kind: "separator", id: "sep-del" });
+      items.push({
+        kind: "action",
+        id: "delete",
+        label: "Delete permanently",
+        danger: true,
+        onSelect: () => onDeleteForever(node.id),
+      });
+    }
 
     return items;
   }
