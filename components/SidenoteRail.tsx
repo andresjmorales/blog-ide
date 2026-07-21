@@ -185,7 +185,6 @@ export function SidenoteRail({
       aria-label="Footnotes"
     >
       <div className="sidenote-rail-toolbar">
-        <span className="sidenote-rail-label">Footnotes</span>
         <button
           type="button"
           className="sidenote-rail-lock"
@@ -204,16 +203,20 @@ export function SidenoteRail({
         >
           {linked ? <LockIcon locked /> : <LockIcon locked={false} />}
         </button>
-        {onCollapse && (
+        {onCollapse ? (
           <button
             type="button"
-            className="sidenote-rail-collapse"
+            className="sidenote-rail-toggle"
+            aria-expanded
             title="Collapse footnotes"
             aria-label="Collapse footnotes"
             onClick={onCollapse}
           >
-            ›
+            <span className="sidenote-rail-label">Footnotes</span>
+            <span aria-hidden>›</span>
           </button>
+        ) : (
+          <span className="sidenote-rail-label">Footnotes</span>
         )}
       </div>
 

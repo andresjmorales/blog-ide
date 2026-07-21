@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { roundTrip } from "@/lib/markdown/pipeline";
+import { isLossy, roundTrip } from "@/lib/markdown/pipeline";
 import { splitFrontmatter } from "@/lib/markdown/frontmatter";
 
 /**
@@ -56,5 +56,17 @@ describe("frontmatter handling", () => {
     const md = "Intro paragraph.\n\n---\n\nMore text.\n";
     const { frontmatter } = splitFrontmatter(md);
     expect(frontmatter).toBe("");
+  });
+
+  it("does not flag the blank line after frontmatter as lossy", () => {
+    // The personal-site template + packDocument keep one blank line here.
+    const md =
+      "---\ntitle: T\nsubtitle:\ncanonical:\n---\n\nBody paragraph.\n";
+    expect(isLossy(md)).toBe(false);
+  });
+
+  it("is not lossy without a blank line after frontmatter either", () => {
+    const md = "---\ntitle: T\n---\nBody paragraph.\n";
+    expect(isLossy(md)).toBe(false);
   });
 });

@@ -217,11 +217,17 @@ body {
   background: var(--panel);
   color: var(--foreground);
 }
+/* Collapsed: arrow on top, vertical "Outline" label below (mirrors the
+   collapsed Footnotes strip). */
 .doc-outline:not(.is-open) .doc-outline-toggle-label {
-  display: none;
+  letter-spacing: 0.08em;
+  margin-top: 0.6rem;
+  writing-mode: vertical-rl;
 }
 .doc-outline:not(.is-open) .doc-outline-toggle {
-  justify-content: center;
+  flex-direction: column-reverse;
+  gap: 0.6rem;
+  justify-content: flex-start;
   letter-spacing: 0;
   padding: 0.55rem 0.15rem;
 }
@@ -857,19 +863,27 @@ html.app-shell-lock body {
     border-color: color-mix(in oklab, var(--accent) 45%, var(--border));
     color: var(--accent);
   }
-  .sidenote-rail-collapse {
+  /* Whole label + arrow area collapses (like the Outline header); the lock
+     sits to its left, not centered. */
+  .sidenote-rail-toggle {
+    align-items: center;
     background: transparent;
     border: 0;
-    border-radius: 0.25rem;
     color: var(--muted);
     cursor: pointer;
+    display: flex;
+    flex: 1;
+    font: inherit;
+    gap: 0.5rem;
+    justify-content: space-between;
+    padding: 0;
+  }
+  .sidenote-rail-toggle:hover {
+    color: var(--foreground);
+  }
+  .sidenote-rail-toggle > span[aria-hidden] {
     font-size: 0.85rem;
     line-height: 1;
-    padding: 0.25rem 0.4rem;
-  }
-  .sidenote-rail-collapse:hover {
-    background: var(--panel);
-    color: var(--foreground);
   }
   /* Collapsed Footnotes rail: slim strip mirroring the Outline pane. */
   .footnote-rail-collapsed {

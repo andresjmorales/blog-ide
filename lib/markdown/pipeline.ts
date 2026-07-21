@@ -226,7 +226,12 @@ export function normalize(markdown: string): string {
  */
 export function roundTrip(markdown: string): string {
   const { frontmatter, body } = splitFrontmatter(markdown);
-  return frontmatter + normalize(serializeBody(parseBody(body)));
+  // Preserve the body's leading blank line(s). The parser drops them, but the
+  // blank line we keep between frontmatter and body is cosmetic — re-adding it
+  // here keeps a source→rich-text round trip from being flagged as lossy over
+  // pure whitespace, and keeps the lossy diff focused on real changes.
+  const leadingBlank = body.match(/^\n+/)?.[0] ?? "";
+  return frontmatter + leadingBlank + normalize(serializeBody(parseBody(body)));
 }
 
 /**
