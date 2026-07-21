@@ -104,6 +104,19 @@ export async function deleteWorkspaceNode(nodeId: string): Promise<void> {
   if (error) throw error;
 }
 
+/** All document bodies for the current user in one round trip (export). */
+export async function listAllDocumentBodies(): Promise<Map<string, string>> {
+  const { data, error } = await client()
+    .from("documents")
+    .select("node_id, markdown");
+  if (error) throw error;
+  const map = new Map<string, string>();
+  for (const row of (data ?? []) as { node_id: string; markdown: string }[]) {
+    map.set(row.node_id, row.markdown);
+  }
+  return map;
+}
+
 export type DocumentRevision = {
   node_id: string;
   version: number;

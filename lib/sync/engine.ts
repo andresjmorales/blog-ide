@@ -105,6 +105,24 @@ export type OpenedDocument = {
   dirty: boolean;
 };
 
+export const SIGNED_OUT_MESSAGE = "Signed out — sign in again to sync.";
+
+/**
+ * Auth-shaped failures (expired JWT, revoked session) — the fix is a login,
+ * not a retry, so the status badge should say that instead of "sync failed".
+ */
+export function isAuthError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const err = error as { code?: unknown; status?: unknown; message?: unknown };
+  if (err.status === 401 || err.status === 403) return true;
+  // PostgREST JWT errors: PGRST301 (expired/invalid), PGRST302 (anon blocked).
+  if (err.code === "PGRST301" || err.code === "PGRST302") return true;
+  const message = typeof err.message === "string" ? err.message : "";
+  return /\bjwt\b|not authenticated|refresh token|invalid claim/i.test(
+    message
+  );
+}
+
 /** Load a document: prefer dirty local copy, else remote, then seed IDB. */
 export async function openDocument(nodeId: string): Promise<OpenedDocument> {
   const local = await getLocalDoc(nodeId);
@@ -363,10 +381,62 @@ async function syncDocumentOnce(nodeId: string): Promise<void> {
       error: `Cloud sync failed (${result.reason}).`,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Cloud sync failed.";
+    const message = isAuthError(error)
+      ? SIGNED_OUT_MESSAGE
+      : error instanceof Error
+        ? error.message
+        : "Cloud sync failed.";
     emitFor(nodeId, { syncing: false, error: message });
   }
+}
+
+/**
+ * Fast-forward a clean local copy to a newer remote version (edited on
+ * another device while this tab slept). Returns the adopted document when
+ * the open editor should reload, else null. Dirty drafts are left alone —
+ * they resolve through the normal push/conflict path.
+ */
+export async function fastForwardDocument(
+  nodeId: string
+): Promise<OpenedDocument | null> {
+  const local = await getLocalDoc(nodeId);
+  if (local?.dirty) return null;
+
+  let remote: Awaited<ReturnType<typeof fetchRemoteDocument>> = null;
+  try {
+    remote = await fetchRemoteDocument(nodeId);
+  } catch {
+    return null; // offline — nothing to fast-forward
+  }
+  if (!remote) return null;
+
+  const remoteVersion = Number(remote.version);
+  if (local && remoteVersion <= local.baseVersion) return null;
+
+  // Re-check dirtiness atomically-ish: a keystroke may have landed during
+  // the fetch. Never overwrite a dirty draft from here.
+  const fresh = await getLocalDoc(nodeId);
+  if (fresh?.dirty) return null;
+
+  await putLocalDoc({
+    nodeId,
+    markdown: remote.markdown,
+    updatedAt: remote.updated_at,
+    dirty: false,
+    baseVersion: remoteVersion,
+  });
+  emitFor(nodeId, {
+    dirty: false,
+    localSavedAt: remote.updated_at,
+    syncedAt: remote.updated_at,
+    error: null,
+  });
+  return {
+    nodeId,
+    markdown: remote.markdown,
+    baseVersion: remoteVersion,
+    dirty: false,
+  };
 }
 
 /** Push one document to Supabase with optimistic concurrency. */

@@ -22,6 +22,7 @@ import {
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 import { getLocalDoc } from "@/lib/db/indexed";
 import {
+  fastForwardDocument,
   flushSyncQueue,
   openDocument,
   saveLocal,
@@ -29,6 +30,8 @@ import {
   subscribeSyncStatus,
   syncDocument,
 } from "@/lib/sync/engine";
+import { restoreDocumentRevision } from "@/lib/workspace/api";
+import { VersionHistoryPanel } from "@/components/VersionHistoryPanel";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   parseSpellcheckLangs,
@@ -157,6 +160,7 @@ export function DocumentWorkspace({
   const [lossyWarning, setLossyWarning] = useState(false);
   const [lossyDiffOpen, setLossyDiffOpen] = useState(false);
   const [essaySettingsOpen, setEssaySettingsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [baseVersion, setBaseVersion] = useState(1);
@@ -705,6 +709,97 @@ export function DocumentWorkspace({
     });
   }, [persistEnabled, nodeId]);
 
+  /** Load fresh markdown into editor state (fast-forward / restore). */
+  const applyOpenedMarkdown = useCallback(
+    (markdown: string, version: number) => {
+      pendingLocalRef.current = null;
+      lastPersistedRef.current = markdown;
+      const unpacked = unpackDocument(markdown, documentNameRef.current);
+      setDoc({
+        frontmatter: unpacked.frontmatter,
+        subtitle: unpacked.subtitle,
+        author: unpacked.author,
+        body: unpacked.body,
+      });
+      setBaseVersion(version);
+      if (mode === "source") {
+        setSourceText(
+          packDocument(
+            unpacked.frontmatter,
+            unpacked.subtitle,
+            unpacked.author,
+            unpacked.body
+          )
+        );
+      }
+    },
+    [mode]
+  );
+
+  // On tab wake: if this doc is clean locally but remote advanced (edited on
+  // another device while the tab slept), silently fast-forward the editor
+  // instead of waiting for the next keystroke to manufacture a conflict copy.
+  useEffect(() => {
+    if (!persistEnabled || !nodeId) return;
+    const docId = nodeId;
+    let timer: number | null = null;
+
+    function scheduleFastForward() {
+      if (document.visibilityState !== "visible") return;
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        timer = null;
+        // Never clobber typing that is still debouncing toward IndexedDB.
+        if (pendingLocalRef.current || saveTimer.current) return;
+        void fastForwardDocument(docId).then((updated) => {
+          if (!updated || nodeIdRef.current !== docId) return;
+          if (pendingLocalRef.current || saveTimer.current) return;
+          applyOpenedMarkdown(updated.markdown, updated.baseVersion);
+        });
+      }, 200);
+    }
+
+    document.addEventListener("visibilitychange", scheduleFastForward);
+    window.addEventListener("focus", scheduleFastForward);
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", scheduleFastForward);
+      window.removeEventListener("focus", scheduleFastForward);
+    };
+  }, [persistEnabled, nodeId, applyOpenedMarkdown]);
+
+  /**
+   * Restore an older snapshot. Outstanding edits are flushed and pushed
+   * first, so the pre-restore state is itself snapshotted server-side.
+   */
+  const restoreRevision = useCallback(
+    async (version: number) => {
+      if (!persistEnabled || !nodeId) throw new Error("Not connected.");
+      flushMarkdownRef.current?.();
+      await commitPendingLocal();
+      await syncDocument(nodeId);
+      const result = await restoreDocumentRevision(nodeId, version);
+      if (!result.ok) {
+        throw new Error(
+          result.reason === "quota"
+            ? "Restore blocked: storage quota exceeded."
+            : `Could not restore this version (${result.reason}).`
+        );
+      }
+      const opened = await openDocument(nodeId);
+      if (nodeIdRef.current !== nodeId) return;
+      applyOpenedMarkdown(opened.markdown, opened.baseVersion);
+      onRequestTreeRefresh?.();
+    },
+    [
+      persistEnabled,
+      nodeId,
+      commitPendingLocal,
+      applyOpenedMarkdown,
+      onRequestTreeRefresh,
+    ]
+  );
+
   // Flush on blur / hide / offline reconnect.
   useEffect(() => {
     if (!persistEnabled || !nodeId) return;
@@ -884,6 +979,15 @@ export function DocumentWorkspace({
           },
         ]
       : []),
+    ...(persistEnabled && nodeId
+      ? [
+          {
+            id: "history",
+            label: "Version history",
+            onSelect: () => setHistoryOpen(true),
+          },
+        ]
+      : []),
     {
       id: "essay-settings",
       label: "Essay settings",
@@ -1049,6 +1153,12 @@ export function DocumentWorkspace({
           onDocumentLanguagesChange={setDocumentLanguages}
           canEditTitle={canRenameDocument}
         />
+        <VersionHistoryPanel
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          nodeId={nodeId}
+          onRestore={restoreRevision}
+        />
       </div>
     );
   }
@@ -1097,6 +1207,12 @@ export function DocumentWorkspace({
         documentLanguages={documentLanguages}
         onDocumentLanguagesChange={setDocumentLanguages}
         canEditTitle={canRenameDocument}
+      />
+      <VersionHistoryPanel
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        nodeId={nodeId}
+        onRestore={restoreRevision}
       />
     </>
   );

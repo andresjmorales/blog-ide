@@ -7,7 +7,16 @@ import {
   putLocalDoc,
   stageLocalEdit,
 } from "@/lib/db/indexed";
-import { openDocument, saveLocal, syncDocument } from "@/lib/sync/engine";
+import {
+  fastForwardDocument,
+  getSyncStatus,
+  isAuthError,
+  openDocument,
+  saveLocal,
+  setSyncFocus,
+  SIGNED_OUT_MESSAGE,
+  syncDocument,
+} from "@/lib/sync/engine";
 import {
   fetchRemoteDocument,
   saveDocumentRemote,
@@ -159,5 +168,116 @@ describe("syncDocument", () => {
     expect(settled?.markdown).toBe("first draft plus keystrokes");
     expect(settled?.dirty).toBe(false);
     expect(settled?.baseVersion).toBe(3);
+  });
+
+  it("shows the signed-out message when the push fails with an auth error", async () => {
+    const nodeId = freshNodeId();
+    await saveLocal(nodeId, "draft", 1);
+    mockSaveRemote.mockRejectedValue({
+      message: "JWT expired",
+      code: "PGRST301",
+    });
+
+    setSyncFocus(nodeId);
+    await syncDocument(nodeId);
+
+    expect(getSyncStatus().error).toBe(SIGNED_OUT_MESSAGE);
+    setSyncFocus(null);
+
+    const doc = await getLocalDoc(nodeId);
+    expect(doc?.dirty).toBe(true); // draft stays safe locally
+  });
+});
+
+describe("isAuthError", () => {
+  it("classifies auth-shaped failures", () => {
+    expect(isAuthError({ code: "PGRST301", message: "JWT expired" })).toBe(true);
+    expect(isAuthError({ status: 401, message: "Unauthorized" })).toBe(true);
+    expect(isAuthError(new Error("Invalid Refresh Token"))).toBe(true);
+    expect(isAuthError(new Error("JWT expired"))).toBe(true);
+  });
+
+  it("leaves ordinary failures alone", () => {
+    expect(isAuthError(new Error("Failed to fetch"))).toBe(false);
+    expect(isAuthError(new Error("Quota exceeded"))).toBe(false);
+    expect(isAuthError(null)).toBe(false);
+    expect(isAuthError("boom")).toBe(false);
+  });
+});
+
+describe("fastForwardDocument", () => {
+  const remoteDoc = (nodeId: string, version: number, markdown: string) => ({
+    node_id: nodeId,
+    user_id: "u",
+    markdown,
+    status: null,
+    version,
+    size_bytes: markdown.length,
+    updated_at: new Date().toISOString(),
+  });
+
+  it("adopts a newer remote version when local is clean", async () => {
+    const nodeId = freshNodeId();
+    await putLocalDoc({
+      nodeId,
+      markdown: "old",
+      updatedAt: new Date().toISOString(),
+      dirty: false,
+      baseVersion: 3,
+    });
+    mockFetchRemote.mockResolvedValue(remoteDoc(nodeId, 5, "newer from phone"));
+
+    const updated = await fastForwardDocument(nodeId);
+    expect(updated?.markdown).toBe("newer from phone");
+    expect(updated?.baseVersion).toBe(5);
+
+    const local = await getLocalDoc(nodeId);
+    expect(local?.markdown).toBe("newer from phone");
+    expect(local?.dirty).toBe(false);
+  });
+
+  it("never touches a dirty local draft", async () => {
+    const nodeId = freshNodeId();
+    await putLocalDoc({
+      nodeId,
+      markdown: "unsynced typing",
+      updatedAt: new Date().toISOString(),
+      dirty: true,
+      baseVersion: 3,
+    });
+
+    const updated = await fastForwardDocument(nodeId);
+    expect(updated).toBeNull();
+    expect(mockFetchRemote).not.toHaveBeenCalled();
+    expect((await getLocalDoc(nodeId))?.markdown).toBe("unsynced typing");
+  });
+
+  it("is a no-op when remote is not newer", async () => {
+    const nodeId = freshNodeId();
+    await putLocalDoc({
+      nodeId,
+      markdown: "same",
+      updatedAt: new Date().toISOString(),
+      dirty: false,
+      baseVersion: 5,
+    });
+    mockFetchRemote.mockResolvedValue(remoteDoc(nodeId, 5, "same"));
+
+    expect(await fastForwardDocument(nodeId)).toBeNull();
+  });
+
+  it("returns null when offline", async () => {
+    const nodeId = freshNodeId();
+    await putLocalDoc({
+      nodeId,
+      markdown: "local",
+      updatedAt: new Date().toISOString(),
+      dirty: false,
+      baseVersion: 1,
+    });
+    mockFetchRemote.mockRejectedValue(new Error("Failed to fetch"));
+
+    expect(await fastForwardDocument(nodeId)).toBeNull();
+    expect((await getLocalDoc(nodeId))?.markdown).toBe("local");
   });
 });
