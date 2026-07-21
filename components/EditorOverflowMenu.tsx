@@ -3,14 +3,22 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 export type OverflowAction = {
+  kind?: "action";
   id: string;
   label: string;
   onSelect: () => void;
   disabled?: boolean;
 };
 
+export type OverflowSeparator = {
+  kind: "separator";
+  id: string;
+};
+
+export type OverflowItem = OverflowAction | OverflowSeparator;
+
 type Props = {
-  items: OverflowAction[];
+  items: OverflowItem[];
 };
 
 /** Compact ⋯ menu for secondary editor actions. */
@@ -57,21 +65,29 @@ export function EditorOverflowMenu({ items }: Props) {
           role="menu"
           className="absolute right-0 top-full z-50 mt-1 min-w-[11rem] rounded-md border border-border bg-background py-1 text-sm shadow-md"
         >
-          {items.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              role="menuitem"
-              disabled={item.disabled}
-              className="flex w-full px-3 py-1.5 text-left text-foreground hover:bg-panel disabled:opacity-40"
-              onClick={() => {
-                setOpen(false);
-                item.onSelect();
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
+          {items.map((item) =>
+            item.kind === "separator" ? (
+              <div
+                key={item.id}
+                role="separator"
+                className="my-1 border-t border-border"
+              />
+            ) : (
+              <button
+                key={item.id}
+                type="button"
+                role="menuitem"
+                disabled={item.disabled}
+                className="flex w-full px-3 py-1.5 text-left text-foreground hover:bg-panel disabled:opacity-40"
+                onClick={() => {
+                  setOpen(false);
+                  item.onSelect();
+                }}
+              >
+                {item.label}
+              </button>
+            )
+          )}
         </div>
       )}
     </div>
