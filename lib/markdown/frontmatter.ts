@@ -2,6 +2,8 @@
  * YAML frontmatter is held verbatim and re-emitted untouched (spec §4.1):
  * the editor never parses or rewrites it, so round-trips can't mangle it.
  */
+import { yamlTitleLine } from "@/lib/markdown/titleFrontmatter";
+
 export type SplitDocument = {
   /** Raw frontmatter block including `---` fences and trailing newline; "" if absent. */
   frontmatter: string;
@@ -35,7 +37,7 @@ export function joinFrontmatter(doc: SplitDocument): string {
 export function newEssayFrontmatter(title: string): string {
   return [
     "---",
-    `title: ${title}`,
+    yamlTitleLine(title),
     "subtitle:",
     "author:",
     "date:",

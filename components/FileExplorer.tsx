@@ -569,7 +569,7 @@ function TreeNode({
         >
           <button
             type="button"
-            className="flex min-w-0 flex-1 items-center gap-1 truncate text-left text-sm font-medium"
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 truncate text-left text-sm font-medium"
             aria-expanded={expanded}
             title={expanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
             onClick={() => onToggleCollapse(node.id)}

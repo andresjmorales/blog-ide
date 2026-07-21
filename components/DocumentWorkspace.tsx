@@ -952,7 +952,7 @@ export function DocumentWorkspace({
     // View
     {
       id: "mode",
-      label: mode === "wysiwyg" ? "View raw markdown" : "Rich text",
+      label: mode === "wysiwyg" ? "View raw markdown" : "Rich text editor",
       onSelect: () => {
         if (mode === "wysiwyg") toSource();
         else toWysiwyg();

@@ -203,7 +203,6 @@ export function SidenoteRail({
           onClick={() => setLinked((value) => !value)}
         >
           {linked ? <LockIcon locked /> : <LockIcon locked={false} />}
-          <span>{linked ? "Linked" : "Free"}</span>
         </button>
         {onCollapse && (
           <button

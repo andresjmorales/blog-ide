@@ -845,9 +845,9 @@ html.app-shell-lock body {
     cursor: pointer;
     display: inline-flex;
     font-size: 0.65rem;
-    gap: 0.3rem;
+    justify-content: center;
     line-height: 1;
-    padding: 0.28rem 0.55rem;
+    padding: 0.3rem;
   }
   .sidenote-rail-lock:hover {
     border-color: var(--accent);

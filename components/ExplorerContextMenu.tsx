@@ -34,6 +34,7 @@ type Props = {
 export function ExplorerContextMenu({ x, y, items, onClose }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
+  const [submenuUp, setSubmenuUp] = useState(false);
   const [pos, setPos] = useState({ left: x, top: y });
 
   useEffect(() => {
@@ -83,8 +84,13 @@ export function ExplorerContextMenu({ x, y, items, onClose }: Props) {
             <div
               key={item.id}
               className="relative"
-              onMouseEnter={() => {
-                if (!item.disabled) setOpenSubmenu(item.id);
+              onMouseEnter={(e) => {
+                if (item.disabled) return;
+                // Open upward when there isn't ~16rem of room below the
+                // trigger, so long folder lists stay on screen.
+                const rect = e.currentTarget.getBoundingClientRect();
+                setSubmenuUp(window.innerHeight - rect.top < 280);
+                setOpenSubmenu(item.id);
               }}
               onMouseLeave={() => setOpenSubmenu(null)}
             >
@@ -96,6 +102,11 @@ export function ExplorerContextMenu({ x, y, items, onClose }: Props) {
                 onClick={(e) => {
                   e.preventDefault();
                   if (!item.disabled) {
+                    const rect =
+                      e.currentTarget.parentElement?.getBoundingClientRect();
+                    if (rect) {
+                      setSubmenuUp(window.innerHeight - rect.top < 280);
+                    }
                     setOpenSubmenu((cur) =>
                       cur === item.id ? null : item.id
                     );
@@ -108,7 +119,9 @@ export function ExplorerContextMenu({ x, y, items, onClose }: Props) {
               {openSubmenu === item.id && (
                 <div
                   role="menu"
-                  className="absolute left-full top-0 z-50 ml-0.5 max-h-64 min-w-[10rem] overflow-y-auto rounded-md border border-border bg-background py-1 shadow-md"
+                  className={`absolute left-full z-50 ml-0.5 max-h-64 min-w-[10rem] overflow-y-auto rounded-md border border-border bg-background py-1 shadow-md ${
+                    submenuUp ? "bottom-0" : "top-0"
+                  }`}
                 >
                   {item.items.length === 0 ? (
                     <div className="px-3 py-1.5 text-xs text-muted">

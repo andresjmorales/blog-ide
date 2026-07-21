@@ -11,10 +11,18 @@ import {
 } from "@/lib/panels/layout";
 
 describe("panelLayout", () => {
-  it("moves Files from left to right beside AI", () => {
+  it("defaults the Inbox (shell) panel to the right dock ahead of AI", () => {
+    expect(visibleTabs(DEFAULT_PANEL_LAYOUT, "right")).toEqual([
+      "shell",
+      "ai",
+    ]);
+    expect(DEFAULT_PANEL_LAYOUT.active.right).toBe("shell");
+  });
+
+  it("moves Files from left to right beside the others", () => {
     const next = movePanel(DEFAULT_PANEL_LAYOUT, "files", "right");
     expect(visibleTabs(next, "left")).toEqual([]);
-    expect(visibleTabs(next, "right")).toEqual(["ai", "files"]);
+    expect(visibleTabs(next, "right")).toEqual(["shell", "ai", "files"]);
     expect(next.active.right).toBe("files");
     expect(next.home.files).toBe("right");
   });

@@ -938,7 +938,6 @@ function AppShellContent({
     />
   );
 
-  const shellFloating = panelLayout.floating.includes("shell");
 
   const dockHandlers = {
     onSelectTab: (side: DockSide) => (id: PanelId) => {
@@ -1270,7 +1269,7 @@ function AppShellContent({
                   nodes={nodes}
                   refreshKey={shellRefreshKey}
                   onNotesChanged={bumpShellRefresh}
-                  compactMeta={shellFloating}
+                  compactMeta
                 />
               </PersistentPanel>
               <PopOutLayer

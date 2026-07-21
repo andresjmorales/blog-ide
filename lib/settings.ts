@@ -29,6 +29,8 @@ export type EditorPrefs = {
   sidenoteLayout?: SidenoteLayout;
   /** Open the footnote editor card on superscript hover. */
   footnoteOpenOnHover?: boolean;
+  /** Hover cards with page previews on hyperlinks (core feature; on by default). */
+  linkPreviews?: boolean;
   /** Browser spellcheck in the editor (off by default). */
   spellcheckEnabled?: boolean;
   /** Default BCP-47 language tags when a document has none set. */
@@ -48,6 +50,7 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   sidenotes: true,
   sidenoteLayout: "sticky",
   footnoteOpenOnHover: true,
+  linkPreviews: true,
   spellcheckEnabled: false,
   spellcheckLanguages: ["en-US"],
 };

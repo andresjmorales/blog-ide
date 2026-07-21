@@ -21,7 +21,9 @@ export const PANEL_IDS: PanelId[] = ["files", "ai", "shell"];
 export const PANEL_LABELS: Record<PanelId, string> = {
   files: "Files",
   ai: "AI assistant",
-  shell: "Shell",
+  // Internal id stays "shell"; the panel is a view of the Inbox folder's
+  // capture channels, so that's what the UI calls it.
+  shell: "Inbox",
 };
 
 export const DOCK_SIDES: DockSide[] = ["left", "right", "bottom"];
@@ -29,24 +31,24 @@ export const DOCK_SIDES: DockSide[] = ["left", "right", "bottom"];
 export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
   docks: {
     left: ["files"],
-    right: ["ai"],
+    right: ["shell", "ai"],
     bottom: [],
   },
   active: {
     left: "files",
-    right: "ai",
+    right: "shell",
     bottom: null,
   },
   visible: {
     files: true,
     ai: true,
-    shell: false,
+    shell: true,
   },
   floating: [],
   home: {
     files: "left",
     ai: "right",
-    shell: "bottom",
+    shell: "right",
   },
   sizes: {
     left: 240,

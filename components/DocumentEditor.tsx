@@ -286,10 +286,12 @@ export function DocumentEditor({
             </div>
           </div>
           {shellDock}
-          <LinkHoverCard
-            editor={editor}
-            roots={sidenoteRailEl ? [sidenoteRailEl] : []}
-          />
+          {prefs.linkPreviews && (
+            <LinkHoverCard
+              editor={editor}
+              roots={sidenoteRailEl ? [sidenoteRailEl] : []}
+            />
+          )}
         </div>
         {railEnabled && editor && (
           <SidenoteRail
