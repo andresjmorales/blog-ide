@@ -166,6 +166,7 @@ export function DocumentWorkspace({
   });
   const documentNameRef = useRef(documentName);
   const [mode, setMode] = useState<Mode>("wysiwyg");
+  const modeRef = useRef(mode);
   const [sourceText, setSourceText] = useState("");
   const [lossyWarning, setLossyWarning] = useState(false);
   const [lossyDiffOpen, setLossyDiffOpen] = useState(false);
@@ -214,6 +215,10 @@ export function DocumentWorkspace({
       author: "",
       body: "",
     });
+    // Clear the previous document's raw markdown so a source-mode switch can
+    // never render (and then autosave) the old essay under the new id. The
+    // loader repopulates it once the new document arrives.
+    setSourceText("");
     setLoading(Boolean(persistEnabled && nodeId));
     setLoadError(null);
   }
@@ -229,6 +234,10 @@ export function DocumentWorkspace({
   useEffect(() => {
     baseVersionRef.current = baseVersion;
   }, [baseVersion]);
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   useEffect(() => {
     nodeIdRef.current = nodeId;
@@ -345,6 +354,12 @@ export function DocumentWorkspace({
           unpacked.author,
           unpacked.body
         );
+        // Keep the source view showing THIS document. Without this, switching
+        // essays while in markdown mode left the previous essay's text in the
+        // textarea, and a keystroke would save it over the new document.
+        if (modeRef.current === "source") {
+          setSourceText(packed);
+        }
         if (unpacked.changed) {
           // Persist migration of legacy `# Title` out of the body.
           persistMarkdownRef.current(packed);
