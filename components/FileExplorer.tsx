@@ -6,6 +6,7 @@ import {
   type ContextMenuItem,
 } from "@/components/ExplorerContextMenu";
 import {
+  compareSiblings,
   eligibleMoveFolders,
   folderPathLabel,
   getInboxNode,
@@ -29,6 +30,7 @@ type Props = {
   onRestore: (nodeId: string, parentId: string | null) => void;
   onMoveTo: (nodeId: string, parentId: string | null) => void;
   onRename: (nodeId: string) => void;
+  onTogglePin: (nodeId: string, pinned: boolean) => void;
   onDeleteForever: (nodeId: string) => void;
   loading?: boolean;
   error?: string | null;
@@ -46,7 +48,7 @@ function childrenOf(
 ): WorkspaceNode[] {
   return nodes
     .filter((node) => node.parent_id === parentId)
-    .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
+    .sort(compareSiblings);
 }
 
 /** Display label — hide the .md extension; storage still uses it. */
@@ -69,6 +71,7 @@ export function FileExplorer({
   onRestore,
   onMoveTo,
   onRename,
+  onTogglePin,
   onDeleteForever,
   loading,
   error,
@@ -179,6 +182,14 @@ export function FileExplorer({
         disabled: inTrash,
         onSelect: () => onRename(node.id),
       });
+      if (!inTrash) {
+        items.push({
+          kind: "action",
+          id: "pin",
+          label: node.pinned ? "Unpin" : "Pin to top",
+          onSelect: () => onTogglePin(node.id, !node.pinned),
+        });
+      }
     }
 
     if (inTrash) {
@@ -413,6 +424,16 @@ function DocPlusIcon() {
   );
 }
 
+function KebabIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+      <circle cx="8" cy="3.5" r="1.25" />
+      <circle cx="8" cy="8" r="1.25" />
+      <circle cx="8" cy="12.5" r="1.25" />
+    </svg>
+  );
+}
+
 function FolderPlusIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
@@ -469,35 +490,51 @@ function TreeNode({
         >
           <span className="min-w-0 flex-1 truncate text-sm font-medium">
             {displayName(node)}/
+            {node.pinned && (
+              <span className="ml-2 text-[10px] font-mono uppercase text-muted">
+                pinned
+              </span>
+            )}
           </span>
-          {!isInTrash(node.id, nodes, trashId) && (
-            <span className="explorer-folder-actions inline-flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-              <button
-                type="button"
-                title={`New document in ${node.name}`}
-                aria-label={`New document in ${node.name}`}
-                className="explorer-icon-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onNewDocument(node.id);
-                }}
-              >
-                <DocPlusIcon />
-              </button>
-              <button
-                type="button"
-                title={`New folder in ${node.name}`}
-                aria-label={`New folder in ${node.name}`}
-                className="explorer-icon-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onNewFolder(node.id);
-                }}
-              >
-                <FolderPlusIcon />
-              </button>
-            </span>
-          )}
+          <span className="explorer-folder-actions inline-flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+            {!isInTrash(node.id, nodes, trashId) && (
+              <>
+                <button
+                  type="button"
+                  title={`New document in ${node.name}`}
+                  aria-label={`New document in ${node.name}`}
+                  className="explorer-icon-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onNewDocument(node.id);
+                  }}
+                >
+                  <DocPlusIcon />
+                </button>
+                <button
+                  type="button"
+                  title={`New folder in ${node.name}`}
+                  aria-label={`New folder in ${node.name}`}
+                  className="explorer-icon-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onNewFolder(node.id);
+                  }}
+                >
+                  <FolderPlusIcon />
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              title={`Options for ${node.name}`}
+              aria-label={`Options for ${node.name}`}
+              className="explorer-icon-btn"
+              onClick={(e) => onContextMenu(e, node)}
+            >
+              <KebabIcon />
+            </button>
+          </span>
         </div>
         {visibleKids.length > 0 && (
           <ul>
@@ -524,17 +561,27 @@ function TreeNode({
   if (node.kind === "link") {
     return (
       <li>
-        <a
-          href={node.url ?? "#"}
-          target="_blank"
-          rel="noreferrer"
-          className="block truncate rounded px-2 py-1.5 text-muted hover:bg-panel hover:text-foreground"
-          style={{ paddingLeft }}
-          title={node.url ?? node.name}
+        <div
+          className="group flex items-center rounded hover:bg-panel"
           onContextMenu={(e) => onContextMenu(e, node)}
         >
-          ↗ {displayName(node)}
-        </a>
+          <a
+            href={node.url ?? "#"}
+            target="_blank"
+            rel="noreferrer"
+            className="block min-w-0 flex-1 truncate rounded px-2 py-1.5 text-muted hover:text-foreground"
+            style={{ paddingLeft }}
+            title={node.url ?? node.name}
+          >
+            ↗ {displayName(node)}
+            {node.pinned && (
+              <span className="ml-2 text-[10px] font-mono uppercase text-muted">
+                pinned
+              </span>
+            )}
+          </a>
+          <RowKebab node={node} onContextMenu={onContextMenu} />
+        </div>
       </li>
     );
   }
@@ -542,24 +589,52 @@ function TreeNode({
   const active = node.id === activeNodeId;
   return (
     <li>
-      <button
-        type="button"
-        onClick={() => onOpen(node.id)}
-        onContextMenu={(e) => onContextMenu(e, node)}
-        className={`flex w-full items-center truncate rounded px-2 py-1.5 text-left ${
-          active
-            ? "bg-panel font-medium text-foreground"
-            : "text-muted hover:bg-panel/70 hover:text-foreground"
+      <div
+        className={`group flex items-center rounded ${
+          active ? "bg-panel" : "hover:bg-panel/70"
         }`}
-        style={{ paddingLeft }}
+        onContextMenu={(e) => onContextMenu(e, node)}
       >
-        <span className="truncate">{displayName(node)}</span>
-        {node.pinned && (
-          <span className="ml-2 shrink-0 text-[10px] font-mono uppercase text-muted">
-            pinned
-          </span>
-        )}
-      </button>
+        <button
+          type="button"
+          onClick={() => onOpen(node.id)}
+          className={`flex min-w-0 flex-1 items-center truncate rounded px-2 py-1.5 text-left ${
+            active
+              ? "font-medium text-foreground"
+              : "text-muted hover:text-foreground"
+          }`}
+          style={{ paddingLeft }}
+        >
+          <span className="truncate">{displayName(node)}</span>
+          {node.pinned && (
+            <span className="ml-2 shrink-0 text-[10px] font-mono uppercase text-muted">
+              pinned
+            </span>
+          )}
+        </button>
+        <RowKebab node={node} onContextMenu={onContextMenu} />
+      </div>
     </li>
+  );
+}
+
+/** Hover-revealed ⋯ button opening the same menu as a right-click. */
+function RowKebab({
+  node,
+  onContextMenu,
+}: {
+  node: WorkspaceNode;
+  onContextMenu: (e: MouseEvent, node: WorkspaceNode) => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={`Options for ${node.name}`}
+      aria-label={`Options for ${node.name}`}
+      className="explorer-icon-btn mr-1 shrink-0 opacity-0 transition-opacity focus:opacity-100 group-hover:opacity-100"
+      onClick={(e) => onContextMenu(e, node)}
+    >
+      <KebabIcon />
+    </button>
   );
 }

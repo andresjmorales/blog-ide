@@ -9,7 +9,10 @@ import {
 } from "react";
 import type { Editor } from "@tiptap/core";
 import { DocumentEditor } from "@/components/DocumentEditor";
-import { EditorOverflowMenu } from "@/components/EditorOverflowMenu";
+import {
+  EditorOverflowMenu,
+  type OverflowItem,
+} from "@/components/EditorOverflowMenu";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { openPublicationPreviewTab } from "@/lib/preview/publicationHtml";
 import { splitFrontmatter } from "@/lib/markdown/frontmatter";
@@ -83,15 +86,19 @@ function unpackDocument(
     frontmatter = writeSubtitle(frontmatter, subtitle);
   }
   const author = parseAuthor(frontmatter);
+  // Whitespace-only bodies render identically to empty ones but defeat the
+  // editor's is-empty detection (placeholder missing, stray caret line).
+  const body = legacy.body.trim() === "" ? "" : legacy.body;
   const changed =
     normalized.changed ||
     frontmatter !== normalized.frontmatter ||
-    legacy.body !== normalized.body;
+    legacy.body !== normalized.body ||
+    body !== legacy.body;
   return {
     frontmatter,
     subtitle,
     author,
-    body: legacy.body,
+    body,
     title: normalized.title,
     changed,
   };
@@ -926,19 +933,14 @@ export function DocumentWorkspace({
     }
   }
 
-  const overflowItems = [
+  const overflowItems: OverflowItem[] = [
+    // View
     {
-      id: "copy",
-      label: "Copy",
+      id: "mode",
+      label: mode === "wysiwyg" ? "See markdown" : "Rich text",
       onSelect: () => {
-        void copyForExport();
-      },
-    },
-    {
-      id: "export",
-      label: "Export .md",
-      onSelect: () => {
-        void exportMarkdownFile();
+        if (mode === "wysiwyg") toSource();
+        else toWysiwyg();
       },
     },
     {
@@ -960,19 +962,31 @@ export function DocumentWorkspace({
         }
       },
     },
+    { kind: "separator", id: "sep-export" },
+    // Export
     {
-      id: "mode",
-      label: mode === "wysiwyg" ? "See markdown" : "Rich text",
+      id: "copy",
+      label: "Copy all text",
       onSelect: () => {
-        if (mode === "wysiwyg") toSource();
-        else toWysiwyg();
+        void copyForExport();
       },
     },
+    {
+      id: "export",
+      label: "Export .md",
+      onSelect: () => {
+        void exportMarkdownFile();
+      },
+    },
+    // Tools
+    ...(mode === "wysiwyg" || (persistEnabled && nodeId)
+      ? [{ kind: "separator", id: "sep-tools" } as OverflowItem]
+      : []),
     ...(mode === "wysiwyg"
       ? [
           {
             id: "fix-notes",
-            label: "Fix notes",
+            label: "Fix footnotes",
             onSelect: () => {
               void convertFootnoteLinks();
             },
@@ -988,6 +1002,7 @@ export function DocumentWorkspace({
           },
         ]
       : []),
+    { kind: "separator", id: "sep-settings" },
     {
       id: "essay-settings",
       label: "Essay settings",

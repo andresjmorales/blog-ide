@@ -116,7 +116,12 @@ export function DocumentEditor({
     // Placeholder is UI-only; it stays out of the shared markdown schema.
     extensions: [
       ...createExtensions().map(withEditorNodeViews),
-      Placeholder.configure({ placeholder: "Start writing…" }),
+      Placeholder.configure({
+        placeholder: "Start writing…",
+        // Default (true) only decorates the node holding the caret, so an
+        // unfocused empty doc showed no placeholder at all.
+        showOnlyCurrent: false,
+      }),
     ],
     content: parseBody(markdown),
     immediatelyRender: false,

@@ -165,6 +165,12 @@ export function parseBody(body: string): JSONContent {
   const prepared = prepareFootnotes(withoutTrailer);
   const withCaptions = prepareImageCaptions(prepared.markdown);
   const doc = getManager().parse(withCaptions);
+  // An empty body parses to a doc with NO children. The editor renders that
+  // as nothing at all: no paragraph to type in, no placeholder to show, and
+  // clicking yields a gap cursor. Guarantee one empty paragraph.
+  if (!Array.isArray(doc.content) || doc.content.length === 0) {
+    doc.content = [{ type: "paragraph" }];
+  }
   doc.attrs = {
     ...doc.attrs,
     orphanFootnotes: prepared.orphans,

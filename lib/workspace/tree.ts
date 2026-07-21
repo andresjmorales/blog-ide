@@ -52,11 +52,53 @@ export function isInTrash(
 }
 
 export function isScratchpad(node: WorkspaceNode): boolean {
+  if (node.system_key === "scratchpad") return true;
+  // Legacy fallback for rows created before the scratchpad got a system_key.
+  // Root-level only, so a user's own pinned "scratchpad.md" inside a folder
+  // is never treated as the system file.
   return (
     node.kind === "document" &&
     node.pinned &&
+    node.parent_id === null &&
     node.name.toLowerCase() === "scratchpad.md"
   );
+}
+
+/**
+ * Sibling ordering for the Files panel: pinned first, then manual position,
+ * then name.
+ */
+export function compareSiblings(a: WorkspaceNode, b: WorkspaceNode): number {
+  return (
+    Number(b.pinned) - Number(a.pinned) ||
+    a.position - b.position ||
+    a.name.localeCompare(b.name)
+  );
+}
+
+/**
+ * De-duplicate a name against its would-be siblings (case-insensitive):
+ * "essay.md" → "essay (2).md". `excludeId` skips the node being renamed.
+ */
+export function uniqueSiblingName(
+  nodes: WorkspaceNode[],
+  parentId: string | null,
+  desired: string,
+  excludeId?: string
+): string {
+  const taken = new Set(
+    nodes
+      .filter((n) => n.parent_id === parentId && n.id !== excludeId)
+      .map((n) => n.name.toLowerCase())
+  );
+  if (!taken.has(desired.toLowerCase())) return desired;
+
+  const isMd = /\.md$/i.test(desired);
+  const stem = isMd ? desired.replace(/\.md$/i, "") : desired;
+  for (let n = 2; ; n++) {
+    const candidate = isMd ? `${stem} (${n}).md` : `${stem} (${n})`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
 }
 
 /** Collect this node and all descendants (documents and folders). */
