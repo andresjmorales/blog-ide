@@ -1,6 +1,7 @@
 "use client";
 
 import { useEditorState, type Editor } from "@tiptap/react";
+import { PanelCaret } from "@/components/icons";
 
 export type OutlineHeading = {
   level: number;
@@ -38,7 +39,7 @@ export function DocumentOutline({ editor, open, onToggle }: Props) {
           title={open ? "Hide outline" : "Show outline"}
         >
           <span className="doc-outline-toggle-label">Outline</span>
-          <span aria-hidden>{open ? "‹" : "›"}</span>
+          <PanelCaret direction={open ? "left" : "right"} />
         </button>
       </aside>
     );
@@ -95,7 +96,7 @@ function DocumentOutlineLive({
         title={open ? "Hide outline" : "Show outline"}
       >
         <span className="doc-outline-toggle-label">Outline</span>
-        <span aria-hidden>{open ? "‹" : "›"}</span>
+        <PanelCaret direction={open ? "left" : "right"} />
       </button>
 
       {open && (

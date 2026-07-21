@@ -18,7 +18,15 @@ import {
   promptForLink,
   setLinkPromptHandler,
 } from "@/lib/editor/linkShortcut";
-import { ImageIcon, ItalicIcon, LinkIcon } from "@/components/icons";
+import {
+  BlockquoteIcon,
+  BulletListIcon,
+  ImageIcon,
+  ItalicIcon,
+  LinkIcon,
+  OrderedListIcon,
+  PanelCaret,
+} from "@/components/icons";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
 import { DocumentOutline } from "@/components/DocumentOutline";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
@@ -314,7 +322,9 @@ export function DocumentEditor({
               }
               onClick={() => updatePrefs({ sidenotes: !prefs.sidenotes })}
             >
-              <span aria-hidden>{prefs.sidenotes ? "›" : "‹"}</span>
+              <PanelCaret
+                direction={prefs.sidenotes ? "right" : "left"}
+              />
             </button>
           </aside>
         )}
@@ -428,7 +438,7 @@ function Toolbar({
               .run();
           }
         }}
-        className="mr-2 rounded border border-border bg-panel px-1.5 py-1 text-xs outline-none"
+        className="mr-2 h-8 rounded border border-border bg-panel px-1.5 text-xs outline-none"
       >
         <option value={0}>Paragraph</option>
         <option value={1}>Heading 1</option>
@@ -464,7 +474,7 @@ function Toolbar({
         title="Inline code (Ctrl+E)"
         active={state.code}
         onClick={() => editor.chain().focus().toggleCode().run()}
-        className="font-mono text-xs"
+        className="font-mono"
       >
         {"<>"}
       </ToolButton>
@@ -472,7 +482,7 @@ function Toolbar({
         title="Code block"
         active={state.codeBlock}
         onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-        className="font-mono text-xs"
+        className="font-mono"
       >
         {"{ }"}
       </ToolButton>
@@ -493,27 +503,21 @@ function Toolbar({
         active={state.blockquote}
         onClick={() => editor.chain().focus().toggleBlockquote().run()}
       >
-        {"\u201C\u201D"}
+        <BlockquoteIcon />
       </ToolButton>
       <ToolButton
         title="Bullet list"
         active={state.bulletList}
         onClick={() => editor.chain().focus().toggleBulletList().run()}
       >
-        • List
+        <BulletListIcon />
       </ToolButton>
       <ToolButton
         title="Ordered list"
         active={state.orderedList}
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
       >
-        1. List
-      </ToolButton>
-      <ToolButton
-        title="Horizontal rule"
-        onClick={() => editor.chain().focus().setHorizontalRule().run()}
-      >
-        —
+        <OrderedListIcon />
       </ToolButton>
       <ToolButton title="Insert image" onClick={() => void insertImage()}>
         <ImageIcon />
@@ -567,8 +571,10 @@ function ToolButton({
       type="button"
       title={title}
       onClick={onClick}
-      className={`inline-flex min-w-8 items-center justify-center rounded px-2 py-1 ${
-        active ? "bg-accent/15 text-accent" : "text-muted hover:bg-panel hover:text-foreground"
+      className={`inline-flex h-8 min-w-8 items-center justify-center rounded px-2 text-[0.8125rem] leading-none ${
+        active
+          ? "bg-accent/15 text-accent"
+          : "text-muted hover:bg-panel hover:text-foreground"
       } ${className}`}
     >
       {children}

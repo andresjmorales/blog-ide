@@ -18,9 +18,12 @@ import {
   promptForLink,
 } from "@/lib/editor/linkShortcut";
 import {
+  BlockquoteIcon,
+  BulletListIcon,
   ImageIcon,
   ItalicIcon,
   LinkIcon,
+  OrderedListIcon,
   PinIcon,
 } from "@/components/icons";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
@@ -414,12 +417,15 @@ export function FootnoteNodeView({
     // (important when opening from a sticky sidenote while the ref is off-screen).
     if (!open || pinned) return;
     function closeOnOutsidePointer(event: PointerEvent) {
-      const targetFootnote =
-        event.target instanceof Element
-          ? event.target
-              .closest("[data-footnote-id]")
-              ?.getAttribute("data-footnote-id")
-          : null;
+      if (!(event.target instanceof Element)) {
+        commitAndClose();
+        return;
+      }
+      // Portaled special-chars panel is outside the card DOM but belongs to it.
+      if (event.target.closest(".special-chars-panel")) return;
+      const targetFootnote = event.target
+        .closest("[data-footnote-id]")
+        ?.getAttribute("data-footnote-id");
       if (targetFootnote !== footnoteId) {
         commitAndClose();
       }
@@ -699,7 +705,7 @@ function FootnoteToolbar({
             active={state.code}
             onClick={() => editor.chain().focus().toggleCode().run()}
           >
-            <span className="font-mono text-[0.65rem]">{"<>"}</span>
+            <span className="font-mono">{"<>"}</span>
           </FootnoteToolButton>
           <span className="footnote-toolbar-sep" aria-hidden />
           <FootnoteToolButton
@@ -707,34 +713,28 @@ function FootnoteToolbar({
             active={state.blockquote}
             onClick={() => editor.chain().focus().toggleBlockquote().run()}
           >
-            {"\u201C\u201D"}
+            <BlockquoteIcon />
           </FootnoteToolButton>
           <FootnoteToolButton
             title="Bullet list"
             active={state.bulletList}
             onClick={() => editor.chain().focus().toggleBulletList().run()}
           >
-            •
+            <BulletListIcon />
           </FootnoteToolButton>
           <FootnoteToolButton
             title="Ordered list"
             active={state.orderedList}
             onClick={() => editor.chain().focus().toggleOrderedList().run()}
           >
-            1.
+            <OrderedListIcon />
           </FootnoteToolButton>
           <FootnoteToolButton
             title="Code block"
             active={state.codeBlock}
             onClick={() => editor.chain().focus().toggleCodeBlock().run()}
           >
-            <span className="font-mono text-[0.65rem]">{"{ }"}</span>
-          </FootnoteToolButton>
-          <FootnoteToolButton
-            title="Horizontal rule"
-            onClick={() => editor.chain().focus().setHorizontalRule().run()}
-          >
-            —
+            <span className="font-mono">{"{ }"}</span>
           </FootnoteToolButton>
           <FootnoteToolButton title="Insert image" onClick={insertImage}>
             <ImageIcon />
@@ -762,8 +762,8 @@ function ExpandIcon({ expanded }: { expanded: boolean }) {
   return (
     <svg
       aria-hidden
-      width="14"
-      height="14"
+      width="16"
+      height="16"
       viewBox="0 0 16 16"
       fill="none"
       className={expanded ? "rotate-180" : ""}

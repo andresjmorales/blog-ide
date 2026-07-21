@@ -547,11 +547,12 @@ html.app-shell-lock body {
   border-radius: 4px;
   color: var(--muted);
   display: inline-flex;
-  font-size: 0.72rem;
+  font-size: 0.8125rem;
+  height: 2rem;
   justify-content: center;
-  min-height: 1.55rem;
-  min-width: 1.7rem;
-  padding: 0.15rem 0.4rem;
+  line-height: 1;
+  min-width: 2rem;
+  padding: 0 0.45rem;
 }
 .footnote-card-toolbar button:hover,
 .footnote-card-toolbar button.is-active {
@@ -880,10 +881,6 @@ html.app-shell-lock body {
   }
   .sidenote-rail-toggle:hover {
     color: var(--foreground);
-  }
-  .sidenote-rail-toggle > span[aria-hidden] {
-    font-size: 0.85rem;
-    line-height: 1;
   }
   /* Collapsed Footnotes rail: slim strip mirroring the Outline pane. */
   .footnote-rail-collapsed {
@@ -1338,34 +1335,40 @@ html.app-shell-lock body {
   padding: 0.1rem 0.45rem;
 }
 .pinned-surface-body {
+  background: var(--panel);
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 0.85rem 1rem 1.25rem;
 }
 .pinned-surface-resize {
   bottom: 0;
   cursor: nwse-resize;
-  height: 14px;
+  height: 16px;
   position: absolute;
   right: 0;
   touch-action: none;
-  width: 14px;
+  width: 16px;
+  z-index: 2;
 }
 .pinned-surface-resize::after {
-  border-bottom: 2px solid var(--border);
-  border-right: 2px solid var(--border);
-  bottom: 4px;
+  border-bottom: 1.5px solid color-mix(in oklab, var(--muted) 55%, transparent);
+  border-right: 1.5px solid color-mix(in oklab, var(--muted) 55%, transparent);
+  bottom: 3px;
   content: "";
-  height: 8px;
+  height: 7px;
   position: absolute;
-  right: 4px;
-  width: 8px;
+  right: 3px;
+  width: 7px;
 }
 .popout-prose {
+  background: var(--background);
+  flex: 1;
   font-size: 0.85rem;
   line-height: 1.55;
+  padding: 0.85rem 1rem 1.1rem;
 }
 .popout-prose .footnote-ref,
 .popout-prose sup {
@@ -1373,9 +1376,12 @@ html.app-shell-lock body {
   font-size: 0.7em;
 }
 .popout-status {
+  background: var(--background);
   color: var(--muted);
+  flex: 1;
   font-size: 0.8rem;
   margin: 0;
+  padding: 0.85rem 1rem;
 }
 .popout-error {
   color: #b42318;
@@ -1448,7 +1454,10 @@ html.app-shell-lock body {
 }
 
 .link-pin-body {
+  background: var(--background);
+  flex: 1;
   font-size: 0.8rem;
+  padding: 0.85rem 1rem 1.1rem;
 }
 .link-pin-image {
   border-radius: 0.35rem;
@@ -1689,14 +1698,15 @@ html.app-shell-lock body {
 
 .pdf-pin-viewer {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  height: 100%;
   min-height: 0;
 }
 .pdf-pin-iframe {
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 0.35rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
   flex: 1;
   min-height: 240px;
   width: 100%;
@@ -1704,5 +1714,6 @@ html.app-shell-lock body {
 .pdf-pin-hint {
   color: var(--muted);
   font-size: 0.68rem;
-  margin: 0.4rem 0 0;
+  margin: 0;
+  padding: 0.4rem 0.75rem 0.5rem;
 }

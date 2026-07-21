@@ -86,13 +86,13 @@ import {
 } from "@/lib/capture/mobileSurface";
 import {
   closeDockablePanelPin,
+  isDockablePanelPinOpen,
   openShellPin,
   openToolPanelPin,
 } from "@/lib/pins/pinStore";
 import {
   closePanel,
   dockHasVisiblePanels,
-  isPanelDocked,
   movePanel,
   PANEL_LABELS,
   popInPanel,
@@ -303,30 +303,37 @@ function AppShellContent({
     [update]
   );
 
-  const syncFloatingPins = useCallback(
-    (prev: PanelLayout, next: PanelLayout) => {
-      for (const id of ["files", "ai", "shell"] as PanelId[]) {
-        const was = prev.floating.includes(id);
-        const now = next.floating.includes(id);
-        if (was === now) continue;
-        if (now) {
-          if (id === "shell") openShellPin();
-          else openToolPanelPin(id, PANEL_LABELS[id]);
-        } else {
-          closeDockablePanelPin(id);
-        }
+  /** Keep in-memory pin windows aligned with persisted layout.floating. */
+  const syncFloatingPins = useCallback((layout: PanelLayout) => {
+    for (const id of ["files", "ai", "shell"] as PanelId[]) {
+      const shouldFloat = layout.floating.includes(id);
+      const open = isDockablePanelPinOpen(id);
+      if (shouldFloat === open) continue;
+      if (shouldFloat) {
+        if (id === "shell") openShellPin();
+        else openToolPanelPin(id, PANEL_LABELS[id]);
+      } else {
+        closeDockablePanelPin(id);
       }
-    },
-    []
-  );
+    }
+  }, []);
 
   const applyLayout = useCallback(
     (next: PanelLayout, persist = true) => {
-      syncFloatingPins(panelLayout, next);
+      syncFloatingPins(next);
       commitLayout(next, persist);
     },
-    [commitLayout, panelLayout, syncFloatingPins]
+    [commitLayout, syncFloatingPins]
   );
+
+  // Prefs restore floating ids across refresh; pin windows are session-only
+  // until this runs and re-opens them.
+  const floatingKey = panelLayout.floating.join("|");
+  useEffect(() => {
+    syncFloatingPins(panelLayout);
+    // Membership of floating panels only — not dock sizes / active tabs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- floatingKey
+  }, [floatingKey, syncFloatingPins]);
 
   const bumpShellRefresh = useCallback(() => {
     setShellRefreshKey((k) => k + 1);
@@ -1000,10 +1007,10 @@ function AppShellContent({
                   onToggle={(id) => applyLayout(togglePanel(panelLayout, id))}
                 />
               )}
-              {!previewMode && (
+              {isMobile && !previewMode && (
                 <ShellButton
                   nodes={nodes}
-                  dockOpen={isPanelDocked(panelLayout, "shell") && !isMobile}
+                  dockOpen={false}
                   onClick={openShell}
                   refreshKey={shellRefreshKey}
                 />

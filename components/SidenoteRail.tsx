@@ -5,6 +5,7 @@ import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
 import { FootnoteSidenote } from "@/components/FootnoteSidenote";
 import { DeletedFootnotesPanel } from "@/components/DeletedFootnotesPanel";
+import { PanelCaret } from "@/components/icons";
 
 type RailNote = {
   id: string;
@@ -213,7 +214,7 @@ export function SidenoteRail({
             onClick={onCollapse}
           >
             <span className="sidenote-rail-label">Footnotes</span>
-            <span aria-hidden>›</span>
+            <PanelCaret direction="right" />
           </button>
         ) : (
           <span className="sidenote-rail-label">Footnotes</span>
