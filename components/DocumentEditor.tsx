@@ -87,7 +87,7 @@ export function DocumentEditor({
   spellcheckLanguages = [],
   shellDock,
 }: Props) {
-  const { prefs } = useEditorPrefs();
+  const { prefs, updatePrefs } = useEditorPrefs();
   const dialog = useAppDialog();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
@@ -296,7 +296,25 @@ export function DocumentEditor({
             editor={editor}
             scrollRoot={scrollEl}
             onRootChange={setSidenoteRailEl}
+            onCollapse={() => updatePrefs({ sidenotes: false })}
           />
+        )}
+        {!railEnabled && editor && (
+          <aside className="footnote-rail-collapsed" aria-label="Footnotes">
+            <button
+              type="button"
+              className="footnote-rail-collapsed-toggle"
+              aria-expanded={prefs.sidenotes}
+              title={
+                prefs.sidenotes
+                  ? "Hide margin footnotes"
+                  : "Show footnotes beside the essay"
+              }
+              onClick={() => updatePrefs({ sidenotes: !prefs.sidenotes })}
+            >
+              <span aria-hidden>{prefs.sidenotes ? "›" : "‹"}</span>
+            </button>
+          </aside>
         )}
       </div>
     </div>
@@ -449,6 +467,14 @@ function Toolbar({
         {"<>"}
       </ToolButton>
       <ToolButton
+        title="Code block"
+        active={state.codeBlock}
+        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+        className="font-mono text-xs"
+      >
+        {"{ }"}
+      </ToolButton>
+      <ToolButton
         title="Add or edit link (Ctrl+K)"
         active={state.link}
         onClick={() => {
@@ -480,14 +506,6 @@ function Toolbar({
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
       >
         1. List
-      </ToolButton>
-      <ToolButton
-        title="Code block"
-        active={state.codeBlock}
-        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-        className="font-mono text-xs"
-      >
-        {"{ }"}
       </ToolButton>
       <ToolButton
         title="Horizontal rule"

@@ -82,6 +82,16 @@ export function FileExplorer({
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [trashOpen, setTrashOpen] = useState(true);
   const [inboxOpen, setInboxOpen] = useState(true);
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+
+  function toggleCollapse(id: string) {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const trash = getTrashNode(nodes);
   const trashId = trash?.id ?? null;
@@ -324,6 +334,8 @@ export function FileExplorer({
             onNewDocument={onNewDocument}
             onNewFolder={onNewFolder}
             onContextMenu={openMenu}
+            collapsedIds={collapsedIds}
+            onToggleCollapse={toggleCollapse}
           />
         ))}
       </ul>
@@ -361,6 +373,8 @@ export function FileExplorer({
                     onNewDocument={onNewDocument}
                     onNewFolder={onNewFolder}
                     onContextMenu={openMenu}
+                    collapsedIds={collapsedIds}
+                    onToggleCollapse={toggleCollapse}
                   />
                 ))
               )}
@@ -402,6 +416,8 @@ export function FileExplorer({
                     onNewDocument={onNewDocument}
                     onNewFolder={onNewFolder}
                     onContextMenu={openMenu}
+                    collapsedIds={collapsedIds}
+                    onToggleCollapse={toggleCollapse}
                   />
                 ))
               )}
@@ -436,6 +452,27 @@ function DocPlusIcon() {
         stroke="currentColor"
         strokeWidth="1.2"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function PinIcon() {
+  return (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden
+      className="shrink-0"
+    >
+      <path
+        d="M9.5 2.5l4 4-1.6.5-2.2 2.2.3 2.8-1.5-.1-2.4-2.4L3 12.6 2.4 12l3.1-3.1L3.1 6.5 3 5l2.8.3L8 3.1l.5-1.6z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="0.6"
+        strokeLinejoin="round"
       />
     </svg>
   );
@@ -499,6 +536,8 @@ function TreeNode({
   onNewDocument,
   onNewFolder,
   onContextMenu,
+  collapsedIds,
+  onToggleCollapse,
 }: {
   node: WorkspaceNode;
   nodes: WorkspaceNode[];
@@ -509,6 +548,8 @@ function TreeNode({
   onNewDocument: (parentId: string | null) => void;
   onNewFolder: (parentId: string | null) => void;
   onContextMenu: (e: MouseEvent, node: WorkspaceNode) => void;
+  collapsedIds: Set<string>;
+  onToggleCollapse: (id: string) => void;
 }) {
   // System folders are rendered separately; never nest them in the main tree.
   const visibleKids = childrenOf(nodes, node.id).filter(
@@ -518,6 +559,7 @@ function TreeNode({
   const paddingLeft = 8 + depth * 12;
 
   if (node.kind === "folder") {
+    const expanded = !collapsedIds.has(node.id);
     return (
       <li>
         <div
@@ -525,14 +567,23 @@ function TreeNode({
           style={{ paddingLeft }}
           onContextMenu={(e) => onContextMenu(e, node)}
         >
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">
-            {displayName(node)}/
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 items-center gap-1 truncate text-left text-sm font-medium"
+            aria-expanded={expanded}
+            title={expanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
+            onClick={() => onToggleCollapse(node.id)}
+          >
+            <span className="inline-block w-3 shrink-0 text-xs" aria-hidden>
+              {expanded ? "▾" : "▸"}
+            </span>
+            <span className="truncate">{displayName(node)}/</span>
             {node.pinned && (
-              <span className="ml-2 text-[10px] font-mono uppercase text-muted">
-                pinned
+              <span className="ml-0.5 inline-flex shrink-0 text-muted" title="Pinned">
+                <PinIcon />
               </span>
             )}
-          </span>
+          </button>
           <span className="explorer-folder-actions inline-flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
             {!isInTrash(node.id, nodes, trashId) && (
               <>
@@ -573,7 +624,7 @@ function TreeNode({
             </button>
           </span>
         </div>
-        {visibleKids.length > 0 && (
+        {expanded && visibleKids.length > 0 && (
           <ul>
             {visibleKids.map((child) => (
               <TreeNode
@@ -587,6 +638,8 @@ function TreeNode({
                 onNewDocument={onNewDocument}
                 onNewFolder={onNewFolder}
                 onContextMenu={onContextMenu}
+                collapsedIds={collapsedIds}
+                onToggleCollapse={onToggleCollapse}
               />
             ))}
           </ul>
@@ -612,8 +665,8 @@ function TreeNode({
           >
             ↗ {displayName(node)}
             {node.pinned && (
-              <span className="ml-2 text-[10px] font-mono uppercase text-muted">
-                pinned
+              <span className="ml-1.5 inline-flex text-muted" title="Pinned">
+                <PinIcon />
               </span>
             )}
           </a>
@@ -644,8 +697,8 @@ function TreeNode({
         >
           <span className="truncate">{displayName(node)}</span>
           {node.pinned && (
-            <span className="ml-2 shrink-0 text-[10px] font-mono uppercase text-muted">
-              pinned
+            <span className="ml-1.5 inline-flex shrink-0 text-muted" title="Pinned">
+              <PinIcon />
             </span>
           )}
         </button>

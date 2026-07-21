@@ -3,7 +3,9 @@
  * workspace filename stem (spec: paths are presentation; title is the label).
  */
 
-const TITLE_LINE_RE = /^title:\s*(.*)$/m;
+// Horizontal whitespace only: `\s*` would cross the newline on a bare
+// `title:` line and swallow the following field.
+const TITLE_LINE_RE = /^title:[ \t]*(.*)$/m;
 
 /** Strip `.md` and decode a workspace file name into a display title. */
 export function fileNameToTitle(fileName: string): string {

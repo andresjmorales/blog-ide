@@ -4,7 +4,9 @@
  * in the body). The rich-text body stays free of a duplicate subtitle block.
  */
 
-const SUBTITLE_LINE_RE = /^subtitle:\s*(.*)$/m;
+// Horizontal whitespace only: `\s*` would cross the newline on a bare
+// `subtitle:` line and swallow the following field.
+const SUBTITLE_LINE_RE = /^subtitle:[ \t]*(.*)$/m;
 
 export function parseSubtitle(frontmatter: string): string {
   const match = frontmatter.match(SUBTITLE_LINE_RE);
@@ -25,10 +27,9 @@ export function writeSubtitle(
   }
 
   if (SUBTITLE_LINE_RE.test(frontmatter)) {
-    if (!line) {
-      return frontmatter.replace(/\n?subtitle:\s*.*(?=\n)/, "");
-    }
-    return frontmatter.replace(SUBTITLE_LINE_RE, line);
+    // Keep an existing key as a bare `subtitle:` when cleared — template
+    // fields must survive edits so exports match the publishing schema.
+    return frontmatter.replace(SUBTITLE_LINE_RE, line ?? "subtitle:");
   }
 
   if (!line) return frontmatter;

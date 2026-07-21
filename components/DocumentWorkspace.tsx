@@ -110,7 +110,10 @@ function packDocument(
   author: string,
   body: string
 ): string {
-  return writeAuthor(writeSubtitle(frontmatter, subtitle), author) + body;
+  const fm = writeAuthor(writeSubtitle(frontmatter, subtitle), author);
+  if (!fm) return body;
+  // Blank line between the closing --- and the essay content.
+  return `${fm}\n${body.replace(/^\n+/, "")}`;
 }
 
 type Mode = "wysiwyg" | "source";
@@ -185,7 +188,7 @@ export function DocumentWorkspace({
   const nodeIdRef = useRef(nodeId);
   const syncingNameRef = useRef(false);
   const prevDocumentNameRef = useRef<string | null | undefined>(documentName);
-  const { prefs, updatePrefs } = useEditorPrefs();
+  const { prefs } = useEditorPrefs();
   const persistEnabled = isSupabaseConfigured() && !previewMode && !!nodeId;
   const documentLanguages = parseSpellcheckLangs(frontmatter);
   const essayTitle =
@@ -241,6 +244,18 @@ export function DocumentWorkspace({
       setSyncFocus(null);
     };
   }, [nodeId]);
+
+  // Browser tab names the essay being edited.
+  useEffect(() => {
+    const title = essayTitle.trim();
+    document.title =
+      title && title !== "Untitled"
+        ? `${title} · BlogIDE Editor`
+        : "BlogIDE Editor";
+    return () => {
+      document.title = "BlogIDE";
+    };
+  }, [essayTitle]);
 
   const restoreDeletedFootnote = useCallback((id: string) => {
     const editor = editorRef.current;
@@ -937,7 +952,7 @@ export function DocumentWorkspace({
     // View
     {
       id: "mode",
-      label: mode === "wysiwyg" ? "See markdown" : "Rich text",
+      label: mode === "wysiwyg" ? "View raw markdown" : "Rich text",
       onSelect: () => {
         if (mode === "wysiwyg") toSource();
         else toWysiwyg();
@@ -1023,21 +1038,6 @@ export function DocumentWorkspace({
           title="Pop out this essay in a floating window"
         >
           Pop out
-        </button>
-      )}
-      {mode === "wysiwyg" && (
-        <button
-          type="button"
-          onClick={() => updatePrefs({ sidenotes: !prefs.sidenotes })}
-          aria-pressed={prefs.sidenotes}
-          className={`hidden rounded border border-border px-2.5 py-1 text-xs md:inline-block ${
-            prefs.sidenotes
-              ? "bg-accent/15 text-accent"
-              : "text-muted hover:bg-panel hover:text-foreground"
-          }`}
-          title="Show footnotes in the margin"
-        >
-          Sidenotes
         </button>
       )}
       <EditorOverflowMenu items={overflowItems} />

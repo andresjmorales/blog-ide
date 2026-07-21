@@ -24,11 +24,14 @@ export function SidenoteRail({
   editor,
   scrollRoot,
   onRootChange,
+  onCollapse,
 }: {
   editor: Editor;
   scrollRoot: HTMLElement | null;
   /** Expose the rail DOM for link hover previews (same as the main editor). */
   onRootChange?: (el: HTMLElement | null) => void;
+  /** Collapse the rail to its slim toggle (like the Outline pane). */
+  onCollapse?: () => void;
 }) {
   const railRef = useRef<HTMLDivElement | null>(null);
   const asideRef = useRef<HTMLElement | null>(null);
@@ -182,7 +185,7 @@ export function SidenoteRail({
       aria-label="Footnotes"
     >
       <div className="sidenote-rail-toolbar">
-        <span className="sidenote-rail-label">Notes</span>
+        <span className="sidenote-rail-label">Footnotes</span>
         <button
           type="button"
           className="sidenote-rail-lock"
@@ -202,6 +205,17 @@ export function SidenoteRail({
           {linked ? <LockIcon locked /> : <LockIcon locked={false} />}
           <span>{linked ? "Linked" : "Free"}</span>
         </button>
+        {onCollapse && (
+          <button
+            type="button"
+            className="sidenote-rail-collapse"
+            title="Collapse footnotes"
+            aria-label="Collapse footnotes"
+            onClick={onCollapse}
+          >
+            ›
+          </button>
+        )}
       </div>
 
       <div
