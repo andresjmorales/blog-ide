@@ -165,7 +165,7 @@ export function PopOutLayer({
               title={pin.title}
               left={pin.left}
               top={pin.top}
-              width={Math.min(pin.width, 380)}
+              width={pin.width}
               height={pin.height}
               zIndex={pin.zIndex}
               onClose={() => {
@@ -175,10 +175,7 @@ export function PopOutLayer({
               onRaise={() => raisePin(pin.id)}
               onMove={(left, top) => updatePin(pin.id, { left, top })}
               onResize={(width, height) =>
-                updatePin(pin.id, {
-                  width: Math.min(width, 380),
-                  height,
-                })
+                updatePin(pin.id, { width, height })
               }
               headerActions={
                 onPopInPanel ? (

@@ -417,12 +417,15 @@ export function FootnoteNodeView({
     // (important when opening from a sticky sidenote while the ref is off-screen).
     if (!open || pinned) return;
     function closeOnOutsidePointer(event: PointerEvent) {
-      const targetFootnote =
-        event.target instanceof Element
-          ? event.target
-              .closest("[data-footnote-id]")
-              ?.getAttribute("data-footnote-id")
-          : null;
+      if (!(event.target instanceof Element)) {
+        commitAndClose();
+        return;
+      }
+      // Portaled special-chars panel is outside the card DOM but belongs to it.
+      if (event.target.closest(".special-chars-panel")) return;
+      const targetFootnote = event.target
+        .closest("[data-footnote-id]")
+        ?.getAttribute("data-footnote-id");
       if (targetFootnote !== footnoteId) {
         commitAndClose();
       }

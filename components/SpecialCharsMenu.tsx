@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
+import { claimFloatZ } from "@/lib/pins/pinStore";
 
 type CharItem = {
   label: string;
@@ -188,15 +189,23 @@ type PanelPos = { top: number; left: number; maxHeight: number };
 export function SpecialCharsMenu({ editor }: { editor: Editor }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<PanelPos | null>(null);
+  const [panelZ, setPanelZ] = useState(80);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
+  function closeMenu() {
+    setOpen(false);
+    setPos(null);
+  }
+
+  function openMenu() {
+    setPanelZ(claimFloatZ());
+    setOpen(true);
+  }
+
   useLayoutEffect(() => {
-    if (!open) {
-      setPos(null);
-      return;
-    }
+    if (!open) return;
 
     function place() {
       const button = buttonRef.current;
@@ -232,14 +241,19 @@ export function SpecialCharsMenu({ editor }: { editor: Editor }) {
       });
     }
 
-    place();
-    // Re-measure after the portaled panel mounts so flip-up uses real height.
-    const raf = requestAnimationFrame(place);
+    // Defer setState out of the effect body (react-hooks/set-state-in-effect).
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      place();
+      // Re-measure after the portaled panel mounts so flip-up uses real height.
+      raf2 = requestAnimationFrame(place);
+    });
     window.addEventListener("resize", place);
     // Capture scroll from nested panes / footnote cards.
     window.addEventListener("scroll", place, true);
     return () => {
-      cancelAnimationFrame(raf);
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
@@ -251,7 +265,7 @@ export function SpecialCharsMenu({ editor }: { editor: Editor }) {
       const target = event.target as globalThis.Node;
       if (rootRef.current?.contains(target)) return;
       if (panelRef.current?.contains(target)) return;
-      setOpen(false);
+      closeMenu();
     }
     // Capture Escape first so a parent surface (e.g. footnote card) does not
     // also close — sequential inserts should stay available until Escape or
@@ -260,7 +274,7 @@ export function SpecialCharsMenu({ editor }: { editor: Editor }) {
       if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      setOpen(false);
+      closeMenu();
     }
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown, true);
@@ -279,13 +293,15 @@ export function SpecialCharsMenu({ editor }: { editor: Editor }) {
         ref={panelRef}
         role="dialog"
         aria-label="Special characters"
-        className="special-chars-panel fixed z-[80] rounded-lg border border-border bg-background p-3 shadow-lg"
+        className="special-chars-panel fixed rounded-lg border border-border bg-background p-3 shadow-lg"
         style={{
           top: pos.top,
           left: pos.left,
           width: Math.min(PANEL_WIDTH, window.innerWidth - VIEWPORT_PAD * 2),
           maxHeight: pos.maxHeight,
+          zIndex: panelZ,
         }}
+        onPointerDown={(event) => event.stopPropagation()}
       >
         <p className="mb-2 text-[0.68rem] uppercase tracking-wider text-muted">
           Insert at cursor · accents apply to the previous letter
@@ -344,7 +360,11 @@ export function SpecialCharsMenu({ editor }: { editor: Editor }) {
         title="Special characters, dashes, accents, LaTeX"
         aria-expanded={open}
         aria-haspopup="dialog"
-        onClick={() => setOpen((value) => !value)}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => {
+          if (open) closeMenu();
+          else openMenu();
+        }}
         className={`inline-flex h-8 min-w-8 items-center justify-center rounded px-2 text-[0.95rem] leading-none text-muted hover:bg-panel hover:text-foreground ${
           open ? "bg-accent/15 text-accent" : ""
         }`}

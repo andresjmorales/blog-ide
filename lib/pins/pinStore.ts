@@ -267,8 +267,8 @@ export function openShellPin(): void {
       id: SHELL_PIN_ID,
       kind: "shell",
       title: "Shell · Inbox",
-      // Narrow chat column — short notes don't need editor-width chrome.
-      ...defaultPlacement({ width: 320, height: 480 }),
+      // Default to a chat-width column; users can resize freely when floated.
+      ...defaultPlacement({ width: 360, height: 480 }),
       zIndex: claimFloatZ(),
     },
   ];
@@ -281,6 +281,17 @@ export function closeShellPin(): void {
 
 export function isShellPinOpen(): boolean {
   return windows.some((w) => w.id === SHELL_PIN_ID);
+}
+
+export function isToolPanelPinOpen(panelId: "files" | "ai"): boolean {
+  return windows.some((w) => w.id === toolPanelPinId(panelId));
+}
+
+export function isDockablePanelPinOpen(
+  panelId: "files" | "ai" | "shell"
+): boolean {
+  if (panelId === "shell") return isShellPinOpen();
+  return isToolPanelPinOpen(panelId);
 }
 
 export function openToolPanelPin(
