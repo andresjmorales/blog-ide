@@ -56,6 +56,7 @@ import { downloadWorkspaceZip } from "@/lib/export/workspaceZip";
 import {
   documentIdsInSubtree,
   getTrashNode,
+  isInTrash,
   isScratchpad,
   isSystemFolder,
   uniqueSiblingName,
@@ -229,6 +230,10 @@ function AppShellContent({
   const prefsRef = useRef(storedPrefs);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Mobile drawers are session-local and default closed: phones open to a
+  // clean editor, and toggling them never rewrites the synced desktop layout.
+  const [mobileLeftOpen, setMobileLeftOpen] = useState(false);
+  const [mobileRightOpen, setMobileRightOpen] = useState(false);
   const mobileSurface = useStoredMobileSurface();
   const [shellRefreshKey, setShellRefreshKey] = useState(0);
   const getMarkdownForAiRef = useRef<() => string | null>(() => null);
@@ -332,8 +337,9 @@ function AppShellContent({
 
   const enterCaptureSurface = useCallback(() => {
     saveMobileSurface("capture");
-    update({ leftOpen: false, rightOpen: false, shellOpen: false });
-  }, [update]);
+    setMobileLeftOpen(false);
+    setMobileRightOpen(false);
+  }, []);
 
   /** Desktop: always pop-out. Phone: full-screen terminal. */
   const openShell = useCallback(() => {
@@ -478,6 +484,37 @@ function AppShellContent({
       cancelled = true;
     };
   }, [previewMode]);
+
+  // Anchor the header/toolbar: the app scrolls in inner panes, so lock the
+  // page itself while the shell is mounted.
+  useEffect(() => {
+    document.documentElement.classList.add("app-shell-lock");
+    return () => document.documentElement.classList.remove("app-shell-lock");
+  }, []);
+
+  // iOS ignores interactive-widget=resizes-content: when the keyboard opens
+  // it pans the page instead, sliding the header off-screen. Track the
+  // visual viewport height into --app-height (the shell root uses it) and
+  // undo any pan, so the caret scrolls inside the editor pane instead.
+  useEffect(() => {
+    if (!isMobile) return;
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const root = document.documentElement;
+    function apply() {
+      if (!viewport) return;
+      root.style.setProperty("--app-height", `${Math.round(viewport.height)}px`);
+      if (window.scrollY || window.scrollX) window.scrollTo(0, 0);
+    }
+    apply();
+    viewport.addEventListener("resize", apply);
+    viewport.addEventListener("scroll", apply);
+    return () => {
+      viewport.removeEventListener("resize", apply);
+      viewport.removeEventListener("scroll", apply);
+      root.style.removeProperty("--app-height");
+    };
+  }, [isMobile]);
 
   // Ask the browser to exempt this origin from storage eviction — Safari
   // purges script-writable storage (incl. IndexedDB drafts) after ~7 days
@@ -814,6 +851,8 @@ function AppShellContent({
     if (previewMode) return;
     const node = nodes.find((n) => n.id === nodeId);
     if (!node || isScratchpad(node) || isSystemFolder(node)) return;
+    // Only items already in the Trash can be destroyed permanently.
+    if (!isInTrash(nodeId, nodes)) return;
 
     const label =
       node.kind === "folder" ? `${node.name}/ and its contents` : node.name;
@@ -871,7 +910,7 @@ function AppShellContent({
       activeNodeId={activeNodeId}
       onOpen={(nodeId) => {
         setActiveNodeId(nodeId);
-        if (isMobile) update({ leftOpen: false });
+        if (isMobile) setMobileLeftOpen(false);
       }}
       onNewDocument={handleNewDocument}
       onNewChannel={handleNewChannel}
@@ -883,6 +922,7 @@ function AppShellContent({
       onRename={handleRename}
       onTogglePin={handleTogglePin}
       onDeleteForever={handleDeleteForever}
+      onExportAll={previewMode ? undefined : () => void exportAll()}
       loading={treeLoading}
       error={treeError}
     />
@@ -940,12 +980,15 @@ function AppShellContent({
   return (
     <EditorPrefsProvider prefs={prefs} updatePrefs={update}>
       <DocumentSessionProvider value={sessionValue}>
-        <div className="flex h-dvh flex-col">
+        <div
+          className="flex h-dvh flex-col"
+          style={{ height: "var(--app-height, 100dvh)" }}
+        >
           <header className="relative flex h-11 shrink-0 items-center justify-between border-b border-border px-3">
             <div className="z-10 flex items-center gap-2">
               {isMobile ? (
                 <button
-                  onClick={() => update({ leftOpen: !prefs.leftOpen })}
+                  onClick={() => setMobileLeftOpen((v) => !v)}
                   title="Toggle Files"
                   className="rounded p-1.5 text-muted hover:bg-panel hover:text-foreground"
                 >
@@ -989,6 +1032,16 @@ function AppShellContent({
               >
                 {previewMode ? "Preview mode · not synced" : syncLabel}
               </span>
+              {!previewMode && (
+                <span
+                  className="inline-flex items-center sm:hidden"
+                  title={syncStatus.error ?? syncLabel}
+                  aria-label={syncStatus.error ?? syncLabel}
+                  role="status"
+                >
+                  <MobileSyncBadge status={syncStatus} />
+                </span>
+              )}
               <UserMenu
                 displayName={resolvedName}
                 email={previewMode ? "" : userEmail}
@@ -996,11 +1049,10 @@ function AppShellContent({
                 onAccountSettings={() => setSettingsOpen(true)}
                 onHelp={() => setHelpOpen(true)}
                 onSignOut={() => void signOut()}
-                onExportAll={() => void exportAll()}
               />
               {isMobile && (
                 <button
-                  onClick={() => update({ rightOpen: !prefs.rightOpen })}
+                  onClick={() => setMobileRightOpen((v) => !v)}
                   title="Toggle AI"
                   className="rounded p-1.5 text-muted hover:bg-panel hover:text-foreground"
                 >
@@ -1083,13 +1135,13 @@ function AppShellContent({
             )}
 
             {/* Mobile left drawer */}
-            {isMobile && prefs.leftOpen && (
+            {isMobile && mobileLeftOpen && (
               <>
                 <button
                   type="button"
                   aria-label="Close file tree"
                   className="absolute inset-0 z-30 bg-black/40 md:hidden"
-                  onClick={() => update({ leftOpen: false })}
+                  onClick={() => setMobileLeftOpen(false)}
                 />
                 <aside
                   style={{ width: Math.min(prefs.leftWidth, 300) }}
@@ -1170,13 +1222,13 @@ function AppShellContent({
             )}
 
             {/* Mobile right drawer */}
-            {isMobile && prefs.rightOpen && (
+            {isMobile && mobileRightOpen && (
               <>
                 <button
                   type="button"
                   aria-label="Close right panel"
                   className="absolute inset-0 z-30 bg-black/40 md:hidden"
-                  onClick={() => update({ rightOpen: false })}
+                  onClick={() => setMobileRightOpen(false)}
                 />
                 <aside
                   style={{ width: Math.min(prefs.rightWidth, 320) }}
@@ -1232,6 +1284,87 @@ function AppShellContent({
       </DocumentSessionProvider>
     </EditorPrefsProvider>
   );
+}
+
+/**
+ * Mobile-only sync indicator: spinner while a save/sync is pending, a
+ * filled "read receipt" check once the essay is synced, red alert on error.
+ */
+function MobileSyncBadge({ status }: { status: SyncStatus }) {
+  if (!status.focusNodeId) return null;
+
+  if (status.error) {
+    return (
+      <svg
+        width="15"
+        height="15"
+        viewBox="0 0 16 16"
+        aria-hidden
+        className="text-red-600 dark:text-red-400"
+      >
+        <circle cx="8" cy="8" r="7" fill="currentColor" />
+        <path
+          d="M8 4.5v4.2M8 11.4v.2"
+          stroke="var(--background)"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
+
+  if (status.syncing || status.dirty) {
+    return (
+      <svg
+        width="15"
+        height="15"
+        viewBox="0 0 16 16"
+        aria-hidden
+        className="animate-spin text-muted"
+      >
+        <circle
+          cx="8"
+          cy="8"
+          r="6"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          opacity="0.25"
+        />
+        <path
+          d="M14 8a6 6 0 0 0-6-6"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
+
+  if (status.syncedAt) {
+    return (
+      <svg
+        width="15"
+        height="15"
+        viewBox="0 0 16 16"
+        aria-hidden
+        className="text-accent"
+      >
+        <circle cx="8" cy="8" r="7" fill="currentColor" />
+        <path
+          d="M4.8 8.2l2.2 2.2 4.2-4.6"
+          fill="none"
+          stroke="var(--background)"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  return null;
 }
 
 function PanelIcon({ side }: { side: "left" | "right" }) {

@@ -97,7 +97,13 @@ export function PersistentPanel({
   // Create once on the client (not in an effect — avoids cascading setState).
   const host = useMemo(() => {
     if (!isClient) return null;
-    return document.createElement("div");
+    const el = document.createElement("div");
+    // The host must fill its slot: a bare div sizes to its content, which
+    // let tall panels (e.g. a long Shell log) overflow the dock's clipped
+    // region — pinned footers like the send row ended up cut off.
+    el.style.cssText =
+      "display:flex;flex-direction:column;flex:1 1 0%;min-height:0;height:100%;overflow:hidden;";
+    return el;
   }, [isClient]);
 
   useLayoutEffect(() => {

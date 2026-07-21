@@ -10,8 +10,6 @@ type Props = {
   onAccountSettings: () => void;
   onHelp: () => void;
   onSignOut: () => void;
-  /** Download every essay as a .zip (hidden in preview mode when absent). */
-  onExportAll?: () => void;
 };
 
 function initialsFromName(name: string, email: string): string {
@@ -31,7 +29,6 @@ export function UserMenu({
   onAccountSettings,
   onHelp,
   onSignOut,
-  onExportAll,
 }: Props) {
   const [open, setOpen] = useState(false);
   // Synced from DOM/storage when the menu opens (avoids SSR mismatch).
@@ -102,20 +99,6 @@ export function UserMenu({
           >
             Account settings
           </button>
-
-          {!previewMode && onExportAll && (
-            <button
-              type="button"
-              role="menuitem"
-              className="user-menu-item"
-              onClick={() => {
-                setOpen(false);
-                onExportAll();
-              }}
-            >
-              Export all (.zip)
-            </button>
-          )}
 
           <label className="user-menu-item user-menu-toggle">
             <span>Dark mode</span>

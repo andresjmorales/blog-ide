@@ -56,7 +56,7 @@ export function ShellChat({
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
 
   const composeChannel =
     channels.find((c) => c.id === composeChannelId) ?? defaultChannel;
@@ -106,9 +106,30 @@ export function ShellChat({
     return notes.filter((n) => n.channelId === filter);
   }, [notes, filter]);
 
+  const scrollToTail = useCallback(() => {
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, []);
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [visible.length, filter]);
+    scrollToTail();
+  }, [visible.length, filter, scrollToTail]);
+
+  // A hidden dock can't scroll (display:none) — when the panel is opened or
+  // resized, re-anchor to the tail unless the user is reading scrollback.
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      const current = listRef.current;
+      if (!current) return;
+      const nearBottom =
+        current.scrollHeight - current.scrollTop - current.clientHeight < 80;
+      if (nearBottom || current.scrollTop === 0) scrollToTail();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [scrollToTail]);
 
   async function send() {
     const text = input.trim();
@@ -187,7 +208,7 @@ export function ShellChat({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {loading && notes.length === 0 && (
           <p className="text-muted"># loading inbox…</p>
         )}
@@ -249,7 +270,6 @@ export function ShellChat({
         {error && (
           <p className="mt-2 text-red-600 dark:text-red-400">! {error}</p>
         )}
-        <div ref={bottomRef} />
       </div>
 
       <form

@@ -390,6 +390,16 @@ body {
   color: var(--muted);
 }
 
+/* While the editor shell is mounted the app scrolls in inner panes only.
+   Locking the page keeps the site header and editor toolbar anchored on
+   mobile (keyboards/panning would otherwise push them off-screen). */
+html.app-shell-lock,
+html.app-shell-lock body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 /* Placeholder-free empty doc: keep the caret visible */
 .editor-prose p.is-editor-empty:first-child::before {
   content: "Start writing…";
