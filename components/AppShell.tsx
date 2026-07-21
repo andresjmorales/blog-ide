@@ -51,6 +51,7 @@ import {
   renameWorkspaceNode,
 } from "@/lib/workspace/api";
 import { pickMarkdownFile } from "@/lib/export/document";
+import { downloadWorkspaceZip } from "@/lib/export/workspaceZip";
 import {
   documentIdsInSubtree,
   getTrashNode,
@@ -476,6 +477,18 @@ function AppShellContent({
     };
   }, [previewMode]);
 
+  // Ask the browser to exempt this origin from storage eviction — Safari
+  // purges script-writable storage (incl. IndexedDB drafts) after ~7 days
+  // without a visit otherwise. Best-effort; browsers may ignore it.
+  useEffect(() => {
+    if (previewMode) return;
+    try {
+      void navigator.storage?.persist?.();
+    } catch {
+      // Older browsers without the Storage API.
+    }
+  }, [previewMode]);
+
   useEffect(() => {
     if (previewMode) return;
 
@@ -563,6 +576,31 @@ function AppShellContent({
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();
+  }
+
+  async function exportAll() {
+    if (previewMode) return;
+    try {
+      const count = await downloadWorkspaceZip();
+      if (count === 0) {
+        await dialog.confirm({
+          title: "Nothing to export",
+          message: "No essays outside the Trash yet.",
+          confirmLabel: "OK",
+          cancelLabel: "Close",
+        });
+      }
+    } catch (error) {
+      await dialog.confirm({
+        title: "Export failed",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Could not build the export archive.",
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
+    }
   }
 
   async function handleNewDocument(parentId: string | null) {
@@ -934,6 +972,7 @@ function AppShellContent({
                 onAccountSettings={() => setSettingsOpen(true)}
                 onHelp={() => setHelpOpen(true)}
                 onSignOut={() => void signOut()}
+                onExportAll={() => void exportAll()}
               />
               {isMobile && (
                 <button

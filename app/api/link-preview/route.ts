@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/supabase/requireUser";
 import { assertSafePublicUrl } from "@/lib/preview/ssrf";
 import { extractOpenGraph, type LinkPreview } from "@/lib/preview/openGraph";
 import { cacheGet, cacheSet } from "@/lib/preview/cache";
@@ -9,6 +10,9 @@ const MAX_BYTES = 512_000;
 const TIMEOUT_MS = 5000;
 
 export async function GET(request: Request) {
+  const denied = await requireUser();
+  if (denied) return denied;
+
   const url = new URL(request.url).searchParams.get("url");
   if (!url) {
     return NextResponse.json({ error: "Missing url" }, { status: 400 });

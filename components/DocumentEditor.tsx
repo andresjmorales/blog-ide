@@ -143,9 +143,22 @@ export function DocumentEditor({
     },
   });
 
+  // Flush the deferred serialize on unmount so a fast doc switch or tab
+  // close can't drop the last ~160ms of typing.
+  const editorForUnmountRef = useRef<Editor | null>(null);
+  useEffect(() => {
+    editorForUnmountRef.current = editor;
+  }, [editor]);
   useEffect(() => {
     return () => {
-      if (emitTimerRef.current) window.clearTimeout(emitTimerRef.current);
+      if (!emitTimerRef.current) return;
+      window.clearTimeout(emitTimerRef.current);
+      emitTimerRef.current = 0;
+      const current = editorForUnmountRef.current;
+      if (!current || current.isDestroyed) return;
+      const next = serializeBody(current.getJSON());
+      lastEmittedRef.current = next;
+      onChangeRef.current(next);
     };
   }, []);
 

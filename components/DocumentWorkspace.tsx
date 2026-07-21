@@ -22,6 +22,7 @@ import {
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 import { getLocalDoc } from "@/lib/db/indexed";
 import {
+  fastForwardDocument,
   flushSyncQueue,
   openDocument,
   saveLocal,
@@ -29,6 +30,8 @@ import {
   subscribeSyncStatus,
   syncDocument,
 } from "@/lib/sync/engine";
+import { restoreDocumentRevision } from "@/lib/workspace/api";
+import { VersionHistoryPanel } from "@/components/VersionHistoryPanel";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   parseSpellcheckLangs,
@@ -157,6 +160,7 @@ export function DocumentWorkspace({
   const [lossyWarning, setLossyWarning] = useState(false);
   const [lossyDiffOpen, setLossyDiffOpen] = useState(false);
   const [essaySettingsOpen, setEssaySettingsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [baseVersion, setBaseVersion] = useState(1);
@@ -164,6 +168,12 @@ export function DocumentWorkspace({
   const flushMarkdownRef = useRef<(() => void) | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Markdown handed to persistMarkdown but not yet written to IndexedDB. */
+  const pendingLocalRef = useRef<{ nodeId: string; markdown: string } | null>(
+    null
+  );
+  /** Last markdown written locally — skip no-op saves from flush paths. */
+  const lastPersistedRef = useRef<string | null>(null);
   const baseVersionRef = useRef(1);
   const nodeIdRef = useRef(nodeId);
   const syncingNameRef = useRef(false);
@@ -176,6 +186,12 @@ export function DocumentWorkspace({
     (documentName ? fileNameToTitle(documentName) : "Untitled");
   const persistMarkdownRef = useRef<(full: string) => void>(() => {});
   const onRenameRef = useRef(onRenameDocument);
+  // Mirror of doc state so event-time flushes can pack markdown without
+  // waiting on a React render (setState updaters run async).
+  const docRef = useRef({ frontmatter, subtitle, author, body });
+  useEffect(() => {
+    docRef.current = { frontmatter, subtitle, author, body };
+  });
 
   // Reset during render when switching docs so the previous essay never paints /
   // autosaves under the new id (avoids setState-in-effect).
@@ -246,6 +262,23 @@ export function DocumentWorkspace({
     if (mode === "source") onDeletedFootnotesChange([]);
   }, [mode, onDeletedFootnotesChange]);
 
+  /**
+   * Write any debounced-but-unsaved draft to IndexedDB right now. Called on
+   * blur / hide / doc switch so a fast tab close can't drop the last ~1s of
+   * typing that was still sitting in the autosave timer.
+   */
+  const commitPendingLocal = useCallback((): Promise<void> => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    const pending = pendingLocalRef.current;
+    if (!pending) return Promise.resolve();
+    pendingLocalRef.current = null;
+    lastPersistedRef.current = pending.markdown;
+    return saveLocal(pending.nodeId, pending.markdown, baseVersionRef.current);
+  }, []);
+
   // Load document when node changes.
   useEffect(() => {
     let cancelled = false;
@@ -271,6 +304,8 @@ export function DocumentWorkspace({
         await flushSyncQueue();
         const opened = await openDocument(nodeId);
         if (cancelled) return;
+        pendingLocalRef.current = null;
+        lastPersistedRef.current = opened.markdown;
         const unpacked = unpackDocument(
           opened.markdown,
           documentNameRef.current
@@ -309,10 +344,21 @@ export function DocumentWorkspace({
     void load();
     return () => {
       cancelled = true;
-      if (saveTimer.current) clearTimeout(saveTimer.current);
       if (syncTimer.current) clearTimeout(syncTimer.current);
+      // Persist any draft still sitting in the autosave debounce before the
+      // editor for this doc goes away (doc switch / unmount).
+      const pending = pendingLocalRef.current;
+      void commitPendingLocal().then(() => {
+        if (pending) void syncDocument(pending.nodeId);
+      });
     };
-  }, [nodeId, persistEnabled, onDocumentLoaded, onRequestTreeRefresh]);
+  }, [
+    nodeId,
+    persistEnabled,
+    onDocumentLoaded,
+    onRequestTreeRefresh,
+    commitPendingLocal,
+  ]);
 
   const syncFilenameFromTitle = useCallback(
     async (fullMarkdown: string) => {
@@ -342,22 +388,30 @@ export function DocumentWorkspace({
   const persistMarkdown = useCallback(
     (fullMarkdown: string) => {
       if (!persistEnabled || !nodeId) return;
+      if (fullMarkdown === lastPersistedRef.current) return;
+      pendingLocalRef.current = { nodeId, markdown: fullMarkdown };
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
-        const version = baseVersionRef.current;
-        void saveLocal(nodeId, fullMarkdown, version).then(() => {
-          void syncFilenameFromTitle(fullMarkdown);
-          if (syncTimer.current) clearTimeout(syncTimer.current);
-          syncTimer.current = setTimeout(() => {
-            void syncDocument(nodeId).then(async () => {
-              const local = await getLocalDoc(nodeId);
-              if (local && nodeIdRef.current === nodeId) {
-                setBaseVersion(local.baseVersion);
-              }
-              onRequestTreeRefresh?.();
-            });
-          }, 1500);
-        });
+        saveTimer.current = null;
+        const pending = pendingLocalRef.current;
+        if (!pending || pending.nodeId !== nodeId) return;
+        pendingLocalRef.current = null;
+        lastPersistedRef.current = pending.markdown;
+        void saveLocal(pending.nodeId, pending.markdown, baseVersionRef.current).then(
+          () => {
+            void syncFilenameFromTitle(pending.markdown);
+            if (syncTimer.current) clearTimeout(syncTimer.current);
+            syncTimer.current = setTimeout(() => {
+              void syncDocument(nodeId).then(async () => {
+                const local = await getLocalDoc(nodeId);
+                if (local && nodeIdRef.current === nodeId) {
+                  setBaseVersion(local.baseVersion);
+                }
+                onRequestTreeRefresh?.();
+              });
+            }, 1500);
+          }
+        );
       }, 1000);
     },
     [
@@ -655,12 +709,109 @@ export function DocumentWorkspace({
     });
   }, [persistEnabled, nodeId]);
 
+  /** Load fresh markdown into editor state (fast-forward / restore). */
+  const applyOpenedMarkdown = useCallback(
+    (markdown: string, version: number) => {
+      pendingLocalRef.current = null;
+      lastPersistedRef.current = markdown;
+      const unpacked = unpackDocument(markdown, documentNameRef.current);
+      setDoc({
+        frontmatter: unpacked.frontmatter,
+        subtitle: unpacked.subtitle,
+        author: unpacked.author,
+        body: unpacked.body,
+      });
+      setBaseVersion(version);
+      if (mode === "source") {
+        setSourceText(
+          packDocument(
+            unpacked.frontmatter,
+            unpacked.subtitle,
+            unpacked.author,
+            unpacked.body
+          )
+        );
+      }
+    },
+    [mode]
+  );
+
+  // On tab wake: if this doc is clean locally but remote advanced (edited on
+  // another device while the tab slept), silently fast-forward the editor
+  // instead of waiting for the next keystroke to manufacture a conflict copy.
+  useEffect(() => {
+    if (!persistEnabled || !nodeId) return;
+    const docId = nodeId;
+    let timer: number | null = null;
+
+    function scheduleFastForward() {
+      if (document.visibilityState !== "visible") return;
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        timer = null;
+        // Never clobber typing that is still debouncing toward IndexedDB.
+        if (pendingLocalRef.current || saveTimer.current) return;
+        void fastForwardDocument(docId).then((updated) => {
+          if (!updated || nodeIdRef.current !== docId) return;
+          if (pendingLocalRef.current || saveTimer.current) return;
+          applyOpenedMarkdown(updated.markdown, updated.baseVersion);
+        });
+      }, 200);
+    }
+
+    document.addEventListener("visibilitychange", scheduleFastForward);
+    window.addEventListener("focus", scheduleFastForward);
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", scheduleFastForward);
+      window.removeEventListener("focus", scheduleFastForward);
+    };
+  }, [persistEnabled, nodeId, applyOpenedMarkdown]);
+
+  /**
+   * Restore an older snapshot. Outstanding edits are flushed and pushed
+   * first, so the pre-restore state is itself snapshotted server-side.
+   */
+  const restoreRevision = useCallback(
+    async (version: number) => {
+      if (!persistEnabled || !nodeId) throw new Error("Not connected.");
+      flushMarkdownRef.current?.();
+      await commitPendingLocal();
+      await syncDocument(nodeId);
+      const result = await restoreDocumentRevision(nodeId, version);
+      if (!result.ok) {
+        throw new Error(
+          result.reason === "quota"
+            ? "Restore blocked: storage quota exceeded."
+            : `Could not restore this version (${result.reason}).`
+        );
+      }
+      const opened = await openDocument(nodeId);
+      if (nodeIdRef.current !== nodeId) return;
+      applyOpenedMarkdown(opened.markdown, opened.baseVersion);
+      onRequestTreeRefresh?.();
+    },
+    [
+      persistEnabled,
+      nodeId,
+      commitPendingLocal,
+      applyOpenedMarkdown,
+      onRequestTreeRefresh,
+    ]
+  );
+
   // Flush on blur / hide / offline reconnect.
   useEffect(() => {
     if (!persistEnabled || !nodeId) return;
 
     function flush() {
-      void flushSyncQueue().then(() => onRequestTreeRefresh?.());
+      // Serialize any keystrokes still in the editor's emit debounce, then
+      // commit the pending local draft before pushing the queue. Ordering
+      // matters: on pagehide the IDB write is what actually protects data.
+      flushMarkdownRef.current?.();
+      void commitPendingLocal()
+        .then(() => flushSyncQueue())
+        .then(() => onRequestTreeRefresh?.());
     }
 
     function onVisibility() {
@@ -680,7 +831,7 @@ export function DocumentWorkspace({
       document.removeEventListener("visibilitychange", onVisibility);
       window.clearInterval(interval);
     };
-  }, [persistEnabled, nodeId, onRequestTreeRefresh]);
+  }, [persistEnabled, nodeId, onRequestTreeRefresh, commitPendingLocal]);
 
   function toSource() {
     flushMarkdownRef.current?.();
@@ -825,6 +976,15 @@ export function DocumentWorkspace({
             onSelect: () => {
               void convertFootnoteLinks();
             },
+          },
+        ]
+      : []),
+    ...(persistEnabled && nodeId
+      ? [
+          {
+            id: "history",
+            label: "Version history",
+            onSelect: () => setHistoryOpen(true),
           },
         ]
       : []),
@@ -993,6 +1153,12 @@ export function DocumentWorkspace({
           onDocumentLanguagesChange={setDocumentLanguages}
           canEditTitle={canRenameDocument}
         />
+        <VersionHistoryPanel
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          nodeId={nodeId}
+          onRestore={restoreRevision}
+        />
       </div>
     );
   }
@@ -1003,22 +1169,23 @@ export function DocumentWorkspace({
         key={nodeId ?? "preview"}
         markdown={body}
         onChange={(md) => {
-          setDoc((current) => {
-            persistMarkdownRef.current(
-              packDocument(
-                current.frontmatter,
-                current.subtitle,
-                current.author,
-                md
-              )
-            );
-            return {
-              frontmatter: current.frontmatter,
-              subtitle: current.subtitle,
-              author: current.author,
-              body: md,
-            };
-          });
+          const current = docRef.current;
+          // Persist synchronously (not inside the setDoc updater): the
+          // pagehide flush relies on this running before the tab dies.
+          persistMarkdownRef.current(
+            packDocument(
+              current.frontmatter,
+              current.subtitle,
+              current.author,
+              md
+            )
+          );
+          setDoc((prev) => ({
+            frontmatter: prev.frontmatter,
+            subtitle: prev.subtitle,
+            author: prev.author,
+            body: md,
+          }));
         }}
         onDeletedFootnotesChange={onDeletedFootnotesChange}
         editorRef={editorRef}
@@ -1040,6 +1207,12 @@ export function DocumentWorkspace({
         documentLanguages={documentLanguages}
         onDocumentLanguagesChange={setDocumentLanguages}
         canEditTitle={canRenameDocument}
+      />
+      <VersionHistoryPanel
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        nodeId={nodeId}
+        onRestore={restoreRevision}
       />
     </>
   );

@@ -18,8 +18,14 @@ markdown.
 - Auth and beta-code-gated signup.
 - Postgres source of truth for the workspace tree, markdown documents,
   metadata, user settings, optimistic versions, and quota accounting.
-- Private Storage bucket for images and other binary assets.
-- Row-level security on every user-owned table and object path.
+- Server-side revision history: every save snapshots the replaced version
+  (last 20 per document), restorable via `restore_document_revision`.
+- Storage bucket for images (objects are world-readable by URL so embedded
+  images work in exported/published essays; paths are user-scoped and
+  uploads are capped and image-only).
+- Row-level security on every user-owned table and object path. Writes that
+  carry invariants (document versions, quota counters, tree structure) are
+  revoked for direct table access and must go through definer RPCs.
 
 ### Next.js server
 
@@ -46,6 +52,13 @@ working layer:
 3. A clean client fast-forwards when a newer remote version exists.
 4. Concurrent dirty edits create a conflict-copy document rather than losing
    either version.
+5. Dirty local copies open without a network round trip, and a clean local
+   copy still opens when Supabase is unreachable (offline).
+6. Local writes and their sync-queue entries commit in single IndexedDB
+   transactions, so a keystroke racing a sync can neither be lost nor
+   resurrect a stale base version.
+7. Blur, tab-hide, doc switch, and unmount flush the debounced draft to
+   IndexedDB immediately before pushing the queue.
 
 Each user has a hard combined quota (default **20 MiB** on the free hosted
 tier) across UTF-8 markdown bytes and binary Storage objects. Authoritative

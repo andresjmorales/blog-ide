@@ -1,9 +1,11 @@
 import {
+  adoptRemoteDoc,
   dequeueSync,
-  enqueueSync,
   getLocalDoc,
   listSyncQueue,
   putLocalDoc,
+  settleSyncedDoc,
+  stageLocalEdit,
   type LocalDoc,
 } from "@/lib/db/indexed";
 import { normalize } from "@/lib/markdown/pipeline";
@@ -103,16 +105,31 @@ export type OpenedDocument = {
   dirty: boolean;
 };
 
+export const SIGNED_OUT_MESSAGE = "Signed out — sign in again to sync.";
+
+/**
+ * Auth-shaped failures (expired JWT, revoked session) — the fix is a login,
+ * not a retry, so the status badge should say that instead of "sync failed".
+ */
+export function isAuthError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const err = error as { code?: unknown; status?: unknown; message?: unknown };
+  if (err.status === 401 || err.status === 403) return true;
+  // PostgREST JWT errors: PGRST301 (expired/invalid), PGRST302 (anon blocked).
+  if (err.code === "PGRST301" || err.code === "PGRST302") return true;
+  const message = typeof err.message === "string" ? err.message : "";
+  return /\bjwt\b|not authenticated|refresh token|invalid claim/i.test(
+    message
+  );
+}
+
 /** Load a document: prefer dirty local copy, else remote, then seed IDB. */
 export async function openDocument(nodeId: string): Promise<OpenedDocument> {
   const local = await getLocalDoc(nodeId);
-  const remote = await fetchRemoteDocument(nodeId);
-
-  if (!remote && !local) {
-    throw new Error("Document not found");
-  }
 
   if (local?.dirty) {
+    // Unsynced local edits always win here; divergence resolves at push
+    // time. Skipping the remote fetch also lets dirty docs open offline.
     // Do not clear conflictCopyId / message — openDocument runs after
     // conflict resolution and was wiping the banner instantly.
     emitFor(nodeId, {
@@ -128,43 +145,55 @@ export async function openDocument(nodeId: string): Promise<OpenedDocument> {
     };
   }
 
-  if (remote) {
-    if (!local || local.baseVersion < remote.version || !local.dirty) {
-      const next: LocalDoc = {
-        nodeId,
-        markdown: remote.markdown,
-        updatedAt: remote.updated_at,
-        dirty: false,
-        baseVersion: Number(remote.version),
-      };
-      await putLocalDoc(next);
-      emitFor(nodeId, {
-        dirty: false,
-        localSavedAt: next.updatedAt,
-        syncedAt: remote.updated_at,
-        error: null,
-      });
-      return {
-        nodeId,
-        markdown: remote.markdown,
-        baseVersion: Number(remote.version),
-        dirty: false,
-      };
-    }
+  let remote: Awaited<ReturnType<typeof fetchRemoteDocument>> = null;
+  let remoteError: unknown = null;
+  try {
+    remote = await fetchRemoteDocument(nodeId);
+  } catch (error) {
+    // Offline or Supabase unreachable — fall back to the local copy below.
+    remoteError = error;
   }
 
-  const fallback = local!;
-  emitFor(nodeId, {
-    dirty: fallback.dirty,
-    localSavedAt: fallback.updatedAt,
-    error: null,
-  });
-  return {
-    nodeId,
-    markdown: fallback.markdown,
-    baseVersion: fallback.baseVersion,
-    dirty: fallback.dirty,
-  };
+  if (remote) {
+    const next: LocalDoc = {
+      nodeId,
+      markdown: remote.markdown,
+      updatedAt: remote.updated_at,
+      dirty: false,
+      baseVersion: Number(remote.version),
+    };
+    await putLocalDoc(next);
+    emitFor(nodeId, {
+      dirty: false,
+      localSavedAt: next.updatedAt,
+      syncedAt: remote.updated_at,
+      error: null,
+    });
+    return {
+      nodeId,
+      markdown: remote.markdown,
+      baseVersion: Number(remote.version),
+      dirty: false,
+    };
+  }
+
+  if (local) {
+    emitFor(nodeId, {
+      dirty: local.dirty,
+      localSavedAt: local.updatedAt,
+      error: null,
+    });
+    return {
+      nodeId,
+      markdown: local.markdown,
+      baseVersion: local.baseVersion,
+      dirty: local.dirty,
+    };
+  }
+
+  throw remoteError instanceof Error
+    ? remoteError
+    : new Error("Document not found");
 }
 
 /**
@@ -177,20 +206,8 @@ export async function saveLocal(
   markdown: string,
   baseVersionHint: number
 ): Promise<void> {
-  const existing = await getLocalDoc(nodeId);
-  const baseVersion = Math.max(
-    existing?.baseVersion ?? 0,
-    baseVersionHint || 0
-  );
   const updatedAt = new Date().toISOString();
-  await putLocalDoc({
-    nodeId,
-    markdown,
-    updatedAt,
-    dirty: true,
-    baseVersion: baseVersion || 1,
-  });
-  await enqueueSync(nodeId, "put");
+  await stageLocalEdit(nodeId, markdown, baseVersionHint, updatedAt);
   const prev = sliceFor(nodeId);
   emitFor(nodeId, {
     dirty: true,
@@ -223,14 +240,7 @@ async function catchUpToRemote(
   remoteVersion: number
 ): Promise<void> {
   const updatedAt = new Date().toISOString();
-  await putLocalDoc({
-    nodeId,
-    markdown: remoteMarkdown,
-    updatedAt,
-    dirty: false,
-    baseVersion: remoteVersion,
-  });
-  await dequeueSync(nodeId);
+  await adoptRemoteDoc(nodeId, remoteMarkdown, remoteVersion, updatedAt);
   emitFor(nodeId, {
     syncing: false,
     dirty: false,
@@ -316,22 +326,23 @@ async function syncDocumentOnce(nodeId: string): Promise<void> {
     );
 
     if (result.ok) {
-      const after = await getLocalDoc(nodeId);
       const updatedAt = new Date().toISOString();
-      const newerEdits =
-        after && after.dirty && after.markdown !== latest.markdown;
+      // Single IDB transaction: keystrokes that landed during the RPC keep
+      // their dirty draft (with the advanced baseVersion); otherwise the doc
+      // goes clean and its queue entry drops. No read-modify-write window.
+      const settled = await settleSyncedDoc(
+        nodeId,
+        latest.markdown,
+        result.version,
+        updatedAt
+      );
 
-      if (newerEdits) {
-        // Keystrokes landed during the RPC — keep them, advance baseVersion.
-        await putLocalDoc({
-          ...after,
-          baseVersion: result.version,
-        });
+      if (settled.dirty) {
         emitFor(nodeId, {
           syncing: false,
           dirty: true,
           syncedAt: updatedAt,
-          localSavedAt: after.updatedAt,
+          localSavedAt: settled.updatedAt,
           error: null,
         });
         // Push the newer draft after the mutex clears (macrotask, not microtask).
@@ -339,14 +350,6 @@ async function syncDocumentOnce(nodeId: string): Promise<void> {
           void syncDocument(nodeId);
         }, 0);
       } else {
-        await putLocalDoc({
-          nodeId,
-          markdown: latest.markdown,
-          dirty: false,
-          baseVersion: result.version,
-          updatedAt,
-        });
-        await dequeueSync(nodeId);
         emitFor(nodeId, {
           syncing: false,
           dirty: false,
@@ -378,10 +381,62 @@ async function syncDocumentOnce(nodeId: string): Promise<void> {
       error: `Cloud sync failed (${result.reason}).`,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Cloud sync failed.";
+    const message = isAuthError(error)
+      ? SIGNED_OUT_MESSAGE
+      : error instanceof Error
+        ? error.message
+        : "Cloud sync failed.";
     emitFor(nodeId, { syncing: false, error: message });
   }
+}
+
+/**
+ * Fast-forward a clean local copy to a newer remote version (edited on
+ * another device while this tab slept). Returns the adopted document when
+ * the open editor should reload, else null. Dirty drafts are left alone —
+ * they resolve through the normal push/conflict path.
+ */
+export async function fastForwardDocument(
+  nodeId: string
+): Promise<OpenedDocument | null> {
+  const local = await getLocalDoc(nodeId);
+  if (local?.dirty) return null;
+
+  let remote: Awaited<ReturnType<typeof fetchRemoteDocument>> = null;
+  try {
+    remote = await fetchRemoteDocument(nodeId);
+  } catch {
+    return null; // offline — nothing to fast-forward
+  }
+  if (!remote) return null;
+
+  const remoteVersion = Number(remote.version);
+  if (local && remoteVersion <= local.baseVersion) return null;
+
+  // Re-check dirtiness atomically-ish: a keystroke may have landed during
+  // the fetch. Never overwrite a dirty draft from here.
+  const fresh = await getLocalDoc(nodeId);
+  if (fresh?.dirty) return null;
+
+  await putLocalDoc({
+    nodeId,
+    markdown: remote.markdown,
+    updatedAt: remote.updated_at,
+    dirty: false,
+    baseVersion: remoteVersion,
+  });
+  emitFor(nodeId, {
+    dirty: false,
+    localSavedAt: remote.updated_at,
+    syncedAt: remote.updated_at,
+    error: null,
+  });
+  return {
+    nodeId,
+    markdown: remote.markdown,
+    baseVersion: remoteVersion,
+    dirty: false,
+  };
 }
 
 /** Push one document to Supabase with optimistic concurrency. */
