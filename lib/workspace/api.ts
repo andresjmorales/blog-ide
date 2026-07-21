@@ -165,3 +165,15 @@ export async function renameWorkspaceNode(
     .eq("id", nodeId);
   if (error) throw error;
 }
+
+/** Pin/unpin a node — pinned siblings sort to the top of the Files panel. */
+export async function setWorkspaceNodePinned(
+  nodeId: string,
+  pinned: boolean
+): Promise<void> {
+  const { error } = await client()
+    .from("workspace_nodes")
+    .update({ pinned, updated_at: new Date().toISOString() })
+    .eq("id", nodeId);
+  if (error) throw error;
+}

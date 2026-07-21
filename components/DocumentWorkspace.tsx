@@ -83,15 +83,19 @@ function unpackDocument(
     frontmatter = writeSubtitle(frontmatter, subtitle);
   }
   const author = parseAuthor(frontmatter);
+  // Whitespace-only bodies render identically to empty ones but defeat the
+  // editor's is-empty detection (placeholder missing, stray caret line).
+  const body = legacy.body.trim() === "" ? "" : legacy.body;
   const changed =
     normalized.changed ||
     frontmatter !== normalized.frontmatter ||
-    legacy.body !== normalized.body;
+    legacy.body !== normalized.body ||
+    body !== legacy.body;
   return {
     frontmatter,
     subtitle,
     author,
-    body: legacy.body,
+    body,
     title: normalized.title,
     changed,
   };

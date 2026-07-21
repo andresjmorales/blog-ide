@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   collectSubtreeIds,
+  compareSiblings,
   documentIdsInSubtree,
   eligibleMoveFolders,
   folderPathLabel,
   isInTrash,
+  isScratchpad,
   listInboxChannels,
+  uniqueSiblingName,
 } from "@/lib/workspace/tree";
 import type { WorkspaceNode } from "@/lib/workspace/types";
 
@@ -82,6 +85,86 @@ describe("eligibleMoveFolders", () => {
       includeTrash: true,
     });
     expect(targets.map((t) => t.id)).toContain(f.trash.id);
+  });
+});
+
+describe("compareSiblings", () => {
+  it("sorts pinned nodes first, then by position", () => {
+    const a = node({ name: "a.md", position: 0 });
+    const b = node({ name: "b.md", position: 1, pinned: true });
+    const c = node({ name: "c.md", position: 2 });
+
+    const sorted = [a, b, c].sort(compareSiblings);
+    expect(sorted.map((n) => n.name)).toEqual(["b.md", "a.md", "c.md"]);
+  });
+});
+
+describe("uniqueSiblingName", () => {
+  it("returns the name unchanged when free", () => {
+    const parent = node({ kind: "folder", name: "essays" });
+    const sibling = node({ name: "one.md", parent_id: parent.id });
+    expect(uniqueSiblingName([parent, sibling], parent.id, "two.md")).toBe(
+      "two.md"
+    );
+  });
+
+  it("suffixes before the .md extension, case-insensitively", () => {
+    const parent = node({ kind: "folder", name: "essays" });
+    const s1 = node({ name: "Essay.md", parent_id: parent.id });
+    const s2 = node({ name: "essay (2).md", parent_id: parent.id });
+    expect(
+      uniqueSiblingName([parent, s1, s2], parent.id, "essay.md")
+    ).toBe("essay (3).md");
+  });
+
+  it("suffixes folders without an extension", () => {
+    const existing = node({ kind: "folder", name: "notes" });
+    expect(uniqueSiblingName([existing], null, "notes")).toBe("notes (2)");
+  });
+
+  it("ignores the node being renamed", () => {
+    const doc = node({ name: "essay.md" });
+    expect(uniqueSiblingName([doc], null, "essay.md", doc.id)).toBe(
+      "essay.md"
+    );
+  });
+
+  it("only considers siblings under the same parent", () => {
+    const folder = node({ kind: "folder", name: "essays" });
+    const nested = node({ name: "essay.md", parent_id: folder.id });
+    expect(uniqueSiblingName([folder, nested], null, "essay.md")).toBe(
+      "essay.md"
+    );
+  });
+});
+
+describe("isScratchpad", () => {
+  it("recognizes the system_key identity", () => {
+    const scratch = node({
+      name: "scratchpad.md",
+      system_key: "scratchpad",
+    });
+    expect(isScratchpad(scratch)).toBe(true);
+  });
+
+  it("falls back to legacy pinned root scratchpad.md", () => {
+    const legacy = node({ name: "scratchpad.md", pinned: true });
+    expect(isScratchpad(legacy)).toBe(true);
+  });
+
+  it("does not hijack a user file named scratchpad.md inside a folder", () => {
+    const folder = node({ kind: "folder", name: "essays" });
+    const userFile = node({
+      name: "scratchpad.md",
+      pinned: true,
+      parent_id: folder.id,
+    });
+    expect(isScratchpad(userFile)).toBe(false);
+  });
+
+  it("does not claim an unpinned root scratchpad.md", () => {
+    const userFile = node({ name: "scratchpad.md" });
+    expect(isScratchpad(userFile)).toBe(false);
   });
 });
 

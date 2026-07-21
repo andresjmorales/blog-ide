@@ -49,6 +49,7 @@ import {
   listWorkspaceNodes,
   moveWorkspaceNode,
   renameWorkspaceNode,
+  setWorkspaceNodePinned,
 } from "@/lib/workspace/api";
 import { pickMarkdownFile } from "@/lib/export/document";
 import { downloadWorkspaceZip } from "@/lib/export/workspaceZip";
@@ -57,6 +58,7 @@ import {
   getTrashNode,
   isScratchpad,
   isSystemFolder,
+  uniqueSiblingName,
 } from "@/lib/workspace/tree";
 import {
   loadActiveDocumentId,
@@ -618,7 +620,7 @@ function AppShellContent({
     }
     if (!name?.trim()) return;
     const title = name.trim().replace(/\.md$/i, "");
-    const fileName = titleToFileName(title);
+    const fileName = uniqueSiblingName(nodes, parentId, titleToFileName(title));
     try {
       const id = await createWorkspaceNode({
         kind: "document",
@@ -646,7 +648,7 @@ function AppShellContent({
     });
     if (!name?.trim()) return;
     const title = name.trim().replace(/\.md$/i, "");
-    const fileName = titleToFileName(title);
+    const fileName = uniqueSiblingName(nodes, inboxId, titleToFileName(title));
     try {
       const id = await createWorkspaceNode({
         kind: "document",
@@ -675,7 +677,7 @@ function AppShellContent({
     if (!picked) return;
     const baseName = picked.name.replace(/\.(md|markdown|txt)$/i, "").trim();
     const title = baseName || "Imported";
-    const fileName = titleToFileName(title);
+    const fileName = uniqueSiblingName(nodes, parentId, titleToFileName(title));
     let markdown = picked.markdown.replace(/^\uFEFF/, "");
     if (!/^---\s*\n/.test(markdown)) {
       markdown = `---\ntitle: ${title}\nstatus: draft\n---\n\n${markdown}`;
@@ -704,11 +706,11 @@ function AppShellContent({
       defaultValue: "notes",
       confirmLabel: "Create",
     });
-    if (!name) return;
+    if (!name?.trim()) return;
     try {
       await createWorkspaceNode({
         kind: "folder",
-        name,
+        name: uniqueSiblingName(nodes, parentId, name.trim()),
         parentId,
       });
       await refreshTree();
@@ -767,8 +769,12 @@ function AppShellContent({
     });
     if (!next?.trim()) return;
 
-    const newName =
-      node.kind === "document" ? titleToFileName(next) : next.trim();
+    const newName = uniqueSiblingName(
+      nodes,
+      node.parent_id,
+      node.kind === "document" ? titleToFileName(next) : next.trim(),
+      node.id
+    );
     try {
       await renameWorkspaceNode(nodeId, newName);
       await refreshTree();
@@ -783,8 +789,25 @@ function AppShellContent({
     if (previewMode) return;
     const node = nodes.find((n) => n.id === nodeId);
     if (!node || isScratchpad(node) || node.name === fileName) return;
-    await renameWorkspaceNode(nodeId, fileName);
+    await renameWorkspaceNode(
+      nodeId,
+      uniqueSiblingName(nodes, node.parent_id, fileName, node.id)
+    );
     await refreshTree();
+  }
+
+  async function handleTogglePin(nodeId: string, pinned: boolean) {
+    if (previewMode) return;
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node || isSystemFolder(node) || isScratchpad(node)) return;
+    try {
+      await setWorkspaceNodePinned(nodeId, pinned);
+      await refreshTree();
+    } catch (error) {
+      setTreeError(
+        error instanceof Error ? error.message : "Could not update pin."
+      );
+    }
   }
 
   async function handleDeleteForever(nodeId: string) {
@@ -858,6 +881,7 @@ function AppShellContent({
       onRestore={handleRestore}
       onMoveTo={handleMoveTo}
       onRename={handleRename}
+      onTogglePin={handleTogglePin}
       onDeleteForever={handleDeleteForever}
       loading={treeLoading}
       error={treeError}

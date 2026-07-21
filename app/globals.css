@@ -399,6 +399,15 @@ body {
   pointer-events: none;
 }
 
+/* Block (gap) cursor: the horizontal blinking bar shown where no text line
+   exists yet — before/after an image or divider. Theme it so it reads as an
+   intentional caret, not a rendering glitch. */
+.editor-prose .ProseMirror-gapcursor:after {
+  border-top: 2px solid var(--accent);
+  width: 1.25em;
+  border-radius: 1px;
+}
+
 /* Footnote reference, editor card, and wide-screen sidenotes (spec §5.2) */
 .footnote-node {
   display: inline;

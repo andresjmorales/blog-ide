@@ -243,12 +243,30 @@ begin
 
   select id into scratch_id
   from workspace_nodes
-  where user_id = uid and parent_id is null and kind = 'document' and name = 'scratchpad.md'
+  where user_id = uid and system_key = 'scratchpad'
   limit 1;
 
   if scratch_id is null then
-    insert into workspace_nodes (user_id, parent_id, kind, name, position, pinned)
-    values (uid, null, 'document', 'scratchpad.md', 2, true)
+    -- Claim a legacy scratchpad from before system_key existed (prefer the
+    -- pinned bootstrap row; fall back to the old name-based match so
+    -- existing installs keep their scratchpad instead of growing a second).
+    select id into scratch_id
+    from workspace_nodes
+    where user_id = uid and parent_id is null and kind = 'document'
+      and lower(name) = 'scratchpad.md'
+    order by pinned desc, created_at asc
+    limit 1;
+
+    if scratch_id is not null then
+      update workspace_nodes
+      set system_key = 'scratchpad', pinned = true
+      where id = scratch_id;
+    end if;
+  end if;
+
+  if scratch_id is null then
+    insert into workspace_nodes (user_id, parent_id, kind, name, position, pinned, system_key)
+    values (uid, null, 'document', 'scratchpad.md', 2, true, 'scratchpad')
     returning id into scratch_id;
 
     insert into documents (node_id, user_id, markdown, status, version, size_bytes)
@@ -553,8 +571,8 @@ begin
     raise exception 'Node not found';
   end if;
 
-  if node.system_key in ('trash', 'inbox') then
-    raise exception 'Cannot move a system folder';
+  if node.system_key in ('trash', 'inbox', 'scratchpad') then
+    raise exception 'Cannot move a system item';
   end if;
 
   if p_parent_id is not null then
@@ -621,8 +639,8 @@ begin
     raise exception 'Node not found';
   end if;
 
-  if node.system_key in ('trash', 'inbox') then
-    raise exception 'Cannot delete a system folder';
+  if node.system_key in ('trash', 'inbox', 'scratchpad') then
+    raise exception 'Cannot delete a system item';
   end if;
 
   delete from workspace_nodes
