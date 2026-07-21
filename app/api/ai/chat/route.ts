@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/supabase/requireUser";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,9 @@ type Body = {
  * Browser SDKs can't call Anthropic/OpenAI directly due to CORS.
  */
 export async function POST(request: Request) {
+  const denied = await requireUser();
+  if (denied) return denied;
+
   const apiKey =
     request.headers.get("x-api-key")?.trim() ||
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();

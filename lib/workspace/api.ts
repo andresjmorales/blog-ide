@@ -104,6 +104,42 @@ export async function deleteWorkspaceNode(nodeId: string): Promise<void> {
   if (error) throw error;
 }
 
+export type DocumentRevision = {
+  node_id: string;
+  version: number;
+  created_at: string;
+  markdown: string;
+};
+
+/** Server-side snapshots of the last 20 saved versions (newest first). */
+export async function listDocumentRevisions(
+  nodeId: string
+): Promise<DocumentRevision[]> {
+  const { data, error } = await client()
+    .from("document_revisions")
+    .select("node_id, version, created_at, markdown")
+    .eq("node_id", nodeId)
+    .order("version", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as DocumentRevision[];
+}
+
+/**
+ * Replace the current document with an older snapshot. Runs through
+ * save_document server-side, so the replaced content is itself snapshotted.
+ */
+export async function restoreDocumentRevision(
+  nodeId: string,
+  version: number
+): Promise<SaveDocumentResult> {
+  const { data, error } = await client().rpc("restore_document_revision", {
+    p_node_id: nodeId,
+    p_version: version,
+  });
+  if (error) throw error;
+  return data as SaveDocumentResult;
+}
+
 export async function renameWorkspaceNode(
   nodeId: string,
   name: string

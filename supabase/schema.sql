@@ -66,6 +66,20 @@ create table if not exists documents (
 
 create index if not exists documents_user_idx on documents (user_id);
 
+-- Snapshot of each replaced document version (last 20 kept per document).
+-- Written only by definer RPCs; excluded from quota accounting.
+create table if not exists document_revisions (
+  node_id uuid not null references workspace_nodes(id) on delete cascade,
+  version bigint not null,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  markdown text not null,
+  created_at timestamptz not null default now(),
+  primary key (node_id, version)
+);
+
+create index if not exists document_revisions_user_idx
+  on document_revisions (user_id);
+
 -- Drop obsolete stub from M1 if present.
 drop table if exists doc_index;
 
@@ -75,6 +89,7 @@ alter table beta_codes enable row level security;
 alter table user_settings enable row level security;
 alter table workspace_nodes enable row level security;
 alter table documents enable row level security;
+alter table document_revisions enable row level security;
 
 -- beta_codes: no client policies (service-role signup only).
 
@@ -116,6 +131,28 @@ create policy "documents owner update" on documents
   for update using (auth.uid() = user_id);
 create policy "documents owner delete" on documents
   for delete using (auth.uid() = user_id);
+
+drop policy if exists "document_revisions owner select" on document_revisions;
+create policy "document_revisions owner select" on document_revisions
+  for select using (auth.uid() = user_id);
+-- No insert/update/delete policies: revisions are written only by definer RPCs.
+
+-- Grants: RLS scopes rows, but these grants force writes that carry
+-- invariants (versioning, quota, tree integrity) through the RPCs below.
+revoke all on document_revisions from anon, authenticated;
+grant select on document_revisions to authenticated;
+
+revoke insert, update, delete on documents from anon, authenticated;
+
+revoke insert, update on user_settings from anon, authenticated;
+grant insert (user_id, github_repo, github_branch, editor_prefs, updated_at)
+  on user_settings to authenticated;
+grant update (user_id, github_repo, github_branch, editor_prefs, updated_at)
+  on user_settings to authenticated;
+
+revoke insert, update, delete on workspace_nodes from anon, authenticated;
+grant update (name, url, pinned, updated_at)
+  on workspace_nodes to authenticated;
 
 -- Helpers ------------------------------------------------------------------
 
@@ -407,6 +444,14 @@ begin
 
   new_version := doc.version + 1;
 
+  -- Snapshot the version being replaced; keep the last 20 per document.
+  insert into document_revisions (node_id, version, user_id, markdown)
+  values (p_node_id, doc.version, uid, doc.markdown)
+  on conflict (node_id, version) do nothing;
+
+  delete from document_revisions
+  where node_id = p_node_id and version <= doc.version - 20;
+
   update documents
   set
     markdown = p_markdown,
@@ -435,6 +480,49 @@ $$;
 
 revoke all on function public.save_document(uuid, text, bigint) from public;
 grant execute on function public.save_document(uuid, text, bigint) to authenticated;
+
+-- Restore a snapshot through save_document (quota + versioning + a snapshot
+-- of the current content before it is replaced).
+create or replace function public.restore_document_revision(
+  p_node_id uuid,
+  p_version bigint
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+  cur_version bigint;
+  rev_markdown text;
+begin
+  if uid is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  select version into cur_version
+  from documents
+  where node_id = p_node_id and user_id = uid;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'not_found');
+  end if;
+
+  select markdown into rev_markdown
+  from document_revisions
+  where node_id = p_node_id and user_id = uid and version = p_version;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'revision_not_found');
+  end if;
+
+  return public.save_document(p_node_id, rev_markdown, cur_version);
+end;
+$$;
+
+revoke all on function public.restore_document_revision(uuid, bigint) from public;
+grant execute on function public.restore_document_revision(uuid, bigint) to authenticated;
 
 -- Move a node under a new parent (or to workspace root).
 create or replace function public.move_workspace_node(

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/supabase/requireUser";
 import { assertSafePublicUrl } from "@/lib/preview/ssrf";
 import { cacheGet, cacheSet } from "@/lib/preview/cache";
 import { extractOpenGraph } from "@/lib/preview/openGraph";
@@ -46,6 +47,9 @@ function extractMainText(html: string): string {
 }
 
 export async function GET(request: Request) {
+  const denied = await requireUser();
+  if (denied) return denied;
+
   const url = new URL(request.url).searchParams.get("url");
   if (!url) {
     return NextResponse.json({ error: "Missing url" }, { status: 400 });

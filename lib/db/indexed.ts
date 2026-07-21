@@ -54,6 +54,91 @@ export async function getLocalDoc(nodeId: string): Promise<LocalDoc | undefined>
   return db.get("docs", nodeId);
 }
 
+/**
+ * Write a dirty local draft and enqueue its sync in ONE transaction.
+ * The base version can only move forward, so a keystroke saved while a
+ * sync is settling can never resurrect a stale version.
+ */
+export async function stageLocalEdit(
+  nodeId: string,
+  markdown: string,
+  baseVersionHint: number,
+  updatedAt: string
+): Promise<LocalDoc> {
+  const db = await getDb();
+  const tx = db.transaction(["docs", "syncQueue"], "readwrite");
+  const docs = tx.objectStore("docs");
+  const existing = await docs.get(nodeId);
+  const next: LocalDoc = {
+    nodeId,
+    markdown,
+    updatedAt,
+    dirty: true,
+    baseVersion:
+      Math.max(existing?.baseVersion ?? 0, baseVersionHint || 0) || 1,
+  };
+  await docs.put(next);
+  await tx
+    .objectStore("syncQueue")
+    .put({ nodeId, op: "put", queuedAt: updatedAt });
+  await tx.done;
+  return next;
+}
+
+/**
+ * Settle a successful push in ONE transaction: if no newer edit landed while
+ * the RPC was in flight, mark the doc clean and drop the queue entry;
+ * otherwise keep the newer draft dirty and only adopt the new base version.
+ */
+export async function settleSyncedDoc(
+  nodeId: string,
+  pushedMarkdown: string,
+  newBaseVersion: number,
+  updatedAt: string
+): Promise<LocalDoc> {
+  const db = await getDb();
+  const tx = db.transaction(["docs", "syncQueue"], "readwrite");
+  const docs = tx.objectStore("docs");
+  const current = await docs.get(nodeId);
+  let next: LocalDoc;
+  if (!current || current.markdown === pushedMarkdown) {
+    next = {
+      nodeId,
+      markdown: pushedMarkdown,
+      updatedAt,
+      dirty: false,
+      baseVersion: newBaseVersion,
+    };
+    await docs.put(next);
+    await tx.objectStore("syncQueue").delete(nodeId);
+  } else {
+    next = { ...current, baseVersion: newBaseVersion };
+    await docs.put(next);
+  }
+  await tx.done;
+  return next;
+}
+
+/** Adopt the remote copy as clean local state and clear the queue entry. */
+export async function adoptRemoteDoc(
+  nodeId: string,
+  markdown: string,
+  baseVersion: number,
+  updatedAt: string
+): Promise<void> {
+  const db = await getDb();
+  const tx = db.transaction(["docs", "syncQueue"], "readwrite");
+  await tx.objectStore("docs").put({
+    nodeId,
+    markdown,
+    updatedAt,
+    dirty: false,
+    baseVersion,
+  });
+  await tx.objectStore("syncQueue").delete(nodeId);
+  await tx.done;
+}
+
 export async function putLocalDoc(doc: LocalDoc): Promise<void> {
   const db = await getDb();
   await db.put("docs", doc);
