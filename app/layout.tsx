@@ -32,6 +32,9 @@ export const viewport: Viewport = {
     { media: "(prefers-color-scheme: light)", color: "#faf9f6" },
     { media: "(prefers-color-scheme: dark)", color: "#14130f" },
   ],
+  // Shrink the layout viewport when the on-screen keyboard opens (instead of
+  // panning the page), so the app header and toolbar stay anchored.
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({

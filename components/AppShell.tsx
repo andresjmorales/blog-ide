@@ -485,6 +485,37 @@ function AppShellContent({
     };
   }, [previewMode]);
 
+  // Anchor the header/toolbar: the app scrolls in inner panes, so lock the
+  // page itself while the shell is mounted.
+  useEffect(() => {
+    document.documentElement.classList.add("app-shell-lock");
+    return () => document.documentElement.classList.remove("app-shell-lock");
+  }, []);
+
+  // iOS ignores interactive-widget=resizes-content: when the keyboard opens
+  // it pans the page instead, sliding the header off-screen. Track the
+  // visual viewport height into --app-height (the shell root uses it) and
+  // undo any pan, so the caret scrolls inside the editor pane instead.
+  useEffect(() => {
+    if (!isMobile) return;
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const root = document.documentElement;
+    function apply() {
+      if (!viewport) return;
+      root.style.setProperty("--app-height", `${Math.round(viewport.height)}px`);
+      if (window.scrollY || window.scrollX) window.scrollTo(0, 0);
+    }
+    apply();
+    viewport.addEventListener("resize", apply);
+    viewport.addEventListener("scroll", apply);
+    return () => {
+      viewport.removeEventListener("resize", apply);
+      viewport.removeEventListener("scroll", apply);
+      root.style.removeProperty("--app-height");
+    };
+  }, [isMobile]);
+
   // Ask the browser to exempt this origin from storage eviction — Safari
   // purges script-writable storage (incl. IndexedDB drafts) after ~7 days
   // without a visit otherwise. Best-effort; browsers may ignore it.
@@ -948,7 +979,10 @@ function AppShellContent({
   return (
     <EditorPrefsProvider prefs={prefs} updatePrefs={update}>
       <DocumentSessionProvider value={sessionValue}>
-        <div className="flex h-dvh flex-col">
+        <div
+          className="flex h-dvh flex-col"
+          style={{ height: "var(--app-height, 100dvh)" }}
+        >
           <header className="relative flex h-11 shrink-0 items-center justify-between border-b border-border px-3">
             <div className="z-10 flex items-center gap-2">
               {isMobile ? (
