@@ -5,6 +5,7 @@ import {
   ExplorerContextMenu,
   type ContextMenuItem,
 } from "@/components/ExplorerContextMenu";
+import { TreeCaret } from "@/components/icons";
 import {
   compareSiblings,
   eligibleMoveFolders,
@@ -348,7 +349,7 @@ export function FileExplorer({
             onClick={() => setInboxOpen((o) => !o)}
             onContextMenu={(e) => openMenu(e, inbox)}
           >
-            <span className="inline-block w-3">{inboxOpen ? "▾" : "▸"}</span>
+            <TreeCaret expanded={inboxOpen} />
             Inbox
             {inboxChildren.length > 0 && (
               <span className="ml-auto normal-case tracking-normal">
@@ -391,7 +392,7 @@ export function FileExplorer({
             onClick={() => setTrashOpen((o) => !o)}
             onContextMenu={(e) => openMenu(e, trash)}
           >
-            <span className="inline-block w-3">{trashOpen ? "▾" : "▸"}</span>
+            <TreeCaret expanded={trashOpen} />
             Trash
             {trashChildren.length > 0 && (
               <span className="ml-auto normal-case tracking-normal">
@@ -574,9 +575,7 @@ function TreeNode({
             title={expanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
             onClick={() => onToggleCollapse(node.id)}
           >
-            <span className="inline-block w-3 shrink-0 text-xs" aria-hidden>
-              {expanded ? "▾" : "▸"}
-            </span>
+            <TreeCaret expanded={expanded} />
             <span className="truncate">{displayName(node)}/</span>
             {node.pinned && (
               <span className="ml-0.5 inline-flex shrink-0 text-muted" title="Pinned">

@@ -92,7 +92,6 @@ import {
 import {
   closePanel,
   dockHasVisiblePanels,
-  isPanelDocked,
   movePanel,
   PANEL_LABELS,
   popInPanel,
@@ -1000,10 +999,10 @@ function AppShellContent({
                   onToggle={(id) => applyLayout(togglePanel(panelLayout, id))}
                 />
               )}
-              {!previewMode && (
+              {isMobile && !previewMode && (
                 <ShellButton
                   nodes={nodes}
-                  dockOpen={isPanelDocked(panelLayout, "shell") && !isMobile}
+                  dockOpen={false}
                   onClick={openShell}
                   refreshKey={shellRefreshKey}
                 />

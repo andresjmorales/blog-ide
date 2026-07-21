@@ -547,11 +547,12 @@ html.app-shell-lock body {
   border-radius: 4px;
   color: var(--muted);
   display: inline-flex;
-  font-size: 0.72rem;
+  font-size: 0.8125rem;
+  height: 2rem;
   justify-content: center;
-  min-height: 1.55rem;
-  min-width: 1.7rem;
-  padding: 0.15rem 0.4rem;
+  line-height: 1;
+  min-width: 2rem;
+  padding: 0 0.45rem;
 }
 .footnote-card-toolbar button:hover,
 .footnote-card-toolbar button.is-active {
@@ -880,10 +881,6 @@ html.app-shell-lock body {
   }
   .sidenote-rail-toggle:hover {
     color: var(--foreground);
-  }
-  .sidenote-rail-toggle > span[aria-hidden] {
-    font-size: 0.85rem;
-    line-height: 1;
   }
   /* Collapsed Footnotes rail: slim strip mirroring the Outline pane. */
   .footnote-rail-collapsed {

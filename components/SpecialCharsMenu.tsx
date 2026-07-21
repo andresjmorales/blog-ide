@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
 
 type CharItem = {
@@ -9,11 +10,22 @@ type CharItem = {
   title: string;
   /** Wrap the current selection: insert before + selection + after. */
   wrap?: { before: string; after: string };
+  /** Span roughly two character tiles in the flex wrap. */
+  wide?: boolean;
+};
+
+type ActionItem = {
+  label: string;
+  title: string;
+  wide?: boolean;
+  run: (editor: Editor) => void;
 };
 
 type CharGroup = {
   heading: string;
   items: CharItem[];
+  /** Editor actions shown alongside glyphs (e.g. Divider / HR). */
+  actions?: ActionItem[];
 };
 
 const GROUPS: CharGroup[] = [
@@ -82,6 +94,16 @@ const GROUPS: CharGroup[] = [
   },
   {
     heading: "Symbols",
+    actions: [
+      {
+        label: "Divider",
+        title: "Horizontal rule / thematic break",
+        wide: true,
+        run: (editor) => {
+          editor.chain().focus().setHorizontalRule().run();
+        },
+      },
+    ],
     items: [
       { label: "°", insert: "°", title: "Degree" },
       { label: "±", insert: "±", title: "Plus-minus" },
@@ -123,6 +145,10 @@ const GROUPS: CharGroup[] = [
   },
 ];
 
+const PANEL_WIDTH = 352;
+const PANEL_MAX_HEIGHT = 288;
+const VIEWPORT_PAD = 12;
+
 function insertIntoEditor(editor: Editor, item: CharItem) {
   const { from, to, empty } = editor.state.selection;
 
@@ -151,19 +177,81 @@ function insertIntoEditor(editor: Editor, item: CharItem) {
   editor.chain().focus().insertContent(item.insert).run();
 }
 
+function tileClass(wide?: boolean) {
+  return `rounded border border-border bg-panel px-2 py-1 text-sm hover:border-accent hover:text-accent ${
+    wide ? "min-w-[4.75rem] px-3" : "min-w-8"
+  }`;
+}
+
+type PanelPos = { top: number; left: number; maxHeight: number };
+
 export function SpecialCharsMenu({ editor }: { editor: Editor }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<PanelPos | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+
+    function place() {
+      const button = buttonRef.current;
+      if (!button) return;
+      const rect = button.getBoundingClientRect();
+      const width = Math.min(PANEL_WIDTH, window.innerWidth - VIEWPORT_PAD * 2);
+      let left = rect.left;
+      if (left + width > window.innerWidth - VIEWPORT_PAD) {
+        left = Math.max(VIEWPORT_PAD, rect.right - width);
+      }
+      left = Math.max(VIEWPORT_PAD, left);
+
+      const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_PAD;
+      const spaceAbove = rect.top - VIEWPORT_PAD;
+      const preferBelow = spaceBelow >= 160 || spaceBelow >= spaceAbove;
+      const available = preferBelow ? spaceBelow : spaceAbove;
+      const maxHeight = Math.min(PANEL_MAX_HEIGHT, Math.max(140, available - 4));
+      const panelHeight = panelRef.current?.offsetHeight ?? maxHeight;
+      const top = preferBelow
+        ? rect.bottom + 4
+        : Math.max(VIEWPORT_PAD, rect.top - Math.min(panelHeight, maxHeight) - 4);
+
+      setPos((prev) => {
+        if (
+          prev &&
+          prev.top === top &&
+          prev.left === left &&
+          prev.maxHeight === maxHeight
+        ) {
+          return prev;
+        }
+        return { top, left, maxHeight };
+      });
+    }
+
+    place();
+    // Re-measure after the portaled panel mounts so flip-up uses real height.
+    const raf = requestAnimationFrame(place);
+    window.addEventListener("resize", place);
+    // Capture scroll from nested panes / footnote cards.
+    window.addEventListener("scroll", place, true);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     function onPointerDown(event: PointerEvent) {
-      if (
-        rootRef.current &&
-        !rootRef.current.contains(event.target as globalThis.Node)
-      ) {
-        setOpen(false);
-      }
+      const target = event.target as globalThis.Node;
+      if (rootRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setOpen(false);
     }
     // Capture Escape first so a parent surface (e.g. footnote card) does not
     // also close — sequential inserts should stay available until Escape or
@@ -182,57 +270,88 @@ export function SpecialCharsMenu({ editor }: { editor: Editor }) {
     };
   }, [open]);
 
+  const panel =
+    open &&
+    pos &&
+    typeof document !== "undefined" &&
+    createPortal(
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-label="Special characters"
+        className="special-chars-panel fixed z-[80] rounded-lg border border-border bg-background p-3 shadow-lg"
+        style={{
+          top: pos.top,
+          left: pos.left,
+          width: Math.min(PANEL_WIDTH, window.innerWidth - VIEWPORT_PAD * 2),
+          maxHeight: pos.maxHeight,
+        }}
+      >
+        <p className="mb-2 text-[0.68rem] uppercase tracking-wider text-muted">
+          Insert at cursor · accents apply to the previous letter
+        </p>
+        <div
+          className="space-y-3 overflow-y-auto pr-1"
+          style={{ maxHeight: pos.maxHeight - 40 }}
+        >
+          {GROUPS.map((group) => (
+            <section key={group.heading}>
+              <h3 className="mb-1.5 text-[0.68rem] font-medium uppercase tracking-wider text-muted">
+                {group.heading}
+              </h3>
+              <div className="flex flex-wrap gap-1">
+                {group.actions?.map((action) => (
+                  <button
+                    key={`${group.heading}-${action.label}`}
+                    type="button"
+                    title={action.title}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      action.run(editor);
+                    }}
+                    className={tileClass(action.wide)}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+                {group.items.map((item) => (
+                  <button
+                    key={`${group.heading}-${item.label}`}
+                    type="button"
+                    title={item.title}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      insertIntoEditor(editor, item);
+                    }}
+                    className={tileClass(item.wide)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>,
+      document.body
+    );
+
   return (
     <div ref={rootRef} className="special-chars relative">
       <button
+        ref={buttonRef}
         type="button"
         title="Special characters, dashes, accents, LaTeX"
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => setOpen((value) => !value)}
-        className={`min-w-8 rounded px-2 py-1 text-muted hover:bg-panel hover:text-foreground ${
+        className={`inline-flex h-8 min-w-8 items-center justify-center rounded px-2 text-[0.95rem] leading-none text-muted hover:bg-panel hover:text-foreground ${
           open ? "bg-accent/15 text-accent" : ""
         }`}
       >
         Ω
       </button>
-
-      {open && (
-        <div
-          role="dialog"
-          aria-label="Special characters"
-          className="special-chars-panel absolute left-0 top-full z-50 mt-1 w-[min(22rem,calc(100vw-1.5rem))] rounded-lg border border-border bg-background p-3 shadow-lg"
-        >
-          <p className="mb-2 text-[0.68rem] uppercase tracking-wider text-muted">
-            Insert at cursor · accents apply to the previous letter
-          </p>
-          <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
-            {GROUPS.map((group) => (
-              <section key={group.heading}>
-                <h3 className="mb-1.5 text-[0.68rem] font-medium uppercase tracking-wider text-muted">
-                  {group.heading}
-                </h3>
-                <div className="flex flex-wrap gap-1">
-                  {group.items.map((item) => (
-                    <button
-                      key={`${group.heading}-${item.label}`}
-                      type="button"
-                      title={item.title}
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => {
-                        insertIntoEditor(editor, item);
-                      }}
-                      className="min-w-8 rounded border border-border bg-panel px-2 py-1 text-sm hover:border-accent hover:text-accent"
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        </div>
-      )}
+      {panel}
     </div>
   );
 }
