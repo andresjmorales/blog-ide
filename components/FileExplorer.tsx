@@ -32,6 +32,8 @@ type Props = {
   onRename: (nodeId: string) => void;
   onTogglePin: (nodeId: string, pinned: boolean) => void;
   onDeleteForever: (nodeId: string) => void;
+  /** Download every essay (Trash excluded) as a .zip. */
+  onExportAll?: () => void;
   loading?: boolean;
   error?: string | null;
 };
@@ -73,6 +75,7 @@ export function FileExplorer({
   onRename,
   onTogglePin,
   onDeleteForever,
+  onExportAll,
   loading,
   error,
 }: Props) {
@@ -287,6 +290,17 @@ export function FileExplorer({
           >
             <FolderPlusIcon />
           </button>
+          {onExportAll && (
+            <button
+              type="button"
+              title="Export all essays (.zip)"
+              aria-label="Export all essays as a zip"
+              className="explorer-toolbar-btn ml-auto"
+              onClick={onExportAll}
+            >
+              <DownloadIcon />
+            </button>
+          )}
         </div>
       </div>
 
@@ -419,6 +433,26 @@ function DocPlusIcon() {
       <path d="M9.5 1.5V5H13" stroke="currentColor" strokeWidth="1.2" />
       <path
         d="M8 8v4M6 10h4"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M8 2v7.5M5 7l3 3 3-3"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M2.5 11.5v2.5h11v-2.5"
         stroke="currentColor"
         strokeWidth="1.2"
         strokeLinecap="round"

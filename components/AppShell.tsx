@@ -922,6 +922,7 @@ function AppShellContent({
       onRename={handleRename}
       onTogglePin={handleTogglePin}
       onDeleteForever={handleDeleteForever}
+      onExportAll={previewMode ? undefined : () => void exportAll()}
       loading={treeLoading}
       error={treeError}
     />
@@ -1048,7 +1049,6 @@ function AppShellContent({
                 onAccountSettings={() => setSettingsOpen(true)}
                 onHelp={() => setHelpOpen(true)}
                 onSignOut={() => void signOut()}
-                onExportAll={() => void exportAll()}
               />
               {isMobile && (
                 <button
