@@ -12,7 +12,10 @@ import { markShellSeen } from "@/lib/capture/seen";
 import { openDocument } from "@/lib/sync/engine";
 import {
   channelDisplayName,
+  getInboxNode,
   getNotesChannel,
+  getTrashNode,
+  isInTrash,
   listInboxChannels,
 } from "@/lib/workspace/tree";
 import type { WorkspaceNode } from "@/lib/workspace/types";
@@ -21,6 +24,8 @@ export type ListedNote = CaptureNote & {
   channelId: string;
   channelName: string;
 };
+
+const ALL_CHANNELS = "__all__";
 
 type Props = {
   nodes: WorkspaceNode[];
@@ -47,9 +52,23 @@ export function ShellChat({
     () => getNotesChannel(nodes) ?? channels[0] ?? null,
     [nodes, channels]
   );
+  const essayDocs = useMemo(() => {
+    const inboxId = getInboxNode(nodes)?.id ?? null;
+    const trashId = getTrashNode(nodes)?.id ?? null;
+    return nodes
+      .filter(
+        (n) =>
+          n.kind === "document" &&
+          n.parent_id !== inboxId &&
+          !isInTrash(n.id, nodes, trashId)
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [nodes]);
+
   const [filter, setFilter] = useState<string>("all");
   /** Null = use default notes channel when available. */
   const [composeChannelId, setComposeChannelId] = useState<string | null>(null);
+  const [appendDocId, setAppendDocId] = useState<string>("");
   const [notes, setNotes] = useState<ListedNote[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,8 +77,10 @@ export function ShellChat({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
 
-  const composeChannel =
-    channels.find((c) => c.id === composeChannelId) ?? defaultChannel;
+  const sendToAll = composeChannelId === ALL_CHANNELS;
+  const composeChannel = sendToAll
+    ? null
+    : (channels.find((c) => c.id === composeChannelId) ?? defaultChannel);
 
   const loadNotes = useCallback(async () => {
     if (channels.length === 0) {
@@ -88,7 +109,7 @@ export function ShellChat({
       const newest = collected.reduce((max, n) => Math.max(max, n.atMs), 0);
       markShellSeen(Math.max(Date.now(), newest));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load inbox.");
+      setError(err instanceof Error ? err.message : "Could not load notes.");
     } finally {
       setLoading(false);
     }
@@ -133,11 +154,23 @@ export function ShellChat({
 
   async function send() {
     const text = input.trim();
-    if (!text || busy || !composeChannel) return;
+    if (!text || busy) return;
+    const targets = sendToAll
+      ? channels
+      : composeChannel
+        ? [composeChannel]
+        : [];
+    if (targets.length === 0) return;
     setBusy(true);
     setError(null);
     try {
-      await appendQuickNote({ channelNodeId: composeChannel.id, text });
+      const at = new Date();
+      for (const channel of targets) {
+        await appendQuickNote({ channelNodeId: channel.id, text, at });
+      }
+      if (appendDocId) {
+        await appendQuickNote({ channelNodeId: appendDocId, text, at });
+      }
       setInput("");
       await loadNotes();
       onNotesChanged?.();
@@ -178,6 +211,11 @@ export function ShellChat({
     }
   }
 
+  const canSend =
+    Boolean(input.trim()) &&
+    !busy &&
+    (sendToAll ? channels.length > 0 : Boolean(composeChannel));
+
   return (
     <div
       className={`flex min-h-0 flex-1 flex-col bg-panel/40 font-mono text-[0.8rem] ${className}`}
@@ -210,7 +248,7 @@ export function ShellChat({
 
       <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {loading && notes.length === 0 && (
-          <p className="text-muted"># loading inbox…</p>
+          <p className="text-muted"># loading notes…</p>
         )}
         {!loading && visible.length === 0 && (
           <p className="text-muted">
@@ -273,41 +311,63 @@ export function ShellChat({
       </div>
 
       <form
-        className="flex items-center gap-2 border-t border-border px-3 py-2"
+        className="flex flex-col gap-1.5 border-t border-border px-3 py-2"
         onSubmit={(e) => {
           e.preventDefault();
           void send();
         }}
       >
-        <select
-          value={composeChannel?.id ?? ""}
-          onChange={(e) => setComposeChannelId(e.target.value || null)}
-          className="shrink-0 rounded border border-border bg-background px-1.5 py-1 text-[0.7rem] outline-none focus:border-accent"
-          disabled={channels.length === 0}
-          title="Channel"
-        >
-          {channels.map((ch) => (
-            <option key={ch.id} value={ch.id}>
-              {channelDisplayName(ch)}
-            </option>
-          ))}
-        </select>
-        <span className="shrink-0 text-accent" aria-hidden>
-          &gt;
-        </span>
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="note to self…"
-          className="min-w-0 flex-1 border-0 bg-transparent py-1 outline-none placeholder:text-muted"
-        />
-        <button
-          type="submit"
-          disabled={busy || !input.trim() || !composeChannel}
-          className="shrink-0 rounded border border-border px-2 py-1 text-[0.7rem] text-muted hover:border-accent hover:text-accent disabled:opacity-40"
-        >
-          enter
-        </button>
+        <div className="flex items-center gap-2">
+          <select
+            value={sendToAll ? ALL_CHANNELS : (composeChannel?.id ?? "")}
+            onChange={(e) => setComposeChannelId(e.target.value || null)}
+            className="shrink-0 rounded border border-border bg-background px-1.5 py-1 text-[0.7rem] outline-none focus:border-accent"
+            disabled={channels.length === 0}
+            title="Channel"
+          >
+            {channels.map((ch) => (
+              <option key={ch.id} value={ch.id}>
+                {channelDisplayName(ch)}
+              </option>
+            ))}
+            {channels.length > 1 && (
+              <option value={ALL_CHANNELS}>All channels</option>
+            )}
+          </select>
+          <span className="shrink-0 text-accent" aria-hidden>
+            &gt;
+          </span>
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="note to self…"
+            className="min-w-0 flex-1 border-0 bg-transparent py-1 outline-none placeholder:text-muted"
+          />
+          <button
+            type="submit"
+            disabled={!canSend}
+            className="shrink-0 rounded border border-border px-2 py-1 text-[0.7rem] text-muted hover:border-accent hover:text-accent disabled:opacity-40"
+          >
+            enter
+          </button>
+        </div>
+        {essayDocs.length > 0 && (
+          <label className="flex items-center gap-2 text-[0.65rem] text-muted">
+            <span className="shrink-0">Also append to…</span>
+            <select
+              value={appendDocId}
+              onChange={(e) => setAppendDocId(e.target.value)}
+              className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 outline-none focus:border-accent"
+            >
+              <option value="">—</option>
+              {essayDocs.map((doc) => (
+                <option key={doc.id} value={doc.id}>
+                  {doc.name.replace(/\.md$/i, "")}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </form>
     </div>
   );

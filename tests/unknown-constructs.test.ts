@@ -8,9 +8,11 @@ import { parseBody, serializeBody } from "@/lib/markdown/pipeline";
  * survive.
  */
 describe("unknown constructs are never silently dropped", () => {
-  it("preserves GFM tables as literal text", () => {
+  it("parses GFM tables into table nodes (not dropped)", () => {
     const md = "| col a | col b |\n|-------|-------|\n| 1     | 2     |\n";
-    const out = serializeBody(parseBody(md));
+    const doc = parseBody(md);
+    expect(JSON.stringify(doc)).toContain('"type":"table"');
+    const out = serializeBody(doc);
     expect(out).toContain("col a");
     expect(out).toContain("col b");
   });

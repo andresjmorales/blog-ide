@@ -1,5 +1,6 @@
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "@tiptap/markdown";
+import { TableKit } from "@tiptap/extension-table";
 import { Extension, type AnyExtension, type JSONContent } from "@tiptap/core";
 import { FootnoteRef } from "@/lib/editor/footnote";
 import { FootnoteDeletionTracker } from "@/lib/editor/footnoteDeletion";
@@ -8,6 +9,13 @@ import {
   ImageCaptionMarkdown,
   ImageWithCaption,
 } from "@/lib/editor/imageCaption";
+import { StrictOrderedList } from "@/lib/editor/orderedList";
+import {
+  BlockMath,
+  InlineMath,
+  MathBlockMarkdown,
+  MathInlineMarkdown,
+} from "@/lib/editor/math";
 
 /**
  * Spec §5.1: unknown constructs on parse are preserved as literal text —
@@ -53,14 +61,23 @@ export function createExtensions(): AnyExtension[] {
       underline: false,
       // Adds a phantom trailing paragraph that pollutes serialization.
       trailingNode: false,
+      // Replaced by StrictOrderedList (only `1. ` auto-triggers).
+      orderedList: false,
+    }),
+    StrictOrderedList,
+    TableKit.configure({
+      table: { resizable: false },
     }),
     ImageWithCaption,
     ImageCaptionMarkdown,
+    InlineMath,
+    BlockMath,
+    MathInlineMarkdown,
+    MathBlockMarkdown,
     FootnoteRef,
     FootnoteDeletionTracker,
     LinkShortcut,
     Markdown,
-    preserveAsLiteralText("table"),
     preserveAsLiteralText("def"),
   ];
 }

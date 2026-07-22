@@ -69,21 +69,23 @@ export function HelpPanel({ open, onClose }: Props) {
             for the same actions. New document can also Import from .md / .txt.
             Nest folders (e.g. essays/Veganism/). Pop out any document to keep a
             scratchpad floating. Hover links for Open Graph previews — Pin keeps
-            them on screen. Toolbar PDF pins a local PDF. Use ⋯ → Preview in
-            new tab for publication-style HTML with Substack-like footnotes.
-            Edits save locally first, then sync online.
+            them on screen. Open <strong>Library</strong> from the Panels menu to
+            pin local PDFs. Use ⋯ → Preview in new tab for publication-style HTML
+            with Substack-like footnotes. Edits save locally first, then sync
+            online.
           </p>
         </section>
 
         <section className="settings-section">
-          <h3>Inbox &amp; Shell</h3>
+          <h3>Notes &amp; Shell</h3>
           <p className="settings-help">
-            Notes to self land in Inbox channels (default <code>notes</code>) as
-            a chat-style stream. On desktop, open <strong>Shell</strong> from
-            the Panels menu (pop out or dock under the essay — Outline and Notes
-            stay full-height beside a docked Shell). On phone, the header Inbox
-            button stays available, and Shell can open by default (Account
-            settings → Mobile). Scratchpad stays for writing scraps.
+            Notes to self land in Notes channels (default <code>general</code>) as
+            a chat-style stream. On desktop, open <strong>Shell</strong> /{" "}
+            <strong>Notes</strong> from the Panels menu (pop out or dock under
+            the essay — Outline and the footnotes rail stay full-height beside a
+            docked Shell). On phone, the header Notes button stays available, and
+            Shell can open by default (Account settings → Mobile). Scratchpad
+            stays for writing scraps.
           </p>
         </section>
 

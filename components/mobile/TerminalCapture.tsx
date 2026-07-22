@@ -20,6 +20,8 @@ type HistoryLine = CaptureNote & {
   channelName: string;
 };
 
+const ALL_CHANNELS = "__all__";
+
 type Props = {
   nodes: WorkspaceNode[];
   displayName: string;
@@ -91,8 +93,13 @@ export function TerminalCapture({
       ? rememberedId
       : null);
 
-  const activeChannel =
-    channels.find((c) => c.id === preferredId) ?? defaultChannel;
+  const sendToAll = preferredId === ALL_CHANNELS;
+  const activeChannel = sendToAll
+    ? defaultChannel
+    : (channels.find((c) => c.id === preferredId) ?? defaultChannel);
+  const selectValue = sendToAll
+    ? ALL_CHANNELS
+    : (activeChannel?.id ?? "");
 
   // Prevent the document from scrolling under the shell (esp. with keyboard).
   useEffect(() => {
@@ -149,12 +156,22 @@ export function TerminalCapture({
 
   async function send() {
     const text = input.trim();
-    if (!text || busy || !activeChannel) return;
+    const targets = sendToAll
+      ? channels
+      : activeChannel
+        ? [activeChannel]
+        : [];
+    if (!text || busy || targets.length === 0) return;
     setBusy(true);
     setError(null);
     try {
-      await appendQuickNote({ channelNodeId: activeChannel.id, text });
-      saveLastCaptureChannelId(activeChannel.id);
+      const at = new Date();
+      for (const channel of targets) {
+        await appendQuickNote({ channelNodeId: channel.id, text, at });
+      }
+      if (!sendToAll && activeChannel) {
+        saveLastCaptureChannelId(activeChannel.id);
+      }
       setInput("");
       await onRefreshTree?.();
       await loadHistory();
@@ -199,7 +216,7 @@ export function TerminalCapture({
                 BlogIDE<span className="text-accent">::</span>shell
               </p>
               <p className="truncate font-mono text-[0.65rem] text-muted">
-                {displayName}@inbox
+                {displayName}@notes
               </p>
             </div>
           </div>
@@ -218,7 +235,7 @@ export function TerminalCapture({
         >
           <p className="text-muted">
             <span className="text-accent">$</span> notes to self — history looks
-            like prior commands. The desktop Inbox panel shows the same stream.
+            like prior commands. The desktop Notes panel shows the same stream.
           </p>
           <div className="mt-4 space-y-3">
             {loading && history.length === 0 && (
@@ -261,10 +278,13 @@ export function TerminalCapture({
               Channel
             </label>
             <select
-              value={activeChannel?.id ?? ""}
+              value={selectValue}
               onChange={(e) => {
-                setChannelOverride(e.target.value);
-                saveLastCaptureChannelId(e.target.value);
+                const value = e.target.value;
+                setChannelOverride(value);
+                if (value && value !== ALL_CHANNELS) {
+                  saveLastCaptureChannelId(value);
+                }
               }}
               className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1 font-mono text-xs outline-none focus:border-accent"
               disabled={channels.length === 0}
@@ -272,11 +292,16 @@ export function TerminalCapture({
               {channels.length === 0 ? (
                 <option value="">No channels yet</option>
               ) : (
-                channels.map((ch) => (
-                  <option key={ch.id} value={ch.id}>
-                    {channelDisplayName(ch)}
-                  </option>
-                ))
+                <>
+                  {channels.map((ch) => (
+                    <option key={ch.id} value={ch.id}>
+                      {channelDisplayName(ch)}
+                    </option>
+                  ))}
+                  {channels.length > 1 && (
+                    <option value={ALL_CHANNELS}>All channels</option>
+                  )}
+                </>
               )}
             </select>
           </div>
@@ -299,7 +324,11 @@ export function TerminalCapture({
             />
             <button
               type="submit"
-              disabled={busy || !input.trim() || !activeChannel}
+              disabled={
+                busy ||
+                !input.trim() ||
+                (sendToAll ? channels.length === 0 : !activeChannel)
+              }
               className="mb-0.5 shrink-0 rounded bg-accent px-3 py-2 font-mono text-xs font-medium text-white disabled:opacity-40"
             >
               Send

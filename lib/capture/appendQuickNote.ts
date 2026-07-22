@@ -2,7 +2,7 @@ import { appendCaptureBulletToMarkdown } from "@/lib/capture/format";
 import { openDocument, saveLocal, syncDocument } from "@/lib/sync/engine";
 
 /**
- * Append a timestamped capture bullet to an Inbox channel document and sync.
+ * Append a timestamped capture bullet to a Notes channel (or any document) and sync.
  */
 export async function appendQuickNote(input: {
   channelNodeId: string;

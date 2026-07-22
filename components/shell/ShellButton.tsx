@@ -59,8 +59,8 @@ export function ShellButton({
       onClick={onClick}
       title={
         unread > 0
-          ? `Inbox · ${unread} unread note${unread === 1 ? "" : "s"}`
-          : "Inbox · notes to self"
+          ? `Notes · ${unread} unread note${unread === 1 ? "" : "s"}`
+          : "Notes · notes to self"
       }
       className={`relative inline-flex items-center gap-1.5 rounded border px-2 py-1 font-mono text-[0.65rem] uppercase tracking-wider ${
         active
@@ -69,7 +69,7 @@ export function ShellButton({
       }`}
     >
       <TerminalIcon />
-      Inbox
+      Notes
       {unread > 0 && (
         <span className="absolute -right-1.5 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-accent px-0.5 text-[0.55rem] font-semibold normal-case tracking-normal text-white">
           {unread > 9 ? "9+" : unread}

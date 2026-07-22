@@ -2,6 +2,7 @@ import { MarkdownManager } from "@tiptap/markdown";
 import type { JSONContent } from "@tiptap/core";
 import { createExtensions } from "@/lib/editor/extensions";
 import { prepareImageCaptions } from "@/lib/editor/imageCaption";
+import { prepareMath } from "@/lib/editor/math";
 import {
   decodeFootnoteValue,
   encodeFootnoteValue,
@@ -164,7 +165,8 @@ export function parseBody(body: string): JSONContent {
   const { body: withoutTrailer, deleted } = stripDeletedFootnotesTrailer(body);
   const prepared = prepareFootnotes(withoutTrailer);
   const withCaptions = prepareImageCaptions(prepared.markdown);
-  const doc = getManager().parse(withCaptions);
+  const withMath = prepareMath(withCaptions);
+  const doc = getManager().parse(withMath);
   // An empty body parses to a doc with NO children. The editor renders that
   // as nothing at all: no paragraph to type in, no placeholder to show, and
   // clicking yields a gap cursor. Guarantee one empty paragraph.
@@ -181,7 +183,10 @@ export function parseBody(body: string): JSONContent {
 
 /** Serialize TipTap JSON back to a markdown body. */
 export function serializeBody(doc: JSONContent): string {
-  const serialized = getManager().serialize(doc);
+  let serialized = getManager().serialize(doc);
+  // TipTap table markdown can emit a leading newline before the first pipe
+  // row; strip it so round-trips don't accumulate blank lines.
+  serialized = serialized.replace(/^\n+(?=\|)/, "");
   const definitions: string[] = [];
   let number = 0;
 
@@ -212,11 +217,24 @@ export function serializeBody(doc: JSONContent): string {
 }
 
 /**
- * Canonicalize: exactly one trailing newline. Trailing spaces inside lines
- * are left alone — hard breaks are serialized as two trailing spaces.
+ * Collapse equivalent display-math fence styles so lossy checks don't fire
+ * when `$$\n x \n$$` and `$$x$$` round-trip to the same editor nodes.
+ */
+function canonicalizeBlockMath(markdown: string): string {
+  return markdown.replace(/\$\$([\s\S]+?)\$\$/g, (_raw, latex: string) => {
+    const trimmed = String(latex).trim();
+    if (!trimmed.includes("\n")) return `$$${trimmed}$$`;
+    return `$$\n${trimmed}\n$$`;
+  });
+}
+
+/**
+ * Canonicalize: display-math fence style + exactly one trailing newline.
+ * Trailing spaces inside lines are left alone — hard breaks are serialized
+ * as two trailing spaces.
  */
 export function normalize(markdown: string): string {
-  return markdown.replace(/\n*$/, "\n");
+  return canonicalizeBlockMath(markdown).replace(/\n*$/, "\n");
 }
 
 /**

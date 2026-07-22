@@ -3,7 +3,7 @@
  * Pure helpers — AppShell owns prefs persistence.
  */
 
-export type PanelId = "files" | "ai" | "shell";
+export type PanelId = "files" | "ai" | "shell" | "library";
 export type DockSide = "left" | "right" | "bottom";
 
 export type PanelLayout = {
@@ -16,14 +16,15 @@ export type PanelLayout = {
   sizes: { left: number; right: number; bottom: number };
 };
 
-export const PANEL_IDS: PanelId[] = ["files", "ai", "shell"];
+export const PANEL_IDS: PanelId[] = ["files", "ai", "shell", "library"];
 
 export const PANEL_LABELS: Record<PanelId, string> = {
   files: "Files",
   ai: "AI assistant",
-  // Internal id stays "shell"; the panel is a view of the Inbox folder's
-  // capture channels, so that's what the UI calls it.
-  shell: "Inbox",
+  // Internal id stays "shell"; the panel is a view of the Notes (inbox)
+  // folder's capture channels.
+  shell: "Notes",
+  library: "Library",
 };
 
 export const DOCK_SIDES: DockSide[] = ["left", "right", "bottom"];
@@ -43,12 +44,14 @@ export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
     files: true,
     ai: true,
     shell: true,
+    library: false,
   },
   floating: [],
   home: {
     files: "left",
     ai: "right",
     shell: "right",
+    library: "right",
   },
   sizes: {
     left: 240,

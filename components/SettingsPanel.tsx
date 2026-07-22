@@ -355,7 +355,7 @@ function SettingsDialog({
         <section className="settings-section">
           <h3>Mobile</h3>
           <label className="settings-row">
-            <span>Open Inbox on phone</span>
+            <span>Open Notes on phone</span>
             <input
               type="checkbox"
               checked={prefs.mobileOpenShell}
@@ -365,8 +365,8 @@ function SettingsDialog({
             />
           </label>
           <p className="settings-help">
-            When on, phone-sized windows land on the Inbox capture terminal first.
-            Turn off to open the editor instead. You can still switch with Inbox /
+            When on, phone-sized windows land on the Notes capture terminal first.
+            Turn off to open the editor instead. You can still switch with Notes /
             Enter full app.
           </p>
         </section>

@@ -177,3 +177,15 @@ export async function setWorkspaceNodePinned(
     .eq("id", nodeId);
   if (error) throw error;
 }
+
+/** Set or clear an explorer accent color for a node. */
+export async function setWorkspaceNodeColor(
+  nodeId: string,
+  color: string | null
+): Promise<void> {
+  const { error } = await client()
+    .from("workspace_nodes")
+    .update({ color, updated_at: new Date().toISOString() })
+    .eq("id", nodeId);
+  if (error) throw error;
+}

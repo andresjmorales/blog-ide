@@ -5,9 +5,11 @@ import {
   documentIdsInSubtree,
   eligibleMoveFolders,
   folderPathLabel,
+  getNotesChannel,
   isInTrash,
   isScratchpad,
   listInboxChannels,
+  systemFolderDisplayName,
   uniqueSiblingName,
 } from "@/lib/workspace/tree";
 import type { WorkspaceNode } from "@/lib/workspace/types";
@@ -25,6 +27,7 @@ function node(partial: Partial<WorkspaceNode>): WorkspaceNode {
     url: null,
     pinned: false,
     system_key: null,
+    color: null,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     ...partial,
@@ -169,7 +172,7 @@ describe("isScratchpad", () => {
 });
 
 describe("listInboxChannels / folderPathLabel", () => {
-  it("lists document channels under the Inbox in position order", () => {
+  it("lists document channels under the Notes (inbox) folder in position order", () => {
     const f = fixture();
     const channels = listInboxChannels(f.all);
     expect(channels.map((c) => c.id)).toEqual([f.notes.id]);
@@ -179,5 +182,28 @@ describe("listInboxChannels / folderPathLabel", () => {
     const f = fixture();
     expect(folderPathLabel(f.series.id, f.all)).toBe("essays/series");
     expect(folderPathLabel(null, f.all)).toBe("Workspace root");
+  });
+});
+
+describe("getNotesChannel / systemFolderDisplayName", () => {
+  it("prefers general.md over legacy notes.md", () => {
+    const inbox = node({ kind: "folder", name: "Notes", system_key: "inbox" });
+    const legacy = node({
+      name: "notes.md",
+      parent_id: inbox.id,
+      position: 0,
+    });
+    const general = node({
+      name: "general.md",
+      parent_id: inbox.id,
+      position: 1,
+    });
+    expect(getNotesChannel([inbox, legacy, general])?.id).toBe(general.id);
+    expect(getNotesChannel([inbox, legacy])?.id).toBe(legacy.id);
+  });
+
+  it("displays the system inbox folder as Notes", () => {
+    const inbox = node({ kind: "folder", name: "Inbox", system_key: "inbox" });
+    expect(systemFolderDisplayName(inbox)).toBe("Notes");
   });
 });

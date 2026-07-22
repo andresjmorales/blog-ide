@@ -26,7 +26,9 @@ import {
   OrderedListIcon,
   PinIcon,
 } from "@/components/icons";
+import { StrictOrderedList } from "@/lib/editor/orderedList";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
+import { ConvertCaseMenu } from "@/components/ConvertCaseMenu";
 import { FootnoteSidenote } from "@/components/FootnoteSidenote";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { useAppDialog } from "@/components/AppDialog";
@@ -115,11 +117,13 @@ export function FootnoteNodeView({
         heading: false,
         underline: false,
         trailingNode: false,
+        orderedList: false,
         link: {
           openOnClick: false,
           defaultProtocol: "https",
         },
       }),
+      StrictOrderedList,
       ImageWithCaption,
       LinkShortcut,
       Markdown,
@@ -739,6 +743,7 @@ function FootnoteToolbar({
           <FootnoteToolButton title="Insert image" onClick={insertImage}>
             <ImageIcon />
           </FootnoteToolButton>
+          <ConvertCaseMenu editor={editor} />
           <SpecialCharsMenu editor={editor} />
         </>
       )}
