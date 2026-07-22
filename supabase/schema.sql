@@ -153,7 +153,7 @@ grant update (user_id, github_repo, github_branch, editor_prefs, updated_at)
   on user_settings to authenticated;
 
 revoke insert, update, delete on workspace_nodes from anon, authenticated;
-grant update (name, url, pinned, updated_at)
+grant update (name, url, pinned, color, updated_at)
   on workspace_nodes to authenticated;
 
 -- Helpers ------------------------------------------------------------------

@@ -187,5 +187,7 @@ export async function setWorkspaceNodeColor(
     .from("workspace_nodes")
     .update({ color, updated_at: new Date().toISOString() })
     .eq("id", nodeId);
-  if (error) throw error;
+  if (error) {
+    throw new Error(error.message || "Could not update color.");
+  }
 }
