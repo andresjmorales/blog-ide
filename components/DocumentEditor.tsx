@@ -15,6 +15,10 @@ import { withoutFootnoteDeletionTracking } from "@/lib/editor/footnoteDeletion";
 import { FootnoteNodeView } from "@/components/FootnoteNodeView";
 import { ImageCaptionNodeView } from "@/components/ImageCaptionNodeView";
 import {
+  BlockMathNodeView,
+  InlineMathNodeView,
+} from "@/components/MathNodeView";
+import {
   promptForLink,
   setLinkPromptHandler,
 } from "@/lib/editor/linkShortcut";
@@ -28,6 +32,7 @@ import {
   PanelCaret,
 } from "@/components/icons";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
+import { ConvertCaseMenu } from "@/components/ConvertCaseMenu";
 import { DocumentOutline } from "@/components/DocumentOutline";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { SidenoteRail } from "@/components/SidenoteRail";
@@ -40,10 +45,8 @@ import { transformPastedFootnoteHtml } from "@/lib/import/footnotePaste";
 import {
   compressImageFile,
   pickImageFile,
-  pickPdfFile,
 } from "@/lib/assets/imagePipeline";
 import { uploadUserAsset } from "@/lib/assets/upload";
-import { openPdfPin } from "@/lib/pins/pinStore";
 
 type Props = {
   /** Markdown body (frontmatter already stripped by the caller). */
@@ -78,6 +81,20 @@ function withEditorNodeViews(extension: AnyExtension): AnyExtension {
     return extension.extend({
       addNodeView() {
         return ReactNodeViewRenderer(ImageCaptionNodeView);
+      },
+    });
+  }
+  if (extension.name === "inlineMath") {
+    return extension.extend({
+      addNodeView() {
+        return ReactNodeViewRenderer(InlineMathNodeView);
+      },
+    });
+  }
+  if (extension.name === "blockMath") {
+    return extension.extend({
+      addNodeView() {
+        return ReactNodeViewRenderer(BlockMathNodeView);
       },
     });
   }
@@ -410,17 +427,6 @@ function Toolbar({
     editor.chain().focus().setImage({ src, alt }).run();
   }
 
-  async function pinPdf() {
-    const file = await pickPdfFile();
-    if (!file) return;
-    const src = URL.createObjectURL(file);
-    openPdfPin({
-      src,
-      title: file.name.replace(/\.pdf$/i, "") || "PDF",
-      revokeOnClose: true,
-    });
-  }
-
   return (
     <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-3 py-1.5 text-sm shrink-0">
       <select
@@ -495,6 +501,7 @@ function Toolbar({
       >
         <LinkIcon />
       </ToolButton>
+      <ConvertCaseMenu editor={editor} />
 
       <span className="mx-1.5 h-4 w-px bg-border" aria-hidden />
 
@@ -519,14 +526,26 @@ function Toolbar({
       >
         <OrderedListIcon />
       </ToolButton>
-      <ToolButton title="Insert image" onClick={() => void insertImage()}>
-        <ImageIcon />
+      <ToolButton
+        title="Insert table"
+        onClick={() =>
+          editor
+            .chain()
+            .focus()
+            .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+            .run()
+        }
+      >
+        Table
       </ToolButton>
       <ToolButton
-        title="Pin a PDF to scroll and copy from while writing"
-        onClick={() => void pinPdf()}
+        title="Insert inline math"
+        onClick={() => editor.chain().focus().insertInlineMath("x").run()}
       >
-        PDF
+        TeX
+      </ToolButton>
+      <ToolButton title="Insert image" onClick={() => void insertImage()}>
+        <ImageIcon />
       </ToolButton>
       <ToolButton
         title="Insert footnote (Ctrl+Shift+F)"

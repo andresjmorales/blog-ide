@@ -19,6 +19,8 @@ export type ContextMenuItem =
       items: Array<{
         id: string;
         label: string;
+        /** Optional CSS color for a swatch dot. */
+        swatch?: string | null;
         onSelect: () => void;
       }>;
     }
@@ -133,13 +135,24 @@ export function ExplorerContextMenu({ x, y, items, onClose }: Props) {
                         key={sub.id}
                         type="button"
                         role="menuitem"
-                        className="block w-full truncate px-3 py-1.5 text-left hover:bg-panel"
+                        className="flex w-full items-center gap-2 truncate px-3 py-1.5 text-left hover:bg-panel"
                         onClick={() => {
                           sub.onSelect();
                           onClose();
                         }}
                       >
-                        {sub.label}
+                        {sub.swatch !== undefined && (
+                          <span
+                            className="inline-block size-2.5 shrink-0 rounded-full border border-border"
+                            style={
+                              sub.swatch
+                                ? { backgroundColor: sub.swatch }
+                                : undefined
+                            }
+                            aria-hidden
+                          />
+                        )}
+                        <span className="truncate">{sub.label}</span>
                       </button>
                     ))
                   )}

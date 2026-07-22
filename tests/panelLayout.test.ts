@@ -11,12 +11,13 @@ import {
 } from "@/lib/panels/layout";
 
 describe("panelLayout", () => {
-  it("defaults the Inbox (shell) panel to the right dock ahead of AI", () => {
+  it("defaults the Notes (shell) panel to the right dock ahead of AI", () => {
     expect(visibleTabs(DEFAULT_PANEL_LAYOUT, "right")).toEqual([
       "shell",
       "ai",
     ]);
     expect(DEFAULT_PANEL_LAYOUT.active.right).toBe("shell");
+    expect(DEFAULT_PANEL_LAYOUT.visible.library).toBe(false);
   });
 
   it("moves Files from left to right beside the others", () => {

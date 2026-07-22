@@ -147,7 +147,7 @@ const GROUPS: CharGroup[] = [
 ];
 
 const PANEL_WIDTH = 352;
-const PANEL_MAX_HEIGHT = 288;
+const PANEL_MAX_HEIGHT = 420;
 const VIEWPORT_PAD = 12;
 
 function insertIntoEditor(editor: Editor, item: CharItem) {
@@ -220,13 +220,21 @@ export function SpecialCharsMenu({ editor }: { editor: Editor }) {
 
       const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_PAD;
       const spaceAbove = rect.top - VIEWPORT_PAD;
-      const preferBelow = spaceBelow >= 160 || spaceBelow >= spaceAbove;
-      const available = preferBelow ? spaceBelow : spaceAbove;
-      const maxHeight = Math.min(PANEL_MAX_HEIGHT, Math.max(140, available - 4));
-      const panelHeight = panelRef.current?.offsetHeight ?? maxHeight;
-      const top = preferBelow
-        ? rect.bottom + 4
-        : Math.max(VIEWPORT_PAD, rect.top - Math.min(panelHeight, maxHeight) - 4);
+      const preferBelow =
+        spaceBelow >= Math.min(220, PANEL_MAX_HEIGHT) ||
+        spaceBelow >= spaceAbove;
+      const available = Math.max(0, preferBelow ? spaceBelow : spaceAbove);
+      // Fit the viewport gap; never invent more height than we have.
+      const maxHeight = Math.min(PANEL_MAX_HEIGHT, Math.max(120, available - 4));
+      const panelHeight = Math.min(
+        panelRef.current?.offsetHeight ?? maxHeight,
+        maxHeight
+      );
+      let top = preferBelow ? rect.bottom + 4 : rect.top - panelHeight - 4;
+      top = Math.min(
+        Math.max(VIEWPORT_PAD, top),
+        window.innerHeight - VIEWPORT_PAD - Math.min(panelHeight, maxHeight)
+      );
 
       setPos((prev) => {
         if (
@@ -293,7 +301,7 @@ export function SpecialCharsMenu({ editor }: { editor: Editor }) {
         ref={panelRef}
         role="dialog"
         aria-label="Special characters"
-        className="special-chars-panel fixed rounded-lg border border-border bg-background p-3 shadow-lg"
+        className="special-chars-panel fixed flex flex-col overflow-hidden rounded-lg border border-border bg-background p-3 shadow-lg"
         style={{
           top: pos.top,
           left: pos.left,
@@ -303,13 +311,10 @@ export function SpecialCharsMenu({ editor }: { editor: Editor }) {
         }}
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <p className="mb-2 text-[0.68rem] uppercase tracking-wider text-muted">
+        <p className="mb-2 shrink-0 text-[0.68rem] uppercase tracking-wider text-muted">
           Insert at cursor · accents apply to the previous letter
         </p>
-        <div
-          className="space-y-3 overflow-y-auto pr-1"
-          style={{ maxHeight: pos.maxHeight - 40 }}
-        >
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pr-1 pb-1">
           {GROUPS.map((group) => (
             <section key={group.heading}>
               <h3 className="mb-1.5 text-[0.68rem] font-medium uppercase tracking-wider text-muted">

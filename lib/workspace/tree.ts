@@ -12,7 +12,7 @@ export function getInboxNode(
   return nodes.find((n) => n.system_key === "inbox");
 }
 
-/** Document channels under the Inbox folder. */
+/** Document channels under the Notes (system inbox) folder. */
 export function listInboxChannels(nodes: WorkspaceNode[]): WorkspaceNode[] {
   const inbox = getInboxNode(nodes);
   if (!inbox) return [];
@@ -21,12 +21,22 @@ export function listInboxChannels(nodes: WorkspaceNode[]): WorkspaceNode[] {
     .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
 }
 
+/** Prefer general.md; fall back to legacy notes.md. */
 export function getNotesChannel(
   nodes: WorkspaceNode[]
 ): WorkspaceNode | undefined {
-  return listInboxChannels(nodes).find(
-    (n) => n.name.toLowerCase() === "notes.md"
+  const channels = listInboxChannels(nodes);
+  return (
+    channels.find((n) => n.name.toLowerCase() === "general.md") ??
+    channels.find((n) => n.name.toLowerCase() === "notes.md")
   );
+}
+
+/** Display label for system folders (inbox stays `system_key: "inbox"`). */
+export function systemFolderDisplayName(node: WorkspaceNode): string {
+  if (node.system_key === "inbox") return "Notes";
+  if (node.system_key === "trash") return "Trash";
+  return node.name;
 }
 
 export function isSystemFolder(node: WorkspaceNode): boolean {
@@ -158,6 +168,7 @@ export function eligibleMoveFolders(
 
 /** Channel label without .md — for terminal / Shell UI. */
 export function channelDisplayName(node: WorkspaceNode): string {
+  if (node.system_key === "inbox") return "Notes";
   return node.name.replace(/\.md$/i, "");
 }
 
@@ -172,7 +183,7 @@ export function folderPathLabel(
   while (walk) {
     const node = byId.get(walk);
     if (!node) break;
-    parts.unshift(node.name);
+    parts.unshift(systemFolderDisplayName(node));
     walk = node.parent_id;
   }
   return parts.join("/") || "Workspace root";

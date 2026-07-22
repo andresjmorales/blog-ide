@@ -40,12 +40,14 @@ create table if not exists workspace_nodes (
   url text,
   pinned boolean not null default false,
   system_key text,
+  color text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 
 -- Additive for projects created before Trash support.
 alter table workspace_nodes add column if not exists system_key text;
+alter table workspace_nodes add column if not exists color text;
 
 create unique index if not exists workspace_nodes_user_system_key_uidx
   on workspace_nodes (user_id, system_key)
@@ -207,7 +209,7 @@ status: draft
 Quick notes land here. Persistence is live — edits autosave locally, then sync to Supabase.
 $md$;
   notes_md text := $md$---
-title: Notes
+title: General
 status: draft
 ---
 
@@ -232,13 +234,31 @@ The **Files** panel (left) is your workspace tree. Hover a folder for quick-crea
 
 The editor is rich text over pure markdown — switch to **View raw markdown** from the ⋯ menu in the toolbar any time; nothing is lost in either direction. The **Outline** rail (left edge of the essay) tracks your headings. The **Footnotes** rail (right edge) collects every footnote beside the essay; collapse it when you want a clean page. Insert footnotes with Ctrl+Shift+F.
 
+A few constructs you can try right here:
+
+- Bullet one
+- Bullet two
+
+```ts
+const greeting = "hello, BlogIDE";
+```
+
+---
+
+| Feature | Shortcut |
+| --- | --- |
+| Footnote | Ctrl+Shift+F |
+| Link | Ctrl+K |
+
+Inline math works too: $x^2$.
+
 ## Research while you write
 
-Paste a link and hover it for a live page preview. Pin a PDF (toolbar → PDF) to float it over the workspace while you quote from it. Images paste straight in — they're compressed and uploaded automatically.
+Paste a link and hover it for a live page preview. Pin a PDF from the **Library** panel to float it over the workspace while you quote from it. Images paste straight in — they're compressed and uploaded automatically.
 
-## Inbox
+## Notes
 
-The **Inbox** panel is a capture stream for notes-to-self: type a thought, it lands timestamped in a channel document under the Inbox folder. On your phone, BlogIDE opens straight into capture mode so you can push notes from anywhere.
+The **Notes** panel (Shell) is a capture stream for notes-to-self: type a thought, it lands timestamped in a channel document under the Notes folder (default `general`). On your phone, BlogIDE opens straight into capture mode so you can push notes from anywhere.
 
 ## Safety net
 
@@ -344,18 +364,20 @@ begin
 
   if inbox_id is null then
     insert into workspace_nodes (user_id, parent_id, kind, name, position, system_key)
-    values (uid, null, 'folder', 'Inbox', 90, 'inbox')
+    values (uid, null, 'folder', 'Notes', 90, 'inbox')
     returning id into inbox_id;
   end if;
 
   select id into notes_id
   from workspace_nodes
-  where user_id = uid and parent_id = inbox_id and kind = 'document' and name = 'notes.md'
+  where user_id = uid and parent_id = inbox_id and kind = 'document'
+    and lower(name) in ('general.md', 'notes.md')
+  order by case when lower(name) = 'general.md' then 0 else 1 end
   limit 1;
 
   if notes_id is null then
     insert into workspace_nodes (user_id, parent_id, kind, name, position)
-    values (uid, inbox_id, 'document', 'notes.md', 0)
+    values (uid, inbox_id, 'document', 'general.md', 0)
     returning id into notes_id;
 
     insert into documents (node_id, user_id, markdown, status, version, size_bytes)

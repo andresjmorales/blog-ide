@@ -354,6 +354,131 @@ body {
   margin: 2em auto;
   width: 40%;
 }
+.editor-prose table {
+  border-collapse: collapse;
+  margin: 1.25em 0;
+  width: 100%;
+  font-size: 0.95em;
+}
+.editor-prose th,
+.editor-prose td {
+  border: 1px solid var(--border);
+  padding: 0.4em 0.65em;
+  text-align: left;
+  vertical-align: top;
+}
+.editor-prose th {
+  background: color-mix(in oklab, var(--panel) 80%, var(--background));
+  font-weight: 600;
+}
+.editor-prose .tableWrapper {
+  overflow-x: auto;
+}
+
+.editor-prose .blogide-math.is-inline {
+  display: inline;
+}
+.editor-prose .blogide-math.is-block {
+  display: block;
+  margin: 1.25em 0;
+  text-align: center;
+}
+.editor-prose .blogide-math-render {
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0.1em 0.15em;
+}
+.editor-prose .blogide-math.is-selected .blogide-math-render,
+.editor-prose .blogide-math-render:hover {
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+}
+.editor-prose .blogide-math-fallback {
+  color: var(--muted);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.9em;
+}
+
+.blogide-math-layer {
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+}
+.blogide-math-backdrop {
+  background: transparent;
+  border: 0;
+  inset: 0;
+  pointer-events: auto;
+  position: absolute;
+}
+.blogide-math-popup {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 16px 40px rgb(0 0 0 / 18%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  left: 50%;
+  max-width: min(28rem, calc(100vw - 2rem));
+  padding: 0.65rem 0.75rem 0.75rem;
+  pointer-events: auto;
+  position: absolute;
+  top: 20%;
+  transform: translateX(-50%);
+  width: 100%;
+}
+.blogide-math-popup-bar {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.7rem;
+  font-weight: 650;
+  justify-content: space-between;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.blogide-math-popup-actions {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+.blogide-math-popup-actions button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.45rem;
+}
+.blogide-math-popup-actions button.is-active,
+.blogide-math-popup-actions button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.blogide-math-source {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--foreground);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.85rem;
+  padding: 0.5rem 0.6rem;
+  resize: vertical;
+  width: 100%;
+}
+.blogide-math-preview {
+  background: var(--panel);
+  border: 1px dashed var(--border);
+  border-radius: 5px;
+  min-height: 2.5rem;
+  overflow-x: auto;
+  padding: 0.65rem 0.75rem;
+  text-align: center;
+}
 .editor-prose a {
   color: var(--accent);
   text-decoration: underline;
@@ -370,6 +495,9 @@ body {
 /* Image + Substack-style caption field (adjacent markdown caption) */
 .editor-prose .blogide-figure {
   margin: 0;
+}
+.editor-prose .blogide-figure-broken {
+  display: none;
 }
 .editor-prose .blogide-figure img {
   display: block;

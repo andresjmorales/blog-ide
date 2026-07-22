@@ -11,7 +11,7 @@ by design.
   byte-for-byte round-trip for supported constructs
 - **First-class footnotes** — inline notes, sidenote rail or anchored notes,
   pin/drag cards, deleted-note archive, Substack-style paste repair
-- **Workspace** — folder/document/link tree, Trash, Inbox channels, scratchpad
+- **Workspace** — folder/document/link tree, Trash, Notes channels, scratchpad
   bootstrap, phone terminal capture + desktop Shell
 - **Local-first sync** — IndexedDB autosave, optimistic Supabase sync, conflict
   copies, hard per-user quota (default 20 MiB combined)
@@ -26,7 +26,9 @@ by design.
 
 Next.js, TypeScript, Tailwind CSS, TipTap, Supabase, and IndexedDB. GitHub
 backup and model APIs are optional. See [ARCHITECTURE.md](./ARCHITECTURE.md)
-for boundaries, persistence, quota, and the repository map.
+for boundaries, persistence, quota, and the repository map. Differences from
+GFM (frontmatter, captions, footnotes, math/tables) are summarized in
+[docs/MARKDOWN_SPEC.md](./docs/MARKDOWN_SPEC.md).
 
 ## Getting started
 
@@ -88,7 +90,7 @@ npm run dev
 ```
 
 Open http://localhost:3000 → **Sign up** → enter your beta code → create an account.  
-On first editor load, BlogIDE bootstraps `essays/`, `drafts/`, pinned `scratchpad.md`, and an `Inbox/` folder (default `notes.md` channel). Edits save to IndexedDB immediately and sync to Supabase. On a phone, you land in a terminal-style quick-capture screen; on desktop, open **Shell** for the same Inbox notes.
+On first editor load, BlogIDE bootstraps `essays/`, `drafts/`, pinned `scratchpad.md`, and a `Notes/` folder (default `general.md` channel; legacy `notes.md` still works). Edits save to IndexedDB immediately and sync to Supabase. On a phone, you land in a terminal-style quick-capture screen; on desktop, open **Shell** for the same Notes stream.
 
 Optional: open **Account settings** to paste Anthropic or OpenAI keys for the AI sidebar (keys stay on the device; requests go through a thin proxy).
 

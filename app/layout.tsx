@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import "katex/dist/katex.min.css";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { ThemeBoot } from "@/components/ThemeBoot";
 import { PRODUCT_DESCRIPTION, PRODUCT_NAME } from "@/lib/brand";

@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState, type MouseEvent } from "react";
+import { useState, type MouseEvent } from "react";
 import {
   ExplorerContextMenu,
   type ContextMenuItem,
 } from "@/components/ExplorerContextMenu";
 import { TreeCaret } from "@/components/icons";
+import { NODE_COLOR_PALETTE } from "@/lib/workspace/nodeColors";
 import {
   compareSiblings,
   eligibleMoveFolders,
@@ -15,15 +16,18 @@ import {
   isInTrash,
   isScratchpad,
   isSystemFolder,
+  systemFolderDisplayName,
 } from "@/lib/workspace/tree";
 import type { WorkspaceNode } from "@/lib/workspace/types";
 
 type Props = {
   nodes: WorkspaceNode[];
   activeNodeId: string | null;
+  /** Frontmatter titles keyed by node id (essays). */
+  docTitles?: Map<string, string>;
   onOpen: (nodeId: string) => void;
   onNewDocument: (parentId: string | null) => void;
-  /** Create an Inbox channel document (different prompt than New essay). */
+  /** Create a Notes channel document (different prompt than New essay). */
   onNewChannel: (inboxId: string) => void;
   onPopOutDocument: (nodeId: string) => void;
   onNewFolder: (parentId: string | null) => void;
@@ -32,6 +36,7 @@ type Props = {
   onMoveTo: (nodeId: string, parentId: string | null) => void;
   onRename: (nodeId: string) => void;
   onTogglePin: (nodeId: string, pinned: boolean) => void;
+  onSetColor: (nodeId: string, color: string | null) => void;
   onDeleteForever: (nodeId: string) => void;
   /** Download every essay (Trash excluded) as a .zip. */
   onExportAll?: () => void;
@@ -54,17 +59,32 @@ function childrenOf(
     .sort(compareSiblings);
 }
 
-/** Display label — hide the .md extension; storage still uses it. */
-function displayName(node: WorkspaceNode): string {
+/** Filename stem — hide the .md extension; storage still uses it. */
+function fileStem(node: WorkspaceNode): string {
   if (node.kind === "document") {
     return node.name.replace(/\.md$/i, "");
   }
   return node.name;
 }
 
+/** Explorer label: frontmatter title when it differs from the filename stem. */
+function displayName(
+  node: WorkspaceNode,
+  docTitles?: Map<string, string>
+): string {
+  if (node.system_key === "inbox") return "Notes";
+  if (node.kind === "document" && docTitles) {
+    const title = docTitles.get(node.id)?.trim();
+    const stem = fileStem(node);
+    if (title && title !== stem) return title;
+  }
+  return fileStem(node);
+}
+
 export function FileExplorer({
   nodes,
   activeNodeId,
+  docTitles,
   onOpen,
   onNewDocument,
   onNewChannel,
@@ -75,6 +95,7 @@ export function FileExplorer({
   onMoveTo,
   onRename,
   onTogglePin,
+  onSetColor,
   onDeleteForever,
   onExportAll,
   loading,
@@ -99,26 +120,14 @@ export function FileExplorer({
   const inbox = getInboxNode(nodes);
   const inboxId = inbox?.id ?? null;
 
-  const mainRoots = useMemo(
-    () =>
-      childrenOf(nodes, null).filter(
-        (n) =>
-          n.system_key !== "trash" &&
-          n.system_key !== "inbox" &&
-          !isInTrash(n.id, nodes, trashId)
-      ),
-    [nodes, trashId]
+  const mainRoots = childrenOf(nodes, null).filter(
+    (n) =>
+      n.system_key !== "trash" &&
+      n.system_key !== "inbox" &&
+      !isInTrash(n.id, nodes, trashId)
   );
-
-  const inboxChildren = useMemo(
-    () => (inboxId ? childrenOf(nodes, inboxId) : []),
-    [nodes, inboxId]
-  );
-
-  const trashChildren = useMemo(
-    () => (trashId ? childrenOf(nodes, trashId) : []),
-    [nodes, trashId]
-  );
+  const inboxChildren = inboxId ? childrenOf(nodes, inboxId) : [];
+  const trashChildren = trashId ? childrenOf(nodes, trashId) : [];
 
   function openMenu(e: MouseEvent, node: WorkspaceNode) {
     e.preventDefault();
@@ -144,7 +153,7 @@ export function FileExplorer({
           {
             kind: "action",
             id: "inbox-info",
-            label: "System Inbox",
+            label: "System Notes",
             disabled: true,
             onSelect: () => {},
           },
@@ -204,6 +213,28 @@ export function FileExplorer({
           onSelect: () => onTogglePin(node.id, !node.pinned),
         });
       }
+    }
+
+    if (!inTrash && !scratch) {
+      items.push({
+        kind: "submenu",
+        id: "color",
+        label: "Color",
+        items: [
+          {
+            id: "color-none",
+            label: "None",
+            swatch: null,
+            onSelect: () => onSetColor(node.id, null),
+          },
+          ...NODE_COLOR_PALETTE.map((c) => ({
+            id: `color-${c.id}`,
+            label: c.label,
+            swatch: c.value,
+            onSelect: () => onSetColor(node.id, c.value),
+          })),
+        ],
+      });
     }
 
     if (inTrash) {
@@ -331,6 +362,7 @@ export function FileExplorer({
             depth={0}
             activeNodeId={activeNodeId}
             trashId={trashId}
+            docTitles={docTitles}
             onOpen={onOpen}
             onNewDocument={onNewDocument}
             onNewFolder={onNewFolder}
@@ -350,7 +382,7 @@ export function FileExplorer({
             onContextMenu={(e) => openMenu(e, inbox)}
           >
             <TreeCaret expanded={inboxOpen} />
-            Inbox
+            {systemFolderDisplayName(inbox)}
             {inboxChildren.length > 0 && (
               <span className="ml-auto normal-case tracking-normal">
                 {inboxChildren.length}
@@ -370,6 +402,7 @@ export function FileExplorer({
                     depth={0}
                     activeNodeId={activeNodeId}
                     trashId={trashId}
+                    docTitles={docTitles}
                     onOpen={onOpen}
                     onNewDocument={onNewDocument}
                     onNewFolder={onNewFolder}
@@ -393,7 +426,7 @@ export function FileExplorer({
             onContextMenu={(e) => openMenu(e, trash)}
           >
             <TreeCaret expanded={trashOpen} />
-            Trash
+            {systemFolderDisplayName(trash)}
             {trashChildren.length > 0 && (
               <span className="ml-auto normal-case tracking-normal">
                 {trashChildren.length}
@@ -413,6 +446,7 @@ export function FileExplorer({
                     depth={0}
                     activeNodeId={activeNodeId}
                     trashId={trashId}
+                    docTitles={docTitles}
                     onOpen={onOpen}
                     onNewDocument={onNewDocument}
                     onNewFolder={onNewFolder}
@@ -527,12 +561,24 @@ function FolderPlusIcon() {
   );
 }
 
+function ColorDot({ color }: { color: string | null | undefined }) {
+  if (!color) return null;
+  return (
+    <span
+      className="inline-block size-2 shrink-0 rounded-full"
+      style={{ backgroundColor: color }}
+      aria-hidden
+    />
+  );
+}
+
 function TreeNode({
   node,
   nodes,
   depth,
   activeNodeId,
   trashId,
+  docTitles,
   onOpen,
   onNewDocument,
   onNewFolder,
@@ -545,6 +591,7 @@ function TreeNode({
   depth: number;
   activeNodeId: string | null;
   trashId: string | null;
+  docTitles?: Map<string, string>;
   onOpen: (nodeId: string) => void;
   onNewDocument: (parentId: string | null) => void;
   onNewFolder: (parentId: string | null) => void;
@@ -558,6 +605,9 @@ function TreeNode({
   );
 
   const paddingLeft = 8 + depth * 12;
+  const label = displayName(node, docTitles);
+  const stem = fileStem(node);
+  const tip = label !== stem ? `${label} (${node.name})` : node.name;
 
   if (node.kind === "folder") {
     const expanded = !collapsedIds.has(node.id);
@@ -572,11 +622,12 @@ function TreeNode({
             type="button"
             className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 truncate text-left text-sm font-medium"
             aria-expanded={expanded}
-            title={expanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
+            title={expanded ? `Collapse ${tip}` : `Expand ${tip}`}
             onClick={() => onToggleCollapse(node.id)}
           >
             <TreeCaret expanded={expanded} />
-            <span className="truncate">{displayName(node)}/</span>
+            <ColorDot color={node.color} />
+            <span className="truncate">{label}/</span>
             {node.pinned && (
               <span className="ml-0.5 inline-flex shrink-0 text-muted" title="Pinned">
                 <PinIcon />
@@ -633,6 +684,7 @@ function TreeNode({
                 depth={depth + 1}
                 activeNodeId={activeNodeId}
                 trashId={trashId}
+                docTitles={docTitles}
                 onOpen={onOpen}
                 onNewDocument={onNewDocument}
                 onNewFolder={onNewFolder}
@@ -658,13 +710,14 @@ function TreeNode({
             href={node.url ?? "#"}
             target="_blank"
             rel="noreferrer"
-            className="block min-w-0 flex-1 truncate rounded px-2 py-1.5 text-muted hover:text-foreground"
+            className="flex min-w-0 flex-1 items-center gap-1.5 truncate rounded px-2 py-1.5 text-muted hover:text-foreground"
             style={{ paddingLeft }}
             title={node.url ?? node.name}
           >
-            ↗ {displayName(node)}
+            <ColorDot color={node.color} />
+            <span className="truncate">↗ {label}</span>
             {node.pinned && (
-              <span className="ml-1.5 inline-flex text-muted" title="Pinned">
+              <span className="ml-0.5 inline-flex text-muted" title="Pinned">
                 <PinIcon />
               </span>
             )}
@@ -687,16 +740,18 @@ function TreeNode({
         <button
           type="button"
           onClick={() => onOpen(node.id)}
-          className={`flex min-w-0 flex-1 items-center truncate rounded px-2 py-1.5 text-left ${
+          className={`flex min-w-0 flex-1 items-center gap-1.5 truncate rounded px-2 py-1.5 text-left ${
             active
               ? "font-medium text-foreground"
               : "text-muted hover:text-foreground"
           }`}
           style={{ paddingLeft }}
+          title={tip}
         >
-          <span className="truncate">{displayName(node)}</span>
+          <ColorDot color={node.color} />
+          <span className="truncate">{label}</span>
           {node.pinned && (
-            <span className="ml-1.5 inline-flex shrink-0 text-muted" title="Pinned">
+            <span className="ml-0.5 inline-flex shrink-0 text-muted" title="Pinned">
               <PinIcon />
             </span>
           )}

@@ -5,6 +5,7 @@ import { splitFrontmatter } from "@/lib/markdown/frontmatter";
 import { parseTitle } from "@/lib/markdown/titleFrontmatter";
 import { parseSubtitle } from "@/lib/markdown/subtitle";
 import { parseAuthor } from "@/lib/markdown/author";
+import { renderLatexHtml } from "@/lib/editor/math";
 
 const PREVIEW_EXTENSIONS = createExtensions();
 
@@ -255,10 +256,33 @@ export function buildPublicationPreview(markdown: string): PublicationPreview {
     subtitle,
     author,
     bodyHtml: enhancePublicationFootnotes(
-      enhancePublicationCaptions(rawHtml),
+      enhancePublicationMath(enhancePublicationCaptions(rawHtml)),
       renderNoteHtml
     ),
   };
+}
+
+/** Turn TipTap math placeholders into KaTeX HTML for publication preview. */
+export function enhancePublicationMath(html: string): string {
+  if (typeof DOMParser === "undefined") return html;
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  doc.querySelectorAll("[data-inline-math]").forEach((el) => {
+    const latex = el.getAttribute("data-latex") || "";
+    const { html: rendered } = renderLatexHtml(latex, false);
+    const span = doc.createElement("span");
+    span.className = "blogide-inline-math";
+    span.innerHTML = rendered || escapeHtml(`$${latex}$`);
+    el.replaceWith(span);
+  });
+  doc.querySelectorAll("[data-block-math]").forEach((el) => {
+    const latex = el.getAttribute("data-latex") || "";
+    const { html: rendered } = renderLatexHtml(latex, true);
+    const div = doc.createElement("div");
+    div.className = "blogide-block-math";
+    div.innerHTML = rendered || escapeHtml(`$$${latex}$$`);
+    el.replaceWith(div);
+  });
+  return doc.body.innerHTML;
 }
 
 /** Full HTML document for opening Preview in a new browser tab. */
@@ -278,6 +302,7 @@ export function buildPublicationDocument(markdown: string): string {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${escapeHtml(title)} · Preview</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" />
 <style>
   /* Always light — publication reading, independent of OS theme. */
   :root {
@@ -338,6 +363,13 @@ export function buildPublicationDocument(markdown: string): string {
   }
   .editor-prose blockquote em,
   .editor-prose blockquote i { font-style: italic; }
+  .editor-prose table { border-collapse: collapse; margin: 1.25em 0; width: 100%; }
+  .editor-prose th, .editor-prose td {
+    border: 1px solid var(--border); padding: 0.4em 0.65em; text-align: left;
+  }
+  .editor-prose th { background: var(--panel); font-weight: 600; }
+  .blogide-block-math { margin: 1.25em 0; overflow-x: auto; text-align: center; }
+  .blogide-inline-math { display: inline; }
   .preview-fn {
     position: relative;
     font-size: inherit;

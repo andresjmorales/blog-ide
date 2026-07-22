@@ -24,6 +24,7 @@ import { AiSidebar } from "@/components/AiSidebar";
 import { EditorPrefsProvider } from "@/components/EditorPrefsContext";
 import { DocumentSessionProvider } from "@/components/DocumentSessionContext";
 import { FileExplorer } from "@/components/FileExplorer";
+import { LibraryPanel } from "@/components/LibraryPanel";
 import { DockRegion } from "@/components/panels/DockRegion";
 import { PanelsMenu } from "@/components/panels/PanelsMenu";
 import {
@@ -50,8 +51,10 @@ import {
   listWorkspaceNodes,
   moveWorkspaceNode,
   renameWorkspaceNode,
+  setWorkspaceNodeColor,
   setWorkspaceNodePinned,
 } from "@/lib/workspace/api";
+import { loadDocumentTitles } from "@/lib/workspace/docTitles";
 import { pickMarkdownFile } from "@/lib/export/document";
 import { downloadWorkspaceZip } from "@/lib/export/workspaceZip";
 import {
@@ -246,12 +249,16 @@ function AppShellContent({
   const dismissRef = useRef<(id: string) => void>(() => {});
 
   const [nodes, setNodes] = useState<WorkspaceNode[]>([]);
+  const [docTitles, setDocTitles] = useState<Map<string, string>>(
+    () => new Map()
+  );
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
   const [treeLoading, setTreeLoading] = useState(false);
   const [treeError, setTreeError] = useState<string | null>(null);
   /** Empty tree after wake/stale auth — keep prior nodes and offer Retry. */
   const [treeStale, setTreeStale] = useState(false);
   const nodesRef = useRef<WorkspaceNode[]>([]);
+  const titlesRequestRef = useRef(0);
   const { status: syncStatus, label: syncLabel } = useSyncStatusLabel();
   const syncBanner = useStableSyncBanner(syncStatus);
   const dialog = useAppDialog();
@@ -305,7 +312,7 @@ function AppShellContent({
 
   /** Keep in-memory pin windows aligned with persisted layout.floating. */
   const syncFloatingPins = useCallback((layout: PanelLayout) => {
-    for (const id of ["files", "ai", "shell"] as PanelId[]) {
+    for (const id of ["files", "ai", "shell", "library"] as PanelId[]) {
       const shouldFloat = layout.floating.includes(id);
       const open = isDockablePanelPinOpen(id);
       if (shouldFloat === open) continue;
@@ -392,6 +399,13 @@ function AppShellContent({
     [deletedFootnotes]
   );
 
+  const refreshDocTitles = useCallback((list: WorkspaceNode[]) => {
+    const requestId = ++titlesRequestRef.current;
+    void loadDocumentTitles(list).then((titles) => {
+      if (titlesRequestRef.current === requestId) setDocTitles(titles);
+    });
+  }, []);
+
   const refreshTree = useCallback(
     async (opts?: { allowEmptyWipe?: boolean }) => {
       if (previewMode) return false;
@@ -408,6 +422,7 @@ function AppShellContent({
           return false;
         }
         setNodes(list);
+        refreshDocTitles(list);
         setTreeError(null);
         setTreeStale(false);
         return true;
@@ -418,7 +433,7 @@ function AppShellContent({
         return false;
       }
     },
-    [previewMode]
+    [previewMode, refreshDocTitles]
   );
 
   /** Revalidate auth after idle tabs (Firefox throttles token refresh). */
@@ -462,6 +477,7 @@ function AppShellContent({
         const list = await listWorkspaceNodes();
         if (cancelled) return;
         setNodes(list);
+        refreshDocTitles(list);
         const remembered = loadActiveDocumentId();
         const rememberedOk =
           remembered != null &&
@@ -491,7 +507,7 @@ function AppShellContent({
     return () => {
       cancelled = true;
     };
-  }, [previewMode]);
+  }, [previewMode, refreshDocTitles]);
 
   // Anchor the header/toolbar: the app scrolls in inner panes, so lock the
   // page itself while the shell is mounted.
@@ -687,7 +703,7 @@ function AppShellContent({
     if (previewMode) return;
     const name = await dialog.prompt({
       title: "New channel",
-      message: "Name for this Inbox channel (e.g. ideas, quotes).",
+      message: "Name for this Notes channel (e.g. ideas, quotes).",
       defaultValue: "channel",
       confirmLabel: "Create",
     });
@@ -855,6 +871,20 @@ function AppShellContent({
     }
   }
 
+  async function handleSetColor(nodeId: string, color: string | null) {
+    if (previewMode) return;
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node || isSystemFolder(node) || isScratchpad(node)) return;
+    try {
+      await setWorkspaceNodeColor(nodeId, color);
+      await refreshTree();
+    } catch (error) {
+      setTreeError(
+        error instanceof Error ? error.message : "Could not update color."
+      );
+    }
+  }
+
   async function handleDeleteForever(nodeId: string) {
     if (previewMode) return;
     const node = nodes.find((n) => n.id === nodeId);
@@ -916,6 +946,7 @@ function AppShellContent({
     <FileExplorer
       nodes={nodes}
       activeNodeId={activeNodeId}
+      docTitles={docTitles}
       onOpen={(nodeId) => {
         setActiveNodeId(nodeId);
         if (isMobile) setMobileLeftOpen(false);
@@ -929,12 +960,15 @@ function AppShellContent({
       onMoveTo={handleMoveTo}
       onRename={handleRename}
       onTogglePin={handleTogglePin}
+      onSetColor={handleSetColor}
       onDeleteForever={handleDeleteForever}
       onExportAll={previewMode ? undefined : () => void exportAll()}
       loading={treeLoading}
       error={treeError}
     />
   );
+
+  const libraryPanel = <LibraryPanel />;
 
   const aiPanel = (
     <AiSidebar
@@ -1278,6 +1312,12 @@ function AppShellContent({
                   onNotesChanged={bumpShellRefresh}
                   compactMeta
                 />
+              </PersistentPanel>
+              <PersistentPanel
+                target={panelTargets.library}
+                className="min-h-0 flex-1 overflow-y-auto"
+              >
+                {libraryPanel}
               </PersistentPanel>
               <PopOutLayer
                 onOpenInEditor={setActiveNodeId}

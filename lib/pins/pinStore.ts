@@ -43,10 +43,10 @@ export type ShellPin = PinBase & {
   kind: "shell";
 };
 
-/** Floating Files / AI assistant panels. */
+/** Floating Files / AI / Library panels. */
 export type ToolPanelPin = PinBase & {
   kind: "toolPanel";
-  panelId: "files" | "ai";
+  panelId: "files" | "ai" | "library";
 };
 
 export type PinWindow =
@@ -58,7 +58,9 @@ export type PinWindow =
 
 export const SHELL_PIN_ID = "shell:inbox";
 
-export function toolPanelPinId(panelId: "files" | "ai"): string {
+export function toolPanelPinId(
+  panelId: "files" | "ai" | "library"
+): string {
   return `toolPanel:${panelId}`;
 }
 
@@ -254,7 +256,7 @@ export function openPdfPin(input: {
   emit();
 }
 
-/** Floating Pushbullet / iMessage-style Inbox Shell. */
+/** Floating Pushbullet / iMessage-style Notes Shell. */
 export function openShellPin(): void {
   const existing = windows.find((w) => w.id === SHELL_PIN_ID);
   if (existing) {
@@ -266,7 +268,7 @@ export function openShellPin(): void {
     {
       id: SHELL_PIN_ID,
       kind: "shell",
-      title: "Shell · Inbox",
+      title: "Shell · Notes",
       // Default to a chat-width column; users can resize freely when floated.
       ...defaultPlacement({ width: 360, height: 480 }),
       zIndex: claimFloatZ(),
@@ -283,19 +285,21 @@ export function isShellPinOpen(): boolean {
   return windows.some((w) => w.id === SHELL_PIN_ID);
 }
 
-export function isToolPanelPinOpen(panelId: "files" | "ai"): boolean {
+export function isToolPanelPinOpen(
+  panelId: "files" | "ai" | "library"
+): boolean {
   return windows.some((w) => w.id === toolPanelPinId(panelId));
 }
 
 export function isDockablePanelPinOpen(
-  panelId: "files" | "ai" | "shell"
+  panelId: "files" | "ai" | "shell" | "library"
 ): boolean {
   if (panelId === "shell") return isShellPinOpen();
   return isToolPanelPinOpen(panelId);
 }
 
 export function openToolPanelPin(
-  panelId: "files" | "ai",
+  panelId: "files" | "ai" | "library",
   title: string
 ): void {
   const id = toolPanelPinId(panelId);
@@ -322,12 +326,14 @@ export function openToolPanelPin(
   emit();
 }
 
-export function closeToolPanelPin(panelId: "files" | "ai"): void {
+export function closeToolPanelPin(
+  panelId: "files" | "ai" | "library"
+): void {
   closePin(toolPanelPinId(panelId));
 }
 
 export function closeDockablePanelPin(
-  panelId: "files" | "ai" | "shell"
+  panelId: "files" | "ai" | "shell" | "library"
 ): void {
   if (panelId === "shell") closeShellPin();
   else closeToolPanelPin(panelId);

@@ -11,6 +11,8 @@ export type WorkspaceNode = {
   pinned: boolean;
   /** Reserved system folders, e.g. "trash" | "inbox". */
   system_key: string | null;
+  /** Optional accent color (CSS color string) shown in the Files explorer. */
+  color: string | null;
   created_at: string;
   updated_at: string;
 };
