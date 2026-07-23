@@ -8,6 +8,7 @@ import {
   stageLocalEdit,
   type LocalDoc,
 } from "@/lib/db/indexed";
+import { releaseRemovedEssayImages } from "@/lib/assets/quota";
 import { normalize } from "@/lib/markdown/pipeline";
 import {
   createWorkspaceNode,
@@ -319,6 +320,9 @@ async function syncDocumentOnce(nodeId: string): Promise<void> {
   emitFor(nodeId, { syncing: true, error: null });
 
   try {
+    const previousRemote = await fetchRemoteDocument(nodeId);
+    const previousMarkdown = previousRemote?.markdown ?? "";
+
     const result = await saveDocumentRemote(
       nodeId,
       latest.markdown,
@@ -326,6 +330,11 @@ async function syncDocumentOnce(nodeId: string): Promise<void> {
     );
 
     if (result.ok) {
+      // Best-effort: free Storage for essay images dropped from this doc.
+      void releaseRemovedEssayImages(previousMarkdown, latest.markdown).catch(
+        () => {}
+      );
+
       const updatedAt = new Date().toISOString();
       // Single IDB transaction: keystrokes that landed during the RPC keep
       // their dirty draft (with the advanced baseVersion); otherwise the doc

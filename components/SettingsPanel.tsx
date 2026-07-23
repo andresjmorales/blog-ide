@@ -11,6 +11,12 @@ import {
   type AiKeys,
   type AiProvider,
 } from "@/lib/ai/keys";
+import {
+  cleanUnusedEssayImages,
+  fetchQuotaUsage,
+  formatBytes,
+  type QuotaUsage,
+} from "@/lib/assets/quota";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -79,6 +85,16 @@ function SettingsDialog({
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [passwordStatus, setPasswordStatus] = useState<string | null>(null);
   const [passwordBusy, setPasswordBusy] = useState(false);
+  const [quota, setQuota] = useState<QuotaUsage | null>(null);
+  const [quotaStatus, setQuotaStatus] = useState<string | null>(null);
+  const [quotaBusy, setQuotaBusy] = useState(false);
+
+  useEffect(() => {
+    if (previewMode || !isSupabaseConfigured()) return;
+    void fetchQuotaUsage()
+      .then((usage) => setQuota(usage))
+      .catch(() => setQuota(null));
+  }, [previewMode]);
 
   const defaultLangs = prefs.spellcheckLanguages;
 
@@ -195,6 +211,71 @@ function SettingsDialog({
               </button>
               {nameStatus && (
                 <p className="mt-2 text-xs text-muted">{nameStatus}</p>
+              )}
+
+              <h4 className="mt-5 mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+                Storage
+              </h4>
+              <p className="settings-help mb-2">
+                Combined quota for essay markdown and Storage (images + Library
+                PDFs). The assets bucket is public-by-URL so published embeds work.
+              </p>
+              {quota ? (
+                <p className="mb-2 text-sm">
+                  {formatBytes(quota.usedBytes)} / {formatBytes(quota.quotaBytes)}{" "}
+                  used
+                  <span className="text-muted">
+                    {" "}
+                    (
+                    {quota.quotaBytes > 0
+                      ? Math.min(
+                          100,
+                          Math.round(
+                            (100 * quota.usedBytes) / quota.quotaBytes
+                          )
+                        )
+                      : 0}
+                    %)
+                  </span>
+                </p>
+              ) : (
+                <p className="mb-2 text-xs text-muted">Loading usage…</p>
+              )}
+              <button
+                type="button"
+                className="rounded border border-border px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-40"
+                disabled={quotaBusy}
+                onClick={() => {
+                  void (async () => {
+                    setQuotaBusy(true);
+                    setQuotaStatus(null);
+                    try {
+                      const result = await cleanUnusedEssayImages();
+                      const usage = await fetchQuotaUsage();
+                      setQuota(usage);
+                      setQuotaStatus(
+                        result.removed === 0
+                          ? "No unused images found."
+                          : `Removed ${result.removed} unused image${
+                              result.removed === 1 ? "" : "s"
+                            } (${formatBytes(result.freedBytes)} freed).`
+                      );
+                    } catch (err) {
+                      setQuotaStatus(
+                        err instanceof Error
+                          ? err.message
+                          : "Could not clean unused images."
+                      );
+                    } finally {
+                      setQuotaBusy(false);
+                    }
+                  })();
+                }}
+              >
+                {quotaBusy ? "Cleaning…" : "Clean unused images"}
+              </button>
+              {quotaStatus && (
+                <p className="mt-2 text-xs text-muted">{quotaStatus}</p>
               )}
 
               <h4 className="mt-5 mb-2 text-xs font-semibold uppercase tracking-wider text-muted">

@@ -1,8 +1,21 @@
 /**
- * Session-local Library: PDF blobs stay in memory; link bookmarks store a URL.
- * Meta persists in sessionStorage so the panel can list entries after a soft
- * reload (PDF object URLs still need a re-pick after a full tab close).
+ * Library store: session cache + optional Supabase durability when signed in.
+ * Preview / unauthenticated mode stays session-only (PDFs in memory).
  */
+
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { createClient } from "@/lib/supabase/client";
+import {
+  cloudRowToMeta,
+  deleteCloudLibraryItem,
+  fetchCloudLibraryItems,
+  publicUrlForAssetPath,
+  uploadCloudLibraryPdf,
+  upsertCloudLibraryLink,
+} from "@/lib/library/cloudLibrary";
+import { canonicalizeLibraryUrl } from "@/lib/library/urls";
+
+export { canonicalizeLibraryUrl };
 
 export type LibraryKind = "pdf" | "link";
 
@@ -10,8 +23,10 @@ export type LibraryMeta = {
   id: string;
   kind: LibraryKind;
   name: string;
-  /** Present for kind === "link". */
+  /** Present for kind === "link" (and sometimes pdf public URL). */
   url?: string;
+  assetPath?: string;
+  byteSize?: number;
 };
 
 type LibraryPdfEntry = LibraryMeta & {
@@ -45,11 +60,27 @@ function normalizeMeta(raw: unknown): LibraryMeta[] {
           ? record.url.trim()
           : "";
       if (!url) continue;
-      out.push({ id, kind: "link", name, url });
+      out.push({
+        id,
+        kind: "link",
+        name,
+        url,
+        assetPath:
+          typeof record.assetPath === "string" ? record.assetPath : undefined,
+        byteSize:
+          typeof record.byteSize === "number" ? record.byteSize : undefined,
+      });
       continue;
     }
-    // Legacy rows were PDF-only `{ id, name }`.
-    out.push({ id, kind: "pdf", name });
+    out.push({
+      id,
+      kind: "pdf",
+      name,
+      url: typeof record.url === "string" ? record.url : undefined,
+      assetPath:
+        typeof record.assetPath === "string" ? record.assetPath : undefined,
+      byteSize: typeof record.byteSize === "number" ? record.byteSize : undefined,
+    });
   }
   return out;
 }
@@ -75,6 +106,7 @@ function saveMeta(entries: LibraryMeta[]) {
 }
 
 let meta = loadMeta();
+let hydratePromise: Promise<void> | null = null;
 
 /** Stable empty snapshot for SSR / useSyncExternalStore. */
 const EMPTY_META: LibraryMeta[] = [];
@@ -84,10 +116,6 @@ export function subscribeLibrary(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-/**
- * Cached snapshot — must return the same reference between emits or
- * useSyncExternalStore loops (getSnapshot should be cached).
- */
 export function listLibraryEntries(): LibraryMeta[] {
   return meta;
 }
@@ -100,10 +128,59 @@ export function getLibrarySrc(id: string): string | null {
   return srcById.get(id) ?? null;
 }
 
+async function signedIn(): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false;
+  try {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    return Boolean(user);
+  } catch {
+    return false;
+  }
+}
+
+/** Pull durable Library rows from Supabase into the session cache. */
+export async function hydrateLibraryFromCloud(): Promise<void> {
+  if (hydratePromise) return hydratePromise;
+  hydratePromise = (async () => {
+    if (!(await signedIn())) return;
+    try {
+      const rows = await fetchCloudLibraryItems();
+      const next: LibraryMeta[] = [];
+      for (const row of rows) {
+        const entry = cloudRowToMeta(row);
+        next.push(entry);
+        if (row.kind === "pdf" && row.asset_path) {
+          try {
+            const src =
+              row.url || (await publicUrlForAssetPath(row.asset_path));
+            srcById.set(row.id, src);
+          } catch {
+            /* open will re-resolve */
+          }
+        } else if (row.kind === "pdf" && row.url) {
+          srcById.set(row.id, row.url);
+        }
+      }
+      meta = next;
+      saveMeta(meta);
+      emit();
+    } catch {
+      /* keep session cache */
+    }
+  })();
+  try {
+    await hydratePromise;
+  } finally {
+    hydratePromise = null;
+  }
+}
+
 export function addLibraryPdf(file: File): LibraryPdfEntry {
   const id = `lib:${crypto.randomUUID()}`;
   const src = URL.createObjectURL(file);
-  // Keep the extension so Library entries read as real files (report.pdf).
   const name = file.name.trim() || "document.pdf";
   fileById.set(id, file);
   srcById.set(id, src);
@@ -113,19 +190,27 @@ export function addLibraryPdf(file: File): LibraryPdfEntry {
   return { id, kind: "pdf", name, src, revokeOnClose: true };
 }
 
-/** Normalize for Library link identity (trailing slash / default ports). */
-export function canonicalizeLibraryUrl(raw: string): string | null {
-  try {
-    const parsed = new URL(raw.trim());
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return null;
-    }
-    parsed.hash = "";
-    // Drop default ports; keep a stable href for matching.
-    return parsed.href.replace(/\/$/, "") || parsed.origin;
-  } catch {
-    return null;
+/** Prefer cloud upload when signed in; otherwise session-only. */
+export async function addLibraryPdfDurable(file: File): Promise<LibraryPdfEntry> {
+  if (await signedIn()) {
+    const { row, src } = await uploadCloudLibraryPdf(file);
+    srcById.set(row.id, src);
+    const entry = cloudRowToMeta(row);
+    meta = [...meta.filter((e) => e.id !== entry.id), entry];
+    saveMeta(meta);
+    emit();
+    return {
+      id: entry.id,
+      kind: "pdf",
+      name: entry.name,
+      src,
+      revokeOnClose: false,
+      url: entry.url,
+      assetPath: entry.assetPath,
+      byteSize: entry.byteSize,
+    };
   }
+  return addLibraryPdf(file);
 }
 
 export function findLibraryLinkByUrl(raw: string): LibraryMeta | null {
@@ -167,22 +252,90 @@ export function addLibraryLink(input: {
   return entry;
 }
 
-/** Toggle: add if missing, remove if already bookmarked. */
+export async function addLibraryLinkDurable(input: {
+  url: string;
+  title?: string;
+}): Promise<LibraryMeta> {
+  if (await signedIn()) {
+    const row = await upsertCloudLibraryLink(input);
+    const entry = cloudRowToMeta(row);
+    meta = [
+      ...meta.filter(
+        (e) =>
+          e.id !== entry.id &&
+          !(
+            e.kind === "link" &&
+            e.url &&
+            canonicalizeLibraryUrl(e.url) === canonicalizeLibraryUrl(entry.url || "")
+          )
+      ),
+      entry,
+    ];
+    saveMeta(meta);
+    emit();
+    return entry;
+  }
+  return addLibraryLink(input);
+}
+
 export function toggleLibraryLink(input: {
   url: string;
   title?: string;
 }): { added: boolean; entry: LibraryMeta | null } {
   const existing = findLibraryLinkByUrl(input.url);
   if (existing) {
-    removeLibraryEntry(existing.id);
+    void removeLibraryEntryDurable(existing.id);
     return { added: false, entry: null };
   }
-  return { added: true, entry: addLibraryLink(input) };
+  const optimistic = addLibraryLink(input);
+  void (async () => {
+    if (await signedIn()) {
+      try {
+        const row = await upsertCloudLibraryLink({
+          url: input.url,
+          title: input.title,
+        });
+        const entry = cloudRowToMeta(row);
+        meta = [
+          ...meta.filter(
+            (e) =>
+              e.id !== optimistic.id &&
+              e.id !== entry.id &&
+              !(
+                e.kind === "link" &&
+                e.url &&
+                canonicalizeLibraryUrl(e.url) ===
+                  canonicalizeLibraryUrl(entry.url || "")
+              )
+          ),
+          entry,
+        ];
+        saveMeta(meta);
+        emit();
+      } catch {
+        /* keep optimistic session entry */
+      }
+    }
+  })();
+  return { added: true, entry: optimistic };
+}
+
+export async function toggleLibraryLinkDurable(input: {
+  url: string;
+  title?: string;
+}): Promise<{ added: boolean; entry: LibraryMeta | null }> {
+  const existing = findLibraryLinkByUrl(input.url);
+  if (existing) {
+    await removeLibraryEntryDurable(existing.id);
+    return { added: false, entry: null };
+  }
+  const entry = await addLibraryLinkDurable(input);
+  return { added: true, entry };
 }
 
 export function removeLibraryEntry(id: string): void {
   const src = srcById.get(id);
-  if (src) {
+  if (src?.startsWith("blob:")) {
     try {
       URL.revokeObjectURL(src);
     } catch {
@@ -194,4 +347,33 @@ export function removeLibraryEntry(id: string): void {
   meta = meta.filter((e) => e.id !== id);
   saveMeta(meta);
   emit();
+}
+
+export async function removeLibraryEntryDurable(id: string): Promise<void> {
+  removeLibraryEntry(id);
+  if (await signedIn()) {
+    try {
+      await deleteCloudLibraryItem(id);
+    } catch {
+      /* session already cleared */
+    }
+  }
+}
+
+/** Resolve a PDF src for opening a pin (cloud URL or local blob). */
+export async function resolveLibraryPdfSrc(
+  entry: LibraryMeta
+): Promise<string | null> {
+  const cached = getLibrarySrc(entry.id);
+  if (cached) return cached;
+  if (entry.url && entry.kind === "pdf") {
+    srcById.set(entry.id, entry.url);
+    return entry.url;
+  }
+  if (entry.assetPath) {
+    const src = await publicUrlForAssetPath(entry.assetPath);
+    srcById.set(entry.id, src);
+    return src;
+  }
+  return null;
 }

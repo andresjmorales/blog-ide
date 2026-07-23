@@ -15,9 +15,10 @@ by design.
   bootstrap, phone terminal capture + desktop Shell
 - **Local-first sync** — IndexedDB autosave, optimistic Supabase sync, conflict
   copies, hard per-user quota (default 20 MiB combined)
-- **Research surfaces** — pop-out documents, link hover/Pin, PDF + site-link
-  Library pins (bookmark from hover or pinned preview), publication Preview in
-  a new tab, pre-publish link/image check, client image compress + Storage upload
+- **Research surfaces** — pop-out documents, link hover/Pin, cloud Library
+  (PDFs + site bookmarks under quota; bookmark from hover/pin), publication
+  Preview, pre-publish link/image check, image compress + Storage upload with
+  combined quota accounting and zip export that bundles owned assets
 - **Optional AI** — BYOK Anthropic / OpenAI keys (device-local), sidebar chat,
   import cleanup assist
 - **Export / import** — copy markdown + HTML, download `.md`, import markdown
@@ -65,11 +66,17 @@ Edit `.env.local` (gitignored — keep secrets here, not in the README):
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-or-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-secret-or-service-role-key
+
+# Only on the blogide.com (hosted) deploy — omit for self-host / local:
+# NEXT_PUBLIC_HOSTED=true
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` is used only by the signup API route to redeem beta codes.
+`NEXT_PUBLIC_HOSTED=true` switches landing/signup copy to the hosted-instance
+framing and enables the full `/hosting` comparison (self-host installs see a
+short stub). See [`.env.example`](./.env.example).
 
-Add the same three variables in Vercel (Production + Preview as needed) and **redeploy** after saving.
+Add the same variables in Vercel (Production + Preview as needed) and **redeploy** after saving.
 
 ### CI migrations (optional)
 
