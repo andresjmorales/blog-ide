@@ -15,6 +15,11 @@ import {
 } from "@/components/EditorOverflowMenu";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { openPublicationPreviewTab } from "@/lib/preview/publicationHtml";
+import {
+  runPrePublishCheck,
+  type PrePublishReport,
+} from "@/lib/preview/runPrePublishCheck";
+import { PrePublishCheckDialog } from "@/components/PrePublishCheckDialog";
 import { splitFrontmatter } from "@/lib/markdown/frontmatter";
 import { compactDiff, unifiedLineDiff } from "@/lib/markdown/diff";
 import {
@@ -176,6 +181,11 @@ export function DocumentWorkspace({
   const [lossyDiffOpen, setLossyDiffOpen] = useState(false);
   const [essaySettingsOpen, setEssaySettingsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [prePublishOpen, setPrePublishOpen] = useState(false);
+  const [prePublishBusy, setPrePublishBusy] = useState(false);
+  const [prePublishReport, setPrePublishReport] =
+    useState<PrePublishReport | null>(null);
+  const [prePublishError, setPrePublishError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [baseVersion, setBaseVersion] = useState(1);
@@ -223,6 +233,9 @@ export function DocumentWorkspace({
     // never render (and then autosave) the old essay under the new id. The
     // loader repopulates it once the new document arrives.
     setSourceText("");
+    // Always open the new document in rich text, even if the previous one
+    // was being viewed as raw markdown.
+    setMode("wysiwyg");
     setLoading(Boolean(persistEnabled && nodeId));
     setLoadError(null);
   }
@@ -1008,6 +1021,30 @@ export function DocumentWorkspace({
         }
       },
     },
+    {
+      id: "pre-publish",
+      label: "Pre-publish check",
+      onSelect: () => {
+        setPrePublishOpen(true);
+        setPrePublishBusy(true);
+        setPrePublishReport(null);
+        setPrePublishError(null);
+        void runPrePublishCheck(currentMarkdown())
+          .then((report) => {
+            setPrePublishReport(report);
+          })
+          .catch((err) => {
+            setPrePublishError(
+              err instanceof Error
+                ? err.message
+                : "Could not run pre-publish check."
+            );
+          })
+          .finally(() => {
+            setPrePublishBusy(false);
+          });
+      },
+    },
     { kind: "separator", id: "sep-export" },
     // Export
     {
@@ -1205,6 +1242,13 @@ export function DocumentWorkspace({
           nodeId={nodeId}
           onRestore={restoreRevision}
         />
+        <PrePublishCheckDialog
+          open={prePublishOpen}
+          busy={prePublishBusy}
+          report={prePublishReport}
+          error={prePublishError}
+          onClose={() => setPrePublishOpen(false)}
+        />
       </div>
     );
   }
@@ -1259,6 +1303,13 @@ export function DocumentWorkspace({
         onClose={() => setHistoryOpen(false)}
         nodeId={nodeId}
         onRestore={restoreRevision}
+      />
+      <PrePublishCheckDialog
+        open={prePublishOpen}
+        busy={prePublishBusy}
+        report={prePublishReport}
+        error={prePublishError}
+        onClose={() => setPrePublishOpen(false)}
       />
     </>
   );

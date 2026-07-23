@@ -228,13 +228,66 @@ function canonicalizeBlockMath(markdown: string): string {
   });
 }
 
+/** GFM table separator cell: optional alignment colons + one or more dashes. */
+const TABLE_SEPARATOR_CELL_RE = /^:?-+:?$/;
+
 /**
- * Canonicalize: display-math fence style + exactly one trailing newline.
- * Trailing spaces inside lines are left alone — hard breaks are serialized
- * as two trailing spaces.
+ * TipTap re-emits padded cells (`| A   |`) and fixed `---` separators. Treat
+ * cosmetic dash/space padding as equivalent so source→rich-text isn't lossy.
+ */
+function canonicalizeSeparatorCell(cell: string): string {
+  const trimmed = cell.trim();
+  const left = trimmed.startsWith(":");
+  const right = trimmed.endsWith(":");
+  return `${left ? ":" : ""}---${right ? ":" : ""}`;
+}
+
+function canonicalizeTableLine(line: string): string {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return line;
+  const inner = trimmed.slice(1, -1);
+  if (!inner.includes("|") && !inner.trim()) return line;
+  const cells = inner.split("|");
+  if (cells.length === 0) return line;
+  const isSeparator = cells.every((cell) =>
+    TABLE_SEPARATOR_CELL_RE.test(cell.trim())
+  );
+  const next = cells.map((cell) =>
+    isSeparator ? canonicalizeSeparatorCell(cell) : cell.trim()
+  );
+  return `| ${next.join(" | ")} |`;
+}
+
+function canonicalizeTables(markdown: string): string {
+  let inFence = false;
+  return markdown
+    .split("\n")
+    .map((line) => {
+      if (/^```/.test(line.trimStart())) {
+        inFence = !inFence;
+        return line;
+      }
+      if (inFence) return line;
+      return canonicalizeTableLine(line);
+    })
+    .join("\n");
+}
+
+/**
+ * Stable post-serialize normalize: display-math fence style + one trailing
+ * newline. Does **not** rewrite table padding — TipTap’s padded emit must
+ * survive byte-for-byte fixture round-trips.
+ */
+function normalizeSerialized(markdown: string): string {
+  return canonicalizeBlockMath(markdown).replace(/\n*$/, "\n");
+}
+
+/**
+ * Compare normalize: also collapses table cell/separator padding so TipTap’s
+ * cosmetic dash/space padding is not treated as lossy.
  */
 export function normalize(markdown: string): string {
-  return canonicalizeBlockMath(markdown).replace(/\n*$/, "\n");
+  return canonicalizeTables(normalizeSerialized(markdown));
 }
 
 /**
@@ -249,7 +302,11 @@ export function roundTrip(markdown: string): string {
   // here keeps a source→rich-text round trip from being flagged as lossy over
   // pure whitespace, and keeps the lossy diff focused on real changes.
   const leadingBlank = body.match(/^\n+/)?.[0] ?? "";
-  return frontmatter + leadingBlank + normalize(serializeBody(parseBody(body)));
+  return (
+    frontmatter +
+    leadingBlank +
+    normalizeSerialized(serializeBody(parseBody(body)))
+  );
 }
 
 /**
@@ -262,5 +319,5 @@ export function isLossy(markdown: string): boolean {
 
 /** What the editor would emit after a source → rich-text round trip. */
 export function previewRoundTrip(markdown: string): string {
-  return normalize(roundTrip(markdown));
+  return roundTrip(markdown);
 }

@@ -11,6 +11,7 @@ import { PopOutDocument } from "@/components/pins/PopOutDocument";
 import { LinkPinBody } from "@/components/pins/LinkPinBody";
 import { PdfPinViewer } from "@/components/pins/PdfPinViewer";
 import { PinnedSurface } from "@/components/pins/PinnedSurface";
+import { AddToLibraryButton } from "@/components/library/AddToLibraryButton";
 import { PanelSlot } from "@/components/panels/PersistentPanel";
 import {
   closePin,
@@ -151,6 +152,13 @@ export function PopOutLayer({
               onMove={(left, top) => updatePin(pin.id, { left, top })}
               onResize={(width, height) =>
                 updatePin(pin.id, { width, height })
+              }
+              headerActions={
+                <AddToLibraryButton
+                  url={pin.url}
+                  title={pin.title}
+                  variant="header"
+                />
               }
             >
               <LinkPinBody pin={pin} />

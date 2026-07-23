@@ -434,12 +434,17 @@ body {
 .blogide-math-popup-bar {
   align-items: center;
   color: var(--muted);
+  cursor: grab;
   display: flex;
   font-size: 0.7rem;
   font-weight: 650;
   justify-content: space-between;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  user-select: none;
+}
+.blogide-math-popup-bar:active {
+  cursor: grabbing;
 }
 .blogide-math-popup-actions {
   display: inline-flex;
@@ -1579,6 +1584,48 @@ html.app-shell-lock body {
 .link-hover-actions button:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+.link-hover-actions .link-hover-bookmark {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.3rem;
+}
+.link-hover-actions .link-hover-bookmark.is-saved,
+.link-library-bookmark.is-saved {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.link-library-bookmark-icon {
+  display: inline-grid;
+  place-items: center;
+  position: relative;
+}
+.link-library-bookmark-icon svg {
+  display: block;
+}
+.link-library-bookmark-check {
+  align-items: center;
+  background: var(--accent);
+  border-radius: 999px;
+  bottom: -3px;
+  color: var(--background);
+  display: inline-flex;
+  height: 0.7rem;
+  justify-content: center;
+  position: absolute;
+  right: -4px;
+  width: 0.7rem;
+}
+.link-library-bookmark-check svg {
+  height: 0.45rem;
+  width: 0.45rem;
+}
+.pinned-surface-btn.link-library-bookmark {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  min-width: 1.75rem;
+  padding-inline: 0.35rem;
 }
 
 .link-pin-body {

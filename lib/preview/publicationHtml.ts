@@ -26,6 +26,60 @@ function escapeHtml(value: string): string {
 }
 
 /**
+ * Recursively flatten a node tree into phrasing-only HTML fragments.
+ * Block tags (`p`, `div`, lists) are unwrapped so tips mid-`<p>` never
+ * contain hoistable blocks.
+ */
+function flattenTipNodes(nodes: Iterable<ChildNode>): string[] {
+  const parts: string[] = [];
+
+  for (const node of nodes) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent ?? "";
+      if (text.trim()) parts.push(text);
+      continue;
+    }
+    if (!(node instanceof HTMLElement)) continue;
+
+    const tag = node.tagName.toLowerCase();
+    if (tag === "p" || tag === "div") {
+      const inner = flattenTipNodes(node.childNodes);
+      if (inner.length) parts.push(inner.join(""));
+      continue;
+    }
+    if (tag === "ul" || tag === "ol") {
+      const items = [...node.querySelectorAll(":scope > li")];
+      const lines = items.map((li, i) => {
+        const body = flattenTipNodes(li.childNodes).join("").trim();
+        return tag === "ol" ? `${i + 1}. ${body}` : `• ${body}`;
+      });
+      if (lines.length) parts.push(lines.join("<br>"));
+      continue;
+    }
+    if (tag === "li") {
+      const inner = flattenTipNodes(node.childNodes);
+      if (inner.length) parts.push(inner.join(""));
+      continue;
+    }
+    if (tag === "br") {
+      parts.push("<br>");
+      continue;
+    }
+    if (tag === "pre" || tag === "blockquote") {
+      const text = (node.textContent || "").trim();
+      if (text) parts.push(escapeHtml(text));
+      continue;
+    }
+    // Phrasing tags (a, em, strong, code, …): keep the element, flatten kids.
+    const clone = node.cloneNode(false) as HTMLElement;
+    clone.innerHTML = flattenTipNodes(node.childNodes).join("");
+    parts.push(clone.outerHTML);
+  }
+
+  return parts;
+}
+
+/**
  * Hover tips sit mid-paragraph, so tip markup must be phrasing-only.
  * Block tags like `<p>` get hoisted by the browser and leave an empty tip shell.
  */
@@ -36,47 +90,18 @@ export function toInlineTipHtml(noteHtml: string, doc?: Document): string {
       ? new DOMParser().parseFromString("<div></div>", "text/html")
       : null);
   if (!owner) {
-    return noteHtml.replace(/<\/?p\b[^>]*>/gi, "").trim();
+    return noteHtml
+      .replace(/<\/?(?:p|div|ul|ol|li)\b[^>]*>/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   const wrap = owner.createElement("div");
   wrap.innerHTML = noteHtml.trim();
-  const parts: string[] = [];
-
-  for (const node of [...wrap.childNodes]) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent ?? "";
-      if (text.trim()) parts.push(text);
-      continue;
-    }
-    if (!(node instanceof HTMLElement)) continue;
-
-    const tag = node.tagName.toLowerCase();
-    if (tag === "p" || tag === "div") {
-      const inner = node.innerHTML.trim();
-      if (inner) parts.push(inner);
-      continue;
-    }
-    if (tag === "ul" || tag === "ol") {
-      const items = [...node.querySelectorAll(":scope > li")];
-      parts.push(
-        items
-          .map((li, i) =>
-            tag === "ol" ? `${i + 1}. ${li.innerHTML}` : `• ${li.innerHTML}`
-          )
-          .join("<br>")
-      );
-      continue;
-    }
-    if (tag === "pre" || tag === "blockquote") {
-      const text = (node.textContent || "").trim();
-      if (text) parts.push(escapeHtml(text));
-      continue;
-    }
-    parts.push(node.outerHTML);
-  }
+  const parts = flattenTipNodes(wrap.childNodes);
 
   // Paragraph gap (not a single <br>) so multi-line notes stay readable.
+  // List item lines already use a single <br>; join top-level blocks with <br><br>.
   const joined = parts.filter(Boolean).join("<br><br>");
   if (joined) return joined;
   const fallback = (wrap.textContent || "").trim();
@@ -311,6 +336,7 @@ export function buildPublicationDocument(markdown: string): string {
     --muted: #57534e;
     --border: #e7e5e4;
     --accent: #0f766e;
+    --fn-link: #0000ee;
     --panel: #f5f5f4;
     --target: #ecfdf5;
     color-scheme: light;
@@ -376,7 +402,7 @@ export function buildPublicationDocument(markdown: string): string {
     line-height: inherit;
   }
   .preview-fn-ref {
-    color: var(--accent);
+    color: var(--fn-link);
     cursor: pointer;
     font-family: system-ui, sans-serif;
     font-size: 0.7em;
@@ -425,12 +451,10 @@ export function buildPublicationDocument(markdown: string): string {
   .preview-fn-tip > *:first-child { margin-top: 0; }
   .preview-fn-tip > *:last-child { margin-bottom: 0; }
   .preview-fn-tip p { margin: 0 0 0.45em; }
-  .preview-fn-tip a { color: var(--accent); }
+  .preview-fn-tip a { color: var(--fn-link); }
   .preview-fn-tip em { font-style: italic; }
   .preview-fn-tip strong { font-weight: 700; }
   .preview-fn-tip code { font-family: ui-monospace, monospace; font-size: 0.9em; }
-  .preview-fn-tip ul,
-  .preview-fn-tip ol { margin: 0.35em 0; padding-left: 1.2em; }
   .preview-footnotes {
     border-top: 1px solid var(--border);
     font-family: system-ui, sans-serif;
@@ -465,7 +489,7 @@ export function buildPublicationDocument(markdown: string): string {
   }
   [id^="fnref-"] { scroll-margin-top: 2rem; }
   .preview-footnotes-back {
-    color: var(--accent);
+    color: var(--fn-link);
     font-weight: 650;
     text-decoration: none;
   }

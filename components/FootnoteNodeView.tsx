@@ -29,6 +29,7 @@ import {
 import { StrictOrderedList } from "@/lib/editor/orderedList";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
 import { ConvertCaseMenu } from "@/components/ConvertCaseMenu";
+import { CleanWhitespaceButton } from "@/components/CleanWhitespaceButton";
 import { FootnoteSidenote } from "@/components/FootnoteSidenote";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { useAppDialog } from "@/components/AppDialog";
@@ -744,6 +745,7 @@ function FootnoteToolbar({
             <ImageIcon />
           </FootnoteToolButton>
           <ConvertCaseMenu editor={editor} />
+          <CleanWhitespaceButton editor={editor} />
           <SpecialCharsMenu editor={editor} />
         </>
       )}

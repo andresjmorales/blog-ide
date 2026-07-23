@@ -15,12 +15,13 @@ by design.
   bootstrap, phone terminal capture + desktop Shell
 - **Local-first sync** — IndexedDB autosave, optimistic Supabase sync, conflict
   copies, hard per-user quota (default 20 MiB combined)
-- **Research surfaces** — pop-out documents, link hover/Pin, PDF pins, publication
-  Preview in a new tab, client image compress + Storage upload
+- **Research surfaces** — pop-out documents, link hover/Pin, PDF + site-link
+  Library pins (bookmark from hover or pinned preview), publication Preview in
+  a new tab, pre-publish link/image check, client image compress + Storage upload
 - **Optional AI** — BYOK Anthropic / OpenAI keys (device-local), sidebar chat,
   import cleanup assist
 - **Export / import** — copy markdown + HTML, download `.md`, import markdown
-  from the Files panel
+  from the Files panel; Convert Case and Clean whitespace for messy pastes
 
 ## Stack
 

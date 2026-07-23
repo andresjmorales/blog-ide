@@ -5,6 +5,7 @@ import type { Editor } from "@tiptap/core";
 import { fetchLinkPreview } from "@/lib/preview/client";
 import type { LinkPreview } from "@/lib/preview/openGraph";
 import { openLinkPin } from "@/lib/pins/pinStore";
+import { AddToLibraryButton } from "@/components/library/AddToLibraryButton";
 
 type CardState = {
   url: string;
@@ -190,6 +191,7 @@ export function LinkHoverCard({
         >
           Pin
         </button>
+        <AddToLibraryButton url={card.url} title={title} variant="hover" />
       </div>
     </div>
   );

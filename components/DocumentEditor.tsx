@@ -33,6 +33,7 @@ import {
 } from "@/components/icons";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
 import { ConvertCaseMenu } from "@/components/ConvertCaseMenu";
+import { CleanWhitespaceButton } from "@/components/CleanWhitespaceButton";
 import { DocumentOutline } from "@/components/DocumentOutline";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { SidenoteRail } from "@/components/SidenoteRail";
@@ -502,6 +503,7 @@ function Toolbar({
         <LinkIcon />
       </ToolButton>
       <ConvertCaseMenu editor={editor} />
+      <CleanWhitespaceButton editor={editor} />
 
       <span className="mx-1.5 h-4 w-px bg-border" aria-hidden />
 
