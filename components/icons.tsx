@@ -259,6 +259,49 @@ export function ImageIcon({ className = "" }: { className?: string }) {
   );
 }
 
+/** Bookmark ribbon (Firefox-style) for Library save. */
+export function BookmarkIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width={TOOL_ICON}
+      height={TOOL_ICON}
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <path
+        d="M4 2.5h8a.5.5 0 0 1 .5.5v10.2l-4.25-2.4L4 13.2V3a.5.5 0 0 1 .5-.5Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Small check for “already in Library” overlay. */
+export function BookmarkCheckIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width={10}
+      height={10}
+      viewBox="0 0 10 10"
+      fill="none"
+    >
+      <path
+        d="M2 5.2 4.2 7.4 8 2.8"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** Six-dot grip used as a "this is draggable" affordance. */
 export function GrabHandle({ className = "" }: { className?: string }) {
   return (

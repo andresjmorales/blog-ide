@@ -44,6 +44,7 @@ export function newEssayFrontmatter(title: string): string {
     "description:",
     "tags:",
     "canonical:",
+    "status: draft",
     "---",
     "",
     "",

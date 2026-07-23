@@ -15,13 +15,17 @@ frontmatter as opaque aside from a few keys it edits in the UI:
 | `title` | Essay title (also drives suggested filename) |
 | `subtitle` | Optional deck under the title |
 | `author` | Optional byline |
+| `status` | Optional; new essays default to `draft`. personal-site hides `draft` / `unpublished` / `hidden` from the Writing rail (slug URL still works) |
 
 **Empty keys:** clearing the subtitle keeps a bare `subtitle:` line so export
 templates stay stable. The sibling [`personal-site`](../../personal-site)
 reader (`gray-matter` + `coerceString`) treats that as `null` — no BlogIDE
 change required.
 
-Other YAML keys (e.g. `date`, `tags`, `canonical`) are preserved verbatim.
+Other YAML keys (e.g. `date`, `tags`, `canonical`, or any custom key) are
+preserved verbatim. BlogIDE never parse→dumps the YAML block, so unknown
+fields survive round-trips and sync to personal-site without breaking either
+side.
 
 ## Image captions (BlogIDE extension)
 
@@ -49,14 +53,16 @@ notes is supported where the shared extension set allows it.
 
 GFM pipe tables are edited via TipTap’s table extension and serialize to pipe
 tables. Round-trip fixtures cover the padded canonical form TipTap emits.
+The lossy-check `normalize` collapses separator dash/space padding so short
+`|---|` vs TipTap’s `| ----- |` does not false-alarm when leaving source mode.
 
 ## Math / LaTeX
 
 Inline `$…$` and display `$$…$$` are first-class nodes rendered with KaTeX in
 the editor and in publication Preview. Source delimiters survive serialize /
-parse. Click opens a pinnable edit popup (source + live preview + Refresh).
-The toolbar **TeX** control inserts an inline math node; the Ω menu can still
-insert delimiter pairs as plain text.
+parse. Click opens a pinnable edit popup (source + live preview + Refresh);
+drag the top bar to move it. The toolbar **TeX** control inserts an inline
+math node; the Ω menu can still insert delimiter pairs as plain text.
 
 ## Literals / non-goals
 

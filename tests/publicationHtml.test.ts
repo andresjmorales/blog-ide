@@ -73,6 +73,39 @@ describe("enhancePublicationFootnotes", () => {
     expect(body).toContain("<p>First paragraph.</p>");
     expect(body).toContain("<p>Second paragraph.</p>");
   });
+
+  it("keeps ordered-list content inside the tip (no block hoist)", () => {
+    const raw = `<p>Claim<sup data-footnote-ref data-id="a" data-content="list" class="footnote-ref">?</sup>.</p>`;
+    const html = enhancePublicationFootnotes(
+      raw,
+      () =>
+        `<p>Here is the list:</p><ol><li><p><a href="https://a.example">one</a></p></li><li><p>two</p></li></ol>`
+    );
+    const doc = new DOMParser().parseFromString(
+      `<div id="root">${html}</div>`,
+      "text/html"
+    );
+    const tip = doc.querySelector(".preview-fn-tip");
+    expect(tip).not.toBeNull();
+    expect(tip?.querySelector("p")).toBeNull();
+    expect(tip?.querySelector("ol")).toBeNull();
+    expect(tip?.querySelector("ul")).toBeNull();
+    expect(tip?.querySelector("li")).toBeNull();
+    expect(tip?.textContent).toContain("Here is the list:");
+    expect(tip?.textContent).toMatch(/1\.\s*one/);
+    expect(tip?.textContent).toMatch(/2\.\s*two/);
+    expect(
+      tip?.querySelector('a[href="https://a.example"]')?.textContent
+    ).toBe("one");
+    // List text must stay in the tip — not as a sibling block outside .preview-fn.
+    const paragraph = doc.querySelector("#root > p");
+    const outside = [...(paragraph?.childNodes ?? [])]
+      .filter((n) => !(n instanceof HTMLElement && n.classList.contains("preview-fn")))
+      .map((n) => n.textContent ?? "")
+      .join("");
+    expect(outside).not.toMatch(/two/);
+    expect(outside).toMatch(/Claim/);
+  });
 });
 
 describe("enhancePublicationCaptions", () => {

@@ -24,6 +24,7 @@ describe("newEssayFrontmatter", () => {
         "description:",
         "tags:",
         "canonical:",
+        "status: draft",
         "---",
         "",
         "",
