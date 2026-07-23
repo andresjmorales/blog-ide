@@ -38,12 +38,17 @@ import {
 } from "@/components/AppDialog";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { deleteLocalDoc } from "@/lib/db/indexed";
+import { deleteLocalDoc, getLocalDoc } from "@/lib/db/indexed";
 import {
   fileNameToTitle,
   titleToFileName,
+  writeTitle,
 } from "@/lib/markdown/titleFrontmatter";
-import { newEssayFrontmatter } from "@/lib/markdown/frontmatter";
+import {
+  joinFrontmatter,
+  newEssayFrontmatter,
+  splitFrontmatter,
+} from "@/lib/markdown/frontmatter";
 import {
   createWorkspaceNode,
   deleteWorkspaceNode,
@@ -54,7 +59,9 @@ import {
   setWorkspaceNodeColor,
   setWorkspaceNodePinned,
 } from "@/lib/workspace/api";
-import { loadDocumentTitles } from "@/lib/workspace/docTitles";
+import {
+  loadDocumentTitles,
+} from "@/lib/workspace/docTitles";
 import { pickMarkdownFile } from "@/lib/export/document";
 import { downloadWorkspaceZip } from "@/lib/export/workspaceZip";
 import {
@@ -73,7 +80,10 @@ import type { WorkspaceNode } from "@/lib/workspace/types";
 import {
   formatSyncLabel,
   getSyncStatus,
+  openDocument,
+  saveLocal,
   subscribeSyncStatus,
+  syncDocument,
   type SyncStatus,
 } from "@/lib/sync/engine";
 import { openPopOut } from "@/lib/pins/popOutStore";
@@ -817,7 +827,7 @@ function AppShellContent({
 
     const currentTitle =
       node.kind === "document"
-        ? fileNameToTitle(node.name)
+        ? docTitles.get(nodeId)?.trim() || fileNameToTitle(node.name)
         : node.name.replace(/\/$/, "");
     const next = await dialog.prompt({
       title: "Rename",
@@ -830,10 +840,70 @@ function AppShellContent({
     });
     if (!next?.trim()) return;
 
+    const typedTitle = next.trim().replace(/\.md$/i, "") || "Untitled";
+
+    if (node.kind === "document") {
+      const newName = uniqueSiblingName(
+        nodes,
+        node.parent_id,
+        titleToFileName(typedTitle),
+        node.id
+      );
+      try {
+        // Write the exact typed title into frontmatter before renaming so the
+        // open-editor filename→title effect does not collapse "Document: 2"
+        // into "Document 2". Persist immediately so refreshDocTitles sees it.
+        let markdown: string;
+        let baseVersion: number;
+        if (activeNodeId === nodeId) {
+          const current = getMarkdownForAiRef.current();
+          if (current != null) {
+            markdown = current;
+            const local = await getLocalDoc(nodeId);
+            baseVersion = local?.baseVersion ?? 1;
+          } else {
+            const opened = await openDocument(nodeId);
+            markdown = opened.markdown;
+            baseVersion = opened.baseVersion;
+          }
+        } else {
+          const opened = await openDocument(nodeId);
+          markdown = opened.markdown;
+          baseVersion = opened.baseVersion;
+        }
+        const split = splitFrontmatter(markdown);
+        const nextMarkdown = joinFrontmatter({
+          frontmatter: writeTitle(split.frontmatter, typedTitle),
+          body: split.body,
+        });
+        if (nextMarkdown !== markdown) {
+          await saveLocal(nodeId, nextMarkdown, baseVersion);
+          void syncDocument(nodeId);
+        }
+        if (activeNodeId === nodeId) {
+          applyMarkdownRef.current(nextMarkdown);
+        }
+        setDocTitles((prev) => {
+          const nextMap = new Map(prev);
+          nextMap.set(nodeId, typedTitle);
+          return nextMap;
+        });
+        if (node.name !== newName) {
+          await renameWorkspaceNode(nodeId, newName);
+        }
+        await refreshTree();
+      } catch (error) {
+        setTreeError(
+          error instanceof Error ? error.message : "Could not rename."
+        );
+      }
+      return;
+    }
+
     const newName = uniqueSiblingName(
       nodes,
       node.parent_id,
-      node.kind === "document" ? titleToFileName(next) : next.trim(),
+      next.trim(),
       node.id
     );
     try {
@@ -846,15 +916,23 @@ function AppShellContent({
     }
   }
 
-  async function handleRenameDocument(nodeId: string, fileName: string) {
+  async function handleRenameDocument(
+    nodeId: string,
+    fileName: string
+  ): Promise<string | void> {
     if (previewMode) return;
     const node = nodes.find((n) => n.id === nodeId);
-    if (!node || isScratchpad(node) || node.name === fileName) return;
-    await renameWorkspaceNode(
-      nodeId,
-      uniqueSiblingName(nodes, node.parent_id, fileName, node.id)
+    if (!node || isScratchpad(node)) return;
+    const finalName = uniqueSiblingName(
+      nodes,
+      node.parent_id,
+      fileName,
+      node.id
     );
+    if (node.name === finalName) return finalName;
+    await renameWorkspaceNode(nodeId, finalName);
     await refreshTree();
+    return finalName;
   }
 
   async function handleTogglePin(nodeId: string, pinned: boolean) {
