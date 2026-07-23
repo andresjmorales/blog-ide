@@ -41,6 +41,7 @@ import {
   writeSpellcheckLangs,
 } from "@/lib/markdown/spellcheckFrontmatter";
 import {
+  fileNameMatchesTitle,
   fileNameToTitle,
   parseTitle,
   titleToFileName,
@@ -132,7 +133,10 @@ type Props = {
   }) => void;
   onDocumentLoaded?: (markdown: string) => void;
   onRequestTreeRefresh?: () => void;
-  onRenameDocument?: (nodeId: string, fileName: string) => Promise<void>;
+  onRenameDocument?: (
+    nodeId: string,
+    fileName: string
+  ) => Promise<string | void>;
   /** Pull current essay markdown when the AI sidebar sends / cleans. */
   registerGetMarkdownForAi?: (get: () => string | null) => void;
   registerApplyMarkdown?: (apply: (markdown: string) => void) => void;
@@ -409,12 +413,13 @@ export function DocumentWorkspace({
         return;
       }
       const title = parseTitle(splitFrontmatter(fullMarkdown).frontmatter);
-      if (!title) return;
+      if (!title || !documentName) return;
+      if (fileNameMatchesTitle(documentName, title)) return;
       const desired = titleToFileName(title);
-      if (!documentName || desired === documentName) return;
       syncingNameRef.current = true;
       try {
-        await onRenameRef.current(nodeId, desired);
+        const finalName = await onRenameRef.current(nodeId, desired);
+        prevDocumentNameRef.current = finalName || desired;
       } finally {
         syncingNameRef.current = false;
       }
@@ -567,6 +572,9 @@ export function DocumentWorkspace({
   // Queue the write so we don't setState synchronously inside the effect body.
   // Skip while loading: otherwise a new doc can briefly inherit the previous body
   // and autosave it under the new node id (looks like "New document" cloned the open essay).
+  // Skip when the new file name is only the sanitized/uniquified form of the
+  // current title (title-driven rename) so "Document: 1" is not stomped to
+  // "Document 1".
   useEffect(() => {
     if (loading || !documentName || syncingNameRef.current) return;
     if (prevDocumentNameRef.current === documentName) return;
@@ -577,6 +585,9 @@ export function DocumentWorkspace({
       setDoc((prev) => {
         const current = parseTitle(prev.frontmatter);
         if (current === fromFile) return prev;
+        if (current && fileNameMatchesTitle(documentName, current)) {
+          return prev;
+        }
         const nextFrontmatter = writeTitle(prev.frontmatter, fromFile);
         const next = {
           frontmatter: nextFrontmatter,
@@ -647,15 +658,20 @@ export function DocumentWorkspace({
         persistEnabled &&
         nodeId &&
         canRenameDocument &&
-        onRenameRef.current
+        onRenameRef.current &&
+        documentName &&
+        !fileNameMatchesTitle(documentName, cleaned)
       ) {
         const desired = titleToFileName(cleaned);
-        if (desired !== documentName) {
-          syncingNameRef.current = true;
-          void onRenameRef.current(nodeId, desired).finally(() => {
+        syncingNameRef.current = true;
+        void onRenameRef
+          .current(nodeId, desired)
+          .then((finalName) => {
+            prevDocumentNameRef.current = finalName || desired;
+          })
+          .finally(() => {
             syncingNameRef.current = false;
           });
-        }
       }
     },
     [persistEnabled, nodeId, canRenameDocument, documentName]

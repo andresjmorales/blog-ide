@@ -7,6 +7,7 @@ import {
   writeSubtitle,
 } from "@/lib/markdown/subtitle";
 import {
+  fileNameMatchesTitle,
   fileNameToTitle,
   parseTitle,
   titleToFileName,
@@ -23,10 +24,35 @@ describe("titleFrontmatter", () => {
     expect(titleToFileName('A / B: "draft"')).toBe("A B draft.md");
   });
 
+  it("maps Document: 1 and Document 1 to the same file name", () => {
+    expect(titleToFileName("Document: 1")).toBe("Document 1.md");
+    expect(titleToFileName("Document 1")).toBe("Document 1.md");
+  });
+
+  it("fileNameMatchesTitle accepts base and uniquified siblings", () => {
+    expect(fileNameMatchesTitle("Document 1.md", "Document: 1")).toBe(true);
+    expect(fileNameMatchesTitle("Document 1 (2).md", "Document: 1")).toBe(
+      true
+    );
+    expect(fileNameMatchesTitle("Document 1 (10).md", "Document 1")).toBe(
+      true
+    );
+    expect(fileNameMatchesTitle("Other.md", "Document: 1")).toBe(false);
+    expect(fileNameMatchesTitle("Document 1 copy.md", "Document: 1")).toBe(
+      false
+    );
+  });
+
   it("reads and writes frontmatter title", () => {
     const fm = "---\ntitle: Old\nstatus: draft\n---\n";
     expect(parseTitle(fm)).toBe("Old");
     expect(writeTitle(fm, "New Title")).toContain("title: New Title");
+  });
+
+  it("quotes titles with colons for YAML safety", () => {
+    const fm = writeTitle("---\nstatus: draft\n---\n", "Document: 1");
+    expect(parseTitle(fm)).toBe("Document: 1");
+    expect(fm).toContain('title: "Document: 1"');
   });
 
   it("moves a leading Heading 1 into frontmatter title", () => {

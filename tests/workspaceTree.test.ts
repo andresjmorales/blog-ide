@@ -139,6 +139,14 @@ describe("uniqueSiblingName", () => {
       "essay.md"
     );
   });
+
+  it("dedupes when sanitized titles collide (Document: 1 vs Document 1)", () => {
+    const parent = node({ kind: "folder", name: "essays" });
+    const first = node({ name: "Document 1.md", parent_id: parent.id });
+    expect(
+      uniqueSiblingName([parent, first], parent.id, "Document 1.md")
+    ).toBe("Document 1 (2).md");
+  });
 });
 
 describe("isScratchpad", () => {

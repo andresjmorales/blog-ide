@@ -27,6 +27,19 @@ export function titleToFileName(title: string): string {
 }
 
 /**
+ * True when `fileName` is the sanitized form of `title`, or a sibling-unique
+ * variant (`Stem (2).md`). Used so title-driven renames do not overwrite the
+ * true frontmatter title with the filename-safe stem.
+ */
+export function fileNameMatchesTitle(fileName: string, title: string): boolean {
+  const desired = titleToFileName(title);
+  if (fileName.toLowerCase() === desired.toLowerCase()) return true;
+  const stem = desired.replace(/\.md$/i, "");
+  const escaped = stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^${escaped} \\(\\d+\\)\\.md$`, "i").test(fileName);
+}
+
+/**
  * YAML-safe `title:` line. Values with YAML-significant characters (colons,
  * `#`, quotes, leading dashes…) are double-quoted so external parsers —
  * e.g. a personal-site static generator — read them correctly.
