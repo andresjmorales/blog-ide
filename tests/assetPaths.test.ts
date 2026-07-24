@@ -3,7 +3,11 @@ import {
   assetPathFromUrl,
   collectOwnedAssetPaths,
 } from "@/lib/assets/paths";
-import { isHostedDeployment, getDeploymentMode } from "@/lib/hosted";
+import {
+  isHostedDeployment,
+  getDeploymentMode,
+  requiresBetaCode,
+} from "@/lib/hosted";
 
 describe("assetPathFromUrl", () => {
   const userId = "11111111-1111-1111-1111-111111111111";
@@ -33,5 +37,27 @@ describe("hosted deployment flag", () => {
   it("recognizes NEXT_PUBLIC_HOSTED=true", () => {
     expect(isHostedDeployment({ NEXT_PUBLIC_HOSTED: "true" })).toBe(true);
     expect(getDeploymentMode({ NEXT_PUBLIC_HOSTED: "1" })).toBe("hosted");
+  });
+});
+
+describe("requiresBetaCode", () => {
+  it("falls back to hosted when BETA_ONLY unset", () => {
+    expect(requiresBetaCode({})).toBe(false);
+    expect(requiresBetaCode({ NEXT_PUBLIC_HOSTED: "true" })).toBe(true);
+  });
+
+  it("lets NEXT_PUBLIC_BETA_ONLY override hosted", () => {
+    expect(
+      requiresBetaCode({
+        NEXT_PUBLIC_HOSTED: "true",
+        NEXT_PUBLIC_BETA_ONLY: "false",
+      })
+    ).toBe(false);
+    expect(
+      requiresBetaCode({
+        NEXT_PUBLIC_HOSTED: "false",
+        NEXT_PUBLIC_BETA_ONLY: "true",
+      })
+    ).toBe(true);
   });
 });

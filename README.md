@@ -69,10 +69,11 @@ SUPABASE_SERVICE_ROLE_KEY=your-secret-or-service-role-key
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` is used by the signup API route (and beta-code
-redemption on shared hosted deploys). **Self-host:** open signup, no beta code,
-and BlogIDE does not apply the small hosted free-tier storage cap (your Supabase
-plan is the real limit). **Shared hosted instance** (invite codes, optional
-storage tiers): see [docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md).
+redemption when invite-only). **Self-host:** leave `NEXT_PUBLIC_HOSTED` and
+`NEXT_PUBLIC_BETA_ONLY` unset — open signup, no beta field, large soft quota.
+**Shared hosted / invite-only:** set both `NEXT_PUBLIC_HOSTED=true` and
+`NEXT_PUBLIC_BETA_ONLY=true`, then redeploy (`NEXT_PUBLIC_*` is build-time).
+Details: [docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md).
 
 Add the same variables in Vercel (Production + Preview as needed) and **redeploy** after saving.
 
