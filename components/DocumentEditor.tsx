@@ -47,7 +47,10 @@ import {
   compressImageFile,
   pickImageFile,
 } from "@/lib/assets/imagePipeline";
-import { uploadUserAsset } from "@/lib/assets/upload";
+import {
+  QuotaExceededError,
+  uploadUserAsset,
+} from "@/lib/assets/upload";
 
 type Props = {
   /** Markdown body (frontmatter already stripped by the caller). */
@@ -393,10 +396,21 @@ function Toolbar({
           const ext = compressed.mime === "image/webp" ? "webp" : "jpg";
           src = await uploadUserAsset(
             compressed.blob,
-            file.name.replace(/\.\w+$/, "") + `.${ext}`
+            file.name.replace(/\.\w+$/, "") + `.${ext}`,
+            { kind: "essay_image" }
           );
-        } catch {
-          // Storage optional — fall back to a data URL for local use.
+        } catch (uploadErr) {
+          if (uploadErr instanceof QuotaExceededError) {
+            await dialog.confirm({
+              title: "Storage quota exceeded",
+              message:
+                "This image would exceed your combined markdown + Storage quota. Free space in Account settings (Clean unused images) or remove large files from the Library.",
+              confirmLabel: "OK",
+              cancelLabel: "Close",
+            });
+            return;
+          }
+          // Storage optional / offline — fall back to a data URL for local use.
           src = await blobToDataUrl(compressed.blob);
         }
       } catch (err) {

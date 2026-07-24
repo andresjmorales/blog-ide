@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { isHostedDeployment } from "@/lib/hosted";
 
 export function SignupForm() {
+  const hosted = isHostedDeployment();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
@@ -53,7 +55,9 @@ export function SignupForm() {
     <form onSubmit={handleSubmit} className="w-full max-w-sm">
       <h1 className="text-2xl font-semibold mb-1">Create your account</h1>
       <p className="text-sm text-muted mb-8">
-        BlogIDE is in private beta — a valid beta code is required.
+        {hosted
+          ? "blogide.com is invite-only for now. A valid beta code is required."
+          : "This install requires a beta code to create an account (same gate as the hosted instance)."}
       </p>
 
       <label className="block mb-4">

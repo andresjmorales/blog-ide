@@ -61,10 +61,17 @@ working layer:
    IndexedDB immediately before pushing the queue.
 
 Each user has a hard combined quota (default **20 MiB** on the free hosted
-tier) across UTF-8 markdown bytes and binary Storage objects. Authoritative
-accounting must happen in transactional database/server operations, never in
-client-provided counters. Paid hosted plans may raise `quota_bytes` per user
-later.
+tier) across UTF-8 markdown bytes **and** binary Storage objects tracked in
+`user_assets` (essay images + Library PDFs). `recompute_used_bytes` sums both.
+Uploads call `register_user_asset` before Storage write; deletes release via
+`release_asset_path`. Authoritative accounting stays in definer RPCs, never
+client-provided counters. The `assets` bucket is **public-by-URL** so published
+embeds work; private + signed URLs remain deferred. Paid hosted plans may raise
+`quota_bytes` per user later (Stripe = track 1).
+
+**Library vs essay images:** same Storage bucket, different `user_assets.kind`
+(`essay_image` vs `library_pdf`) and `library_items` rows for research pins /
+bookmarks. Essay images are referenced from markdown; Library binaries are not.
 
 ## Workspace model
 

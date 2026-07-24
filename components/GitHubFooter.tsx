@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { isHostedDeployment } from "@/lib/hosted";
+
 const REPO_URL = "https://github.com/andresjmorales/blog-ide";
 
 function GitHubMark() {
@@ -15,11 +18,25 @@ function GitHubMark() {
   );
 }
 
-/** Small footer link to the public repo — shown on the public pages. */
+/** Small footer link to the public repo. Hosting link only on hosted deploys. */
 export function GitHubFooter() {
+  const showHostingLink = isHostedDeployment();
+
   return (
     <footer className="mt-12 text-xs text-muted">
-      MIT licensed · self-hostable ·{" "}
+      MIT licensed · self-hostable
+      {showHostingLink && (
+        <>
+          {" · "}
+          <Link
+            href="/hosting"
+            className="underline underline-offset-4 hover:text-foreground"
+          >
+            Hosting options
+          </Link>
+        </>
+      )}
+      {" · "}
       <a
         href={REPO_URL}
         target="_blank"

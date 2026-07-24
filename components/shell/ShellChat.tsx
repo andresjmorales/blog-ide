@@ -252,7 +252,7 @@ export function ShellChat({
         )}
         {!loading && visible.length === 0 && (
           <p className="text-muted">
-            # empty — type a note below (timestamped capture, not a markdown dump)
+            # empty. Type a note below (timestamped capture, not a markdown dump)
           </p>
         )}
         {visible.map((note) => {
@@ -359,7 +359,7 @@ export function ShellChat({
               onChange={(e) => setAppendDocId(e.target.value)}
               className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 outline-none focus:border-accent"
             >
-              <option value="">—</option>
+              <option value="">Select…</option>
               {essayDocs.map((doc) => (
                 <option key={doc.id} value={doc.id}>
                   {doc.name.replace(/\.md$/i, "")}
