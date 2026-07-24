@@ -1,3 +1,4 @@
+import { FREE_QUOTA_BYTES } from "@/lib/billing/plans";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
@@ -25,10 +26,10 @@ export async function fetchQuotaUsage(): Promise<QuotaUsage | null> {
     .eq("user_id", user.id)
     .maybeSingle();
   if (error) throw error;
-  if (!data) return { usedBytes: 0, quotaBytes: 20 * 1024 * 1024 };
+  if (!data) return { usedBytes: 0, quotaBytes: FREE_QUOTA_BYTES };
   return {
     usedBytes: Number(data.used_bytes) || 0,
-    quotaBytes: Number(data.quota_bytes) || 20 * 1024 * 1024,
+    quotaBytes: Number(data.quota_bytes) || FREE_QUOTA_BYTES,
   };
 }
 

@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { isHostedDeployment } from "@/lib/hosted";
 import { createClient } from "@/lib/supabase/client";
 
 export function LoginForm() {
+  const hosted = isHostedDeployment();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
@@ -80,8 +82,11 @@ export function LoginForm() {
 
       <p className="mt-6 text-sm text-muted text-center">
         New here?{" "}
-        <Link href="/" className="text-accent underline underline-offset-4">
-          Enter a beta code
+        <Link
+          href={hosted ? "/" : "/signup"}
+          className="text-accent underline underline-offset-4"
+        >
+          {hosted ? "Enter a beta code" : "Create an account"}
         </Link>
       </p>
       <p className="mt-2 text-sm text-muted text-center">

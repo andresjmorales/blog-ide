@@ -66,16 +66,13 @@ Edit `.env.local` (gitignored — keep secrets here, not in the README):
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-or-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-secret-or-service-role-key
-
-# Only on the blogide.com (hosted) deploy — omit for self-host / local:
-# NEXT_PUBLIC_HOSTED=true
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` is used only by the signup API route to redeem beta codes.
-`NEXT_PUBLIC_HOSTED=true` switches landing/signup copy to the hosted-instance
-framing and enables `/hosting` plus footer links to hosting options. Self-host
-and local installs leave it unset: no hosting marketing on the landing page,
-and `/hosting` redirects home. See [`.env.example`](./.env.example).
+`SUPABASE_SERVICE_ROLE_KEY` is used by the signup API route (and beta-code
+redemption on shared hosted deploys). **Self-host:** open signup, no beta code,
+and BlogIDE does not apply the small hosted free-tier storage cap (your Supabase
+plan is the real limit). **Shared hosted instance** (invite codes, optional
+storage tiers): see [docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md).
 
 Add the same variables in Vercel (Production + Preview as needed) and **redeploy** after saving.
 
@@ -98,8 +95,12 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000 → **Sign up** → enter your beta code → create an account.  
-On first editor load, BlogIDE bootstraps `essays/`, `drafts/`, pinned `scratchpad.md`, and a `Notes/` folder (default `general.md` channel; legacy `notes.md` still works). Edits save to IndexedDB immediately and sync to Supabase. On a phone, you land in a terminal-style quick-capture screen; on desktop, open **Shell** for the same Notes stream.
+Open http://localhost:3000 → **Sign up** → create an account (no beta code on
+self-host). On first editor load, BlogIDE bootstraps `essays/`, `drafts/`,
+pinned `scratchpad.md`, and a `Notes/` folder (default `general.md` channel;
+legacy `notes.md` still works). Edits save to IndexedDB immediately and sync to
+Supabase. On a phone, you land in a terminal-style quick-capture screen; on
+desktop, open **Shell** for the same Notes stream.
 
 Optional: open **Account settings** to paste Anthropic or OpenAI keys for the AI sidebar (keys stay on the device; requests go through a thin proxy).
 

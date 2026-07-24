@@ -21,6 +21,11 @@ create table if not exists user_settings (
   editor_prefs jsonb default '{}',
   used_bytes bigint not null default 0,
   quota_bytes bigint not null default 20971520,
+  plan text not null default 'free',
+  stripe_customer_id text,
+  stripe_subscription_id text,
+  stripe_subscription_status text,
+  stripe_cancel_at timestamptz,
   updated_at timestamptz default now()
 );
 
@@ -29,6 +34,27 @@ alter table user_settings add column if not exists used_bytes bigint not null de
 alter table user_settings add column if not exists quota_bytes bigint not null default 20971520;
 alter table user_settings alter column quota_bytes set default 20971520;
 update user_settings set quota_bytes = 20971520 where quota_bytes = 209715200;
+alter table user_settings add column if not exists plan text not null default 'free';
+alter table user_settings add column if not exists stripe_customer_id text;
+alter table user_settings add column if not exists stripe_subscription_id text;
+alter table user_settings add column if not exists stripe_subscription_status text;
+alter table user_settings add column if not exists stripe_cancel_at timestamptz;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'user_settings_plan_check'
+  ) then
+    alter table user_settings
+      add constraint user_settings_plan_check
+      check (plan in ('free', 'pro'));
+  end if;
+end $$;
+create unique index if not exists user_settings_stripe_customer_id_uidx
+  on user_settings (stripe_customer_id)
+  where stripe_customer_id is not null;
+create unique index if not exists user_settings_stripe_subscription_id_uidx
+  on user_settings (stripe_subscription_id)
+  where stripe_subscription_id is not null;
 
 create table if not exists workspace_nodes (
   id uuid primary key default gen_random_uuid(),

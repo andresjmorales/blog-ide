@@ -24,8 +24,8 @@ export default function LandingPage() {
           <p className="mb-10 text-sm leading-relaxed text-muted">
             This is the{" "}
             <span className="text-foreground">blogide.com</span> hosted
-            instance: invite-only for now, not open public signup. Prefer to run
-            it yourself? See{" "}
+            instance: invite-only for now, not open public signup. If you
+            prefer to run it yourself, see{" "}
             <Link
               href="/hosting"
               className="text-accent underline underline-offset-4"
@@ -71,21 +71,26 @@ export default function LandingPage() {
       </div>
 
       {hosted ? (
-        <section className="mt-16 w-full max-w-2xl border-t border-border pt-10 text-center">
+        <section className="mt-16 w-full max-w-3xl border-t border-border pt-10 text-center">
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted">
             Screenshots
           </h2>
-          <p className="text-sm text-muted">
-            Product screenshots coming soon: a place for the editor, pins, and
-            Library once assets are ready.
+          <p className="mb-6 text-sm text-muted">
+            Editor workspace with Library, footnotes, and research pins.
           </p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <div className="flex h-36 items-center justify-center rounded border border-dashed border-border bg-panel text-xs text-muted">
-              Editor preview
-            </div>
-            <div className="flex h-36 items-center justify-center rounded border border-dashed border-border bg-panel text-xs text-muted">
-              Research pins
-            </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/screenshots/editor.png"
+              alt={`${PRODUCT_NAME} editor with Library and footnotes`}
+              className="w-full border border-border"
+            />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/screenshots/research-pins.png"
+              alt={`${PRODUCT_NAME} with PDF and note pins open`}
+              className="w-full border border-border"
+            />
           </div>
         </section>
       ) : null}

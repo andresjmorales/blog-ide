@@ -34,6 +34,8 @@ markdown.
   `/api/reader`).
 - Thin AI chat proxy (`/api/ai/chat`) — the user’s key is sent per request and
   not stored server-side.
+- Optional hosted-instance routes (`/api/billing/*`) when a shared deploy
+  enables storage tiers — see [docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md).
 - Optional Pandoc export where a deployment enables it (not required).
 
 ### Optional external services
@@ -41,6 +43,8 @@ markdown.
 - GitHub is intended as a one-way backup/export target, not required
   onboarding and not overflow media storage.
 - Anthropic / OpenAI are called with the user’s own key via the proxy above.
+- Stripe only if a shared hosted deploy opts into paid storage tiers
+  ([docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md)).
 
 ## Persistence model
 
@@ -60,14 +64,17 @@ working layer:
 7. Blur, tab-hide, doc switch, and unmount flush the debounced draft to
    IndexedDB immediately before pushing the queue.
 
-Each user has a hard combined quota (default **20 MiB** on the free hosted
-tier) across UTF-8 markdown bytes **and** binary Storage objects tracked in
-`user_assets` (essay images + Library PDFs). `recompute_used_bytes` sums both.
+Each user has a hard combined quota across UTF-8 markdown bytes **and** binary
+Storage objects tracked in `user_assets` (essay images + Library PDFs). Default
+limits live in `lib/billing/plans.ts`. `recompute_used_bytes` sums both.
 Uploads call `register_user_asset` before Storage write; deletes release via
 `release_asset_path`. Authoritative accounting stays in definer RPCs, never
 client-provided counters. The `assets` bucket is **public-by-URL** so published
-embeds work; private + signed URLs remain deferred. Paid hosted plans may raise
-`quota_bytes` per user later (Stripe = track 1).
+embeds work; private + signed URLs remain deferred. Shared hosted deploys may
+raise per-user `quota_bytes` via optional Stripe wiring — operator notes in
+[docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md). Self-host omits billing UI,
+skips beta codes at signup, and uses a large soft quota so Supabase is the
+practical storage limit.
 
 **Library vs essay images:** same Storage bucket, different `user_assets.kind`
 (`essay_image` vs `library_pdf`) and `library_items` rows for research pins /
@@ -107,6 +114,8 @@ lib/workspace/        Workspace tree + document RPC clients
 lib/supabase/         Browser, server, and service-role clients
 lib/pins/             Floating pin / pop-out session store
 lib/preview/          Publication HTML, SSRF helpers, OG helpers
+lib/billing/          Public plan limits + Stripe plan application
+lib/stripe/           Server Stripe client and env helpers
 supabase/schema.sql   Database bootstrap, RLS, and RPCs
 supabase/migrations/  Timestamped copies for db push workflows
 tests/                Round-trip and focused behavior tests
