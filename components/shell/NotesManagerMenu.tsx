@@ -35,19 +35,20 @@ export function NotesManagerMenu({
   const menuId = useId();
   const channels = listInboxChannels(nodes);
 
+  function closeMenu() {
+    setOpen(false);
+    setSubmenu(null);
+  }
+
   useEffect(() => {
-    if (!open) {
-      setSubmenu(null);
-      return;
-    }
+    if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        if (submenu) setSubmenu(null);
-        else setOpen(false);
-      }
+      if (e.key !== "Escape") return;
+      if (submenu) setSubmenu(null);
+      else closeMenu();
     }
     function onPointer(e: PointerEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      if (!rootRef.current?.contains(e.target as Node)) closeMenu();
     }
     document.addEventListener("keydown", onKey);
     document.addEventListener("pointerdown", onPointer, true);
@@ -62,8 +63,7 @@ export function NotesManagerMenu({
     channelId: string
   ) {
     action(channelId);
-    setOpen(false);
-    setSubmenu(null);
+    closeMenu();
   }
 
   return (
@@ -76,7 +76,10 @@ export function NotesManagerMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (open) closeMenu();
+          else setOpen(true);
+        }}
       >
         <NotesManagerIcon />
       </button>
@@ -92,7 +95,7 @@ export function NotesManagerMenu({
             className="flex w-full items-center px-3 py-1.5 text-left hover:bg-panel"
             onClick={() => {
               onNewChannel();
-              setOpen(false);
+              closeMenu();
             }}
           >
             New channel

@@ -60,10 +60,17 @@ device than where they clicked “Forgot password”.
 Also set `NEXT_PUBLIC_SITE_URL=https://blogide.com` in Vercel so reset emails
 use a stable origin (not a preview deployment host).
 
-### Email template (required for a clean link)
+### Email template (clean link; needs SMTP, Pro, or hook)
 
-**Authentication → Email Templates → Reset password** — replace the button/link
-with a BlogIDE URL that carries `token_hash` (not `{{ .ConfirmationURL }}`):
+Supabase **free** projects cannot edit Auth email templates while using the
+built-in mailer. The dashboard offers: **custom SMTP**, **Upgrade to Pro**
+(“customize templates while using Supabase’s email service”), or **Configure
+Send Email hook**. Until one of those is set, reset links keep using the
+default `{{ .ConfirmationURL }}` (`*.supabase.co`).
+
+After templates are editable: **Authentication → Email Templates → Reset
+password** — replace the button/link with a BlogIDE URL that carries
+`token_hash` (not `{{ .ConfirmationURL }}`):
 
 ```html
 <h2>Reset password</h2>
