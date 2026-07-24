@@ -24,8 +24,8 @@ export default function LandingPage() {
           <p className="mb-10 text-sm leading-relaxed text-muted">
             This is the{" "}
             <span className="text-foreground">blogide.com</span> hosted
-            instance: invite-only for now, not open public signup. If you
-            prefer to run it yourself, see{" "}
+            instance: invite-only for now.<br></br>
+            If you prefer to run it yourself, see{" "}
             <Link
               href="/hosting"
               className="text-accent underline underline-offset-4"

@@ -25,9 +25,7 @@ import {
   formatQuotaMib,
   HOSTED_PLANS,
   HOSTED_PRO_PRICE_LABEL,
-  isSelfHostQuota,
 } from "@/lib/billing/plans";
-import { isHostedDeployment } from "@/lib/hosted";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -99,7 +97,8 @@ function SettingsDialog({
   const [quota, setQuota] = useState<QuotaUsage | null>(null);
   const [quotaStatus, setQuotaStatus] = useState<string | null>(null);
   const [quotaBusy, setQuotaBusy] = useState(false);
-  const hosted = isHostedDeployment();
+  /** From /api/billing/status — deployment mode, not inferred from quota size. */
+  const [selfHost, setSelfHost] = useState(false);
   const [billingAvailable, setBillingAvailable] = useState(false);
   const [plan, setPlan] = useState<"free" | "pro">("free");
   const [subscriptionLabel, setSubscriptionLabel] = useState<string | null>(
@@ -122,8 +121,10 @@ function SettingsDialog({
           usedBytes?: number;
           quotaBytes?: number;
           subscriptionLabel?: string | null;
+          selfHost?: boolean;
         };
         setBillingAvailable(Boolean(body.billingAvailable));
+        setSelfHost(Boolean(body.selfHost));
         setPlan(body.plan === "pro" ? "pro" : "free");
         setSubscriptionLabel(body.subscriptionLabel ?? null);
         if (
@@ -264,7 +265,7 @@ function SettingsDialog({
               <p className="settings-help mb-2">
                 Combined usage for essay markdown and Storage (images + Library
                 PDFs). The assets bucket is public-by-URL so published embeds work.
-                {!hosted || (quota && isSelfHostQuota(quota.quotaBytes))
+                {selfHost
                   ? " Self-host: BlogIDE does not apply a small SaaS cap; your Supabase project is the real limit."
                   : ` Plan: ${HOSTED_PLANS[plan].label}${
                       plan === "pro"
@@ -274,7 +275,7 @@ function SettingsDialog({
               </p>
               {quota ? (
                 <p className="mb-2 text-sm">
-                  {!hosted || isSelfHostQuota(quota.quotaBytes) ? (
+                  {selfHost ? (
                     <>{formatBytes(quota.usedBytes)} used</>
                   ) : (
                     <>

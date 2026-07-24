@@ -16,8 +16,10 @@ export default async function HostingPage() {
   }
 
   let initialPlan: "free" | "pro" = "free";
+  let signedIn = false;
   if (isSupabaseConfigured()) {
     const user = await getSessionUser();
+    signedIn = Boolean(user);
     if (user) {
       const supabase = await createClient();
       const { data } = await supabase
@@ -33,6 +35,7 @@ export default async function HostingPage() {
     <HostingOptions
       billingAvailable={isStripeBillingConfigured()}
       initialPlan={initialPlan}
+      signedIn={signedIn}
     />
   );
 }

@@ -4,11 +4,19 @@ import {
   SELF_HOST_QUOTA_BYTES,
 } from "@/lib/billing/plans";
 import { isHostedDeployment } from "@/lib/hosted";
+import {
+  BETA_GUESS_LIMIT,
+  BETA_GUESS_WINDOW_MS,
+  checkRateLimit,
+  clientIpFromRequest,
+  hitRateLimit,
+} from "@/lib/rateLimit";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * Signup. Hosted deploys require an unredeemed beta code; self-host does not.
  * Self-host accounts get a large `quota_bytes` (Supabase is the real limit).
+ * Hosted beta guesses are rate-limited per client IP (best-effort in-memory).
  */
 export async function POST(request: Request) {
   let body: { email?: string; password?: string; betaCode?: string };
@@ -54,6 +62,28 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
+  const guessKey = hosted
+    ? `beta-guess:${clientIpFromRequest(request)}`
+    : null;
+
+  if (guessKey) {
+    const limited = checkRateLimit(
+      guessKey,
+      BETA_GUESS_LIMIT,
+      BETA_GUESS_WINDOW_MS
+    );
+    if (!limited.ok) {
+      return NextResponse.json(
+        {
+          error: `Too many beta code attempts. Try again in ${limited.retryAfterSec}s.`,
+        },
+        {
+          status: 429,
+          headers: { "Retry-After": String(limited.retryAfterSec) },
+        }
+      );
+    }
+  }
 
   if (hosted) {
     const { data: code, error: codeError } = await admin
@@ -73,6 +103,9 @@ export async function POST(request: Request) {
       );
     }
     if (!code || code.redeemed_by) {
+      if (guessKey) {
+        hitRateLimit(guessKey, BETA_GUESS_WINDOW_MS);
+      }
       return NextResponse.json(
         { error: "Invalid or already-redeemed beta code." },
         { status: 403 }
@@ -106,6 +139,9 @@ export async function POST(request: Request) {
 
     if (claimError || !claimed || claimed.length === 0) {
       await admin.auth.admin.deleteUser(created.user.id);
+      if (guessKey) {
+        hitRateLimit(guessKey, BETA_GUESS_WINDOW_MS);
+      }
       return NextResponse.json(
         { error: "Beta code was just redeemed by someone else." },
         { status: 409 }
