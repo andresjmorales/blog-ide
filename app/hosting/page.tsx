@@ -78,14 +78,7 @@ export default function HostingPage() {
         </article>
       </div>
 
-      <section className="mt-14 w-full max-w-2xl border-t border-border pt-10 text-center">
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted">
-          Screenshots
-        </h2>
-        <p className="text-sm text-muted">Coming soon.</p>
-      </section>
-
-      <p className="mt-10 text-sm text-muted">
+      <p className="mt-14 text-sm text-muted">
         <Link href="/" className="underline underline-offset-4 hover:text-foreground">
           ← Back home
         </Link>
