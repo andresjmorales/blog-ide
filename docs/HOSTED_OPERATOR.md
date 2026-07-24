@@ -21,15 +21,22 @@ On the shared deploy only:
 
 ```bash
 NEXT_PUBLIC_HOSTED=true
+NEXT_PUBLIC_BETA_ONLY=true
 NEXT_PUBLIC_SITE_URL=https://your-host.example
 ```
 
-That enables hosted landing copy, `/hosting`, and footer links. Without the
-Stripe variables below, Pro stays “not configured” and nobody can upgrade.
+`NEXT_PUBLIC_HOSTED` enables hosted landing copy, `/hosting`, and footer links.
+`NEXT_PUBLIC_BETA_ONLY` shows the beta-code field and enforces it on signup
+(also falls back to “required if hosted” when unset). Set **both** on
+blogide.com and **redeploy** after changing either — `NEXT_PUBLIC_*` values are
+baked into the client at build time.
 
-`SUPABASE_SERVICE_ROLE_KEY` is required for beta-code signup on hosted (and for
-plan updates if you enable Stripe webhooks). Keep invite codes on hosted until
-you deliberately open public signup.
+Without the Stripe variables below, Pro stays “not configured” and nobody can
+upgrade. Self-host leaves `HOSTED` and `BETA_ONLY` unset (open signup, large
+soft quota).
+
+`SUPABASE_SERVICE_ROLE_KEY` is required for beta-code signup (and for plan
+updates if you enable Stripe webhooks).
 
 ---
 

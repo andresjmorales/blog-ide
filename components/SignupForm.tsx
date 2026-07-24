@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { isHostedDeployment } from "@/lib/hosted";
+import { requiresBetaCode } from "@/lib/hosted";
 
 export function SignupForm() {
-  const hosted = isHostedDeployment();
+  const betaRequired = requiresBetaCode();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
@@ -26,7 +26,9 @@ export function SignupForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          hosted ? { email, password, betaCode } : { email, password }
+          betaRequired
+            ? { email, password, betaCode }
+            : { email, password }
         ),
       });
 
@@ -57,8 +59,8 @@ export function SignupForm() {
     <form onSubmit={handleSubmit} className="w-full max-w-sm">
       <h1 className="text-2xl font-semibold mb-1">Create your account</h1>
       <p className="text-sm text-muted mb-8">
-        {hosted
-          ? "blogide.com is invite-only for now. A valid beta code is required."
+        {betaRequired
+          ? "A valid beta code is required to create an account on this instance."
           : "Create an account on this self-hosted install. Storage is limited by your Supabase project, not a BlogIDE free-tier cap."}
       </p>
 
@@ -74,7 +76,7 @@ export function SignupForm() {
         />
       </label>
 
-      <label className={`block ${hosted ? "mb-4" : "mb-6"}`}>
+      <label className={`block ${betaRequired ? "mb-4" : "mb-6"}`}>
         <span className="block text-sm mb-1.5">Password</span>
         <input
           type="password"
@@ -87,7 +89,7 @@ export function SignupForm() {
         />
       </label>
 
-      {hosted ? (
+      {betaRequired ? (
         <label className="block mb-6">
           <span className="block text-sm mb-1.5">Beta code</span>
           <input

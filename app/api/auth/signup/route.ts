@@ -3,7 +3,7 @@ import {
   FREE_QUOTA_BYTES,
   SELF_HOST_QUOTA_BYTES,
 } from "@/lib/billing/plans";
-import { isHostedDeployment } from "@/lib/hosted";
+import { isHostedDeployment, requiresBetaCode } from "@/lib/hosted";
 import {
   BETA_GUESS_LIMIT,
   BETA_GUESS_WINDOW_MS,
@@ -14,9 +14,9 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
- * Signup. Hosted deploys require an unredeemed beta code; self-host does not.
- * Self-host accounts get a large `quota_bytes` (Supabase is the real limit).
- * Hosted beta guesses are rate-limited per client IP (best-effort in-memory).
+ * Signup. Beta codes when `requiresBetaCode()` (BETA_ONLY or hosted fallback).
+ * Self-host (not hosted) gets a large quota; hosted gets the free-tier default.
+ * Failed beta guesses are rate-limited per client IP (best-effort in-memory).
  */
 export async function POST(request: Request) {
   let body: { email?: string; password?: string; betaCode?: string };
@@ -30,6 +30,7 @@ export async function POST(request: Request) {
   const password = body.password;
   const betaCode = body.betaCode?.trim();
   const hosted = isHostedDeployment();
+  const betaRequired = requiresBetaCode();
 
   if (!email || !password) {
     return NextResponse.json(
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  if (hosted && !betaCode) {
+  if (betaRequired && !betaCode) {
     return NextResponse.json(
       { error: "Email, password, and beta code are required." },
       { status: 400 }
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
-  const guessKey = hosted
+  const guessKey = betaRequired
     ? `beta-guess:${clientIpFromRequest(request)}`
     : null;
 
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
     }
   }
 
-  if (hosted) {
+  if (betaRequired) {
     const { data: code, error: codeError } = await admin
       .from("beta_codes")
       .select("code, redeemed_by")
@@ -126,7 +127,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (hosted) {
+  if (betaRequired) {
     const { data: claimed, error: claimError } = await admin
       .from("beta_codes")
       .update({

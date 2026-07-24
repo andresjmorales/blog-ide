@@ -2,10 +2,11 @@ import Link from "next/link";
 import { BetaCodeForm } from "@/components/BetaCodeForm";
 import { GitHubFooter } from "@/components/GitHubFooter";
 import { PRODUCT_DESCRIPTION, PRODUCT_NAME } from "@/lib/brand";
-import { isHostedDeployment } from "@/lib/hosted";
+import { isHostedDeployment, requiresBetaCode } from "@/lib/hosted";
 
 export default function LandingPage() {
   const hosted = isHostedDeployment();
+  const betaRequired = requiresBetaCode();
 
   return (
     <main className="flex flex-1 flex-col items-center px-6 py-16">
@@ -36,8 +37,17 @@ export default function LandingPage() {
           </p>
         ) : null}
 
-        {hosted ? (
+        {betaRequired ? (
           <BetaCodeForm />
+        ) : hosted ? (
+          <div className="flex flex-col items-center gap-3">
+            <Link
+              href="/signup"
+              className="inline-flex rounded border border-accent bg-accent/10 px-5 py-2.5 text-sm font-medium text-accent hover:bg-accent/20"
+            >
+              Create an account
+            </Link>
+          </div>
         ) : (
           <div className="flex flex-col items-center gap-3">
             <Link
