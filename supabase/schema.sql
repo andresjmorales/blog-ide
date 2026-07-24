@@ -287,7 +287,7 @@ Paste a link and hover it for a live page preview. Pin a PDF from the **Library*
 
 ## Notes
 
-The **Notes** panel (Shell) is a capture stream for notes-to-self: type a thought, it lands timestamped in a channel document under the Notes folder (default `general`). On your phone, BlogIDE opens straight into capture mode so you can push notes from anywhere.
+The **Notes** panel is a capture stream for notes-to-self: type a thought and it lands timestamped in a channel (default `general`). Manage channels from the Notes panel toolbar — Open channel doc only when you need the raw markdown. On your phone, BlogIDE opens straight into capture mode so you can push notes from anywhere.
 
 ## Safety net
 

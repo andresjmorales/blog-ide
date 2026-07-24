@@ -10,6 +10,7 @@ import {
 import { removeQuickNote } from "@/lib/capture/removeQuickNote";
 import { markShellSeen } from "@/lib/capture/seen";
 import { openDocument } from "@/lib/sync/engine";
+import { NotesManagerMenu } from "@/components/shell/NotesManagerMenu";
 import {
   channelDisplayName,
   getInboxNode,
@@ -38,6 +39,10 @@ type Props = {
    */
   compactMeta?: boolean;
   className?: string;
+  onNewChannel?: () => void;
+  onOpenChannelDoc?: (channelId: string) => void;
+  onRenameChannel?: (channelId: string) => void;
+  onTrashChannel?: (channelId: string) => void;
 };
 
 export function ShellChat({
@@ -46,6 +51,10 @@ export function ShellChat({
   onNotesChanged,
   compactMeta = false,
   className = "",
+  onNewChannel,
+  onOpenChannelDoc,
+  onRenameChannel,
+  onTrashChannel,
 }: Props) {
   const channels = useMemo(() => listInboxChannels(nodes), [nodes]);
   const defaultChannel = useMemo(
@@ -244,6 +253,18 @@ export function ShellChat({
         >
           refresh
         </button>
+        {onNewChannel &&
+          onOpenChannelDoc &&
+          onRenameChannel &&
+          onTrashChannel && (
+            <NotesManagerMenu
+              nodes={nodes}
+              onNewChannel={onNewChannel}
+              onOpenChannelDoc={onOpenChannelDoc}
+              onRenameChannel={onRenameChannel}
+              onTrashChannel={onTrashChannel}
+            />
+          )}
       </div>
 
       <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">

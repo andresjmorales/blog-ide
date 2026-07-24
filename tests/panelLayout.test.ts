@@ -11,19 +11,25 @@ import {
 } from "@/lib/panels/layout";
 
 describe("panelLayout", () => {
-  it("defaults the Notes (shell) panel to the right dock ahead of AI", () => {
+  it("defaults right dock to Notes, Library, then AI", () => {
     expect(visibleTabs(DEFAULT_PANEL_LAYOUT, "right")).toEqual([
       "shell",
+      "library",
       "ai",
     ]);
     expect(DEFAULT_PANEL_LAYOUT.active.right).toBe("shell");
-    expect(DEFAULT_PANEL_LAYOUT.visible.library).toBe(false);
+    expect(DEFAULT_PANEL_LAYOUT.visible.library).toBe(true);
   });
 
   it("moves Files from left to right beside the others", () => {
     const next = movePanel(DEFAULT_PANEL_LAYOUT, "files", "right");
     expect(visibleTabs(next, "left")).toEqual([]);
-    expect(visibleTabs(next, "right")).toEqual(["shell", "ai", "files"]);
+    expect(visibleTabs(next, "right")).toEqual([
+      "shell",
+      "library",
+      "ai",
+      "files",
+    ]);
     expect(next.active.right).toBe("files");
     expect(next.home.files).toBe("right");
   });

@@ -71,15 +71,15 @@ describe("isInTrash", () => {
 });
 
 describe("eligibleMoveFolders", () => {
-  it("excludes the moving subtree and the Trash", () => {
+  it("excludes the moving subtree, Trash, and Notes (inbox)", () => {
     const f = fixture();
     const targets = eligibleMoveFolders(f.all, f.essays.id);
     const ids = targets.map((t) => t.id);
     expect(ids).not.toContain(f.essays.id); // itself
     expect(ids).not.toContain(f.series.id); // descendant (cycle)
     expect(ids).not.toContain(f.trash.id);
+    expect(ids).not.toContain(f.inbox.id);
     expect(ids).toContain(f.drafts.id);
-    expect(ids).toContain(f.inbox.id);
   });
 
   it("can include the Trash when asked (move-to-trash flow)", () => {
@@ -88,6 +88,14 @@ describe("eligibleMoveFolders", () => {
       includeTrash: true,
     });
     expect(targets.map((t) => t.id)).toContain(f.trash.id);
+  });
+
+  it("can include Notes when asked (restore channel flow)", () => {
+    const f = fixture();
+    const targets = eligibleMoveFolders(f.all, f.notes.id, {
+      includeInbox: true,
+    });
+    expect(targets.map((t) => t.id)).toContain(f.inbox.id);
   });
 });
 

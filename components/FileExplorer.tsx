@@ -11,7 +11,6 @@ import {
   compareSiblings,
   eligibleMoveFolders,
   folderPathLabel,
-  getInboxNode,
   getTrashNode,
   isInTrash,
   isScratchpad,
@@ -27,8 +26,6 @@ type Props = {
   docTitles?: Map<string, string>;
   onOpen: (nodeId: string) => void;
   onNewDocument: (parentId: string | null) => void;
-  /** Create a Notes channel document (different prompt than New essay). */
-  onNewChannel: (inboxId: string) => void;
   onPopOutDocument: (nodeId: string) => void;
   onNewFolder: (parentId: string | null) => void;
   onMoveToTrash: (nodeId: string) => void;
@@ -72,7 +69,6 @@ function displayName(
   node: WorkspaceNode,
   docTitles?: Map<string, string>
 ): string {
-  if (node.system_key === "inbox") return "Notes";
   if (node.kind === "document" && docTitles) {
     const title = docTitles.get(node.id)?.trim();
     const stem = fileStem(node);
@@ -87,7 +83,6 @@ export function FileExplorer({
   docTitles,
   onOpen,
   onNewDocument,
-  onNewChannel,
   onPopOutDocument,
   onNewFolder,
   onMoveToTrash,
@@ -103,7 +98,6 @@ export function FileExplorer({
 }: Props) {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [trashOpen, setTrashOpen] = useState(true);
-  const [inboxOpen, setInboxOpen] = useState(true);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 
   function toggleCollapse(id: string) {
@@ -117,8 +111,6 @@ export function FileExplorer({
 
   const trash = getTrashNode(nodes);
   const trashId = trash?.id ?? null;
-  const inbox = getInboxNode(nodes);
-  const inboxId = inbox?.id ?? null;
 
   const mainRoots = childrenOf(nodes, null).filter(
     (n) =>
@@ -126,7 +118,6 @@ export function FileExplorer({
       n.system_key !== "inbox" &&
       !isInTrash(n.id, nodes, trashId)
   );
-  const inboxChildren = inboxId ? childrenOf(nodes, inboxId) : [];
   const trashChildren = trashId ? childrenOf(nodes, trashId) : [];
 
   function openMenu(e: MouseEvent, node: WorkspaceNode) {
@@ -142,23 +133,6 @@ export function FileExplorer({
     const items: ContextMenuItem[] = [];
 
     if (systemFolder) {
-      if (node.system_key === "inbox") {
-        return [
-          {
-            kind: "action",
-            id: "inbox-new-channel",
-            label: "New channel",
-            onSelect: () => onNewChannel(node.id),
-          },
-          {
-            kind: "action",
-            id: "inbox-info",
-            label: "System Notes",
-            disabled: true,
-            onSelect: () => {},
-          },
-        ];
-      }
       return [
         {
           kind: "action",
@@ -240,6 +214,8 @@ export function FileExplorer({
     if (inTrash) {
       const restoreFolders = eligibleMoveFolders(nodes, node.id, {
         includeTrash: false,
+        // Allow restoring a Notes channel back under Notes.
+        includeInbox: true,
       });
       items.push({
         kind: "submenu",
@@ -372,50 +348,6 @@ export function FileExplorer({
           />
         ))}
       </ul>
-
-      {inbox && (
-        <div className="mt-4 border-t border-border pt-3">
-          <button
-            type="button"
-            className="flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-xs font-mono uppercase tracking-wider text-muted hover:bg-panel hover:text-foreground"
-            onClick={() => setInboxOpen((o) => !o)}
-            onContextMenu={(e) => openMenu(e, inbox)}
-          >
-            <TreeCaret expanded={inboxOpen} />
-            {systemFolderDisplayName(inbox)}
-            {inboxChildren.length > 0 && (
-              <span className="ml-auto normal-case tracking-normal">
-                {inboxChildren.length}
-              </span>
-            )}
-          </button>
-          {inboxOpen && (
-            <ul className="mt-0.5 space-y-0.5 text-sm">
-              {inboxChildren.length === 0 ? (
-                <li className="px-2 py-1 text-xs text-muted">No channels</li>
-              ) : (
-                inboxChildren.map((node) => (
-                  <TreeNode
-                    key={node.id}
-                    node={node}
-                    nodes={nodes}
-                    depth={0}
-                    activeNodeId={activeNodeId}
-                    trashId={trashId}
-                    docTitles={docTitles}
-                    onOpen={onOpen}
-                    onNewDocument={onNewDocument}
-                    onNewFolder={onNewFolder}
-                    onContextMenu={openMenu}
-                    collapsedIds={collapsedIds}
-                    onToggleCollapse={toggleCollapse}
-                  />
-                ))
-              )}
-            </ul>
-          )}
-        </div>
-      )}
 
       {trash && (
         <div className="mt-4 border-t border-border pt-3">
