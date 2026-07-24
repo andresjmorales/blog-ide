@@ -52,7 +52,11 @@ Codes are single-use: once redeemed at signup they are marked with `redeemed_by`
    - **Publishable** key (or legacy `anon`) for the browser
    - **Secret** key (or legacy `service_role`) for the server only — never put this in client code or commit it
 4. Under **Authentication → URL Configuration**, set the Site URL to
-   `http://localhost:3000` for local work. Add your production URL (e.g. `https://blogide.com`) before deploying, plus matching Redirect URLs.
+   `http://localhost:3000` for local work (production: `https://blogide.com`).
+   Add Redirect URLs for `/auth/confirm` and `/reset/confirm` (or
+   `https://your-host/**`). For reliable password reset, also update the
+   **Reset password** email template — see
+   [docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md#password-reset-email).
 
 ### 2. Configure the environment
 

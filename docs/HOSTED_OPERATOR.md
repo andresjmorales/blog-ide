@@ -40,6 +40,48 @@ updates if you enable Stripe webhooks).
 
 ---
 
+## Password reset email
+
+The default Supabase “Reset password” template links through
+`https://YOUR_PROJECT.supabase.co/auth/v1/verify…`. That shows your project URL
+in the browser, breaks easily when Redirect URLs / Site URL are wrong, and the
+PKCE code exchange often fails if the user opens the email on a different
+device than where they clicked “Forgot password”.
+
+### Dashboard URL config
+
+**Authentication → URL Configuration:**
+
+| Field | Production example |
+| --- | --- |
+| Site URL | `https://blogide.com` |
+| Redirect URLs | `https://blogide.com/auth/confirm`, `https://blogide.com/reset/confirm` (or `https://blogide.com/**`) |
+
+Also set `NEXT_PUBLIC_SITE_URL=https://blogide.com` in Vercel so reset emails
+use a stable origin (not a preview deployment host).
+
+### Email template (required for a clean link)
+
+**Authentication → Email Templates → Reset password** — replace the button/link
+with a BlogIDE URL that carries `token_hash` (not `{{ .ConfirmationURL }}`):
+
+```html
+<h2>Reset password</h2>
+<p>Follow this link to choose a new password:</p>
+<p>
+  <a
+    href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset/confirm"
+    >Reset password</a
+  >
+</p>
+```
+
+Flow: `/auth/confirm` verifies the token server-side → redirects to
+`/reset/confirm` → user sets a new password. The link never opens on
+`*.supabase.co`.
+
+---
+
 ## Optional: storage tiers via Stripe
 
 When a shared instance offers a higher `quota_bytes` tier, BlogIDE can use
