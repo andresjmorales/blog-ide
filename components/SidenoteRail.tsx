@@ -192,8 +192,8 @@ export function SidenoteRail({
           aria-pressed={linked}
           title={
             linked
-              ? "Unlock — scroll notes independently"
-              : "Lock — scroll notes with the essay"
+              ? "Unlock: scroll notes independently"
+              : "Lock: scroll notes with the essay"
           }
           aria-label={
             linked

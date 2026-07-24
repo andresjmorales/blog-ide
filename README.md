@@ -15,9 +15,10 @@ by design.
   bootstrap, phone terminal capture + desktop Shell
 - **Local-first sync** — IndexedDB autosave, optimistic Supabase sync, conflict
   copies, hard per-user quota (default 20 MiB combined)
-- **Research surfaces** — pop-out documents, link hover/Pin, PDF + site-link
-  Library pins (bookmark from hover or pinned preview), publication Preview in
-  a new tab, pre-publish link/image check, client image compress + Storage upload
+- **Research surfaces** — pop-out documents, link hover/Pin, cloud Library
+  (PDFs + site bookmarks under quota; bookmark from hover/pin), publication
+  Preview, pre-publish link/image check, image compress + Storage upload with
+  combined quota accounting and zip export that bundles owned assets
 - **Optional AI** — BYOK Anthropic / OpenAI keys (device-local), sidebar chat,
   import cleanup assist
 - **Export / import** — copy markdown + HTML, download `.md`, import markdown
@@ -67,9 +68,13 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-or-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-secret-or-service-role-key
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` is used only by the signup API route to redeem beta codes.
+`SUPABASE_SERVICE_ROLE_KEY` is used by the signup API route (and beta-code
+redemption on shared hosted deploys). **Self-host:** open signup, no beta code,
+and BlogIDE does not apply the small hosted free-tier storage cap (your Supabase
+plan is the real limit). **Shared hosted instance** (invite codes, optional
+storage tiers): see [docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md).
 
-Add the same three variables in Vercel (Production + Preview as needed) and **redeploy** after saving.
+Add the same variables in Vercel (Production + Preview as needed) and **redeploy** after saving.
 
 ### CI migrations (optional)
 
@@ -90,8 +95,12 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000 → **Sign up** → enter your beta code → create an account.  
-On first editor load, BlogIDE bootstraps `essays/`, `drafts/`, pinned `scratchpad.md`, and a `Notes/` folder (default `general.md` channel; legacy `notes.md` still works). Edits save to IndexedDB immediately and sync to Supabase. On a phone, you land in a terminal-style quick-capture screen; on desktop, open **Shell** for the same Notes stream.
+Open http://localhost:3000 → **Sign up** → create an account (no beta code on
+self-host). On first editor load, BlogIDE bootstraps `essays/`, `drafts/`,
+pinned `scratchpad.md`, and a `Notes/` folder (default `general.md` channel;
+legacy `notes.md` still works). Edits save to IndexedDB immediately and sync to
+Supabase. On a phone, you land in a terminal-style quick-capture screen; on
+desktop, open **Shell** for the same Notes stream.
 
 Optional: open **Account settings** to paste Anthropic or OpenAI keys for the AI sidebar (keys stay on the device; requests go through a thin proxy).
 

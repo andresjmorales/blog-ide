@@ -1189,7 +1189,7 @@ function AppShellContent({
             >
               <span>
                 Workspace files may be out of date after the tab was idle.
-                Your open essay is still local — Retry before making tree
+                Your open essay is still local. Retry before making tree
                 changes.
               </span>
               <button

@@ -11,6 +11,23 @@ import {
   type AiKeys,
   type AiProvider,
 } from "@/lib/ai/keys";
+import {
+  cleanUnusedEssayImages,
+  fetchQuotaUsage,
+  formatBytes,
+  type QuotaUsage,
+} from "@/lib/assets/quota";
+import {
+  openBillingPortal,
+  startHostedProCheckout,
+} from "@/lib/billing/client";
+import {
+  formatQuotaMib,
+  HOSTED_PLANS,
+  HOSTED_PRO_PRICE_LABEL,
+  isSelfHostQuota,
+} from "@/lib/billing/plans";
+import { isHostedDeployment } from "@/lib/hosted";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -79,6 +96,50 @@ function SettingsDialog({
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [passwordStatus, setPasswordStatus] = useState<string | null>(null);
   const [passwordBusy, setPasswordBusy] = useState(false);
+  const [quota, setQuota] = useState<QuotaUsage | null>(null);
+  const [quotaStatus, setQuotaStatus] = useState<string | null>(null);
+  const [quotaBusy, setQuotaBusy] = useState(false);
+  const hosted = isHostedDeployment();
+  const [billingAvailable, setBillingAvailable] = useState(false);
+  const [plan, setPlan] = useState<"free" | "pro">("free");
+  const [subscriptionLabel, setSubscriptionLabel] = useState<string | null>(
+    null
+  );
+  const [billingBusy, setBillingBusy] = useState(false);
+  const [billingStatus, setBillingStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (previewMode || !isSupabaseConfigured()) return;
+    void fetchQuotaUsage()
+      .then((usage) => setQuota(usage))
+      .catch(() => setQuota(null));
+    void fetch("/api/billing/status")
+      .then(async (res) => {
+        if (!res.ok) return;
+        const body = (await res.json()) as {
+          billingAvailable?: boolean;
+          plan?: string;
+          usedBytes?: number;
+          quotaBytes?: number;
+          subscriptionLabel?: string | null;
+        };
+        setBillingAvailable(Boolean(body.billingAvailable));
+        setPlan(body.plan === "pro" ? "pro" : "free");
+        setSubscriptionLabel(body.subscriptionLabel ?? null);
+        if (
+          typeof body.usedBytes === "number" &&
+          typeof body.quotaBytes === "number"
+        ) {
+          setQuota({
+            usedBytes: body.usedBytes,
+            quotaBytes: body.quotaBytes,
+          });
+        }
+      })
+      .catch(() => {
+        /* ignore */
+      });
+  }, [previewMode]);
 
   const defaultLangs = prefs.spellcheckLanguages;
 
@@ -198,6 +259,144 @@ function SettingsDialog({
               )}
 
               <h4 className="mt-5 mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+                Storage
+              </h4>
+              <p className="settings-help mb-2">
+                Combined usage for essay markdown and Storage (images + Library
+                PDFs). The assets bucket is public-by-URL so published embeds work.
+                {!hosted || (quota && isSelfHostQuota(quota.quotaBytes))
+                  ? " Self-host: BlogIDE does not apply a small SaaS cap; your Supabase project is the real limit."
+                  : ` Plan: ${HOSTED_PLANS[plan].label}${
+                      plan === "pro"
+                        ? ` (${formatQuotaMib(HOSTED_PLANS.pro.quotaBytes)})`
+                        : ` (${formatQuotaMib(HOSTED_PLANS.free.quotaBytes)})`
+                    }.`}
+              </p>
+              {quota ? (
+                <p className="mb-2 text-sm">
+                  {!hosted || isSelfHostQuota(quota.quotaBytes) ? (
+                    <>{formatBytes(quota.usedBytes)} used</>
+                  ) : (
+                    <>
+                      {formatBytes(quota.usedBytes)} /{" "}
+                      {formatBytes(quota.quotaBytes)} used
+                      <span className="text-muted">
+                        {" "}
+                        (
+                        {quota.quotaBytes > 0
+                          ? Math.min(
+                              100,
+                              Math.round(
+                                (100 * quota.usedBytes) / quota.quotaBytes
+                              )
+                            )
+                          : 0}
+                        %)
+                      </span>
+                    </>
+                  )}
+                </p>
+              ) : (
+                <p className="mb-2 text-xs text-muted">Loading usage…</p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded border border-border px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-40"
+                  disabled={quotaBusy}
+                  onClick={() => {
+                    void (async () => {
+                      setQuotaBusy(true);
+                      setQuotaStatus(null);
+                      try {
+                        const result = await cleanUnusedEssayImages();
+                        const usage = await fetchQuotaUsage();
+                        setQuota(usage);
+                        setQuotaStatus(
+                          result.removed === 0
+                            ? "No unused images found."
+                            : `Removed ${result.removed} unused image${
+                                result.removed === 1 ? "" : "s"
+                              } (${formatBytes(result.freedBytes)} freed).`
+                        );
+                      } catch (err) {
+                        setQuotaStatus(
+                          err instanceof Error
+                            ? err.message
+                            : "Could not clean unused images."
+                        );
+                      } finally {
+                        setQuotaBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  {quotaBusy ? "Cleaning…" : "Clean unused images"}
+                </button>
+                {billingAvailable && plan === "free" ? (
+                  <button
+                    type="button"
+                    className="rounded border border-accent px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/10 disabled:opacity-40"
+                    disabled={billingBusy}
+                    onClick={() => {
+                      void (async () => {
+                        setBillingBusy(true);
+                        setBillingStatus(null);
+                        try {
+                          await startHostedProCheckout();
+                        } catch (err) {
+                          setBillingStatus(
+                            err instanceof Error
+                              ? err.message
+                              : "Could not start checkout."
+                          );
+                          setBillingBusy(false);
+                        }
+                      })();
+                    }}
+                  >
+                    {billingBusy
+                      ? "Redirecting…"
+                      : `Upgrade to Pro (${HOSTED_PRO_PRICE_LABEL})`}
+                  </button>
+                ) : null}
+                {billingAvailable && plan === "pro" ? (
+                  <button
+                    type="button"
+                    className="rounded border border-border px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-40"
+                    disabled={billingBusy}
+                    onClick={() => {
+                      void (async () => {
+                        setBillingBusy(true);
+                        setBillingStatus(null);
+                        try {
+                          await openBillingPortal();
+                        } catch (err) {
+                          setBillingStatus(
+                            err instanceof Error
+                              ? err.message
+                              : "Could not open billing portal."
+                          );
+                          setBillingBusy(false);
+                        }
+                      })();
+                    }}
+                  >
+                    {billingBusy ? "Opening…" : "Manage billing"}
+                  </button>
+                ) : null}
+              </div>
+              {subscriptionLabel ? (
+                <p className="mt-2 text-xs text-muted">{subscriptionLabel}</p>
+              ) : null}
+              {quotaStatus && (
+                <p className="mt-2 text-xs text-muted">{quotaStatus}</p>
+              )}
+              {billingStatus && (
+                <p className="mt-2 text-xs text-muted">{billingStatus}</p>
+              )}
+
+              <h4 className="mt-5 mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
                 Change password
               </h4>
               <label className="settings-row settings-row-stack">
@@ -271,7 +470,7 @@ function SettingsDialog({
           <h3>AI API keys</h3>
           <p className="settings-help">
             Bring your own Anthropic and/or OpenAI key. Keys are stored only in
-            this browser and sent to the provider when you use the assistant —
+            this browser and sent to the provider when you use the assistant,
             never saved to BlogIDE&apos;s database.
           </p>
           <label className="settings-row">

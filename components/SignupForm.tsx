@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { isHostedDeployment } from "@/lib/hosted";
 
 export function SignupForm() {
+  const hosted = isHostedDeployment();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
@@ -23,7 +25,9 @@ export function SignupForm() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, betaCode }),
+        body: JSON.stringify(
+          hosted ? { email, password, betaCode } : { email, password }
+        ),
       });
 
       if (!res.ok) {
@@ -53,7 +57,9 @@ export function SignupForm() {
     <form onSubmit={handleSubmit} className="w-full max-w-sm">
       <h1 className="text-2xl font-semibold mb-1">Create your account</h1>
       <p className="text-sm text-muted mb-8">
-        BlogIDE is in private beta — a valid beta code is required.
+        {hosted
+          ? "blogide.com is invite-only for now. A valid beta code is required."
+          : "Create an account on this self-hosted install. Storage is limited by your Supabase project, not a BlogIDE free-tier cap."}
       </p>
 
       <label className="block mb-4">
@@ -68,7 +74,7 @@ export function SignupForm() {
         />
       </label>
 
-      <label className="block mb-4">
+      <label className={`block ${hosted ? "mb-4" : "mb-6"}`}>
         <span className="block text-sm mb-1.5">Password</span>
         <input
           type="password"
@@ -81,16 +87,18 @@ export function SignupForm() {
         />
       </label>
 
-      <label className="block mb-6">
-        <span className="block text-sm mb-1.5">Beta code</span>
-        <input
-          type="text"
-          value={betaCode}
-          onChange={(e) => setBetaCode(e.target.value)}
-          required
-          className="w-full rounded-md border border-border bg-panel px-3.5 py-2.5 text-sm font-mono outline-none focus:border-accent"
-        />
-      </label>
+      {hosted ? (
+        <label className="block mb-6">
+          <span className="block text-sm mb-1.5">Beta code</span>
+          <input
+            type="text"
+            value={betaCode}
+            onChange={(e) => setBetaCode(e.target.value)}
+            required
+            className="w-full rounded-md border border-border bg-panel px-3.5 py-2.5 text-sm font-mono outline-none focus:border-accent"
+          />
+        </label>
+      ) : null}
 
       {error && (
         <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">

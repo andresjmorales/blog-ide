@@ -1,5 +1,7 @@
 import { getLocalDoc } from "@/lib/db/indexed";
+import { bundleOwnedAssetsInMarkdown } from "@/lib/export/bundleAssets";
 import { buildZip, type ZipEntry } from "@/lib/export/zip";
+import { createClient } from "@/lib/supabase/client";
 import { listAllDocumentBodies, listWorkspaceNodes } from "@/lib/workspace/api";
 import { collectSubtreeIds, getTrashNode } from "@/lib/workspace/tree";
 import type { WorkspaceNode } from "@/lib/workspace/types";
@@ -49,9 +51,9 @@ export function exportPathsFor(nodes: WorkspaceNode[]): Map<string, string> {
 }
 
 /**
- * Bundle every document (Trash excluded) into a ZIP. Unsynced local drafts
- * win over the cloud copy, so the export always matches what the editor
- * shows.
+ * Bundle every document (Trash excluded) into a ZIP. Owned Supabase Storage
+ * images are downloaded into `assets/` and markdown links rewritten to
+ * relative paths. Unsynced local drafts win over the cloud copy.
  */
 export async function exportWorkspaceZip(): Promise<{
   blob: Blob;
@@ -62,12 +64,32 @@ export async function exportWorkspaceZip(): Promise<{
   const remote = await listAllDocumentBodies();
   const encoder = new TextEncoder();
   const entries: ZipEntry[] = [];
+  const usedAssetNames = new Set<string>();
+
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const userId = user?.id ?? null;
 
   for (const [nodeId, path] of paths) {
     const local = await getLocalDoc(nodeId);
-    const markdown = local?.dirty
+    let markdown = local?.dirty
       ? local.markdown
       : (remote.get(nodeId) ?? local?.markdown ?? "");
+
+    if (userId) {
+      const bundled = await bundleOwnedAssetsInMarkdown(
+        markdown,
+        userId,
+        usedAssetNames
+      );
+      markdown = bundled.markdown;
+      for (const asset of bundled.assets) {
+        entries.push({ path: asset.zipPath, data: asset.data });
+      }
+    }
+
     entries.push({ path, data: encoder.encode(markdown) });
   }
 
