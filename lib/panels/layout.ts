@@ -32,7 +32,7 @@ export const DOCK_SIDES: DockSide[] = ["left", "right", "bottom"];
 export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
   docks: {
     left: ["files"],
-    right: ["shell", "ai"],
+    right: ["shell", "library", "ai"],
     bottom: [],
   },
   active: {
@@ -44,7 +44,7 @@ export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
     files: true,
     ai: true,
     shell: true,
-    library: false,
+    library: true,
   },
   floating: [],
   home: {

@@ -66,6 +66,7 @@ import { pickMarkdownFile } from "@/lib/export/document";
 import { downloadWorkspaceZip } from "@/lib/export/workspaceZip";
 import {
   documentIdsInSubtree,
+  getInboxNode,
   getTrashNode,
   isInTrash,
   isScratchpad,
@@ -112,6 +113,7 @@ import {
   popOutPanel,
   setActiveTab,
   setDockSize,
+  showPanel,
   togglePanel,
   type DockSide,
   type PanelId,
@@ -366,14 +368,10 @@ function AppShellContent({
     setMobileRightOpen(false);
   }, []);
 
-  /** Desktop: always pop-out. Phone: full-screen terminal. */
+  /** Phone: full-screen capture terminal. Desktop uses the Notes panel tab. */
   const openShell = useCallback(() => {
-    if (isMobile) {
-      enterCaptureSurface();
-      return;
-    }
-    applyLayout(popOutPanel(panelLayout, "shell"));
-  }, [applyLayout, enterCaptureSurface, isMobile, panelLayout]);
+    enterCaptureSurface();
+  }, [enterCaptureSurface]);
 
   const handlePopInPanel = useCallback(
     (panelId: PanelId, side: DockSide) => {
@@ -709,8 +707,13 @@ function AppShellContent({
     }
   }
 
-  async function handleNewChannel(inboxId: string) {
+  async function handleNewChannel() {
     if (previewMode) return;
+    const inboxId = getInboxNode(nodes)?.id;
+    if (!inboxId) {
+      setTreeError("Notes folder is not ready yet.");
+      return;
+    }
     const name = await dialog.prompt({
       title: "New channel",
       message: "Name for this Notes channel (e.g. ideas, quotes).",
@@ -721,19 +724,25 @@ function AppShellContent({
     const title = name.trim().replace(/\.md$/i, "");
     const fileName = uniqueSiblingName(nodes, inboxId, titleToFileName(title));
     try {
-      const id = await createWorkspaceNode({
+      await createWorkspaceNode({
         kind: "document",
         name: fileName,
         parentId: inboxId,
         markdown: `---\ntitle: ${title}\nstatus: draft\n---\n\n`,
       });
       await refreshTree();
-      setActiveNodeId(id);
+      bumpShellRefresh();
+      applyLayout(showPanel(panelLayout, "shell"));
     } catch (error) {
       setTreeError(
         error instanceof Error ? error.message : "Could not create channel."
       );
     }
+  }
+
+  function handleOpenChannelDoc(channelId: string) {
+    setActiveNodeId(channelId);
+    if (isMobile) setMobileLeftOpen(false);
   }
 
   function handlePopOutDocument(nodeId: string) {
@@ -1030,7 +1039,6 @@ function AppShellContent({
         if (isMobile) setMobileLeftOpen(false);
       }}
       onNewDocument={handleNewDocument}
-      onNewChannel={handleNewChannel}
       onPopOutDocument={handlePopOutDocument}
       onNewFolder={handleNewFolder}
       onMoveToTrash={handleMoveToTrash}
@@ -1389,6 +1397,10 @@ function AppShellContent({
                   refreshKey={shellRefreshKey}
                   onNotesChanged={bumpShellRefresh}
                   compactMeta
+                  onNewChannel={() => void handleNewChannel()}
+                  onOpenChannelDoc={handleOpenChannelDoc}
+                  onRenameChannel={(id) => void handleRename(id)}
+                  onTrashChannel={(id) => void handleMoveToTrash(id)}
                 />
               </PersistentPanel>
               <PersistentPanel

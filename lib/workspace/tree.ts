@@ -152,15 +152,19 @@ export function documentIdsInSubtree(
 export function eligibleMoveFolders(
   nodes: WorkspaceNode[],
   movingId: string,
-  options?: { includeTrash?: boolean }
+  options?: { includeTrash?: boolean; includeInbox?: boolean }
 ): WorkspaceNode[] {
   const trashId = getTrashNode(nodes)?.id;
+  const inboxId = getInboxNode(nodes)?.id;
   const blocked = new Set(collectSubtreeIds(movingId, nodes));
   return nodes
     .filter((n) => {
       if (n.kind !== "folder") return false;
       if (blocked.has(n.id)) return false;
       if (!options?.includeTrash && n.id === trashId) return false;
+      // Notes channels are managed from the Notes panel, not the Files tree.
+      // Restore may still target Notes via includeInbox.
+      if (!options?.includeInbox && n.id === inboxId) return false;
       return true;
     })
     .sort((a, b) => a.name.localeCompare(b.name));

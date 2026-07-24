@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { getPublicSiteUrl } from "@/lib/siteUrl";
 
 export function ResetRequestForm() {
   const [email, setEmail] = useState("");
@@ -16,9 +17,12 @@ export function ResetRequestForm() {
     setBusy(true);
     try {
       const supabase = createClient();
+      // Redirect target after Supabase verifies the recovery token (or the
+      // value of {{ .RedirectTo }} when using the token_hash email template).
+      const redirectTo = `${getPublicSiteUrl()}/auth/confirm?next=${encodeURIComponent("/reset/confirm")}`;
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         email,
-        { redirectTo: `${window.location.origin}/reset/confirm` }
+        { redirectTo }
       );
       if (resetError) {
         setError(resetError.message);

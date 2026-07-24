@@ -8,9 +8,9 @@ import { createClient } from "@/lib/supabase/client";
 type Stage = "verifying" | "ready" | "invalid";
 
 /**
- * Landing page for the password-recovery email link. The link carries a
- * one-time code; exchanging it signs the user in, after which they choose
- * a new password.
+ * Landing page for the password-recovery email link. Prefer links that hit
+ * `/auth/confirm` first (server verifies token_hash); this page then collects
+ * the new password. Also accepts a leftover `?code=` for same-browser PKCE.
  */
 export function ResetConfirmForm() {
   const router = useRouter();
@@ -24,17 +24,35 @@ export function ResetConfirmForm() {
   useEffect(() => {
     let cancelled = false;
     async function verify() {
+      const authError = searchParams.get("error");
+      const authDescription = searchParams.get("error_description");
+      if (authError) {
+        if (!cancelled) {
+          setError(
+            authDescription?.replace(/\+/g, " ") ||
+              "This reset link is invalid or has expired."
+          );
+          setStage("invalid");
+        }
+        return;
+      }
+
       const supabase = createClient();
       const code = searchParams.get("code");
       if (code) {
         const { error: exchangeError } =
           await supabase.auth.exchangeCodeForSession(code);
         if (cancelled) return;
-        setStage(exchangeError ? "invalid" : "ready");
+        if (exchangeError) {
+          setError(exchangeError.message);
+          setStage("invalid");
+          return;
+        }
+        setStage("ready");
         return;
       }
-      // No code param — the client may have already exchanged it
-      // (detectSessionInUrl), or the user navigated here while signed in.
+
+      // `/auth/confirm` already established a session via cookies.
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -84,8 +102,8 @@ export function ResetConfirmForm() {
       <div className="w-full max-w-sm text-center">
         <h1 className="text-2xl font-semibold mb-4">Link expired</h1>
         <p className="text-sm text-muted">
-          This reset link is invalid or has expired. Request a fresh one and
-          use it within an hour.
+          {error ||
+            "This reset link is invalid or has expired. Request a fresh one and use it within an hour."}
         </p>
         <p className="mt-6 text-sm">
           <Link

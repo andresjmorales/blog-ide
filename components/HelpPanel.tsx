@@ -69,10 +69,10 @@ export function HelpPanel({ open, onClose }: Props) {
             for the same actions. New document can also Import from .md / .txt.
             Nest folders (e.g. essays/Veganism/). Pop out any document to keep a
             scratchpad floating. Hover links for Open Graph previews. Pin keeps
-            them on screen. Open <strong>Library</strong> from the Panels menu to
-            pin local PDFs. Use ⋯ → Preview in new tab for publication-style HTML
-            with Substack-like footnotes. Edits save locally first, then sync
-            online.
+            them on screen. The <strong>Library</strong> panel (right dock) holds
+            research PDFs and bookmarks. Use ⋯ → Preview in new tab for
+            publication-style HTML with Substack-like footnotes. Edits save
+            locally first, then sync online.
           </p>
         </section>
 
@@ -80,10 +80,10 @@ export function HelpPanel({ open, onClose }: Props) {
           <h3>Notes &amp; Shell</h3>
           <p className="settings-help">
             Notes to self land in Notes channels (default <code>general</code>) as
-            a chat-style stream. On desktop, open <strong>Shell</strong> /{" "}
-            <strong>Notes</strong> from the Panels menu (pop out or dock under
-            the essay. Outline and the footnotes rail stay full-height beside a
-            docked Shell). On phone, the header Notes button stays available, and
+            a chat-style stream — open the <strong>Notes</strong> panel from the
+            Panels menu. Channel files are managed from the Notes manager icon in
+            that panel (new channel, open channel doc, rename, trash), not from
+            the Files tree. On phone, the header Notes button opens capture mode;
             Shell can open by default (Account settings → Mobile). Scratchpad
             stays for writing scraps.
           </p>
