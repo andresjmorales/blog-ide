@@ -20,9 +20,14 @@ const REPO_URL = "https://github.com/andresjmorales/blog-ide";
 type Props = {
   billingAvailable: boolean;
   initialPlan: "free" | "pro";
+  signedIn: boolean;
 };
 
-export function HostingOptions({ billingAvailable, initialPlan }: Props) {
+export function HostingOptions({
+  billingAvailable,
+  initialPlan,
+  signedIn,
+}: Props) {
   const plan = initialPlan;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,8 +63,8 @@ export function HostingOptions({ billingAvailable, initialPlan }: Props) {
           Hosting options
         </h1>
         <p className="text-muted leading-relaxed">
-          Run {PRODUCT_NAME} yourself, use the invite-only blogide.com instance,
-          or a paid hosted plan with a higher storage quota.
+          Run {PRODUCT_NAME} yourself, or use the hosted beta (free or Pro) with
+          a beta code.
         </p>
       </div>
 
@@ -82,13 +87,12 @@ export function HostingOptions({ billingAvailable, initialPlan }: Props) {
         </article>
 
         <article className="flex flex-col rounded-lg border border-border bg-panel/40 p-5 text-left">
-          <h2 className="mb-1 text-lg font-semibold">Hosted invite</h2>
+          <h2 className="mb-1 text-lg font-semibold">Hosted Free (beta)</h2>
           <p className="mb-3 text-sm font-medium text-accent">$0 · beta code</p>
           <p className="mb-4 flex-1 text-sm text-muted leading-relaxed">
-            blogide.com: we run it for you. Invite-only while the hosted
-            instance is not open to the public. Default{" "}
-            {formatQuotaMib(FREE_QUOTA_BYTES)} combined quota (markdown +
-            Storage).
+            We host it for you. Invite-only during beta.{" "}
+            {formatQuotaMib(FREE_QUOTA_BYTES)} combined storage (markdown +
+            files).
           </p>
           <Link
             href="/signup"
@@ -99,16 +103,30 @@ export function HostingOptions({ billingAvailable, initialPlan }: Props) {
         </article>
 
         <article className="flex flex-col rounded-lg border border-accent/50 bg-accent/5 p-5 text-left">
-          <h2 className="mb-1 text-lg font-semibold">Hosted Pro</h2>
+          <h2 className="mb-1 text-lg font-semibold">Hosted Pro (beta)</h2>
           <p className="mb-3 text-sm font-medium text-accent">
             {HOSTED_PRO_PRICE_LABEL}
           </p>
           <p className="mb-4 flex-1 text-sm text-muted leading-relaxed">
-            {formatQuotaMib(PRO_QUOTA_BYTES)} combined quota on the hosted
-            instance. Cancel anytime via the Stripe customer portal. You can
-            always self-host or export instead.
+            Same beta access, with {formatQuotaMib(PRO_QUOTA_BYTES)} storage.
+            Cancel anytime in the billing portal.
           </p>
-          {isPro ? (
+          {!signedIn ? (
+            <div className="flex flex-col gap-1.5 text-sm">
+              <Link
+                href="/signup"
+                className="text-accent underline underline-offset-4"
+              >
+                Create an account
+              </Link>
+              <Link
+                href="/login?next=/hosting"
+                className="text-muted underline underline-offset-4 hover:text-foreground"
+              >
+                Sign in to upgrade
+              </Link>
+            </div>
+          ) : isPro ? (
             <button
               type="button"
               disabled={busy || !billingAvailable}
@@ -131,7 +149,7 @@ export function HostingOptions({ billingAvailable, initialPlan }: Props) {
               Checkout not configured on this deploy yet
             </span>
           )}
-          {isPro ? (
+          {signedIn && isPro ? (
             <p className="mt-2 text-xs text-muted">Pro subscription active</p>
           ) : null}
         </article>

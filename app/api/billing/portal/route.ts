@@ -37,12 +37,27 @@ export async function POST(request: Request) {
     );
   }
 
-  const stripe = getStripe();
-  const siteUrl = getSiteUrl(request);
-  const portal = await stripe.billingPortal.sessions.create({
-    customer: settings.stripe_customer_id,
-    return_url: `${siteUrl}/editor`,
-  });
-
-  return NextResponse.json({ url: portal.url });
+  try {
+    const stripe = getStripe();
+    const siteUrl = getSiteUrl(request);
+    const portal = await stripe.billingPortal.sessions.create({
+      customer: settings.stripe_customer_id,
+      return_url: `${siteUrl}/editor`,
+    });
+    return NextResponse.json({ url: portal.url });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Portal failed.";
+    console.error("[billing/portal]", message);
+    // Common after local test Checkout then live keys on Vercel.
+    if (/no such customer/i.test(message) || /resource_missing/i.test(message)) {
+      return NextResponse.json(
+        {
+          error:
+            "Stripe customer not found for these API keys. Test-mode customers do not exist in live mode — clear stripe_customer_id or Upgrade again with live Checkout.",
+        },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

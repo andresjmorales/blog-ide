@@ -31,7 +31,12 @@ export function LoginForm() {
         return;
       }
 
-      router.push(searchParams.get("next") ?? "/editor");
+      const next = searchParams.get("next");
+      const safeNext =
+        next && next.startsWith("/") && !next.startsWith("//")
+          ? next
+          : "/editor";
+      router.push(safeNext);
       router.refresh();
     } finally {
       setBusy(false);

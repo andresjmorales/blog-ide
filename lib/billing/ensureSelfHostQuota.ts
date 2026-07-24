@@ -14,7 +14,7 @@ export async function ensureSelfHostQuota(userId: string): Promise<void> {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("user_settings")
-    .select("quota_bytes, stripe_subscription_id")
+    .select("quota_bytes, stripe_subscription_id, stripe_customer_id")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
@@ -28,8 +28,8 @@ export async function ensureSelfHostQuota(userId: string): Promise<void> {
     return;
   }
 
-  // Never touch rows that look like hosted billing customers.
-  if (data.stripe_subscription_id) return;
+  // Never touch rows that look like hosted billing customers (even after cancel).
+  if (data.stripe_subscription_id || data.stripe_customer_id) return;
 
   const current = Number(data.quota_bytes) || 0;
   if (current >= SELF_HOST_QUOTA_BYTES) return;
