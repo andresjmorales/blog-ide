@@ -34,7 +34,7 @@ const GROUPS: CharGroup[] = [
     heading: "Punctuation",
     items: [
       { label: "–", insert: "–", title: "En dash (ranges: 2010–2020)" },
-      { label: "—", insert: "—", title: "Em dash (aside—like this)" },
+      { label: "—", insert: "—", title: "Em dash (aside - like this)" },
       { label: "…", insert: "…", title: "Ellipsis" },
       { label: "“ ”", insert: "“”", title: "Curly double quotes", wrap: { before: "“", after: "”" } },
       { label: "‘ ’", insert: "‘’", title: "Curly single quotes", wrap: { before: "‘", after: "’" } },
@@ -62,14 +62,14 @@ const GROUPS: CharGroup[] = [
   {
     heading: "Accents (base + mark)",
     items: [
-      { label: "´", insert: "\u0301", title: "Acute — type a letter, then this (é)" },
-      { label: "`", insert: "\u0300", title: "Grave — type a letter, then this (è)" },
-      { label: "ˆ", insert: "\u0302", title: "Circumflex — type a letter, then this (ê)" },
-      { label: "¨", insert: "\u0308", title: "Umlaut/diaeresis — type a letter, then this (ë)" },
-      { label: "˜", insert: "\u0303", title: "Tilde — type a letter, then this (ñ)" },
-      { label: "¯", insert: "\u0304", title: "Macron — type a letter, then this (ā)" },
-      { label: "ˇ", insert: "\u030C", title: "Caron — type a letter, then this (č)" },
-      { label: "¸", insert: "\u0327", title: "Cedilla — type a letter, then this (ç)" },
+      { label: "´", insert: "\u0301", title: "Acute: type a letter, then this (é)" },
+      { label: "`", insert: "\u0300", title: "Grave: type a letter, then this (è)" },
+      { label: "ˆ", insert: "\u0302", title: "Circumflex: type a letter, then this (ê)" },
+      { label: "¨", insert: "\u0308", title: "Umlaut/diaeresis: type a letter, then this (ë)" },
+      { label: "˜", insert: "\u0303", title: "Tilde: type a letter, then this (ñ)" },
+      { label: "¯", insert: "\u0304", title: "Macron: type a letter, then this (ā)" },
+      { label: "ˇ", insert: "\u030C", title: "Caron: type a letter, then this (č)" },
+      { label: "¸", insert: "\u0327", title: "Cedilla: type a letter, then this (ç)" },
     ],
   },
   {

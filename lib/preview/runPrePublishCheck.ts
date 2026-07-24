@@ -68,7 +68,7 @@ export async function runPrePublishCheck(
       url: item.url,
       kind: "relative",
       ok: null,
-      note: "Site-relative — resolve on the published host",
+      note: "Site-relative; resolve on the published host",
     });
   }
 

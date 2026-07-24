@@ -68,7 +68,7 @@ export function HelpPanel({ open, onClose }: Props) {
             Use the icon buttons (new document / new folder) or hover a folder
             for the same actions. New document can also Import from .md / .txt.
             Nest folders (e.g. essays/Veganism/). Pop out any document to keep a
-            scratchpad floating. Hover links for Open Graph previews — Pin keeps
+            scratchpad floating. Hover links for Open Graph previews. Pin keeps
             them on screen. Open <strong>Library</strong> from the Panels menu to
             pin local PDFs. Use ⋯ → Preview in new tab for publication-style HTML
             with Substack-like footnotes. Edits save locally first, then sync
@@ -82,7 +82,7 @@ export function HelpPanel({ open, onClose }: Props) {
             Notes to self land in Notes channels (default <code>general</code>) as
             a chat-style stream. On desktop, open <strong>Shell</strong> /{" "}
             <strong>Notes</strong> from the Panels menu (pop out or dock under
-            the essay — Outline and the footnotes rail stay full-height beside a
+            the essay. Outline and the footnotes rail stay full-height beside a
             docked Shell). On phone, the header Notes button stays available, and
             Shell can open by default (Account settings → Mobile). Scratchpad
             stays for writing scraps.
@@ -93,16 +93,16 @@ export function HelpPanel({ open, onClose }: Props) {
           <h3>Shortcuts</h3>
           <ul className="settings-help list-disc space-y-1 pl-4">
             <li>
-              <kbd>Ctrl</kbd>+<kbd>B</kbd> / <kbd>I</kbd> — bold / italic
+              <kbd>Ctrl</kbd>+<kbd>B</kbd> / <kbd>I</kbd>: bold / italic
             </li>
             <li>
-              <kbd>Ctrl</kbd>+<kbd>K</kbd> — link
+              <kbd>Ctrl</kbd>+<kbd>K</kbd>: link
             </li>
             <li>
-              <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> — footnote
+              <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd>: footnote
             </li>
             <li>
-              <kbd>Esc</kbd> — close floating footnote / dialogs
+              <kbd>Esc</kbd>: close floating footnote / dialogs
             </li>
           </ul>
         </section>

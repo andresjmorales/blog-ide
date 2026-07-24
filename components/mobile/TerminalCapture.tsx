@@ -234,7 +234,7 @@ export function TerminalCapture({
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 font-mono text-xs leading-relaxed"
         >
           <p className="text-muted">
-            <span className="text-accent">$</span> notes to self — history looks
+            <span className="text-accent">$</span> notes to self. History looks
             like prior commands. The desktop Notes panel shows the same stream.
           </p>
           <div className="mt-4 space-y-3">
@@ -242,7 +242,7 @@ export function TerminalCapture({
               <p className="text-muted/80"># loading history…</p>
             )}
             {!loading && history.length === 0 && (
-              <p className="text-muted/80"># no history yet — type below</p>
+              <p className="text-muted/80"># no history yet. Type below</p>
             )}
             {history.map((line, i) => (
               <div

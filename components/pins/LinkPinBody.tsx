@@ -56,7 +56,7 @@ export function LinkPinBody({ pin }: { pin: LinkPin }) {
       {text && (
         <div className="link-pin-extract">
           <p className="link-pin-extract-note">
-            Approximate extract — select and copy into the essay.
+            Approximate extract. Select and copy into the essay.
           </p>
           <pre className="link-pin-extract-text">{text}</pre>
         </div>
