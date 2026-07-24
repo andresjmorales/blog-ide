@@ -56,7 +56,7 @@ export function SignupForm() {
       <h1 className="text-2xl font-semibold mb-1">Create your account</h1>
       <p className="text-sm text-muted mb-8">
         {hosted
-          ? "blogide.com is invite-only for now — a valid beta code is required."
+          ? "blogide.com is invite-only for now. A valid beta code is required."
           : "This install requires a beta code to create an account (same gate as the hosted instance)."}
       </p>
 

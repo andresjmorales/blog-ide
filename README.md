@@ -73,8 +73,9 @@ SUPABASE_SERVICE_ROLE_KEY=your-secret-or-service-role-key
 
 `SUPABASE_SERVICE_ROLE_KEY` is used only by the signup API route to redeem beta codes.
 `NEXT_PUBLIC_HOSTED=true` switches landing/signup copy to the hosted-instance
-framing and enables the full `/hosting` comparison (self-host installs see a
-short stub). See [`.env.example`](./.env.example).
+framing and enables `/hosting` plus footer links to hosting options. Self-host
+and local installs leave it unset: no hosting marketing on the landing page,
+and `/hosting` redirects home. See [`.env.example`](./.env.example).
 
 Add the same variables in Vercel (Production + Preview as needed) and **redeploy** after saving.
 

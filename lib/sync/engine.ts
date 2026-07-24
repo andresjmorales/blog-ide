@@ -106,7 +106,7 @@ export type OpenedDocument = {
   dirty: boolean;
 };
 
-export const SIGNED_OUT_MESSAGE = "Signed out — sign in again to sync.";
+export const SIGNED_OUT_MESSAGE = "Signed out. Sign in again to sync.";
 
 /**
  * Auth-shaped failures (expired JWT, revoked session) — the fix is a login,

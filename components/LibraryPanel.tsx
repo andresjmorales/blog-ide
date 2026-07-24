@@ -46,7 +46,7 @@ export function LibraryPanel() {
     } catch (err) {
       setPdfError(
         err instanceof QuotaExceededError
-          ? "Storage quota exceeded — free space in Account settings."
+          ? "Storage quota exceeded. Free space in Account settings."
           : err instanceof Error
             ? err.message
             : "Could not add PDF."

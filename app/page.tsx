@@ -24,29 +24,17 @@ export default function LandingPage() {
           <p className="mb-10 text-sm leading-relaxed text-muted">
             This is the{" "}
             <span className="text-foreground">blogide.com</span> hosted
-            instance — invite-only for now, not open public signup. Prefer to
-            run it yourself?{" "}
+            instance: invite-only for now, not open public signup. Prefer to run
+            it yourself? See{" "}
             <Link
               href="/hosting"
               className="text-accent underline underline-offset-4"
             >
-              Hosting options
+              hosting options
             </Link>
             .
           </p>
-        ) : (
-          <p className="mb-10 text-sm leading-relaxed text-muted">
-            You&apos;re on a self-hosted (or local) install — full product, no
-            hosted paywall. Compare deploy choices on{" "}
-            <Link
-              href="/hosting"
-              className="text-accent underline underline-offset-4"
-            >
-              Hosting options
-            </Link>
-            .
-          </p>
-        )}
+        ) : null}
 
         {hosted ? (
           <BetaCodeForm />
@@ -82,25 +70,27 @@ export default function LandingPage() {
         </p>
       </div>
 
-      <section className="mt-16 w-full max-w-2xl border-t border-border pt-10 text-center">
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted">
-          Screenshots
-        </h2>
-        <p className="text-sm text-muted">
-          Product screenshots coming soon — a place for the editor, pins, and
-          Library once assets are ready.
-        </p>
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <div className="flex h-36 items-center justify-center rounded border border-dashed border-border bg-panel text-xs text-muted">
-            Editor preview
+      {hosted ? (
+        <section className="mt-16 w-full max-w-2xl border-t border-border pt-10 text-center">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted">
+            Screenshots
+          </h2>
+          <p className="text-sm text-muted">
+            Product screenshots coming soon: a place for the editor, pins, and
+            Library once assets are ready.
+          </p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <div className="flex h-36 items-center justify-center rounded border border-dashed border-border bg-panel text-xs text-muted">
+              Editor preview
+            </div>
+            <div className="flex h-36 items-center justify-center rounded border border-dashed border-border bg-panel text-xs text-muted">
+              Research pins
+            </div>
           </div>
-          <div className="flex h-36 items-center justify-center rounded border border-dashed border-border bg-panel text-xs text-muted">
-            Research pins
-          </div>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
-      <GitHubFooter showHostingLink />
+      <GitHubFooter />
     </main>
   );
 }

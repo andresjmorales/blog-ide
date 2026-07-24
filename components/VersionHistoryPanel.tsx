@@ -136,7 +136,7 @@ export function VersionHistoryPanel({ open, onClose, nodeId, onRestore }: Props)
           {loading && <p className="settings-help">Loading versions…</p>}
           {!loading && revisions.length === 0 && !error && (
             <p className="settings-help">
-              No snapshots yet — they appear after the next cloud sync of an
+              No snapshots yet. They appear after the next cloud sync of an
               edit.
             </p>
           )}

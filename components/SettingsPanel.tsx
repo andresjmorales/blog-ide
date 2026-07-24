@@ -352,7 +352,7 @@ function SettingsDialog({
           <h3>AI API keys</h3>
           <p className="settings-help">
             Bring your own Anthropic and/or OpenAI key. Keys are stored only in
-            this browser and sent to the provider when you use the assistant —
+            this browser and sent to the provider when you use the assistant,
             never saved to BlogIDE&apos;s database.
           </p>
           <label className="settings-row">

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { GitHubFooter } from "@/components/GitHubFooter";
 import {
   HOSTED_PRO_PRICE_LABEL,
@@ -8,40 +9,13 @@ import { PRODUCT_NAME } from "@/lib/brand";
 
 const REPO_URL = "https://github.com/andresjmorales/blog-ide";
 
+/**
+ * Hosting options exist only on the hosted deploy (blogide.com).
+ * Self-host installs redirect home; no marketing of paid/hosted tiers there.
+ */
 export default function HostingPage() {
-  const hosted = isHostedDeployment();
-
-  if (!hosted) {
-    return (
-      <main className="flex flex-1 flex-col items-center px-6 py-16">
-        <div className="w-full max-w-lg text-center">
-          <h1 className="mb-3 text-3xl font-semibold tracking-tight">
-            Hosting options
-          </h1>
-          <p className="mb-6 text-muted leading-relaxed">
-            This install is self-hosted — there is no subscription or hosted
-            paywall here. You already have the full {PRODUCT_NAME} product.
-          </p>
-          <div className="flex flex-wrap justify-center gap-3 text-sm">
-            <Link
-              href="/"
-              className="rounded border border-border px-3 py-1.5 hover:border-accent hover:text-accent"
-            >
-              Home
-            </Link>
-            <a
-              href={REPO_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded border border-border px-3 py-1.5 hover:border-accent hover:text-accent"
-            >
-              GitHub
-            </a>
-          </div>
-        </div>
-        <GitHubFooter />
-      </main>
-    );
+  if (!isHostedDeployment()) {
+    redirect("/");
   }
 
   return (
@@ -78,7 +52,7 @@ export default function HostingPage() {
           <h2 className="mb-1 text-lg font-semibold">Hosted invite</h2>
           <p className="mb-3 text-sm font-medium text-accent">$0 · beta code</p>
           <p className="mb-4 flex-1 text-sm text-muted leading-relaxed">
-            blogide.com — we run it for you. Invite-only while the hosted
+            blogide.com: we run it for you. Invite-only while the hosted
             instance is not open to the public. Default ~20 MiB combined quota
             (markdown + Storage).
           </p>
@@ -97,7 +71,7 @@ export default function HostingPage() {
           </p>
           <p className="mb-4 flex-1 text-sm text-muted leading-relaxed">
             Higher storage quota on the hosted instance. Billing (Stripe) is not
-            wired yet — this card is product framing only. You can always
+            wired yet; this card is product framing only. You can always
             self-host or export instead.
           </p>
           <span className="text-sm text-muted">Waitlist / checkout TBD</span>
@@ -117,7 +91,7 @@ export default function HostingPage() {
         </Link>
       </p>
 
-      <GitHubFooter showHostingLink={false} />
+      <GitHubFooter />
     </main>
   );
 }
