@@ -31,7 +31,8 @@ side.
 
 Images may carry a caption stored on the TipTap image node and serialized as
 the next non-blank markdown line after the image (Substack-style), not as a
-standard GFM construct. See `lib/editor/imageCaption.ts`.
+standard GFM construct. Captions support **bold**, *italic*, and
+[links](https://example.com) only. See `lib/editor/imageCaption.ts`.
 
 Broken or empty image URLs are hidden in the rich-text view; the markdown
 source still contains the `![…](…)` line so the URL can be fixed.

@@ -1,5 +1,13 @@
 import Image from "@tiptap/extension-image";
-import { Extension, type JSONContent } from "@tiptap/core";
+import StarterKit from "@tiptap/starter-kit";
+import { Markdown, MarkdownManager } from "@tiptap/markdown";
+import {
+  Extension,
+  generateHTML,
+  type AnyExtension,
+  type JSONContent,
+} from "@tiptap/core";
+import { LinkShortcut } from "@/lib/editor/linkShortcut";
 
 /**
  * Adjacent caption convention (shared with personal-site):
@@ -8,6 +16,7 @@ import { Extension, type JSONContent } from "@tiptap/core";
  *   Caption on the next line
  *
  * A blank line between image and text means "not a caption".
+ * Captions support bold, italic, and links only (inline markdown).
  */
 
 const IMAGE_LINE_RE =
@@ -97,6 +106,162 @@ export function prepareImageCaptions(body: string): string {
   return out.join("\n");
 }
 
+/** Collapse caption markdown to a single adjacent line. */
+export function normalizeCaptionMarkdown(md: string): string {
+  return md
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
+/**
+ * TipTap extension set for caption editing / HTML: paragraph + bold + italic
+ * + link only. No block constructs (captions stay one line).
+ */
+export function createCaptionExtensions(options?: {
+  /** Include Ctrl/Cmd+K link shortcut (editor only). */
+  withLinkShortcut?: boolean;
+}): AnyExtension[] {
+  const extensions: AnyExtension[] = [
+    StarterKit.configure({
+      heading: false,
+      bulletList: false,
+      orderedList: false,
+      listItem: false,
+      blockquote: false,
+      codeBlock: false,
+      code: false,
+      strike: false,
+      hardBreak: false,
+      horizontalRule: false,
+      underline: false,
+      trailingNode: false,
+      link: {
+        openOnClick: false,
+        autolink: true,
+        defaultProtocol: "https",
+      },
+    }),
+    Markdown,
+    CaptionSingleLine,
+  ];
+  if (options?.withLinkShortcut) {
+    extensions.push(LinkShortcut);
+  }
+  return extensions;
+}
+
+/** Block Enter / Shift-Enter so captions cannot become multi-paragraph. */
+export const CaptionSingleLine = Extension.create({
+  name: "captionSingleLine",
+
+  addKeyboardShortcuts() {
+    return {
+      Enter: () => true,
+      "Shift-Enter": () => true,
+      "Mod-Enter": () => true,
+    };
+  },
+});
+
+let captionManager: MarkdownManager | null = null;
+let captionHtmlExtensions: AnyExtension[] | null = null;
+
+function getCaptionHtmlPipeline(): {
+  manager: MarkdownManager;
+  extensions: AnyExtension[];
+} {
+  if (!captionManager || !captionHtmlExtensions) {
+    captionHtmlExtensions = createCaptionExtensions();
+    captionManager = new MarkdownManager({ extensions: captionHtmlExtensions });
+  }
+  return { manager: captionManager, extensions: captionHtmlExtensions };
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** Keep only phrasing safe for figcaptions: text, strong/b, em/i, a[href]. */
+function sanitizeCaptionHtml(rawHtml: string): string {
+  if (!rawHtml.trim()) return "";
+  if (typeof DOMParser === "undefined") {
+    return escapeHtml(rawHtml.replace(/<[^>]+>/g, ""));
+  }
+
+  const doc = new DOMParser().parseFromString(
+    `<div id="root">${rawHtml}</div>`,
+    "text/html"
+  );
+  const root = doc.getElementById("root");
+  if (!root) return "";
+
+  function walk(nodes: Iterable<ChildNode>): string {
+    let out = "";
+    for (const node of nodes) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        out += escapeHtml(node.textContent ?? "");
+        continue;
+      }
+      if (!(node instanceof HTMLElement)) continue;
+      const tag = node.tagName.toLowerCase();
+      if (tag === "p" || tag === "div" || tag === "span") {
+        out += walk(node.childNodes);
+        continue;
+      }
+      if (tag === "strong" || tag === "b") {
+        const inner = walk(node.childNodes);
+        if (inner) out += `<strong>${inner}</strong>`;
+        continue;
+      }
+      if (tag === "em" || tag === "i") {
+        const inner = walk(node.childNodes);
+        if (inner) out += `<em>${inner}</em>`;
+        continue;
+      }
+      if (tag === "a") {
+        const href = (node.getAttribute("href") || "").trim();
+        const inner = walk(node.childNodes);
+        if (!inner) continue;
+        if (/^https?:\/\//i.test(href) || href.startsWith("mailto:")) {
+          out += `<a href="${escapeHtml(href)}">${inner}</a>`;
+        } else {
+          out += inner;
+        }
+        continue;
+      }
+      if (tag === "br") continue;
+      out += walk(node.childNodes);
+    }
+    return out;
+  }
+
+  return walk(root.childNodes).trim();
+}
+
+/**
+ * Render caption markdown (bold / italic / link only) to safe figcaption HTML.
+ */
+export function captionMarkdownToHtml(md: string): string {
+  const trimmed = normalizeCaptionMarkdown(md);
+  if (!trimmed) return "";
+  try {
+    const { manager, extensions } = getCaptionHtmlPipeline();
+    const doc = manager.parse(trimmed);
+    const html = generateHTML(doc, extensions);
+    return sanitizeCaptionHtml(html);
+  } catch {
+    return escapeHtml(trimmed);
+  }
+}
+
 /** TipTap Image with optional caption attribute + adjacent markdown serialize. */
 export const ImageWithCaption = Image.extend({
   addAttributes() {
@@ -106,7 +271,9 @@ export const ImageWithCaption = Image.extend({
         default: "",
         parseHTML: (element) => element.getAttribute("data-caption") || "",
         renderHTML: (attributes) => {
-          const caption = String(attributes.caption || "").trim();
+          const caption = normalizeCaptionMarkdown(
+            String(attributes.caption || "")
+          );
           return caption ? { "data-caption": caption } : {};
         },
       },
@@ -117,7 +284,9 @@ export const ImageWithCaption = Image.extend({
     const src = String(node.attrs?.src ?? "");
     const alt = String(node.attrs?.alt ?? "");
     const title = String(node.attrs?.title ?? "");
-    const caption = String(node.attrs?.caption ?? "").trim();
+    const caption = normalizeCaptionMarkdown(
+      String(node.attrs?.caption ?? "")
+    );
     const image = formatImageMarkdown(alt, src, title);
     return caption ? `${image}\n${caption}` : image;
   },

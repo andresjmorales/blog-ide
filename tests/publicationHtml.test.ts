@@ -119,6 +119,16 @@ describe("enhancePublicationCaptions", () => {
     expect(html).toContain('src="a.png"');
     expect(html).not.toContain("data-caption");
   });
+
+  it("renders bold, italic, and links inside figcaption", () => {
+    const html = enhancePublicationCaptions(
+      `<p><img src="a.png" alt="" data-caption="**bold** and *italic* and [link](https://example.com)"></p>`
+    );
+    expect(html).toContain("<strong>bold</strong>");
+    expect(html).toContain("<em>italic</em>");
+    expect(html).toContain('<a href="https://example.com">link</a>');
+    expect(html).not.toContain("data-caption");
+  });
 });
 
 describe("buildPublicationPreview captions", () => {
@@ -130,5 +140,15 @@ describe("buildPublicationPreview captions", () => {
     expect(bodyHtml).toContain("content-caption");
     expect(bodyHtml).toContain("A visible caption");
     expect(bodyHtml).toContain('src="assets/x.png"');
+  });
+
+  it("renders formatted captions in preview HTML", () => {
+    const { bodyHtml } = buildPublicationPreview(
+      "---\ntitle: T\n---\n\n![](assets/x.png)\n**Credit:** *Artist* via [source](https://example.com)\n"
+    );
+    expect(bodyHtml).toContain("content-caption");
+    expect(bodyHtml).toContain("<strong>Credit:</strong>");
+    expect(bodyHtml).toContain("<em>Artist</em>");
+    expect(bodyHtml).toContain('<a href="https://example.com">source</a>');
   });
 });

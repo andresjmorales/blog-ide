@@ -3,6 +3,7 @@ import {
   closePanel,
   DEFAULT_PANEL_LAYOUT,
   movePanel,
+  normalizePanelLayout,
   panelLayoutFromLegacy,
   popInPanel,
   popOutPanel,
@@ -11,22 +12,50 @@ import {
 } from "@/lib/panels/layout";
 
 describe("panelLayout", () => {
-  it("defaults right dock to Notes, Library, then AI", () => {
+  it("defaults right dock to Library, then Notes, then AI", () => {
     expect(visibleTabs(DEFAULT_PANEL_LAYOUT, "right")).toEqual([
-      "shell",
       "library",
+      "shell",
       "ai",
     ]);
-    expect(DEFAULT_PANEL_LAYOUT.active.right).toBe("shell");
+    expect(DEFAULT_PANEL_LAYOUT.active.right).toBe("library");
     expect(DEFAULT_PANEL_LAYOUT.visible.library).toBe(true);
+  });
+
+  it("preserves right dock order and Library active through normalize", () => {
+    const normalized = normalizePanelLayout(DEFAULT_PANEL_LAYOUT);
+    expect(visibleTabs(normalized, "right")).toEqual([
+      "library",
+      "shell",
+      "ai",
+    ]);
+    expect(normalized.active.right).toBe("library");
+  });
+
+  it("migrates the old normalize corruption (AI-first right dock)", () => {
+    const normalized = normalizePanelLayout({
+      ...DEFAULT_PANEL_LAYOUT,
+      docks: {
+        left: ["files"],
+        right: ["ai", "shell", "library"],
+        bottom: [],
+      },
+      active: { left: "files", right: "ai", bottom: null },
+    });
+    expect(visibleTabs(normalized, "right")).toEqual([
+      "library",
+      "shell",
+      "ai",
+    ]);
+    expect(normalized.active.right).toBe("library");
   });
 
   it("moves Files from left to right beside the others", () => {
     const next = movePanel(DEFAULT_PANEL_LAYOUT, "files", "right");
     expect(visibleTabs(next, "left")).toEqual([]);
     expect(visibleTabs(next, "right")).toEqual([
-      "shell",
       "library",
+      "shell",
       "ai",
       "files",
     ]);
