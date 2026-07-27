@@ -160,6 +160,7 @@ quota shows the Pro size and “Pro subscription active”. Portal cancel schedu
 | Permission / 403 | Restricted key missing a row above |
 | Quota stuck on free | Webhook URL, `whsec_`, or selected events |
 | Manage billing fails | Portal not enabled, or no customer yet |
+| High webhook error rate on a shared Stripe account | Account-wide destinations receive every matching event; ignore unmapped customers/subs with HTTP 200 (do not 500) |
 
 ---
 
@@ -167,5 +168,3 @@ quota shows the Pro size and “Pro subscription active”. Portal cancel schedu
 
 - Architecture / quota model: [ARCHITECTURE.md](../ARCHITECTURE.md)
 - Env name list: [`.env.example`](../.env.example)
-- CogNote’s teacher BYOK Stripe (different model): personal
-  `project-documents/cognote/STRIPE_SETUP.md` if you have that repo
