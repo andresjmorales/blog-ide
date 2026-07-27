@@ -115,11 +115,11 @@ npm test   # round-trip + footnote/import suites
 
 ### Image captions
 
-Captions use an **adjacent line** under the image (no blank line). In the rich editor, click the gray **Add caption** field under an image. Markdown looks like:
+Captions use an **adjacent line** under the image (no blank line). In the rich editor, click the gray **Add caption** field under an image. Captions support **bold**, *italic*, and hyperlinks only. Markdown looks like:
 
 ```md
 ![](assets/essay/cover.webp)
-Lao Tzu, founder of Taoism
+Lao Tzu, *founder* of [Taoism](https://example.com)
 ```
 
 A blank line between the image and the next paragraph means “not a caption” (alt text stays on the image for accessibility and is never shown as the caption).

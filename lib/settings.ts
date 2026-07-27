@@ -14,7 +14,7 @@ export type EditorPrefs = {
   leftOpen?: boolean;
   rightOpen?: boolean;
   /** @deprecated Prefer panelLayout — kept for mobile drawers / migration. */
-  rightTab?: "ai" | (string & {});
+  rightTab?: "library" | "ai" | (string & {});
   /** @deprecated Prefer panelLayout.visible.shell */
   shellOpen?: boolean;
   /** Desktop Shell / bottom dock height in px. */
@@ -42,7 +42,7 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   rightWidth: 320,
   leftOpen: true,
   rightOpen: true,
-  rightTab: "ai",
+  rightTab: "library",
   shellOpen: false,
   shellHeight: 220,
   panelLayout: DEFAULT_PANEL_LAYOUT,

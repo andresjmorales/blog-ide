@@ -1,5 +1,6 @@
 import { generateHTML } from "@tiptap/core";
 import { createExtensions } from "@/lib/editor/extensions";
+import { captionMarkdownToHtml } from "@/lib/editor/imageCaption";
 import { parseBody } from "@/lib/markdown/pipeline";
 import { splitFrontmatter } from "@/lib/markdown/frontmatter";
 import { parseTitle } from "@/lib/markdown/titleFrontmatter";
@@ -139,7 +140,12 @@ export function enhancePublicationCaptions(rawHtml: string): string {
     figure.className = "content-figure";
     const figcaption = doc.createElement("figcaption");
     figcaption.className = "content-caption";
-    figcaption.textContent = caption;
+    const captionHtml = captionMarkdownToHtml(caption);
+    if (captionHtml) {
+      figcaption.innerHTML = captionHtml;
+    } else {
+      figcaption.textContent = caption;
+    }
     img.removeAttribute("data-caption");
     img.parentNode?.insertBefore(figure, img);
     figure.appendChild(img);

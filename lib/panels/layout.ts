@@ -32,12 +32,13 @@ export const DOCK_SIDES: DockSide[] = ["left", "right", "bottom"];
 export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
   docks: {
     left: ["files"],
-    right: ["shell", "library", "ai"],
+    // Library first — Notes has its own entry points; AI is still incomplete.
+    right: ["library", "shell", "ai"],
     bottom: [],
   },
   active: {
     left: "files",
-    right: "shell",
+    right: "library",
     bottom: null,
   },
   visible: {
@@ -140,10 +141,27 @@ export function normalizePanelLayout(
     }
   }
 
-  // Ensure each visible non-floating panel appears in exactly one dock.
+  // Ensure each visible non-floating panel appears in exactly one dock,
+  // preserving relative dock order (do not rebuild from PANEL_IDS — that
+  // used to scramble the right dock and force active → "ai").
+  const placed = new Set<PanelId>();
+
+  for (const side of DOCK_SIDES) {
+    const next: PanelId[] = [];
+    const seen = new Set<PanelId>();
+    for (const id of base.docks[side]) {
+      if (!PANEL_IDS.includes(id) || seen.has(id)) continue;
+      if (base.floating.includes(id) || !base.visible[id]) continue;
+      seen.add(id);
+      next.push(id);
+      placed.add(id);
+      base.home[id] = side;
+    }
+    base.docks[side] = next;
+  }
+
   for (const id of PANEL_IDS) {
-    const floating = base.floating.includes(id);
-    if (floating) {
+    if (base.floating.includes(id)) {
       base.visible[id] = false;
       removeFromAllDocks(base, id);
       continue;
@@ -152,13 +170,36 @@ export function normalizePanelLayout(
       removeFromAllDocks(base, id);
       continue;
     }
-    const side = findDockSide(base, id) ?? base.home[id];
-    removeFromAllDocks(base, id);
-    if (!base.docks[side].includes(id)) {
-      base.docks[side].push(id);
-    }
+    if (placed.has(id)) continue;
+    const side = base.home[id] ?? DEFAULT_PANEL_LAYOUT.home[id];
+    base.docks[side].push(id);
     base.home[id] = side;
-    if (!base.active[side]) base.active[side] = id;
+    placed.add(id);
+  }
+
+  for (const side of DOCK_SIDES) {
+    const active = base.active[side];
+    if (
+      active &&
+      base.docks[side].includes(active) &&
+      base.visible[active]
+    ) {
+      continue;
+    }
+    base.active[side] = base.docks[side][0] ?? null;
+  }
+
+  // Old normalize rebuilt docks as ["ai","shell","library"] with active "ai".
+  // Migrate that exact corrupted default to Library-first.
+  if (
+    base.docks.right.length === 3 &&
+    base.docks.right[0] === "ai" &&
+    base.docks.right[1] === "shell" &&
+    base.docks.right[2] === "library" &&
+    base.active.right === "ai"
+  ) {
+    base.docks.right = [...DEFAULT_PANEL_LAYOUT.docks.right];
+    base.active.right = DEFAULT_PANEL_LAYOUT.active.right;
   }
 
   return base;

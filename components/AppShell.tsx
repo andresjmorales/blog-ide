@@ -1081,9 +1081,9 @@ function AppShellContent({
     },
   };
 
-  /** Mobile drawers still use Files / AI content without dock chrome. */
+  /** Mobile drawers: Files left, Library right (Notes has its own button). */
   const mobileFilesDrawer = fileExplorer;
-  const mobileAiDrawer = aiPanel;
+  const mobileLibraryDrawer = libraryPanel;
 
   if (showTerminal) {
     return (
@@ -1181,7 +1181,7 @@ function AppShellContent({
               {isMobile && (
                 <button
                   onClick={() => setMobileRightOpen((v) => !v)}
-                  title="Toggle AI"
+                  title="Toggle Library"
                   className="rounded p-1.5 text-muted hover:bg-panel hover:text-foreground"
                 >
                   <PanelIcon side="right" />
@@ -1349,12 +1349,12 @@ function AppShellContent({
               </>
             )}
 
-            {/* Mobile right drawer */}
+            {/* Mobile right drawer — Library (Notes uses the Shell button) */}
             {isMobile && mobileRightOpen && (
               <>
                 <button
                   type="button"
-                  aria-label="Close right panel"
+                  aria-label="Close Library panel"
                   className="absolute inset-0 z-30 bg-black/40 md:hidden"
                   onClick={() => setMobileRightOpen(false)}
                 />
@@ -1363,9 +1363,9 @@ function AppShellContent({
                   className="absolute inset-y-0 right-0 z-40 flex flex-col border-l border-border bg-panel shadow-lg md:hidden"
                 >
                   <p className="border-b border-border px-3 py-2 text-xs font-medium text-muted">
-                    AI assistant
+                    Library
                   </p>
-                  {mobileAiDrawer}
+                  {mobileLibraryDrawer}
                 </aside>
               </>
             )}

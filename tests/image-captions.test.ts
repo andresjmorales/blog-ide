@@ -60,4 +60,15 @@ describe("image captions", () => {
     expect(image?.attrs?.caption).toBe("Lao Tzu, founder of Taoism");
     expect(normalize(serializeBody(doc))).toBe(md);
   });
+
+  it("round-trips bold, italic, and links in captions", () => {
+    const md =
+      "![](a.png)\n**bold** and *italic* and [link](https://example.com)\n";
+    const doc = parseBody(md);
+    const image = doc.content?.find((node) => node.type === "image");
+    expect(image?.attrs?.caption).toBe(
+      "**bold** and *italic* and [link](https://example.com)"
+    );
+    expect(normalize(serializeBody(doc))).toBe(md);
+  });
 });
