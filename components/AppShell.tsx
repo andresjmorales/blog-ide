@@ -61,6 +61,7 @@ import {
 } from "@/lib/workspace/api";
 import {
   loadDocumentTitles,
+  setTitleFromMarkdown,
 } from "@/lib/workspace/docTitles";
 import { pickMarkdownFile } from "@/lib/export/document";
 import { downloadWorkspaceZip } from "@/lib/export/workspaceZip";
@@ -413,6 +414,25 @@ function AppShellContent({
       if (titlesRequestRef.current === requestId) setDocTitles(titles);
     });
   }, []);
+
+  const handleExplorerTitleChange = useCallback(
+    (nodeId: string, title: string) => {
+      setDocTitles((prev) => {
+        const next = new Map(prev);
+        next.set(nodeId, title);
+        return next;
+      });
+    },
+    []
+  );
+
+  const handleDocumentLoaded = useCallback(
+    (markdown: string) => {
+      if (!activeNodeId) return;
+      setDocTitles((prev) => setTitleFromMarkdown(prev, activeNodeId, markdown));
+    },
+    [activeNodeId]
+  );
 
   const refreshTree = useCallback(
     async (opts?: { allowEmptyWipe?: boolean }) => {
@@ -1293,6 +1313,8 @@ function AppShellContent({
                 previewMode={previewMode}
                 onDeletedFootnotesChange={setDeletedFootnotes}
                 registerDeletedActions={registerDeletedActions}
+                onDocumentLoaded={handleDocumentLoaded}
+                onExplorerTitleChange={handleExplorerTitleChange}
                 onRequestTreeRefresh={refreshTree}
                 onRenameDocument={handleRenameDocument}
                 registerGetMarkdownForAi={(get) => {

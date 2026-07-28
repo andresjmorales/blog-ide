@@ -137,6 +137,8 @@ type Props = {
     dismiss: (id: string) => void;
   }) => void;
   onDocumentLoaded?: (markdown: string) => void;
+  /** Keep the Files tab label in sync when the essay title changes. */
+  onExplorerTitleChange?: (nodeId: string, title: string) => void;
   onRequestTreeRefresh?: () => void;
   onRenameDocument?: (
     nodeId: string,
@@ -157,6 +159,7 @@ export function DocumentWorkspace({
   onDeletedFootnotesChange,
   registerDeletedActions,
   onDocumentLoaded,
+  onExplorerTitleChange,
   onRequestTreeRefresh,
   onRenameDocument,
   registerGetMarkdownForAi,
@@ -649,45 +652,74 @@ export function DocumentWorkspace({
   const setEssayTitle = useCallback(
     (title: string) => {
       const cleaned = title.trim() || "Untitled";
-      setDoc((current) => {
-        const nextFrontmatter = writeTitle(current.frontmatter, cleaned);
-        const next = {
-          frontmatter: nextFrontmatter,
-          subtitle: current.subtitle,
-          author: current.author,
-          body: current.body,
-        };
-        persistMarkdownRef.current(
-          packDocument(
-            next.frontmatter,
-            next.subtitle,
-            next.author,
-            next.body
-          )
-        );
-        return next;
-      });
-      if (
-        persistEnabled &&
-        nodeId &&
-        canRenameDocument &&
-        onRenameRef.current &&
-        documentName &&
-        !fileNameMatchesTitle(documentName, cleaned)
-      ) {
-        const desired = titleToFileName(cleaned);
-        syncingNameRef.current = true;
-        void onRenameRef
-          .current(nodeId, desired)
-          .then((finalName) => {
-            prevDocumentNameRef.current = finalName || desired;
-          })
-          .finally(() => {
-            syncingNameRef.current = false;
-          });
+      const current = docRef.current;
+      const nextFrontmatter = writeTitle(current.frontmatter, cleaned);
+      const next = {
+        frontmatter: nextFrontmatter,
+        subtitle: current.subtitle,
+        author: current.author,
+        body: current.body,
+      };
+      const packed = packDocument(
+        next.frontmatter,
+        next.subtitle,
+        next.author,
+        next.body
+      );
+      setDoc(next);
+      docRef.current = next;
+      if (nodeId) onExplorerTitleChange?.(nodeId, cleaned);
+
+      if (!persistEnabled || !nodeId) return;
+
+      // Flush the title into IndexedDB before rename→refreshTree so
+      // loadDocumentTitles cannot re-paint the previous frontmatter title over
+      // the new filename (and so a newly opened tab sees the updated label).
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
       }
+      pendingLocalRef.current = null;
+      lastPersistedRef.current = packed;
+
+      void (async () => {
+        await saveLocal(nodeId, packed, baseVersionRef.current);
+
+        if (
+          canRenameDocument &&
+          onRenameRef.current &&
+          documentNameRef.current &&
+          !fileNameMatchesTitle(documentNameRef.current, cleaned)
+        ) {
+          const desired = titleToFileName(cleaned);
+          syncingNameRef.current = true;
+          try {
+            const finalName = await onRenameRef.current(nodeId, desired);
+            prevDocumentNameRef.current = finalName || desired;
+          } finally {
+            syncingNameRef.current = false;
+          }
+        }
+
+        if (syncTimer.current) clearTimeout(syncTimer.current);
+        syncTimer.current = setTimeout(() => {
+          void syncDocument(nodeId).then(async () => {
+            const local = await getLocalDoc(nodeId);
+            if (local && nodeIdRef.current === nodeId) {
+              setBaseVersion(local.baseVersion);
+            }
+            onRequestTreeRefresh?.();
+          });
+        }, 1500);
+      })();
     },
-    [persistEnabled, nodeId, canRenameDocument, documentName]
+    [
+      persistEnabled,
+      nodeId,
+      canRenameDocument,
+      onExplorerTitleChange,
+      onRequestTreeRefresh,
+    ]
   );
 
   const commitSubtitle = useCallback((next: string) => {
