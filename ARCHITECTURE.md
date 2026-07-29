@@ -22,7 +22,10 @@ markdown.
   (last 20 per document), restorable via `restore_document_revision`.
 - Storage bucket for images (objects are world-readable by URL so embedded
   images work in exported/published essays; paths are user-scoped and
-  uploads are capped and image-only).
+  uploads are capped and image-only). Profile photos use a fixed
+  `{userId}/avatar.webp` object in the same public `assets` bucket and
+  store the URL in auth `user_metadata.avatar_url` (not counted in essay
+  quota inventory).
 - Row-level security on every user-owned table and object path. Writes that
   carry invariants (document versions, quota counters, tree structure) are
   revoked for direct table access and must go through definer RPCs.

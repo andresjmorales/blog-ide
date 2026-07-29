@@ -26,6 +26,7 @@ import {
   HOSTED_PLANS,
   HOSTED_PRO_PRICE_LABEL,
 } from "@/lib/billing/plans";
+import { ProfilePhotoField } from "@/components/avatar/ProfilePhotoField";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -34,8 +35,10 @@ type Props = {
   onClose: () => void;
   email?: string;
   displayName?: string;
+  avatarUrl?: string | null;
   previewMode?: boolean;
   onDisplayNameChange?: (name: string) => void;
+  onAvatarUrlChange?: (url: string | null) => void;
 };
 
 export function SettingsPanel({
@@ -43,8 +46,10 @@ export function SettingsPanel({
   onClose,
   email = "",
   displayName = "",
+  avatarUrl = null,
   previewMode = false,
   onDisplayNameChange,
+  onAvatarUrlChange,
 }: Props) {
   useEffect(() => {
     if (!open) return;
@@ -64,8 +69,10 @@ export function SettingsPanel({
       onClose={onClose}
       email={email}
       displayName={displayName}
+      avatarUrl={avatarUrl}
       previewMode={previewMode}
       onDisplayNameChange={onDisplayNameChange}
+      onAvatarUrlChange={onAvatarUrlChange}
     />
   );
 }
@@ -74,14 +81,18 @@ function SettingsDialog({
   onClose,
   email,
   displayName,
+  avatarUrl,
   previewMode,
   onDisplayNameChange,
+  onAvatarUrlChange,
 }: {
   onClose: () => void;
   email: string;
   displayName: string;
+  avatarUrl: string | null;
   previewMode: boolean;
   onDisplayNameChange?: (name: string) => void;
+  onAvatarUrlChange?: (url: string | null) => void;
 }) {
   const { prefs, updatePrefs } = useEditorPrefs();
   const [aiKeys, setAiKeys] = useState<AiKeys>(() => loadAiKeys());
@@ -196,10 +207,16 @@ function SettingsDialog({
           <h3>Account</h3>
           {previewMode || !isSupabaseConfigured() ? (
             <p className="settings-help">
-              Sign in with Supabase to edit your display name and password.
+              Sign in with Supabase to edit your profile photo, display name,
+              and password.
             </p>
           ) : (
             <>
+              <ProfilePhotoField
+                initialUrl={avatarUrl}
+                displayName={nameDraft || displayName}
+                onUrlChange={onAvatarUrlChange}
+              />
               <label className="settings-row settings-row-stack">
                 <span>Email</span>
                 <input

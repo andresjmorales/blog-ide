@@ -6,6 +6,7 @@ import { getTheme, setTheme, type ThemeMode } from "@/lib/theme";
 type Props = {
   displayName: string;
   email: string;
+  avatarUrl?: string | null;
   previewMode?: boolean;
   onAccountSettings: () => void;
   onHelp: () => void;
@@ -25,6 +26,7 @@ function initialsFromName(name: string, email: string): string {
 export function UserMenu({
   displayName,
   email,
+  avatarUrl = null,
   previewMode = false,
   onAccountSettings,
   onHelp,
@@ -68,7 +70,17 @@ export function UserMenu({
           setOpen((v) => !v);
         }}
       >
-        <span aria-hidden>{initials}</span>
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={avatarUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            aria-hidden
+          />
+        ) : (
+          <span aria-hidden>{initials}</span>
+        )}
         <span className="sr-only">Account menu</span>
       </button>
 

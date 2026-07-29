@@ -26,6 +26,14 @@ function displayNameFromUser(user: {
     .join(" ");
 }
 
+function avatarUrlFromUser(user: {
+  user_metadata?: Record<string, unknown>;
+}): string | null {
+  const meta = user.user_metadata ?? {};
+  const url = meta.avatar_url;
+  return typeof url === "string" && url.trim() ? url.trim() : null;
+}
+
 export default async function EditorPage() {
   if (!isSupabaseConfigured()) {
     // Preview mode: Supabase not set up yet, show the shell without auth.
@@ -45,6 +53,7 @@ export default async function EditorPage() {
     <AppShell
       userEmail={user.email ?? ""}
       displayName={displayNameFromUser(user)}
+      avatarUrl={avatarUrlFromUser(user)}
     />
   );
 }
