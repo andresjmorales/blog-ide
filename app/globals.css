@@ -8,6 +8,7 @@
   --panel: #f3f1ea;
   --accent: #2f6b4f;
   --accent-foreground: #ffffff;
+  --content-image-max-height: 75dvh;
   color-scheme: light;
 }
 
@@ -490,7 +491,12 @@ body {
   text-underline-offset: 3px;
 }
 .editor-prose img {
+  display: block;
+  width: auto;
   max-width: 100%;
+  max-height: var(--content-image-max-height);
+  height: auto;
+  margin: 1.25rem auto;
   border-radius: 8px;
 }
 .editor-prose img.ProseMirror-selectednode {
@@ -506,7 +512,11 @@ body {
 }
 .editor-prose .blogide-figure img {
   display: block;
+  width: auto;
   max-width: 100%;
+  max-height: var(--content-image-max-height);
+  height: auto;
+  margin: 0 auto;
   border-radius: 8px;
 }
 .editor-prose .blogide-figure.is-selected img {
@@ -1713,18 +1723,31 @@ html.app-shell-lock body {
   word-break: break-word;
 }
 
+/* Publication preview copy uses the same reading face as the standalone preview. */
+.document-preview .editor-prose {
+  font-family: Georgia, "Times New Roman", serif;
+}
 .document-preview .content-figure {
   margin: 1.25em 0;
 }
+.document-preview .editor-prose img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: var(--content-image-max-height);
+  height: auto;
+  margin: 1.25em auto;
+}
 .document-preview .content-figure img {
   display: block;
+  width: auto;
   max-width: 100%;
+  max-height: var(--content-image-max-height);
   height: auto;
   margin: 0 auto;
 }
 .document-preview .content-caption {
   color: var(--muted);
-  font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 0.9rem;
   line-height: 1.45;
   margin-top: 0.5rem;
@@ -1757,7 +1780,6 @@ html.app-shell-lock body {
 .document-preview .preview-fn-ref {
   color: var(--accent);
   cursor: pointer;
-  font-family: var(--font-sans);
   font-size: 0.7em;
   font-weight: 700;
   margin: 0 0.08em;
@@ -1830,7 +1852,6 @@ html.app-shell-lock body {
 }
 .document-preview .preview-footnotes {
   border-top: 1px solid var(--border);
-  font-family: var(--font-sans);
   font-size: 0.875rem;
   margin-top: 2.5rem;
   padding-top: 1.25rem;

@@ -345,6 +345,7 @@ export function buildPublicationDocument(markdown: string): string {
     --fn-link: #0000ee;
     --panel: #f5f5f4;
     --target: #ecfdf5;
+    --content-image-max-height: 75dvh;
     color-scheme: light;
   }
   * { box-sizing: border-box; }
@@ -369,12 +370,17 @@ export function buildPublicationDocument(markdown: string): string {
   }
   .editor-prose p { margin: 0 0 1em; }
   .editor-prose h2, .editor-prose h3 { margin: 1.6em 0 0.6em; line-height: 1.25; }
-  .editor-prose img { max-width: 100%; height: auto; }
+  .editor-prose img {
+    display: block; width: auto; max-width: 100%;
+    max-height: var(--content-image-max-height); height: auto; margin: 1.25em auto;
+  }
   .editor-prose .content-figure { margin: 1.25em 0; }
-  .editor-prose .content-figure img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+  .editor-prose .content-figure img {
+    display: block; width: auto; max-width: 100%;
+    max-height: var(--content-image-max-height); height: auto; margin: 0 auto;
+  }
   .editor-prose .content-caption {
     color: var(--muted);
-    font-family: system-ui, sans-serif;
     font-size: 0.9rem;
     line-height: 1.45;
     margin-top: 0.5rem;
@@ -410,7 +416,6 @@ export function buildPublicationDocument(markdown: string): string {
   .preview-fn-ref {
     color: var(--fn-link);
     cursor: pointer;
-    font-family: system-ui, sans-serif;
     font-size: 0.7em;
     font-weight: 700;
     margin: 0 0.08em;
@@ -463,7 +468,6 @@ export function buildPublicationDocument(markdown: string): string {
   .preview-fn-tip code { font-family: ui-monospace, monospace; font-size: 0.9em; }
   .preview-footnotes {
     border-top: 1px solid var(--border);
-    font-family: system-ui, sans-serif;
     font-size: 0.875rem;
     margin-top: 2.5rem;
     padding-top: 1.25rem;
