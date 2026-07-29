@@ -505,7 +505,11 @@ body {
 
 /* Image + Substack-style caption field (adjacent markdown caption) */
 .editor-prose .blogide-figure {
-  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 1.25rem 0;
+  width: 100%;
 }
 .editor-prose .blogide-figure-broken {
   display: none;
@@ -516,7 +520,7 @@ body {
   max-width: 100%;
   max-height: var(--content-image-max-height);
   height: auto;
-  margin: 0 auto;
+  margin: 0;
   border-radius: 8px;
 }
 .editor-prose .blogide-figure.is-selected img {
