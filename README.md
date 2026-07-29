@@ -107,7 +107,9 @@ legacy `notes.md` still works). Edits save to IndexedDB immediately and sync to
 Supabase. On a phone, you land in a terminal-style quick-capture screen; on
 desktop, open **Shell** for the same Notes stream.
 
-Optional: open **Account settings** to paste Anthropic or OpenAI keys for the AI sidebar (keys stay on the device; requests go through a thin proxy).
+Optional: open **Account settings** to set a profile photo, display name, or
+paste Anthropic / OpenAI keys for the AI sidebar (keys stay on the device;
+requests go through a thin proxy).
 
 ```bash
 npm test   # round-trip + footnote/import suites

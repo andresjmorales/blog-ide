@@ -933,7 +933,9 @@ html.app-shell-lock body {
   justify-content: center;
   letter-spacing: 0.02em;
   min-width: 1.85rem;
-  padding: 0 0.35rem;
+  overflow: hidden;
+  padding: 0;
+  width: 1.85rem;
 }
 .user-avatar:hover {
   border-color: var(--accent);

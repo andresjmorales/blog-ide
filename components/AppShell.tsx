@@ -217,13 +217,19 @@ function useStableSyncBanner(status: SyncStatus, delayMs = 400) {
 export function AppShell({
   userEmail,
   displayName,
+  avatarUrl,
 }: {
   userEmail: string;
   displayName?: string;
+  avatarUrl?: string | null;
 }) {
   return (
     <AppDialogProvider>
-      <AppShellContent userEmail={userEmail} displayName={displayName} />
+      <AppShellContent
+        userEmail={userEmail}
+        displayName={displayName}
+        avatarUrl={avatarUrl}
+      />
     </AppDialogProvider>
   );
 }
@@ -231,9 +237,11 @@ export function AppShell({
 function AppShellContent({
   userEmail,
   displayName,
+  avatarUrl: initialAvatarUrl = null,
 }: {
   userEmail: string;
   displayName?: string;
+  avatarUrl?: string | null;
 }) {
   const router = useRouter();
   const previewMode = !isSupabaseConfigured() || userEmail === "not signed in";
@@ -281,6 +289,9 @@ function AppShellContent({
     unregister: unregisterPanelSlot,
   } = usePanelTargets();
   const [accountName, setAccountName] = useState(displayName?.trim() ?? "");
+  const [accountAvatarUrl, setAccountAvatarUrl] = useState<string | null>(
+    initialAvatarUrl
+  );
   const resolvedName =
     accountName.trim() ||
     displayName?.trim() ||
@@ -1193,6 +1204,7 @@ function AppShellContent({
               <UserMenu
                 displayName={resolvedName}
                 email={previewMode ? "" : userEmail}
+                avatarUrl={accountAvatarUrl}
                 previewMode={previewMode}
                 onAccountSettings={() => setSettingsOpen(true)}
                 onHelp={() => setHelpOpen(true)}
@@ -1398,8 +1410,10 @@ function AppShellContent({
             onClose={() => setSettingsOpen(false)}
             email={previewMode ? "" : userEmail}
             displayName={resolvedName}
+            avatarUrl={accountAvatarUrl}
             previewMode={previewMode}
             onDisplayNameChange={setAccountName}
+            onAvatarUrlChange={setAccountAvatarUrl}
           />
           <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
           {!isMobile && (
