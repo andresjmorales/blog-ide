@@ -1,6 +1,7 @@
 import { MarkdownManager } from "@tiptap/markdown";
 import type { JSONContent } from "@tiptap/core";
 import { createExtensions } from "@/lib/editor/extensions";
+import { preserveUnstableEmphasis } from "@/lib/editor/emphasisMarkdown";
 import { prepareImageCaptions } from "@/lib/editor/imageCaption";
 import { prepareMath } from "@/lib/editor/math";
 import {
@@ -42,6 +43,7 @@ const FOOTNOTE_SENTINEL_RE =
   /\[\[blogide-fn:([A-Za-z0-9._~-]+):([A-Za-z0-9._~-]*)\]\]/g;
 /** GFM continuation: at least four spaces or a tab. */
 const FOOTNOTE_CONTINUATION_RE = /^(?: {4}|\t)(.*)$/;
+const LITERAL_EMPHASIS_ESCAPE_RE = /\\([*_])/g;
 
 /**
  * True when footnote body needs the indented multi-line definition form
@@ -183,7 +185,10 @@ export function parseBody(body: string): JSONContent {
 
 /** Serialize TipTap JSON back to a markdown body. */
 export function serializeBody(doc: JSONContent): string {
-  let serialized = getManager().serialize(doc);
+  let serialized = preserveUnstableEmphasis(
+    getManager().serialize(doc),
+    doc
+  );
   // TipTap table markdown can emit a leading newline before the first pipe
   // row; strip it so round-trips don't accumulate blank lines.
   serialized = serialized.replace(/^\n+(?=\|)/, "");
@@ -290,6 +295,11 @@ export function normalize(markdown: string): string {
   return canonicalizeTables(normalizeSerialized(markdown));
 }
 
+/** TipTap escapes literal emphasis markers during Markdown serialization. */
+function canonicalizeLiteralEmphasisEscapes(markdown: string): string {
+  return markdown.replace(LITERAL_EMPHASIS_ESCAPE_RE, "$1");
+}
+
 /**
  * Full-document round trip: split frontmatter, parse body, serialize,
  * re-attach frontmatter. `serializeToMarkdown(parseFromMarkdown(md)) === md`
@@ -314,7 +324,24 @@ export function roundTrip(markdown: string): string {
  * reproduce it — used to warn before switching out of source view (spec §5.1).
  */
 export function isLossy(markdown: string): boolean {
-  return normalize(roundTrip(markdown)) !== normalize(markdown);
+  const tripped = roundTrip(markdown);
+  if (normalize(tripped) === normalize(markdown)) return false;
+  if (
+    canonicalizeLiteralEmphasisEscapes(normalize(tripped)) !==
+    canonicalizeLiteralEmphasisEscapes(normalize(markdown))
+  ) {
+    return true;
+  }
+
+  const original = splitFrontmatter(markdown);
+  const serialized = splitFrontmatter(tripped);
+  // TipTap escapes literal `*` / `_` during serialization. When both source
+  // forms parse to the same document, that is cosmetic—not data loss.
+  return (
+    original.frontmatter !== serialized.frontmatter ||
+    JSON.stringify(parseBody(original.body)) !==
+      JSON.stringify(parseBody(serialized.body))
+  );
 }
 
 /** What the editor would emit after a source → rich-text round trip. */

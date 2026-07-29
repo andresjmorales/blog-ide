@@ -126,6 +126,9 @@ Lao Tzu, *founder* of [Taoism](https://example.com)
 
 A blank line between the image and the next paragraph means “not a caption” (alt text stays on the image for accessibility and is never shown as the caption).
 
+Images are centered in the editor and publication previews. Very tall images are
+limited to 75% of the viewport height while keeping their original proportions.
+
 **Substack paste:** Substack usually inserts a blank line before the caption if one exists. Those will not become captions automatically; delete the blank line, or paste the desired caption into **Add caption**. Exported BlogIDE markdown may not map to Substack’s native caption UI when pasting back.
 
 > Without real Supabase credentials, the app runs in an unauthenticated **preview mode**: auth is skipped and `/editor` shows the shell without cloud sync.

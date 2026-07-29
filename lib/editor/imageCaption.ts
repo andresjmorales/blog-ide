@@ -264,6 +264,11 @@ export function captionMarkdownToHtml(md: string): string {
 
 /** TipTap Image with optional caption attribute + adjacent markdown serialize. */
 export const ImageWithCaption = Image.extend({
+  // Block figures so images center in the reading column (inline images ignore
+  // horizontal margin:auto and sit at the start of the line).
+  inline: false,
+  group: "block",
+
   addAttributes() {
     return {
       ...this.parent?.(),
