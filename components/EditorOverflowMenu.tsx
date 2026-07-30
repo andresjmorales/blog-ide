@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { claimFloatZ } from "@/lib/pins/pinStore";
 
 export type OverflowAction = {
   kind?: "action";
@@ -21,11 +23,26 @@ type Props = {
   items: OverflowItem[];
 };
 
-/** Compact ⋯ menu for secondary editor actions. */
+/** Compact ⋯ menu for secondary editor actions (portaled so toolbar overflow cannot clip it). */
 export function EditorOverflowMenu({ items }: Props) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(
+    null
+  );
+  const [zIndex, setZIndex] = useState(50);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
+
+  useLayoutEffect(() => {
+    if (!open || !buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    setCoords({
+      top: rect.bottom + 4,
+      right: Math.max(8, window.innerWidth - rect.right),
+    });
+    setZIndex(claimFloatZ());
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -33,7 +50,14 @@ export function EditorOverflowMenu({ items }: Props) {
       if (e.key === "Escape") setOpen(false);
     }
     function onPointer(e: PointerEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (
+        buttonRef.current?.contains(target) ||
+        menuRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setOpen(false);
     }
     document.addEventListener("keydown", onKey);
     document.addEventListener("pointerdown", onPointer, true);
@@ -44,8 +68,9 @@ export function EditorOverflowMenu({ items }: Props) {
   }, [open]);
 
   return (
-    <div className="relative" ref={rootRef}>
+    <>
       <button
+        ref={buttonRef}
         type="button"
         className="rounded border border-border px-2 py-1 text-xs text-muted hover:bg-panel hover:text-foreground"
         aria-haspopup="menu"
@@ -54,42 +79,50 @@ export function EditorOverflowMenu({ items }: Props) {
         title="More actions"
         onClick={() => setOpen((v) => !v)}
       >
-        <span aria-hidden className="inline-block px-0.5 font-bold tracking-widest">
+        <span
+          aria-hidden
+          className="inline-block px-0.5 font-bold tracking-widest"
+        >
           ⋯
         </span>
         <span className="sr-only">More actions</span>
       </button>
-      {open && (
-        <div
-          id={menuId}
-          role="menu"
-          className="absolute right-0 top-full z-50 mt-1 min-w-[11rem] rounded-md border border-border bg-background py-1 text-sm shadow-md"
-        >
-          {items.map((item) =>
-            item.kind === "separator" ? (
-              <div
-                key={item.id}
-                role="separator"
-                className="my-1 border-t border-border"
-              />
-            ) : (
-              <button
-                key={item.id}
-                type="button"
-                role="menuitem"
-                disabled={item.disabled}
-                className="flex w-full px-3 py-1.5 text-left text-foreground hover:bg-panel disabled:opacity-40"
-                onClick={() => {
-                  setOpen(false);
-                  item.onSelect();
-                }}
-              >
-                {item.label}
-              </button>
-            )
-          )}
-        </div>
-      )}
-    </div>
+      {open &&
+        coords &&
+        createPortal(
+          <div
+            ref={menuRef}
+            id={menuId}
+            role="menu"
+            className="fixed min-w-[11rem] rounded-md border border-border bg-background py-1 text-sm shadow-md"
+            style={{ top: coords.top, right: coords.right, zIndex }}
+          >
+            {items.map((item) =>
+              item.kind === "separator" ? (
+                <div
+                  key={item.id}
+                  role="separator"
+                  className="my-1 border-t border-border"
+                />
+              ) : (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="menuitem"
+                  disabled={item.disabled}
+                  className="flex w-full px-3 py-1.5 text-left text-foreground hover:bg-panel disabled:opacity-40"
+                  onClick={() => {
+                    setOpen(false);
+                    item.onSelect();
+                  }}
+                >
+                  {item.label}
+                </button>
+              )
+            )}
+          </div>,
+          document.body
+        )}
+    </>
   );
 }

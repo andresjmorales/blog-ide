@@ -5,6 +5,7 @@ import { Extension, type AnyExtension, type JSONContent } from "@tiptap/core";
 import { FootnoteRef } from "@/lib/editor/footnote";
 import { FootnoteDeletionTracker } from "@/lib/editor/footnoteDeletion";
 import { LinkShortcut } from "@/lib/editor/linkShortcut";
+import { BlogideLink } from "@/lib/editor/blogideLink";
 import {
   ImageCaptionMarkdown,
   ImageWithCaption,
@@ -52,11 +53,8 @@ export function createExtensions(): AnyExtension[] {
   return [
     StarterKit.configure({
       heading: { levels: [1, 2, 3, 4] },
-      link: {
-        openOnClick: false,
-        autolink: true,
-        defaultProtocol: "https",
-      },
+      // Replaced by BlogideLink (inclusive:false — don't keep typing in links).
+      link: false,
       // Not part of the spec §5.1 set (underline has no markdown form).
       underline: false,
       // Adds a phantom trailing paragraph that pollutes serialization.
@@ -64,6 +62,7 @@ export function createExtensions(): AnyExtension[] {
       // Replaced by StrictOrderedList (only `1. ` auto-triggers).
       orderedList: false,
     }),
+    BlogideLink,
     StrictOrderedList,
     TableKit.configure({
       table: { resizable: false },

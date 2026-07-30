@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import StarterKit from "@tiptap/starter-kit";
-import { ImageWithCaption } from "@/lib/editor/imageCaption";
 import { Markdown } from "@tiptap/markdown";
 import {
   EditorContent,
@@ -15,24 +14,28 @@ import {
 import type { Editor } from "@tiptap/core";
 import {
   LinkShortcut,
+  openLinkEditor,
   promptForLink,
 } from "@/lib/editor/linkShortcut";
 import {
-  BlockquoteIcon,
   BulletListIcon,
-  ImageIcon,
-  ItalicIcon,
-  LinkIcon,
   OrderedListIcon,
   PinIcon,
 } from "@/components/icons";
+import { BoldIcon } from "@/components/tiptap-icons/bold-icon";
+import { ItalicIcon } from "@/components/tiptap-icons/italic-icon";
+import { StrikeIcon } from "@/components/tiptap-icons/strike-icon";
+import { Code2Icon } from "@/components/tiptap-icons/code2-icon";
+import { CodeBlockIcon } from "@/components/tiptap-icons/code-block-icon";
+import { LinkIcon } from "@/components/tiptap-icons/link-icon";
+import { BlockquoteIcon } from "@/components/tiptap-icons/blockquote-icon";
 import { StrictOrderedList } from "@/lib/editor/orderedList";
+import { BlogideLink } from "@/lib/editor/blogideLink";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
 import { ConvertCaseMenu } from "@/components/ConvertCaseMenu";
 import { CleanWhitespaceButton } from "@/components/CleanWhitespaceButton";
 import { FootnoteSidenote } from "@/components/FootnoteSidenote";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
-import { useAppDialog } from "@/components/AppDialog";
 import { claimFloatZ } from "@/lib/pins/pinStore";
 import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
 
@@ -119,13 +122,11 @@ export function FootnoteNodeView({
         underline: false,
         trailingNode: false,
         orderedList: false,
-        link: {
-          openOnClick: false,
-          defaultProtocol: "https",
-        },
+        link: false,
       }),
+      BlogideLink,
       StrictOrderedList,
-      ImageWithCaption,
+      // Images stay essay-body only — footnotes are text asides.
       LinkShortcut,
       Markdown,
     ],
@@ -141,6 +142,25 @@ export function FootnoteNodeView({
       },
     },
   });
+
+  useEffect(() => {
+    if (!noteEditor || !open) return;
+    const current = noteEditor;
+    function onClick(event: MouseEvent) {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const anchor = target.closest("a[href]");
+      if (!anchor || !current.view.dom.contains(anchor)) return;
+      const href = (anchor as HTMLAnchorElement).getAttribute("href") || "";
+      event.preventDefault();
+      window.requestAnimationFrame(() => {
+        openLinkEditor(current, { allowPreview: true, href });
+      });
+    }
+    const dom = current.view.dom;
+    dom.addEventListener("click", onClick);
+    return () => dom.removeEventListener("click", onClick);
+  }, [noteEditor, open]);
 
   useEffect(() => {
     if (!noteEditor || noteEditor.getMarkdown() === content) return;
@@ -615,7 +635,7 @@ export function FootnoteNodeView({
             <EditorContent editor={noteEditor} />
             <span className="footnote-card-hint">
               {expanded
-                ? "Full formatting except headings. Nested footnotes are not supported."
+                ? "Full formatting except headings and images. Nested footnotes are not supported."
                 : "Bold, italic, and links. Expand for lists, quotes, code, and more."}
             </span>
           </span>,
@@ -634,7 +654,6 @@ function FootnoteToolbar({
   expanded: boolean;
   onToggleExpanded: () => void;
 }) {
-  const dialog = useAppDialog();
   const state = useEditorState({
     editor,
     selector: ({ editor }) => ({
@@ -650,24 +669,6 @@ function FootnoteToolbar({
     }),
   });
 
-  async function insertImage() {
-    const src = await dialog.prompt({
-      title: "Insert image",
-      message: "Path or URL (or insert via the essay image tools).",
-      defaultValue: "assets/",
-      confirmLabel: "Next",
-    });
-    if (!src) return;
-    const alt =
-      (await dialog.prompt({
-        title: "Alt text",
-        message: "Optional description for accessibility.",
-        defaultValue: "",
-        confirmLabel: "Insert",
-      })) ?? "";
-    editor.chain().focus().setImage({ src, alt }).run();
-  }
-
   return (
     <span
       className={`footnote-card-toolbar ${expanded ? "is-expanded" : ""}`}
@@ -677,14 +678,14 @@ function FootnoteToolbar({
         active={state.bold}
         onClick={() => editor.chain().focus().toggleBold().run()}
       >
-        <span className="font-bold">B</span>
+        <BoldIcon className="blogide-tool-icon" />
       </FootnoteToolButton>
       <FootnoteToolButton
         title="Italic (Ctrl+I)"
         active={state.italic}
         onClick={() => editor.chain().focus().toggleItalic().run()}
       >
-        <ItalicIcon />
+        <ItalicIcon className="blogide-tool-icon" />
       </FootnoteToolButton>
       <FootnoteToolButton
         title="Add or edit link (Ctrl+K)"
@@ -693,7 +694,7 @@ function FootnoteToolbar({
           void promptForLink(editor);
         }}
       >
-        <LinkIcon />
+        <LinkIcon className="blogide-tool-icon" />
       </FootnoteToolButton>
 
       {expanded && (
@@ -703,14 +704,14 @@ function FootnoteToolbar({
             active={state.strike}
             onClick={() => editor.chain().focus().toggleStrike().run()}
           >
-            <span className="line-through">S</span>
+            <StrikeIcon className="blogide-tool-icon" />
           </FootnoteToolButton>
           <FootnoteToolButton
             title="Inline code"
             active={state.code}
             onClick={() => editor.chain().focus().toggleCode().run()}
           >
-            <span className="font-mono">{"<>"}</span>
+            <Code2Icon className="blogide-tool-icon" />
           </FootnoteToolButton>
           <span className="footnote-toolbar-sep" aria-hidden />
           <FootnoteToolButton
@@ -718,31 +719,28 @@ function FootnoteToolbar({
             active={state.blockquote}
             onClick={() => editor.chain().focus().toggleBlockquote().run()}
           >
-            <BlockquoteIcon />
+            <BlockquoteIcon className="blogide-tool-icon" />
           </FootnoteToolButton>
           <FootnoteToolButton
             title="Bullet list"
             active={state.bulletList}
             onClick={() => editor.chain().focus().toggleBulletList().run()}
           >
-            <BulletListIcon />
+            <BulletListIcon className="blogide-tool-icon" />
           </FootnoteToolButton>
           <FootnoteToolButton
             title="Ordered list"
             active={state.orderedList}
             onClick={() => editor.chain().focus().toggleOrderedList().run()}
           >
-            <OrderedListIcon />
+            <OrderedListIcon className="blogide-tool-icon" />
           </FootnoteToolButton>
           <FootnoteToolButton
             title="Code block"
             active={state.codeBlock}
             onClick={() => editor.chain().focus().toggleCodeBlock().run()}
           >
-            <span className="font-mono">{"{ }"}</span>
-          </FootnoteToolButton>
-          <FootnoteToolButton title="Insert image" onClick={insertImage}>
-            <ImageIcon />
+            <CodeBlockIcon className="blogide-tool-icon" />
           </FootnoteToolButton>
           <ConvertCaseMenu editor={editor} />
           <CleanWhitespaceButton editor={editor} />

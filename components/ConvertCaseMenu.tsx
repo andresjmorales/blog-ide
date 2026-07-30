@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
 import { convertCase, type CaseMode } from "@/lib/editor/convertCase";
+import { claimFloatZ } from "@/lib/pins/pinStore";
 
 const OPTIONS: { mode: CaseMode; label: string; title: string }[] = [
   { mode: "sentence", label: "Sentence case", title: "Capitalize first letter" },
@@ -36,17 +38,31 @@ function applyCase(editor: Editor, mode: CaseMode) {
 
 export function ConvertCaseMenu({ editor }: { editor: Editor }) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(
+    null
+  );
+  const [zIndex, setZIndex] = useState(50);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open || !buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    setCoords({ top: rect.bottom + 4, left: rect.left });
+    setZIndex(claimFloatZ());
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     function onPointerDown(event: PointerEvent) {
+      const target = event.target as globalThis.Node;
       if (
-        rootRef.current &&
-        !rootRef.current.contains(event.target as globalThis.Node)
+        buttonRef.current?.contains(target) ||
+        menuRef.current?.contains(target)
       ) {
-        setOpen(false);
+        return;
       }
+      setOpen(false);
     }
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
@@ -62,8 +78,9 @@ export function ConvertCaseMenu({ editor }: { editor: Editor }) {
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative">
+    <>
       <button
+        ref={buttonRef}
         type="button"
         title="Convert case"
         aria-expanded={open}
@@ -78,30 +95,35 @@ export function ConvertCaseMenu({ editor }: { editor: Editor }) {
       >
         Cc
       </button>
-      {open && (
-        <div
-          role="menu"
-          aria-label="Convert case"
-          className="absolute left-0 top-full z-50 mt-1 min-w-[10.5rem] rounded-lg border border-border bg-background py-1 shadow-lg"
-        >
-          {OPTIONS.map((option) => (
-            <button
-              key={option.mode}
-              type="button"
-              role="menuitem"
-              title={option.title}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                applyCase(editor, option.mode);
-                setOpen(false);
-              }}
-              className="block w-full px-3 py-1.5 text-left text-sm text-muted hover:bg-panel hover:text-foreground"
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+      {open &&
+        coords &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            aria-label="Convert case"
+            className="fixed min-w-[10.5rem] rounded-lg border border-border bg-background py-1 shadow-lg"
+            style={{ top: coords.top, left: coords.left, zIndex }}
+          >
+            {OPTIONS.map((option) => (
+              <button
+                key={option.mode}
+                type="button"
+                role="menuitem"
+                title={option.title}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  applyCase(editor, option.mode);
+                  setOpen(false);
+                }}
+                className="block w-full px-3 py-1.5 text-left text-sm text-muted hover:bg-panel hover:text-foreground"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
+    </>
   );
 }
