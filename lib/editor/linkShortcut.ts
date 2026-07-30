@@ -1,19 +1,40 @@
 import { Extension, type Editor } from "@tiptap/core";
 
-type LinkPrompt = (previous: string | undefined) => Promise<string | null>;
+export type LinkEditorOpenOptions = {
+  /** When true and an href exists, show OG preview under the bubble. */
+  allowPreview?: boolean;
+  href?: string;
+};
 
-let linkPrompt: LinkPrompt | null = null;
+type LinkEditorOpener = (
+  editor: Editor,
+  options?: LinkEditorOpenOptions
+) => void;
 
-/** Register async UI for Ctrl+K / toolbar link (BlogIDE dialog). */
-export function setLinkPromptHandler(handler: LinkPrompt | null) {
-  linkPrompt = handler;
+let linkEditorOpener: LinkEditorOpener | null = null;
+
+/** Register the Docs-style link bubble opened by Ctrl+K / toolbar / link click. */
+export function setLinkEditorOpener(handler: LinkEditorOpener | null) {
+  linkEditorOpener = handler;
 }
 
-export async function promptForLink(editor: Editor): Promise<boolean> {
-  const previous = editor.getAttributes("link").href as string | undefined;
-  const url = linkPrompt
-    ? await linkPrompt(previous)
-    : window.prompt("Link URL", previous ?? "https://");
+/**
+ * Open the link editor bubble for the given editor (main or nested footnote).
+ * Falls back to window.prompt when no opener is registered.
+ */
+export function openLinkEditor(
+  editor: Editor,
+  options?: LinkEditorOpenOptions
+): boolean {
+  if (linkEditorOpener) {
+    linkEditorOpener(editor, options);
+    return true;
+  }
+
+  const previous =
+    options?.href ??
+    (editor.getAttributes("link").href as string | undefined);
+  const url = window.prompt("Link URL", previous ?? "https://");
   if (url === null) return true;
 
   if (url.trim() === "") {
@@ -29,6 +50,11 @@ export async function promptForLink(editor: Editor): Promise<boolean> {
   return true;
 }
 
+/** Ctrl/Cmd+K and toolbar: open bubble without preview until paste/apply. */
+export function promptForLink(editor: Editor): boolean {
+  return openLinkEditor(editor, { allowPreview: false });
+}
+
 /** Standard editor hyperlink shortcut: Ctrl/Cmd+K. */
 export const LinkShortcut = Extension.create({
   name: "linkShortcut",
@@ -36,7 +62,7 @@ export const LinkShortcut = Extension.create({
   addKeyboardShortcuts() {
     return {
       "Mod-k": () => {
-        void promptForLink(this.editor);
+        promptForLink(this.editor);
         return true;
       },
     };

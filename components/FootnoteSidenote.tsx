@@ -66,13 +66,15 @@ export function FootnoteSidenote({
         title="Edit footnote"
         aria-label={`Edit footnote ${number}`}
         onClick={(event) => {
-          // Links use the shared hover preview (Open / Pin); don't open the card.
+          // Link clicks still open the footnote editor (hover preview is gone;
+          // otherwise a link-only note is unreachable from the sidenote body).
           if (
             event.target instanceof Element &&
             event.target.closest("a[href]")
           ) {
             event.preventDefault();
             event.stopPropagation();
+            onActivate?.();
             return;
           }
           event.preventDefault();

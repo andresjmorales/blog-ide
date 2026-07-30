@@ -18,19 +18,21 @@ import {
   BlockMathNodeView,
   InlineMathNodeView,
 } from "@/components/MathNodeView";
+import { promptForLink } from "@/lib/editor/linkShortcut";
 import {
-  promptForLink,
-  setLinkPromptHandler,
-} from "@/lib/editor/linkShortcut";
-import {
-  BlockquoteIcon,
   BulletListIcon,
-  ImageIcon,
-  ItalicIcon,
-  LinkIcon,
   OrderedListIcon,
   PanelCaret,
 } from "@/components/icons";
+import { BoldIcon } from "@/components/tiptap-icons/bold-icon";
+import { ItalicIcon } from "@/components/tiptap-icons/italic-icon";
+import { StrikeIcon } from "@/components/tiptap-icons/strike-icon";
+import { Code2Icon } from "@/components/tiptap-icons/code2-icon";
+import { CodeBlockIcon } from "@/components/tiptap-icons/code-block-icon";
+import { LinkIcon } from "@/components/tiptap-icons/link-icon";
+import { BlockquoteIcon } from "@/components/tiptap-icons/blockquote-icon";
+import { Undo2Icon } from "@/components/tiptap-icons/undo2-icon";
+import { Redo2Icon } from "@/components/tiptap-icons/redo2-icon";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
 import { ConvertCaseMenu } from "@/components/ConvertCaseMenu";
 import { CleanWhitespaceButton } from "@/components/CleanWhitespaceButton";
@@ -38,19 +40,12 @@ import { DocumentOutline } from "@/components/DocumentOutline";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { SidenoteRail } from "@/components/SidenoteRail";
 import { DeletedFootnotesPanel } from "@/components/DeletedFootnotesPanel";
-import { LinkHoverCard } from "@/components/editor/LinkHoverCard";
-import { useAppDialog } from "@/components/AppDialog";
+import { LinkEditCard } from "@/components/editor/LinkEditCard";
 import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 import { transformPastedFootnoteHtml } from "@/lib/import/footnotePaste";
-import {
-  compressImageFile,
-  pickImageFile,
-} from "@/lib/assets/imagePipeline";
-import {
-  QuotaExceededError,
-  uploadUserAsset,
-} from "@/lib/assets/upload";
+import { ImageInsertMenu } from "@/components/ImageInsertMenu";
+import { TableDeleteControl } from "@/components/TableDeleteControl";
 
 type Props = {
   /** Markdown body (frontmatter already stripped by the caller). */
@@ -117,12 +112,8 @@ export function DocumentEditor({
   shellDock,
 }: Props) {
   const { prefs, updatePrefs } = useEditorPrefs();
-  const dialog = useAppDialog();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
-  const [sidenoteRailEl, setSidenoteRailEl] = useState<HTMLElement | null>(
-    null
-  );
   const [outlineOpen, setOutlineOpen] = useState(true);
   const railEnabled =
     prefs.sidenotes && prefs.sidenoteLayout === "sticky";
@@ -214,18 +205,6 @@ export function DocumentEditor({
   }, [editor, flushMarkdownRef]);
 
   useEffect(() => {
-    setLinkPromptHandler(async (previous) =>
-      dialog.prompt({
-        title: "Link URL",
-        message: "Leave blank to remove an existing link.",
-        defaultValue: previous ?? "https://",
-        confirmLabel: "Apply",
-      })
-    );
-    return () => setLinkPromptHandler(null);
-  }, [dialog]);
-
-  useEffect(() => {
     if (!editor) return;
     const dom = editor.view.dom as HTMLElement;
     dom.setAttribute("spellcheck", spellcheckOn ? "true" : "false");
@@ -308,6 +287,7 @@ export function DocumentEditor({
             >
               {titleSlot}
               <EditorContent editor={editor} />
+              {editor && <TableDeleteControl editor={editor} />}
               {/* Anchored / sidenotes-off: keep restore UI per-essay. */}
               {!railEnabled && (
                 <DeletedFootnotesPanel variant="inline" defaultOpen={false} />
@@ -315,18 +295,15 @@ export function DocumentEditor({
             </div>
           </div>
           {shellDock}
-          {prefs.linkPreviews && (
-            <LinkHoverCard
-              editor={editor}
-              roots={sidenoteRailEl ? [sidenoteRailEl] : []}
-            />
-          )}
+          <LinkEditCard
+            editor={editor}
+            showPreviews={prefs.linkPreviews}
+          />
         </div>
         {railEnabled && editor && (
           <SidenoteRail
             editor={editor}
             scrollRoot={scrollEl}
-            onRootChange={setSidenoteRailEl}
             onCollapse={() => updatePrefs({ sidenotes: false })}
           />
         )}
@@ -361,256 +338,216 @@ function Toolbar({
   editor: Editor;
   extra?: React.ReactNode;
 }) {
-  const dialog = useAppDialog();
   const state = useEditorState({
     editor,
-    selector: ({ editor }) => ({
-      bold: editor.isActive("bold"),
-      italic: editor.isActive("italic"),
-      code: editor.isActive("code"),
-      strike: editor.isActive("strike"),
-      link: editor.isActive("link"),
-      blockquote: editor.isActive("blockquote"),
-      bulletList: editor.isActive("bulletList"),
-      orderedList: editor.isActive("orderedList"),
-      codeBlock: editor.isActive("codeBlock"),
-      heading: [1, 2, 3, 4].find((l) => editor.isActive("heading", { level: l })) ?? 0,
+    selector: ({ editor: current }) => ({
+      bold: current.isActive("bold"),
+      italic: current.isActive("italic"),
+      code: current.isActive("code"),
+      strike: current.isActive("strike"),
+      link: current.isActive("link"),
+      blockquote: current.isActive("blockquote"),
+      bulletList: current.isActive("bulletList"),
+      orderedList: current.isActive("orderedList"),
+      codeBlock: current.isActive("codeBlock"),
+      canUndo: current.can().undo(),
+      canRedo: current.can().redo(),
+      heading:
+        [1, 2, 3, 4].find((level) =>
+          current.isActive("heading", { level })
+        ) ?? 0,
     }),
   });
 
-  async function insertImage() {
-    const choice = await dialog.confirm({
-      title: "Insert image",
-      message: "Upload and compress a local image, or paste a URL instead?",
-      confirmLabel: "Upload file",
-      cancelLabel: "Use URL",
-    });
-
-    let src: string | null = null;
-    if (choice) {
-      const file = await pickImageFile();
-      if (!file) return;
-      try {
-        const compressed = await compressImageFile(file);
-        try {
-          const ext = compressed.mime === "image/webp" ? "webp" : "jpg";
-          src = await uploadUserAsset(
-            compressed.blob,
-            file.name.replace(/\.\w+$/, "") + `.${ext}`,
-            { kind: "essay_image" }
-          );
-        } catch (uploadErr) {
-          if (uploadErr instanceof QuotaExceededError) {
-            await dialog.confirm({
-              title: "Storage quota exceeded",
-              message:
-                "This image would exceed your combined markdown + Storage quota. Free space in Account settings (Clean unused images) or remove large files from the Library.",
-              confirmLabel: "OK",
-              cancelLabel: "Close",
-            });
-            return;
-          }
-          // Storage optional / offline — fall back to a data URL for local use.
-          src = await blobToDataUrl(compressed.blob);
-        }
-      } catch (err) {
-        await dialog.confirm({
-          title: "Image failed",
-          message:
-            err instanceof Error ? err.message : "Could not process image.",
-          confirmLabel: "OK",
-          cancelLabel: "Close",
-        });
-        return;
-      }
-    } else {
-      src = await dialog.prompt({
-        title: "Image URL",
-        message: "Path or URL for the image.",
-        defaultValue: "https://",
-        confirmLabel: "Next",
-      });
-    }
-    if (!src) return;
-    const alt =
-      (await dialog.prompt({
-        title: "Alt text",
-        message: "Optional description for accessibility.",
-        defaultValue: "",
-        confirmLabel: "Insert",
-      })) ?? "";
-    editor.chain().focus().setImage({ src, alt }).run();
-  }
-
   return (
-    <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-3 py-1.5 text-sm shrink-0">
-      <select
-        aria-label="Paragraph style"
-        value={state.heading}
-        onChange={(e) => {
-          const level = Number(e.target.value);
-          if (level === 0) {
-            editor.chain().focus().setParagraph().run();
-          } else {
+    <div
+      className="blogide-editor-toolbar shrink-0"
+      role="toolbar"
+      aria-label="Formatting"
+    >
+      <div className="blogide-editor-toolbar-group">
+        <ToolButton
+          title="Undo (Ctrl+Z)"
+          disabled={!state.canUndo}
+          onClick={() => editor.chain().focus().undo().run()}
+        >
+          <Undo2Icon className="blogide-tool-icon" />
+        </ToolButton>
+        <ToolButton
+          title="Redo (Ctrl+Shift+Z)"
+          disabled={!state.canRedo}
+          onClick={() => editor.chain().focus().redo().run()}
+        >
+          <Redo2Icon className="blogide-tool-icon" />
+        </ToolButton>
+      </div>
+
+      <span className="blogide-editor-toolbar-sep" aria-hidden />
+
+      <div className="blogide-editor-toolbar-group">
+        <select
+          aria-label="Paragraph style"
+          value={state.heading}
+          onChange={(e) => {
+            const level = Number(e.target.value);
+            if (level === 0) {
+              editor.chain().focus().setParagraph().run();
+            } else {
+              editor
+                .chain()
+                .focus()
+                .setHeading({ level: level as 1 | 2 | 3 | 4 })
+                .run();
+            }
+          }}
+          className="h-8 rounded border border-border bg-background px-1.5 text-xs outline-none"
+        >
+          <option value={0}>Paragraph</option>
+          <option value={1}>Heading 1</option>
+          <option value={2}>Heading 2</option>
+          <option value={3}>Heading 3</option>
+          <option value={4}>Heading 4</option>
+        </select>
+        <ToolButton
+          title="Bullet list"
+          active={state.bulletList}
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+        >
+          <BulletListIcon className="blogide-tool-icon" />
+        </ToolButton>
+        <ToolButton
+          title="Ordered list"
+          active={state.orderedList}
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        >
+          <OrderedListIcon className="blogide-tool-icon" />
+        </ToolButton>
+      </div>
+
+      <span className="blogide-editor-toolbar-sep" aria-hidden />
+
+      <div className="blogide-editor-toolbar-group">
+        <ToolButton
+          title="Bold (Ctrl+B)"
+          active={state.bold}
+          onClick={() => editor.chain().focus().toggleBold().run()}
+        >
+          <BoldIcon className="blogide-tool-icon" />
+        </ToolButton>
+        <ToolButton
+          title="Italic (Ctrl+I)"
+          active={state.italic}
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+        >
+          <ItalicIcon className="blogide-tool-icon" />
+        </ToolButton>
+        <ToolButton
+          title="Strikethrough"
+          active={state.strike}
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+        >
+          <StrikeIcon className="blogide-tool-icon" />
+        </ToolButton>
+        <ToolButton
+          title="Inline code (Ctrl+E)"
+          active={state.code}
+          onClick={() => editor.chain().focus().toggleCode().run()}
+        >
+          <Code2Icon className="blogide-tool-icon" />
+        </ToolButton>
+        <ToolButton
+          title="Code block"
+          active={state.codeBlock}
+          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+        >
+          <CodeBlockIcon className="blogide-tool-icon" />
+        </ToolButton>
+        <ToolButton
+          title="Add or edit link (Ctrl+K)"
+          active={state.link}
+          onClick={() => {
+            void promptForLink(editor);
+          }}
+        >
+          <LinkIcon className="blogide-tool-icon" />
+        </ToolButton>
+        <ConvertCaseMenu editor={editor} />
+        <CleanWhitespaceButton editor={editor} />
+      </div>
+
+      <span className="blogide-editor-toolbar-sep" aria-hidden />
+
+      <div className="blogide-editor-toolbar-group">
+        <ToolButton
+          title="Blockquote"
+          active={state.blockquote}
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        >
+          <BlockquoteIcon className="blogide-tool-icon" />
+        </ToolButton>
+        <ToolButton
+          title="Insert table"
+          onClick={() =>
             editor
               .chain()
               .focus()
-              .setHeading({ level: level as 1 | 2 | 3 | 4 })
-              .run();
+              .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+              .run()
           }
-        }}
-        className="mr-2 h-8 rounded border border-border bg-panel px-1.5 text-xs outline-none"
-      >
-        <option value={0}>Paragraph</option>
-        <option value={1}>Heading 1</option>
-        <option value={2}>Heading 2</option>
-        <option value={3}>Heading 3</option>
-        <option value={4}>Heading 4</option>
-      </select>
+        >
+          Table
+        </ToolButton>
+        <ToolButton
+          title="Insert inline math"
+          onClick={() => editor.chain().focus().insertInlineMath("x").run()}
+        >
+          TeX
+        </ToolButton>
+        <ImageInsertMenu editor={editor} />
+        <ToolButton
+          title="Insert footnote (Ctrl+Shift+F)"
+          onClick={() => editor.chain().focus().insertFootnote().run()}
+        >
+          Footnote
+        </ToolButton>
+      </div>
 
-      <ToolButton
-        title="Bold (Ctrl+B)"
-        active={state.bold}
-        onClick={() => editor.chain().focus().toggleBold().run()}
-        className="font-bold"
-      >
-        B
-      </ToolButton>
-      <ToolButton
-        title="Italic (Ctrl+I)"
-        active={state.italic}
-        onClick={() => editor.chain().focus().toggleItalic().run()}
-      >
-        <ItalicIcon />
-      </ToolButton>
-      <ToolButton
-        title="Strikethrough"
-        active={state.strike}
-        onClick={() => editor.chain().focus().toggleStrike().run()}
-        className="line-through"
-      >
-        S
-      </ToolButton>
-      <ToolButton
-        title="Inline code (Ctrl+E)"
-        active={state.code}
-        onClick={() => editor.chain().focus().toggleCode().run()}
-        className="font-mono"
-      >
-        {"<>"}
-      </ToolButton>
-      <ToolButton
-        title="Code block"
-        active={state.codeBlock}
-        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-        className="font-mono"
-      >
-        {"{ }"}
-      </ToolButton>
-      <ToolButton
-        title="Add or edit link (Ctrl+K)"
-        active={state.link}
-        onClick={() => {
-          void promptForLink(editor);
-        }}
-      >
-        <LinkIcon />
-      </ToolButton>
-      <ConvertCaseMenu editor={editor} />
-      <CleanWhitespaceButton editor={editor} />
+      <span className="blogide-editor-toolbar-sep" aria-hidden />
 
-      <span className="mx-1.5 h-4 w-px bg-border" aria-hidden />
+      <div className="blogide-editor-toolbar-group">
+        <SpecialCharsMenu editor={editor} />
+      </div>
 
-      <ToolButton
-        title="Blockquote"
-        active={state.blockquote}
-        onClick={() => editor.chain().focus().toggleBlockquote().run()}
-      >
-        <BlockquoteIcon />
-      </ToolButton>
-      <ToolButton
-        title="Bullet list"
-        active={state.bulletList}
-        onClick={() => editor.chain().focus().toggleBulletList().run()}
-      >
-        <BulletListIcon />
-      </ToolButton>
-      <ToolButton
-        title="Ordered list"
-        active={state.orderedList}
-        onClick={() => editor.chain().focus().toggleOrderedList().run()}
-      >
-        <OrderedListIcon />
-      </ToolButton>
-      <ToolButton
-        title="Insert table"
-        onClick={() =>
-          editor
-            .chain()
-            .focus()
-            .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-            .run()
-        }
-      >
-        Table
-      </ToolButton>
-      <ToolButton
-        title="Insert inline math"
-        onClick={() => editor.chain().focus().insertInlineMath("x").run()}
-      >
-        TeX
-      </ToolButton>
-      <ToolButton title="Insert image" onClick={() => void insertImage()}>
-        <ImageIcon />
-      </ToolButton>
-      <ToolButton
-        title="Insert footnote (Ctrl+Shift+F)"
-        onClick={() => editor.chain().focus().insertFootnote().run()}
-      >
-        Footnote
-      </ToolButton>
-
-      <span className="mx-1.5 h-4 w-px bg-border" aria-hidden />
-
-      <SpecialCharsMenu editor={editor} />
-
-      {extra && <div className="ml-auto flex items-center gap-1">{extra}</div>}
+      {extra ? <div className="blogide-toolbar-extra">{extra}</div> : null}
     </div>
   );
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
 }
 
 function ToolButton({
   title,
   active = false,
+  disabled = false,
   onClick,
-  className = "",
   children,
 }: {
   title: string;
   active?: boolean;
+  disabled?: boolean;
   onClick: () => void;
-  className?: string;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
       title={title}
+      aria-label={title}
+      disabled={disabled}
       onClick={onClick}
-      className={`inline-flex h-8 min-w-8 items-center justify-center rounded px-2 text-[0.8125rem] leading-none ${
+      className={`inline-flex h-8 min-w-8 items-center justify-center rounded px-2 text-[0.8125rem] leading-none disabled:opacity-40 ${
         active
           ? "bg-accent/15 text-accent"
           : "text-muted hover:bg-panel hover:text-foreground"
-      } ${className}`}
+      }`}
     >
       {children}
     </button>

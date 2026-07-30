@@ -30,6 +30,8 @@ export function setTheme(next: ThemeMode): void {
   const root = document.documentElement;
   root.dataset.theme = next;
   root.style.colorScheme = next;
+  // TipTap UI Components key dark styles off `.dark`.
+  root.classList.toggle("dark", next === "dark");
   try {
     localStorage.setItem(STORAGE_KEY, next);
   } catch {

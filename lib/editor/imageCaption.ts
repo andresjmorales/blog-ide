@@ -8,6 +8,7 @@ import {
   type JSONContent,
 } from "@tiptap/core";
 import { LinkShortcut } from "@/lib/editor/linkShortcut";
+import { BlogideLink } from "@/lib/editor/blogideLink";
 
 /**
  * Adjacent caption convention (shared with personal-site):
@@ -139,12 +140,9 @@ export function createCaptionExtensions(options?: {
       horizontalRule: false,
       underline: false,
       trailingNode: false,
-      link: {
-        openOnClick: false,
-        autolink: true,
-        defaultProtocol: "https",
-      },
+      link: false,
     }),
+    BlogideLink,
     Markdown,
     CaptionSingleLine,
   ];

@@ -109,6 +109,7 @@ it survives that test.
 ```text
 app/                  Routes, metadata, API handlers, and global styles
 components/           App shell and interactive editor components
+components/tiptap-icons/  TipTap MIT toolbar SVG icons (icons only)
 lib/editor/           TipTap extensions and editor commands
 lib/markdown/         Parse/serialize and frontmatter pipeline
 lib/db/               IndexedDB working copy

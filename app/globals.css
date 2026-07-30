@@ -374,6 +374,73 @@ body {
 }
 .editor-prose .tableWrapper {
   overflow-x: auto;
+  position: relative;
+}
+
+.blogide-editor-toolbar {
+  align-items: center;
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-height: 2.5rem;
+  padding: 0.35rem 0.65rem;
+  position: relative;
+  width: 100%;
+  z-index: 5;
+}
+
+.blogide-editor-toolbar-group {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.125rem;
+}
+
+.blogide-editor-toolbar-sep {
+  align-self: stretch;
+  background: var(--border);
+  margin: 0.25rem 0.2rem;
+  width: 1px;
+}
+
+.blogide-toolbar-extra {
+  align-items: center;
+  display: flex;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.blogide-tool-icon {
+  display: block;
+  height: 1.125rem;
+  width: 1.125rem;
+}
+
+.blogide-table-delete {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.85rem;
+  height: 1.5rem;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  position: fixed;
+  width: 1.5rem;
+  z-index: 30;
+}
+
+.blogide-table-delete:hover {
+  background: color-mix(in oklab, #b42318 12%, var(--panel));
+  border-color: color-mix(in oklab, #b42318 35%, var(--border));
+  color: #b42318;
 }
 
 .editor-prose .blogide-math.is-inline {
@@ -1585,6 +1652,63 @@ html.app-shell-lock body {
   white-space: pre-wrap;
 }
 
+.link-edit-card {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  box-shadow: 0 8px 28px color-mix(in oklab, #000 16%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-width: 22rem;
+  padding: 0.55rem 0.65rem;
+  position: fixed;
+  width: min(22rem, calc(100vw - 16px));
+  z-index: 80;
+}
+.link-edit-card.is-above {
+  transform: translateY(-100%);
+}
+.link-edit-row {
+  display: flex;
+  gap: 0.35rem;
+}
+.link-edit-input {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  color: var(--foreground);
+  flex: 1;
+  font-size: 0.8125rem;
+  min-width: 0;
+  outline: none;
+  padding: 0.35rem 0.5rem;
+}
+.link-edit-input:focus {
+  border-color: var(--accent);
+}
+.link-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.link-edit-actions button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+}
+.link-edit-actions button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.link-edit-preview {
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
 .link-hover-card {
   background: var(--background);
   border: 1px solid var(--border);
