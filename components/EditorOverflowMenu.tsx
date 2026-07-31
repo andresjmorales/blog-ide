@@ -72,7 +72,7 @@ export function EditorOverflowMenu({ items }: Props) {
       <button
         ref={buttonRef}
         type="button"
-        className="rounded border border-border px-2 py-1 text-xs text-muted hover:bg-panel hover:text-foreground"
+        className="blogide-chrome-btn is-icon"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}
@@ -81,7 +81,7 @@ export function EditorOverflowMenu({ items }: Props) {
       >
         <span
           aria-hidden
-          className="inline-block px-0.5 font-bold tracking-widest"
+          className="text-[0.95rem] font-bold leading-none tracking-widest"
         >
           ⋯
         </span>

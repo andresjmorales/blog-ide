@@ -41,7 +41,7 @@ export function PanelsMenu({ layout, onToggle }: Props) {
     <div className="relative" ref={rootRef}>
       <button
         type="button"
-        className="rounded border border-border px-2 py-1 text-[0.7rem] text-muted hover:border-accent hover:text-foreground"
+        className="blogide-chrome-btn"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}

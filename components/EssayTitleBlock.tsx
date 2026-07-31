@@ -6,11 +6,9 @@ type Props = {
   title: string;
   subtitle: string;
   author: string;
-  publication: string;
   onTitleCommit: (title: string) => void;
   onSubtitleCommit: (subtitle: string) => void;
   onAuthorCommit: (author: string) => void;
-  onPublicationCommit: (publication: string) => void;
   onFocusBody?: () => void;
   titleDisabled?: boolean;
 };
@@ -22,33 +20,29 @@ function autosize(el: HTMLTextAreaElement | null) {
 }
 
 /**
- * Title / subtitle / author / publication fields with local draft state so
- * typing does not re-render the TipTap editor or the rest of the workspace.
+ * Title / subtitle / author fields with local draft state so typing does not
+ * re-render the TipTap editor or the rest of the workspace.
+ * (`publication:` and other frontmatter keys stay opaque / Essay-settings-only.)
  */
 export function EssayTitleBlock({
   title,
   subtitle,
   author,
-  publication,
   onTitleCommit,
   onSubtitleCommit,
   onAuthorCommit,
-  onPublicationCommit,
   onFocusBody,
   titleDisabled = false,
 }: Props) {
   const [titleFocused, setTitleFocused] = useState(false);
   const [subtitleFocused, setSubtitleFocused] = useState(false);
   const [authorFocused, setAuthorFocused] = useState(false);
-  const [publicationFocused, setPublicationFocused] = useState(false);
   const [titleDraft, setTitleDraft] = useState(title);
   const [subtitleDraft, setSubtitleDraft] = useState(subtitle);
   const [authorDraft, setAuthorDraft] = useState(author);
-  const [publicationDraft, setPublicationDraft] = useState(publication);
   const titleRef = useRef<HTMLTextAreaElement | null>(null);
   const subtitleRef = useRef<HTMLInputElement | null>(null);
   const authorRef = useRef<HTMLInputElement | null>(null);
-  const publicationRef = useRef<HTMLInputElement | null>(null);
 
   const titleValue = titleFocused ? titleDraft : title;
 
@@ -76,19 +70,9 @@ export function EssayTitleBlock({
     }
   }
 
-  function commitAuthor(focusNext: "publication" | null) {
+  function commitAuthor(focusBody: boolean) {
     setAuthorFocused(false);
     if (authorDraft !== author) onAuthorCommit(authorDraft);
-    if (focusNext === "publication") {
-      requestAnimationFrame(() => publicationRef.current?.focus());
-    }
-  }
-
-  function commitPublication(focusBody: boolean) {
-    setPublicationFocused(false);
-    if (publicationDraft !== publication) {
-      onPublicationCommit(publicationDraft);
-    }
     if (focusBody) {
       requestAnimationFrame(() => onFocusBody?.());
     }
@@ -146,36 +130,16 @@ export function EssayTitleBlock({
           setAuthorDraft(author);
         }}
         onChange={(e) => setAuthorDraft(e.target.value)}
-        onBlur={() => commitAuthor(null)}
+        onBlur={() => commitAuthor(false)}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
-            commitAuthor("publication");
+            commitAuthor(true);
           }
         }}
         aria-label="Author byline"
         placeholder="Author (optional)"
         className="essay-author-input"
-      />
-      <input
-        ref={publicationRef}
-        type="text"
-        value={publicationFocused ? publicationDraft : publication}
-        onFocus={() => {
-          setPublicationFocused(true);
-          setPublicationDraft(publication);
-        }}
-        onChange={(e) => setPublicationDraft(e.target.value)}
-        onBlur={() => commitPublication(false)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            commitPublication(true);
-          }
-        }}
-        aria-label="Publication / venue"
-        placeholder="Publication / venue (optional)"
-        className="essay-publication-input"
       />
     </div>
   );

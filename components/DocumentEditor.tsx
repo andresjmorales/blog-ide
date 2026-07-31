@@ -134,9 +134,10 @@ export function DocumentEditor({
   const [findStickyRange, setFindStickyRange] = useState<DocRange | null>(null);
   const [citationOpen, setCitationOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const railEnabled =
-    prefs.sidenotes && prefs.sidenoteLayout === "sticky";
+  // Anchored layout is hidden for now — always use the sidenote rail.
+  const railEnabled = prefs.sidenotes;
   const spellcheckOn = prefs.spellcheckEnabled;
+  const markdownTypingShortcuts = prefs.markdownTypingShortcuts;
   const lang = primaryLang(
     spellcheckLanguages.length > 0
       ? spellcheckLanguages
@@ -151,41 +152,46 @@ export function DocumentEditor({
     onChangeRef.current = onChange;
   }, [onChange]);
 
-  const editor = useEditor({
-    // Placeholder is UI-only; it stays out of the shared markdown schema.
-    extensions: [
-      ...createExtensions().map(withEditorNodeViews),
-      Placeholder.configure({
-        placeholder: "Start writing…",
-        // Default (true) only decorates the node holding the caret, so an
-        // unfocused empty doc showed no placeholder at all.
-        showOnlyCurrent: false,
-      }),
-    ],
-    content: parseBody(markdown),
-    immediatelyRender: false,
-    editorProps: {
-      attributes: {
-        class: "editor-prose outline-none min-h-[60vh]",
-        "aria-label": "Document editor",
-        spellcheck: spellcheckOn ? "true" : "false",
-        lang,
+  const editor = useEditor(
+    {
+      // Placeholder is UI-only; it stays out of the shared markdown schema.
+      extensions: [
+        ...createExtensions({ markdownTypingShortcuts }).map(
+          withEditorNodeViews
+        ),
+        Placeholder.configure({
+          placeholder: "Start writing…",
+          // Default (true) only decorates the node holding the caret, so an
+          // unfocused empty doc showed no placeholder at all.
+          showOnlyCurrent: false,
+        }),
+      ],
+      content: parseBody(markdown),
+      immediatelyRender: false,
+      editorProps: {
+        attributes: {
+          class: "editor-prose outline-none min-h-[60vh]",
+          "aria-label": "Document editor",
+          spellcheck: spellcheckOn ? "true" : "false",
+          lang,
+        },
+        transformPastedHTML(html) {
+          return transformPastedFootnoteHtml(html);
+        },
       },
-      transformPastedHTML(html) {
-        return transformPastedFootnoteHtml(html);
+      onUpdate: ({ editor: current }) => {
+        // TipTap already painted; defer markdown serialize + React/persist.
+        if (emitTimerRef.current) window.clearTimeout(emitTimerRef.current);
+        emitTimerRef.current = window.setTimeout(() => {
+          emitTimerRef.current = 0;
+          const next = serializeBody(current.getJSON());
+          lastEmittedRef.current = next;
+          onChangeRef.current(next);
+        }, 160);
       },
     },
-    onUpdate: ({ editor: current }) => {
-      // TipTap already painted; defer markdown serialize + React/persist.
-      if (emitTimerRef.current) window.clearTimeout(emitTimerRef.current);
-      emitTimerRef.current = window.setTimeout(() => {
-        emitTimerRef.current = 0;
-        const next = serializeBody(current.getJSON());
-        lastEmittedRef.current = next;
-        onChangeRef.current(next);
-      }, 160);
-    },
-  });
+    [markdownTypingShortcuts]
+  );
 
   function openFind() {
     if (!editor) {
@@ -457,7 +463,8 @@ export function DocumentEditor({
           {shellDock}
           <LinkEditCard
             editor={editor}
-            showPreviews={prefs.linkPreviews}
+            // Hover/OG preview toggle hidden in Editor settings for now.
+            showPreviews={false}
           />
           {editor && (
             <CitationInsertDialog

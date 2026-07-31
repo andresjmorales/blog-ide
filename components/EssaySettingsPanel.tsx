@@ -140,7 +140,7 @@ function EssaySettingsDialog({
           <h3>Spell check</h3>
           {!prefs.spellcheckEnabled ? (
             <p className="settings-help">
-              Spell check is off globally. Turn it on under Account settings.
+              Spell check is off globally. Turn it on under Editor settings.
             </p>
           ) : (
             <>

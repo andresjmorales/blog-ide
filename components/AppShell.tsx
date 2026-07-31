@@ -18,6 +18,8 @@ import {
 } from "@/lib/settings";
 import { DocumentWorkspace } from "@/components/DocumentWorkspace";
 import { SettingsPanel } from "@/components/SettingsPanel";
+import { EditorSettingsPanel } from "@/components/EditorSettingsPanel";
+import { GearIcon } from "@/components/icons";
 import { HelpPanel } from "@/components/HelpPanel";
 import { UserMenu } from "@/components/UserMenu";
 import { AiSidebar } from "@/components/AiSidebar";
@@ -254,6 +256,7 @@ function AppShellContent({
   const dragging = useRef<"left" | "right" | "shell" | null>(null);
   const prefsRef = useRef(storedPrefs);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editorSettingsOpen, setEditorSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   // Mobile drawers are session-local and default closed: phones open to a
   // clean editor, and toggling them never rewrites the synced desktop layout.
@@ -1158,6 +1161,15 @@ function AppShellContent({
                   onToggle={(id) => applyLayout(togglePanel(panelLayout, id))}
                 />
               )}
+              <button
+                type="button"
+                onClick={() => setEditorSettingsOpen(true)}
+                title="Editor settings"
+                aria-label="Editor settings"
+                className="blogide-chrome-btn is-icon"
+              >
+                <GearIcon size={14} />
+              </button>
               {isMobile && !previewMode && (
                 <ShellButton
                   nodes={nodes}
@@ -1414,6 +1426,10 @@ function AppShellContent({
             previewMode={previewMode}
             onDisplayNameChange={setAccountName}
             onAvatarUrlChange={setAccountAvatarUrl}
+          />
+          <EditorSettingsPanel
+            open={editorSettingsOpen}
+            onClose={() => setEditorSettingsOpen(false)}
           />
           <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
           {!isMobile && (

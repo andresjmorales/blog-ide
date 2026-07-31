@@ -1,4 +1,9 @@
 import StarterKit from "@tiptap/starter-kit";
+import Bold from "@tiptap/extension-bold";
+import Italic from "@tiptap/extension-italic";
+import Strike from "@tiptap/extension-strike";
+import Blockquote from "@tiptap/extension-blockquote";
+import HorizontalRule from "@tiptap/extension-horizontal-rule";
 import { Markdown } from "@tiptap/markdown";
 import { TableKit } from "@tiptap/extension-table";
 import { Extension, type AnyExtension, type JSONContent } from "@tiptap/core";
@@ -18,6 +23,30 @@ import {
   MathInlineMarkdown,
 } from "@/lib/editor/math";
 import { FindHighlight } from "@/lib/editor/findHighlight";
+import type { MarkdownTypingShortcuts } from "@/lib/settings";
+
+export type CreateExtensionsOptions = {
+  /**
+   * `conservative` (default): keep lists, headings, and code shortcuts;
+   * disable bold/italic/strike/blockquote/HR auto-wrap. `full`: stock TipTap.
+   */
+  markdownTypingShortcuts?: MarkdownTypingShortcuts;
+};
+
+/**
+ * Marks/nodes that stay in the schema but lose auto-transform rules under
+ * conservative typing shortcuts (toolbar / Mod-b / Mod-i still work).
+ */
+function withoutTypingRules(extension: AnyExtension): AnyExtension {
+  return extension.extend({
+    addInputRules() {
+      return [];
+    },
+    addPasteRules() {
+      return [];
+    },
+  });
+}
 
 /**
  * Spec §5.1: unknown constructs on parse are preserved as literal text —
@@ -50,7 +79,12 @@ function preserveAsLiteralText(tokenName: string): AnyExtension {
  * Shared between the editor component and the round-trip test suite so the
  * schema under test is exactly the schema being edited.
  */
-export function createExtensions(): AnyExtension[] {
+export function createExtensions(
+  options: CreateExtensionsOptions = {}
+): AnyExtension[] {
+  const typing = options.markdownTypingShortcuts ?? "conservative";
+  const conservative = typing === "conservative";
+
   return [
     StarterKit.configure({
       heading: { levels: [1, 2, 3, 4] },
@@ -62,7 +96,26 @@ export function createExtensions(): AnyExtension[] {
       trailingNode: false,
       // Replaced by StrictOrderedList (only `1. ` auto-triggers).
       orderedList: false,
+      // Conservative: re-register without input/paste rules below.
+      ...(conservative
+        ? {
+            bold: false,
+            italic: false,
+            strike: false,
+            blockquote: false,
+            horizontalRule: false,
+          }
+        : {}),
     }),
+    ...(conservative
+      ? [
+          withoutTypingRules(Bold),
+          withoutTypingRules(Italic),
+          withoutTypingRules(Strike),
+          withoutTypingRules(Blockquote),
+          withoutTypingRules(HorizontalRule),
+        ]
+      : []),
     BlogideLink,
     StrictOrderedList,
     TableKit.configure({

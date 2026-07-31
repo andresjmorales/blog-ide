@@ -31,4 +31,23 @@ describe("math round-trip lossiness", () => {
     expect(out).not.toMatch(/\$\n/);
     expect(isLossy(md)).toBe(false);
   });
+
+  it("keeps price ranges like $1-$2 as literal text", () => {
+    const md = "Costs $1-$2 depending on size.\n";
+    expect(isLossy(md)).toBe(false);
+    expect(roundTrip(md)).toBe(md);
+    expect(roundTrip(md)).not.toContain("[[blogide-math");
+  });
+
+  it("does not treat bare $20 as math", () => {
+    const md = "About $20 total.\n";
+    expect(isLossy(md)).toBe(false);
+    expect(roundTrip(md)).toBe(md);
+  });
+
+  it("still folds real inline math with operators", () => {
+    const md = "Try $1+2$ and $\\alpha$ and $a_b$.\n";
+    expect(isLossy(md)).toBe(false);
+    expect(roundTrip(md)).toBe(md);
+  });
 });

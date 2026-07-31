@@ -8,6 +8,9 @@ import {
 
 export type SidenoteLayout = "anchored" | "sticky";
 
+/** Rich-text markdown typing shortcuts (TipTap input rules). */
+export type MarkdownTypingShortcuts = "conservative" | "full";
+
 export type EditorPrefs = {
   leftWidth?: number; // px
   rightWidth?: number; // px
@@ -40,6 +43,12 @@ export type EditorPrefs = {
    * Chicago: em dash without spaces; MLA: spaced en dash.
    */
   dashStyle?: "chicago" | "mla";
+  /**
+   * Markdown auto-transforms while typing in rich text.
+   * `conservative` (default): lists, headings, code only.
+   * `full`: also bold/italic/strike/blockquote/HR from markdown punctuation.
+   */
+  markdownTypingShortcuts?: MarkdownTypingShortcuts;
 };
 
 export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
@@ -55,10 +64,11 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   sidenotes: true,
   sidenoteLayout: "sticky",
   footnoteOpenOnHover: true,
-  linkPreviews: true,
+  linkPreviews: false,
   spellcheckEnabled: false,
   spellcheckLanguages: ["en-US"],
   dashStyle: "chicago",
+  markdownTypingShortcuts: "conservative",
 };
 
 const LOCAL_KEY = "blogide.editorPrefs";

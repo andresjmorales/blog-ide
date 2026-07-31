@@ -376,6 +376,40 @@ export function BookmarkCheckIcon({ className = "" }: { className?: string }) {
   );
 }
 
+/** Codicon-style gear for Editor settings (header, next to Panels). */
+export function GearIcon({
+  className = "",
+  size = 16,
+}: {
+  className?: string;
+  size?: number;
+}) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <path
+        d="M6.4 1.6h3.2l.35 1.55a4.8 4.8 0 0 1 1.15.65l1.5-.55 1.6 2.75-1.15 1.1c.05.3.08.6.08.9s-.03.6-.08.9l1.15 1.1-1.6 2.75-1.5-.55a4.8 4.8 0 0 1-1.15.65L9.6 14.4H6.4l-.35-1.55a4.8 4.8 0 0 1-1.15-.65l-1.5.55L1.8 9.95l1.15-1.1A4.4 4.4 0 0 1 2.87 8c0-.3.03-.6.08-.9L1.8 6l1.6-2.75 1.5.55c.35-.28.74-.5 1.15-.65L6.4 1.6Z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      <circle
+        cx="8"
+        cy="8"
+        r="2.1"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
+    </svg>
+  );
+}
+
 /** Six-dot grip used as a "this is draggable" affordance. */
 export function GrabHandle({ className = "" }: { className?: string }) {
   return (
