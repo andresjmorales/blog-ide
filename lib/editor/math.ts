@@ -35,29 +35,80 @@ export function decodeMath(value: string): string {
 }
 
 const BLOCK_MATH_RE = /\$\$([\s\S]+?)\$\$/g;
-const INLINE_MATH_RE = /\$([^\n$]+?)\$/g;
+
+/** Currency-ish / price-range bodies — not math (e.g. `1-` from `$1-$2`). */
+const CURRENCY_LIKE_BODY = /^[\d.,\-]+$/;
+
+function isPlausibleInlineMath(latex: string): boolean {
+  if (!latex || /^\s|\s$/.test(latex)) return false;
+  if (CURRENCY_LIKE_BODY.test(latex)) return false;
+  return true;
+}
 
 /**
  * Fold `$…$` / `$$…$$` into TipTap-parseable sentinels. Block math first so
  * display delimiters are not eaten by the inline pass.
+ *
+ * Inline `$` is conservative: skip currency-like bodies (digits / `-` / `,` /
+ * `.` only) and Pandoc-style “`$` followed by a digit is not a closer”
+ * so `$1-$2` stays literal while `$x^2$` / `$1+2$` still fold.
  */
 export function prepareMath(body: string): string {
-  let next = body.replace(BLOCK_MATH_RE, (_raw, latex: string) => {
+  const next = body.replace(BLOCK_MATH_RE, (_raw, latex: string) => {
     // Own line so the block tokenizer can claim it; avoid extra blank lines
     // that become empty paragraphs / &nbsp; on serialize.
     return `\n[[blogide-math-b:${encodeMath(latex.trim())}]]\n`;
   });
-  // Skip currency-like `$5` by requiring a non-space after `$` and before close.
-  next = next.replace(
-    /\$([^\s$][^$\n]*?[^\s$])\$/g,
-    (_raw, latex: string) => `[[blogide-math-i:${encodeMath(latex)}]]`
-  );
-  // Single-character / short forms: `$x$`, `$1$`
-  next = next.replace(
-    /\$([^\s$])\$/g,
-    (_raw, latex: string) => `[[blogide-math-i:${encodeMath(latex)}]]`
-  );
-  return next;
+
+  let out = "";
+  let i = 0;
+  while (i < next.length) {
+    if (next[i] !== "$") {
+      out += next[i];
+      i += 1;
+      continue;
+    }
+    // Opening `$` must be followed by a non-space, non-`$`.
+    const afterOpen = next[i + 1];
+    if (!afterOpen || afterOpen === "$" || /\s/.test(afterOpen)) {
+      out += "$";
+      i += 1;
+      continue;
+    }
+    let j = i + 1;
+    let closed = -1;
+    while (j < next.length) {
+      const ch = next[j];
+      if (ch === "\n") break;
+      if (ch === "$") {
+        const before = next[j - 1];
+        const after = next[j + 1];
+        // Closing `$` may not be preceded by whitespace or followed by a digit.
+        if (before && !/\s/.test(before) && !(after && /\d/.test(after))) {
+          closed = j;
+          break;
+        }
+        // `$` followed by a digit is currency, not a closer — keep scanning.
+        j += 1;
+        continue;
+      }
+      j += 1;
+    }
+    if (closed < 0) {
+      out += "$";
+      i += 1;
+      continue;
+    }
+    const latex = next.slice(i + 1, closed);
+    if (!isPlausibleInlineMath(latex)) {
+      out += "$";
+      i += 1;
+      continue;
+    }
+    out += `[[blogide-math-i:${encodeMath(latex)}]]`;
+    i = closed + 1;
+  }
+  return out;
 }
 
 export function renderLatexHtml(
@@ -284,6 +335,3 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
-
-// Keep regex reference for tooling that scans for inline patterns.
-void INLINE_MATH_RE;

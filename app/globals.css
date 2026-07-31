@@ -158,8 +158,7 @@ body {
   padding: 0;
   width: 100%;
 }
-.essay-author-input,
-.essay-publication-input {
+.essay-author-input {
   background: transparent;
   border: 0;
   color: var(--muted);
@@ -175,8 +174,7 @@ body {
 }
 .essay-title-input::placeholder,
 .essay-subtitle-input::placeholder,
-.essay-author-input::placeholder,
-.essay-publication-input::placeholder {
+.essay-author-input::placeholder {
   color: var(--muted);
   opacity: 0.65;
 }
@@ -410,8 +408,34 @@ body {
 .blogide-toolbar-extra {
   align-items: center;
   display: flex;
-  gap: 0.25rem;
+  gap: 0.35rem;
   margin-left: auto;
+}
+
+/* Shared outline control: Panels, gear, Pop out, overflow ⋯ */
+.blogide-chrome-btn {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  color: var(--muted);
+  display: inline-flex;
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 500;
+  gap: 0.25rem;
+  height: 1.75rem;
+  justify-content: center;
+  line-height: 1;
+  padding: 0 0.55rem;
+}
+.blogide-chrome-btn:hover {
+  border-color: var(--accent);
+  color: var(--foreground);
+}
+.blogide-chrome-btn.is-icon {
+  padding: 0;
+  width: 1.75rem;
 }
 
 .blogide-tool-icon {

@@ -52,6 +52,15 @@ notes is supported where the shared extension set allows it.
   than `1` followed by `.` stay plain text (avoids trapping `123.` in a CSS
   list marker). Existing markdown lists with `start` ≠ 1 still round-trip.
 
+## Markdown typing shortcuts (rich text)
+
+While typing in the WYSIWYG, TipTap **input rules** can auto-transform
+markdown punctuation. BlogIDE defaults to **conservative** mode (Editor
+settings): keep list / heading / code shortcuts; do **not** auto-wrap
+bold, italic, strike, blockquote, or `---` horizontal rules — use the
+toolbar (or switch to **Full** in Editor settings). Markdown source parse
+still recognizes those constructs regardless of the typing preference.
+
 ## Tables
 
 GFM pipe tables are edited via TipTap’s table extension and serialize to pipe
@@ -66,6 +75,13 @@ the editor and in publication Preview. Source delimiters survive serialize /
 parse. Click opens a pinnable edit popup (source + live preview + Refresh);
 drag the top bar to move it. The toolbar **TeX** control inserts an inline
 math node; the Ω menu can still insert delimiter pairs as plain text.
+
+Inline `$` matching is intentionally conservative so common currency text
+stays literal: bodies that are only digits / `-` / `,` / `.`, and a `$`
+immediately followed by a digit (Pandoc-style), are not treated as closers.
+Price ranges like `$1-$2` therefore round-trip as plain text; real math such
+as `$x^2$`, `$1+2$`, or `$\alpha$` still folds. Prefer the **TeX** control
+when you want a guaranteed math node.
 
 ## Literals / non-goals
 

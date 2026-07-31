@@ -798,40 +798,14 @@ export function DocumentWorkspace({
     });
   }, []);
 
-  const commitPublication = useCallback((next: string) => {
-    setDoc((current) => {
-      if (current.publication === next) return current;
-      const nextFrontmatter = writePublication(current.frontmatter, next);
-      const updated = {
-        frontmatter: nextFrontmatter,
-        subtitle: current.subtitle,
-        author: current.author,
-        publication: next,
-        body: current.body,
-      };
-      persistMarkdownRef.current(
-        packDocument(
-          updated.frontmatter,
-          updated.subtitle,
-          updated.author,
-          updated.publication,
-          updated.body
-        )
-      );
-      return updated;
-    });
-  }, []);
-
   const titleField = (
     <EssayTitleBlock
       title={essayTitle}
       subtitle={subtitle}
       author={author}
-      publication={publication}
       onTitleCommit={setEssayTitle}
       onSubtitleCommit={commitSubtitle}
       onAuthorCommit={commitAuthor}
-      onPublicationCommit={commitPublication}
       onFocusBody={() => {
         editorRef.current?.commands.focus("start");
       }}
@@ -1178,7 +1152,7 @@ export function DocumentWorkspace({
             flushMarkdownRef.current?.();
             openPopOut(nodeId, essayTitle);
           }}
-          className="rounded border border-border px-2.5 py-1 text-xs text-muted hover:bg-panel hover:text-foreground"
+          className="blogide-chrome-btn"
           title="Pop out this essay in a floating window"
         >
           Pop out
@@ -1333,7 +1307,7 @@ export function DocumentWorkspace({
   return (
     <>
       <DocumentEditor
-        key={nodeId ?? "preview"}
+        key={`${nodeId ?? "preview"}-${prefs.markdownTypingShortcuts}`}
         markdown={body}
         onChange={(md) => {
           const current = docRef.current;
