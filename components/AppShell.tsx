@@ -553,7 +553,16 @@ function AppShellContent({
 
   useEffect(() => {
     if (previewMode) return;
-    void bootWorkspace();
+    // Defer: bootWorkspace setStates; sync call in effect trips set-state-in-effect.
+    let cancelled = false;
+    const id = window.setTimeout(() => {
+      if (cancelled) return;
+      void bootWorkspace();
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(id);
+    };
   }, [previewMode, bootWorkspace]);
 
   // Anchor the header/toolbar: the app scrolls in inner panes, so lock the
