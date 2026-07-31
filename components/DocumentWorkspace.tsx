@@ -16,10 +16,9 @@ import {
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { openPublicationPreviewTab } from "@/lib/preview/publicationHtml";
 import {
-  runPrePublishCheck,
-  type PrePublishReport,
-} from "@/lib/preview/runPrePublishCheck";
-import { PrePublishCheckDialog } from "@/components/PrePublishCheckDialog";
+  CleanupDialog,
+  type CleanupTab,
+} from "@/components/CleanupDialog";
 import { splitFrontmatter } from "@/lib/markdown/frontmatter";
 import { compactDiff, unifiedLineDiff } from "@/lib/markdown/diff";
 import {
@@ -59,6 +58,10 @@ import {
   writeSubtitle,
 } from "@/lib/markdown/subtitle";
 import { parseAuthor, writeAuthor } from "@/lib/markdown/author";
+import {
+  parsePublication,
+  writePublication,
+} from "@/lib/markdown/publication";
 import { EssaySettingsPanel } from "@/components/EssaySettingsPanel";
 import { EssayTitleBlock } from "@/components/EssayTitleBlock";
 import { convertMarkdownFootnoteLinks } from "@/lib/import/footnotePaste";
@@ -92,6 +95,7 @@ function unpackDocument(
     frontmatter = writeSubtitle(frontmatter, subtitle);
   }
   const author = parseAuthor(frontmatter);
+  const publication = parsePublication(frontmatter);
   // Whitespace-only bodies render identically to empty ones but defeat the
   // editor's is-empty detection (placeholder missing, stray caret line).
   const body = legacy.body.trim() === "" ? "" : legacy.body;
@@ -104,6 +108,7 @@ function unpackDocument(
     frontmatter,
     subtitle,
     author,
+    publication,
     body,
     title: normalized.title,
     changed,
@@ -114,9 +119,13 @@ function packDocument(
   frontmatter: string,
   subtitle: string,
   author: string,
+  publication: string,
   body: string
 ): string {
-  const fm = writeAuthor(writeSubtitle(frontmatter, subtitle), author);
+  const fm = writePublication(
+    writeAuthor(writeSubtitle(frontmatter, subtitle), author),
+    publication
+  );
   if (!fm) return body;
   // Blank line between the closing --- and the essay content.
   return `${fm}\n${body.replace(/^\n+/, "")}`;
@@ -167,15 +176,17 @@ export function DocumentWorkspace({
   shellDock,
 }: Props) {
   const dialog = useAppDialog();
-  const [{ frontmatter, subtitle, author, body }, setDoc] = useState(() => {
-    const unpacked = unpackDocument(SAMPLE_DOC);
-    return {
-      frontmatter: unpacked.frontmatter,
-      subtitle: unpacked.subtitle,
-      author: unpacked.author,
-      body: unpacked.body,
-    };
-  });
+  const [{ frontmatter, subtitle, author, publication, body }, setDoc] =
+    useState(() => {
+      const unpacked = unpackDocument(SAMPLE_DOC);
+      return {
+        frontmatter: unpacked.frontmatter,
+        subtitle: unpacked.subtitle,
+        author: unpacked.author,
+        publication: unpacked.publication,
+        body: unpacked.body,
+      };
+    });
   const documentNameRef = useRef(documentName);
   const [mode, setMode] = useState<Mode>("wysiwyg");
   const modeRef = useRef(mode);
@@ -184,11 +195,9 @@ export function DocumentWorkspace({
   const [lossyDiffOpen, setLossyDiffOpen] = useState(false);
   const [essaySettingsOpen, setEssaySettingsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [prePublishOpen, setPrePublishOpen] = useState(false);
-  const [prePublishBusy, setPrePublishBusy] = useState(false);
-  const [prePublishReport, setPrePublishReport] =
-    useState<PrePublishReport | null>(null);
-  const [prePublishError, setPrePublishError] = useState<string | null>(null);
+  const [cleanupOpen, setCleanupOpen] = useState(false);
+  const [cleanupTab, setCleanupTab] = useState<CleanupTab>("import");
+  const [cleanupEditor, setCleanupEditor] = useState<Editor | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [baseVersion, setBaseVersion] = useState(1);
@@ -216,9 +225,9 @@ export function DocumentWorkspace({
   const onRenameRef = useRef(onRenameDocument);
   // Mirror of doc state so event-time flushes can pack markdown without
   // waiting on a React render (setState updaters run async).
-  const docRef = useRef({ frontmatter, subtitle, author, body });
+  const docRef = useRef({ frontmatter, subtitle, author, publication, body });
   useEffect(() => {
-    docRef.current = { frontmatter, subtitle, author, body };
+    docRef.current = { frontmatter, subtitle, author, publication, body };
   });
 
   // Reset during render when switching docs so the previous essay never paints /
@@ -230,6 +239,7 @@ export function DocumentWorkspace({
       frontmatter: "---\ntitle: Untitled\nstatus: draft\n---\n",
       subtitle: "",
       author: "",
+      publication: "",
       body: "",
     });
     // Clear the previous document's raw markdown so a source-mode switch can
@@ -341,6 +351,7 @@ export function DocumentWorkspace({
           frontmatter: unpacked.frontmatter,
           subtitle: unpacked.subtitle,
           author: unpacked.author,
+          publication: unpacked.publication,
           body: unpacked.body,
         });
         setBaseVersion(1);
@@ -365,6 +376,7 @@ export function DocumentWorkspace({
           frontmatter: unpacked.frontmatter,
           subtitle: unpacked.subtitle,
           author: unpacked.author,
+          publication: unpacked.publication,
           body: unpacked.body,
         });
         setBaseVersion(opened.baseVersion);
@@ -372,6 +384,7 @@ export function DocumentWorkspace({
           unpacked.frontmatter,
           unpacked.subtitle,
           unpacked.author,
+          unpacked.publication,
           unpacked.body
         );
         // Keep the source view showing THIS document. Without this, switching
@@ -489,8 +502,14 @@ export function DocumentWorkspace({
     if (mode === "source") return sourceText || null;
     const editor = editorRef.current;
     const nextBody = editor ? serializeBody(editor.getJSON()) : body;
-    return packDocument(frontmatter, subtitle, author, nextBody);
-  }, [mode, sourceText, frontmatter, subtitle, author, body]);
+    return packDocument(
+      frontmatter,
+      subtitle,
+      author,
+      publication,
+      nextBody
+    );
+  }, [mode, sourceText, frontmatter, subtitle, author, publication, body]);
 
   const applyMarkdown = useCallback(
     (markdown: string) => {
@@ -499,12 +518,14 @@ export function DocumentWorkspace({
         unpacked.frontmatter,
         unpacked.subtitle,
         unpacked.author,
+        unpacked.publication,
         unpacked.body
       );
       setDoc({
         frontmatter: unpacked.frontmatter,
         subtitle: unpacked.subtitle,
         author: unpacked.author,
+        publication: unpacked.publication,
         body: unpacked.body,
       });
       if (mode === "source") setSourceText(packed);
@@ -525,7 +546,7 @@ export function DocumentWorkspace({
     const full =
       mode === "source"
         ? sourceText
-        : packDocument(frontmatter, subtitle, author, body);
+        : packDocument(frontmatter, subtitle, author, publication, body);
     const { markdown, converted } = convertMarkdownFootnoteLinks(full);
     if (converted > 0) {
       applyMarkdown(markdown);
@@ -579,6 +600,7 @@ export function DocumentWorkspace({
     frontmatter,
     subtitle,
     author,
+    publication,
     body,
     applyMarkdown,
     dialog,
@@ -609,6 +631,7 @@ export function DocumentWorkspace({
           frontmatter: nextFrontmatter,
           subtitle: prev.subtitle,
           author: prev.author,
+          publication: prev.publication,
           body: prev.body,
         };
         persistMarkdownRef.current(
@@ -616,6 +639,7 @@ export function DocumentWorkspace({
             next.frontmatter,
             next.subtitle,
             next.author,
+            next.publication,
             next.body
           )
         );
@@ -635,6 +659,7 @@ export function DocumentWorkspace({
         frontmatter: nextFrontmatter,
         subtitle: current.subtitle,
         author: current.author,
+        publication: current.publication,
         body: current.body,
       };
       persistMarkdownRef.current(
@@ -642,6 +667,7 @@ export function DocumentWorkspace({
           next.frontmatter,
           next.subtitle,
           next.author,
+          next.publication,
           next.body
         )
       );
@@ -658,12 +684,14 @@ export function DocumentWorkspace({
         frontmatter: nextFrontmatter,
         subtitle: current.subtitle,
         author: current.author,
+        publication: current.publication,
         body: current.body,
       };
       const packed = packDocument(
         next.frontmatter,
         next.subtitle,
         next.author,
+        next.publication,
         next.body
       );
       setDoc(next);
@@ -730,6 +758,7 @@ export function DocumentWorkspace({
         frontmatter: nextFrontmatter,
         subtitle: next,
         author: current.author,
+        publication: current.publication,
         body: current.body,
       };
       persistMarkdownRef.current(
@@ -737,6 +766,7 @@ export function DocumentWorkspace({
           updated.frontmatter,
           updated.subtitle,
           updated.author,
+          updated.publication,
           updated.body
         )
       );
@@ -752,6 +782,7 @@ export function DocumentWorkspace({
         frontmatter: nextFrontmatter,
         subtitle: current.subtitle,
         author: next,
+        publication: current.publication,
         body: current.body,
       };
       persistMarkdownRef.current(
@@ -759,6 +790,31 @@ export function DocumentWorkspace({
           updated.frontmatter,
           updated.subtitle,
           updated.author,
+          updated.publication,
+          updated.body
+        )
+      );
+      return updated;
+    });
+  }, []);
+
+  const commitPublication = useCallback((next: string) => {
+    setDoc((current) => {
+      if (current.publication === next) return current;
+      const nextFrontmatter = writePublication(current.frontmatter, next);
+      const updated = {
+        frontmatter: nextFrontmatter,
+        subtitle: current.subtitle,
+        author: current.author,
+        publication: next,
+        body: current.body,
+      };
+      persistMarkdownRef.current(
+        packDocument(
+          updated.frontmatter,
+          updated.subtitle,
+          updated.author,
+          updated.publication,
           updated.body
         )
       );
@@ -771,9 +827,11 @@ export function DocumentWorkspace({
       title={essayTitle}
       subtitle={subtitle}
       author={author}
+      publication={publication}
       onTitleCommit={setEssayTitle}
       onSubtitleCommit={commitSubtitle}
       onAuthorCommit={commitAuthor}
+      onPublicationCommit={commitPublication}
       onFocusBody={() => {
         editorRef.current?.commands.focus("start");
       }}
@@ -800,6 +858,7 @@ export function DocumentWorkspace({
           frontmatter: unpacked.frontmatter,
           subtitle: unpacked.subtitle,
           author: unpacked.author,
+          publication: unpacked.publication,
           body: unpacked.body,
         });
         setBaseVersion(opened.baseVersion);
@@ -817,6 +876,7 @@ export function DocumentWorkspace({
         frontmatter: unpacked.frontmatter,
         subtitle: unpacked.subtitle,
         author: unpacked.author,
+        publication: unpacked.publication,
         body: unpacked.body,
       });
       setBaseVersion(version);
@@ -826,6 +886,7 @@ export function DocumentWorkspace({
             unpacked.frontmatter,
             unpacked.subtitle,
             unpacked.author,
+            unpacked.publication,
             unpacked.body
           )
         );
@@ -935,12 +996,19 @@ export function DocumentWorkspace({
     flushMarkdownRef.current?.();
     const editor = editorRef.current;
     const nextBody = editor ? serializeBody(editor.getJSON()) : body;
-    const packed = packDocument(frontmatter, subtitle, author, nextBody);
+    const packed = packDocument(
+      frontmatter,
+      subtitle,
+      author,
+      publication,
+      nextBody
+    );
     if (nextBody !== body) {
       setDoc((current) => ({
         frontmatter: current.frontmatter,
         subtitle: current.subtitle,
         author: current.author,
+        publication: current.publication,
         body: nextBody,
       }));
     }
@@ -961,6 +1029,7 @@ export function DocumentWorkspace({
       frontmatter: unpacked.frontmatter,
       subtitle: unpacked.subtitle,
       author: unpacked.author,
+      publication: unpacked.publication,
       body: unpacked.body,
     });
     setMode("wysiwyg");
@@ -969,6 +1038,7 @@ export function DocumentWorkspace({
         unpacked.frontmatter,
         unpacked.subtitle,
         unpacked.author,
+        unpacked.publication,
         unpacked.body
       )
     );
@@ -987,7 +1057,7 @@ export function DocumentWorkspace({
     const nextBody = editor ? serializeBody(editor.getJSON()) : body;
     return mode === "source"
       ? sourceText
-      : packDocument(frontmatter, subtitle, author, nextBody);
+      : packDocument(frontmatter, subtitle, author, publication, nextBody);
   }
 
   async function exportMarkdownFile() {
@@ -1024,6 +1094,12 @@ export function DocumentWorkspace({
     }
   }
 
+  function openCleanup(tab: CleanupTab = "import") {
+    setCleanupEditor(mode === "wysiwyg" ? editorRef.current : null);
+    setCleanupTab(tab);
+    setCleanupOpen(true);
+  }
+
   const overflowItems: OverflowItem[] = [
     // View
     {
@@ -1053,30 +1129,6 @@ export function DocumentWorkspace({
         }
       },
     },
-    {
-      id: "pre-publish",
-      label: "Pre-publish check",
-      onSelect: () => {
-        setPrePublishOpen(true);
-        setPrePublishBusy(true);
-        setPrePublishReport(null);
-        setPrePublishError(null);
-        void runPrePublishCheck(currentMarkdown())
-          .then((report) => {
-            setPrePublishReport(report);
-          })
-          .catch((err) => {
-            setPrePublishError(
-              err instanceof Error
-                ? err.message
-                : "Could not run pre-publish check."
-            );
-          })
-          .finally(() => {
-            setPrePublishBusy(false);
-          });
-      },
-    },
     { kind: "separator", id: "sep-export" },
     // Export
     {
@@ -1094,20 +1146,12 @@ export function DocumentWorkspace({
       },
     },
     // Tools
-    ...(mode === "wysiwyg" || (persistEnabled && nodeId)
-      ? [{ kind: "separator", id: "sep-tools" } as OverflowItem]
-      : []),
-    ...(mode === "wysiwyg"
-      ? [
-          {
-            id: "fix-notes",
-            label: "Fix footnotes",
-            onSelect: () => {
-              void convertFootnoteLinks();
-            },
-          },
-        ]
-      : []),
+    { kind: "separator", id: "sep-tools" },
+    {
+      id: "cleanup",
+      label: "Cleanup",
+      onSelect: () => openCleanup(mode === "source" ? "publish" : "import"),
+    },
     ...(persistEnabled && nodeId
       ? [
           {
@@ -1274,12 +1318,13 @@ export function DocumentWorkspace({
           nodeId={nodeId}
           onRestore={restoreRevision}
         />
-        <PrePublishCheckDialog
-          open={prePublishOpen}
-          busy={prePublishBusy}
-          report={prePublishReport}
-          error={prePublishError}
-          onClose={() => setPrePublishOpen(false)}
+        <CleanupDialog
+          open={cleanupOpen}
+          onClose={() => setCleanupOpen(false)}
+          editor={cleanupEditor}
+          initialTab={cleanupTab}
+          getMarkdown={currentMarkdown}
+          onFixFootnotes={() => void convertFootnoteLinks()}
         />
       </div>
     );
@@ -1299,6 +1344,7 @@ export function DocumentWorkspace({
               current.frontmatter,
               current.subtitle,
               current.author,
+              current.publication,
               md
             )
           );
@@ -1306,6 +1352,7 @@ export function DocumentWorkspace({
             frontmatter: prev.frontmatter,
             subtitle: prev.subtitle,
             author: prev.author,
+            publication: prev.publication,
             body: md,
           }));
         }}
@@ -1320,6 +1367,8 @@ export function DocumentWorkspace({
             : prefs.spellcheckLanguages
         }
         toolbarExtra={toolbarActions}
+        cleanupOpen={cleanupOpen}
+        onOpenCleanup={() => openCleanup("import")}
       />
       <EssaySettingsPanel
         open={essaySettingsOpen}
@@ -1336,12 +1385,13 @@ export function DocumentWorkspace({
         nodeId={nodeId}
         onRestore={restoreRevision}
       />
-      <PrePublishCheckDialog
-        open={prePublishOpen}
-        busy={prePublishBusy}
-        report={prePublishReport}
-        error={prePublishError}
-        onClose={() => setPrePublishOpen(false)}
+      <CleanupDialog
+        open={cleanupOpen}
+        onClose={() => setCleanupOpen(false)}
+        editor={cleanupEditor}
+        initialTab={cleanupTab}
+        getMarkdown={currentMarkdown}
+        onFixFootnotes={() => void convertFootnoteLinks()}
       />
     </>
   );

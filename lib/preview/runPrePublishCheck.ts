@@ -7,6 +7,7 @@ type UrlCheckResult = {
   ok: boolean;
   status?: number;
   error?: string;
+  soft?: boolean;
 };
 
 export type PrePublishRow = {
@@ -16,12 +17,15 @@ export type PrePublishRow = {
   status?: number;
   error?: string;
   note?: string;
+  /** Bot-wall / soft failure — warn, don't count as hard fail. */
+  soft?: boolean;
 };
 
 export type PrePublishReport = {
   rows: PrePublishRow[];
   checked: number;
   failed: number;
+  warned: number;
   skipped: number;
 };
 
@@ -59,6 +63,7 @@ export async function runPrePublishCheck(
         ok: result?.ok ?? false,
         status: result?.status,
         error: result?.error,
+        soft: result?.soft,
       });
     }
   }
@@ -84,7 +89,8 @@ export async function runPrePublishCheck(
   return {
     rows,
     checked: httpUrls.length,
-    failed: rows.filter((r) => r.ok === false).length,
+    failed: rows.filter((r) => r.ok === false && !r.soft).length,
+    warned: rows.filter((r) => r.ok === false && r.soft).length,
     skipped: relative.length + skipped.length,
   };
 }

@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
 import { claimFloatZ } from "@/lib/pins/pinStore";
+import { tryInsertIntoTextTarget } from "@/lib/editor/textInsertTarget";
 
 type CharItem = {
   label: string;
@@ -25,7 +26,7 @@ type ActionItem = {
 type CharGroup = {
   heading: string;
   items: CharItem[];
-  /** Editor actions shown alongside glyphs (e.g. Divider / HR). */
+  /** Optional editor actions shown alongside glyphs. */
   actions?: ActionItem[];
 };
 
@@ -95,16 +96,6 @@ const GROUPS: CharGroup[] = [
   },
   {
     heading: "Symbols",
-    actions: [
-      {
-        label: "Divider",
-        title: "Horizontal rule / thematic break",
-        wide: true,
-        run: (editor) => {
-          editor.chain().focus().setHorizontalRule().run();
-        },
-      },
-    ],
     items: [
       { label: "°", insert: "°", title: "Degree" },
       { label: "±", insert: "±", title: "Plus-minus" },
@@ -151,6 +142,15 @@ const PANEL_MAX_HEIGHT = 420;
 const VIEWPORT_PAD = 12;
 
 function insertIntoEditor(editor: Editor, item: CharItem) {
+  if (
+    tryInsertIntoTextTarget({
+      text: item.insert,
+      wrap: item.wrap,
+    })
+  ) {
+    return;
+  }
+
   const { from, to, empty } = editor.state.selection;
 
   if (item.wrap) {

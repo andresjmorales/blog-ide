@@ -102,6 +102,20 @@ export function HelpPanel({ open, onClose }: Props) {
               <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd>: footnote
             </li>
             <li>
+              <kbd>Ctrl</kbd>+<kbd>F</kbd> / <kbd>H</kbd>: find / replace
+              (soft highlights; Enter = next match)
+            </li>
+            <li>
+              Broom / Cleanup: pinnable tabs for Import, Text, Punctuation,
+              and Publish check; Cc = convert case; Cite is its own button
+            </li>
+            <li>
+              <kbd>?</kbd>: shortcut cheatsheet (when not typing in the essay)
+            </li>
+            <li>
+              Paste or drag an image into the essay to upload
+            </li>
+            <li>
               <kbd>Esc</kbd>: close floating footnote / dialogs
             </li>
           </ul>

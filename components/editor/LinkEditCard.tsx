@@ -29,6 +29,10 @@ type CardState = {
   allowPreview: boolean;
   /** Place above the link (CSS translateY -100%) vs below. */
   placeAbove: boolean;
+  /** Full-width bottom sheet on narrow viewports. */
+  mobileSheet: boolean;
+  /** Focus the URL input (keyboard/toolbar open only). */
+  focusUrl: boolean;
 };
 
 function anchorRectForLink(editor: Editor): DOMRect | null {
@@ -51,10 +55,28 @@ function anchorRectForLink(editor: Editor): DOMRect | null {
   }
 }
 
+const MOBILE_LINK_BREAKPOINT_PX = 767;
+
+function isMobileViewport(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.innerWidth <= MOBILE_LINK_BREAKPOINT_PX
+  );
+}
+
 function placeNearRect(
   rect: DOMRect,
   estimatedHeight: number
-): { left: number; top: number; placeAbove: boolean } {
+): { left: number; top: number; placeAbove: boolean; mobileSheet: boolean } {
+  // Match footnote-card mobile sheet: full width, anchored to bottom.
+  if (isMobileViewport()) {
+    return {
+      left: 0,
+      top: window.innerHeight,
+      placeAbove: true,
+      mobileSheet: true,
+    };
+  }
   const left = Math.min(window.innerWidth - 320, Math.max(8, rect.left));
   const spaceBelow = window.innerHeight - rect.bottom - 8;
   // Prefer below; only flip above when it won't fit and there is room above.
@@ -63,7 +85,7 @@ function placeNearRect(
   const top = placeAbove
     ? Math.max(8, rect.top - 6)
     : Math.min(window.innerHeight - 8, rect.bottom + 6);
-  return { left, top, placeAbove };
+  return { left, top, placeAbove, mobileSheet: false };
 }
 
 /**
@@ -156,6 +178,8 @@ export function LinkEditCard({
         zIndex: claimFloatZ(),
         allowPreview,
         placeAbove: pos.placeAbove,
+        mobileSheet: pos.mobileSheet,
+        focusUrl: options.focusUrl === true,
       });
       if (allowPreview && showPreviews) {
         window.setTimeout(() => loadPreview(href), 0);
@@ -192,7 +216,7 @@ export function LinkEditCard({
   }, [editor, openAt]);
 
   useLayoutEffect(() => {
-    if (!card) return;
+    if (!card?.focusUrl) return;
     inputRef.current?.focus();
     inputRef.current?.select();
   }, [card]);
@@ -286,7 +310,9 @@ export function LinkEditCard({
   return createPortal(
     <div
       ref={cardRef}
-      className={`link-edit-card${card.placeAbove ? " is-above" : ""}`}
+      className={`link-edit-card${card.placeAbove ? " is-above" : ""}${
+        card.mobileSheet ? " is-mobile-sheet" : ""
+      }`}
       style={{ left: card.left, top: card.top, zIndex: card.zIndex }}
       onMouseDown={(event) => event.stopPropagation()}
     >

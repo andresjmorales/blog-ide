@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { createPortal } from "react-dom";
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "@tiptap/markdown";
@@ -31,6 +37,13 @@ import { LinkIcon } from "@/components/tiptap-icons/link-icon";
 import { BlockquoteIcon } from "@/components/tiptap-icons/blockquote-icon";
 import { StrictOrderedList } from "@/lib/editor/orderedList";
 import { BlogideLink } from "@/lib/editor/blogideLink";
+import {
+  FindHighlight,
+  clearFindHighlights,
+  scrollMatchIntoView,
+  setFindHighlights,
+} from "@/lib/editor/findHighlight";
+import { findInEditor } from "@/lib/editor/findReplaceInEditor";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
 import { ConvertCaseMenu } from "@/components/ConvertCaseMenu";
 import { CleanWhitespaceButton } from "@/components/CleanWhitespaceButton";
@@ -38,6 +51,10 @@ import { FootnoteSidenote } from "@/components/FootnoteSidenote";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { claimFloatZ } from "@/lib/pins/pinStore";
 import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
+import {
+  getFootnoteFindSession,
+  subscribeFootnoteFindSession,
+} from "@/lib/editor/footnoteFindBridge";
 
 // ProseMirror may recreate an atom NodeView when its selection changes.
 // Keep click-/pin-sticky card visibility keyed by the node's stable ID so a
@@ -87,6 +104,15 @@ export function FootnoteNodeView({
   useEffect(() => {
     pinnedRef.current = pinned;
   }, [pinned]);
+
+  const findSession = useSyncExternalStore(
+    subscribeFootnoteFindSession,
+    getFootnoteFindSession,
+    () => null
+  );
+  const isFindTarget = findSession?.footnoteId === footnoteId;
+  const openedByFindRef = useRef(false);
+
   const [cardPosition, setCardPosition] = useState<{
     left?: number;
     top?: number;
@@ -129,6 +155,7 @@ export function FootnoteNodeView({
       // Images stay essay-body only — footnotes are text asides.
       LinkShortcut,
       Markdown,
+      FindHighlight,
     ],
     content,
     contentType: "markdown",
@@ -142,6 +169,65 @@ export function FootnoteNodeView({
       },
     },
   });
+
+  // Find/replace session: open this card, highlight inside it, close when the
+  // active match moves elsewhere (unless the user pinned the note).
+  useEffect(() => {
+    if (isFindTarget) {
+      openedByFindRef.current = true;
+      stickyFootnoteIds.add(footnoteId);
+      setSticky(true);
+      setCardZ(claimFloatZ());
+      setOpen(true);
+      return;
+    }
+    if (!openedByFindRef.current) return;
+    openedByFindRef.current = false;
+    if (noteEditor) {
+      clearFindHighlights(noteEditor);
+    }
+    if (pinnedRef.current) return;
+    stickyFootnoteIds.delete(footnoteId);
+    setSticky(false);
+    setOpen(false);
+  }, [isFindTarget, footnoteId, noteEditor]);
+
+  useEffect(() => {
+    if (!noteEditor || !open || !isFindTarget || !findSession) {
+      return;
+    }
+    let matches;
+    try {
+      matches = findInEditor(
+        noteEditor,
+        {
+          query: findSession.query,
+          regex: findSession.regex,
+          caseSensitive: findSession.caseSensitive,
+        },
+        "document"
+      );
+    } catch {
+      clearFindHighlights(noteEditor);
+      return;
+    }
+    if (matches.length === 0) {
+      clearFindHighlights(noteEditor);
+      return;
+    }
+    const activeIndex = Math.min(
+      findSession.occurrence,
+      matches.length - 1
+    );
+    setFindHighlights(noteEditor, matches, activeIndex);
+    const active = matches[activeIndex];
+    if (active) {
+      // Second frame: card portal has laid out.
+      requestAnimationFrame(() => {
+        scrollMatchIntoView(noteEditor, active);
+      });
+    }
+  }, [noteEditor, open, isFindTarget, findSession]);
 
   useEffect(() => {
     if (!noteEditor || !open) return;
@@ -425,11 +511,12 @@ export function FootnoteNodeView({
   useEffect(() => {
     if (!open) return;
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        commitAndClose();
-        outerEditor.commands.focus();
-      }
+      if (event.key !== "Escape") return;
+      // Find session owns Escape while this card was opened by Find.
+      if (openedByFindRef.current) return;
+      event.preventDefault();
+      commitAndClose();
+      outerEditor.commands.focus();
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -443,11 +530,16 @@ export function FootnoteNodeView({
     if (!open || pinned) return;
     function closeOnOutsidePointer(event: PointerEvent) {
       if (!(event.target instanceof Element)) {
-        commitAndClose();
+        if (!openedByFindRef.current) {
+          commitAndClose();
+        }
         return;
       }
       // Portaled special-chars panel is outside the card DOM but belongs to it.
       if (event.target.closest(".special-chars-panel")) return;
+      // Find UI should not dismiss a find-opened footnote mid-search.
+      if (event.target.closest(".blogide-find-replace")) return;
+      if (openedByFindRef.current) return;
       const targetFootnote = event.target
         .closest("[data-footnote-id]")
         ?.getAttribute("data-footnote-id");

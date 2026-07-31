@@ -35,6 +35,11 @@ export type EditorPrefs = {
   spellcheckEnabled?: boolean;
   /** Default BCP-47 language tags when a document has none set. */
   spellcheckLanguages?: string[];
+  /**
+   * Dash style for Normalize punctuation / citation defaults.
+   * Chicago: em dash without spaces; MLA: spaced en dash.
+   */
+  dashStyle?: "chicago" | "mla";
 };
 
 export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
@@ -53,6 +58,7 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   linkPreviews: true,
   spellcheckEnabled: false,
   spellcheckLanguages: ["en-US"],
+  dashStyle: "chicago",
 };
 
 const LOCAL_KEY = "blogide.editorPrefs";
