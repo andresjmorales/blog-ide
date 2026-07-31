@@ -18,20 +18,26 @@ function tableWrapperNearSelection(editor: Editor): HTMLElement | null {
   const wrapper =
     el instanceof HTMLElement && el.classList.contains("tableWrapper")
       ? el
-      : el.closest(".tableWrapper") ?? el;
+      : (el.closest(".tableWrapper") ?? el);
   return wrapper instanceof HTMLElement ? wrapper : null;
 }
 
+type Control = {
+  title: string;
+  label: string;
+  run: () => void;
+};
+
 /**
- * Floating delete control at the top-right of the table containing the caret.
- * Avoids forcing authors through source mode to remove a table.
+ * Floating table controls (add/remove row/col + delete table) at the
+ * top-right of the table containing the caret.
  */
-export function TableDeleteControl({ editor }: { editor: Editor }) {
+export function TableControls({ editor }: { editor: Editor }) {
   const inTable = useEditorState({
     editor,
     selector: ({ editor: current }) => current.isActive("table"),
   });
-  const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(
+  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(
     null
   );
 
@@ -47,10 +53,7 @@ export function TableDeleteControl({ editor }: { editor: Editor }) {
       const rect = wrapper.getBoundingClientRect();
       setAnchor({
         top: Math.max(8, rect.top - OFFSET),
-        left: Math.min(
-          window.innerWidth - BUTTON_SIZE - 8,
-          rect.right - BUTTON_SIZE / 2
-        ),
+        right: Math.max(8, window.innerWidth - rect.right),
       });
     }
 
@@ -87,18 +90,55 @@ export function TableDeleteControl({ editor }: { editor: Editor }) {
   const visible = inTable ? anchor : null;
   if (!visible || typeof document === "undefined") return null;
 
+  const controls: Control[] = [
+    {
+      title: "Add row below",
+      label: "+R",
+      run: () => editor.chain().focus().addRowAfter().run(),
+    },
+    {
+      title: "Add column after",
+      label: "+C",
+      run: () => editor.chain().focus().addColumnAfter().run(),
+    },
+    {
+      title: "Delete row",
+      label: "−R",
+      run: () => editor.chain().focus().deleteRow().run(),
+    },
+    {
+      title: "Delete column",
+      label: "−C",
+      run: () => editor.chain().focus().deleteColumn().run(),
+    },
+    {
+      title: "Delete table",
+      label: "×",
+      run: () => editor.chain().focus().deleteTable().run(),
+    },
+  ];
+
   return createPortal(
-    <button
-      type="button"
-      className="blogide-table-delete"
-      style={{ top: visible.top, left: visible.left }}
-      title="Delete table"
-      aria-label="Delete table"
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={() => editor.chain().focus().deleteTable().run()}
+    <div
+      className="blogide-table-controls"
+      style={{ top: visible.top, right: visible.right }}
+      role="toolbar"
+      aria-label="Table"
     >
-      ×
-    </button>,
+      {controls.map((control) => (
+        <button
+          key={control.title}
+          type="button"
+          title={control.title}
+          aria-label={control.title}
+          style={{ width: BUTTON_SIZE, height: BUTTON_SIZE }}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={control.run}
+        >
+          {control.label}
+        </button>
+      ))}
+    </div>,
     document.body
   );
 }

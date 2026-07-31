@@ -17,6 +17,7 @@ import {
   MathBlockMarkdown,
   MathInlineMarkdown,
 } from "@/lib/editor/math";
+import { FindHighlight } from "@/lib/editor/findHighlight";
 
 /**
  * Spec §5.1: unknown constructs on parse are preserved as literal text —
@@ -76,6 +77,7 @@ export function createExtensions(): AnyExtension[] {
     FootnoteRef,
     FootnoteDeletionTracker,
     LinkShortcut,
+    FindHighlight,
     Markdown,
     preserveAsLiteralText("def"),
   ];

@@ -6,6 +6,10 @@ import {
 import { parseSubtitle, writeSubtitle } from "@/lib/markdown/subtitle";
 import { parseAuthor, writeAuthor } from "@/lib/markdown/author";
 import {
+  parsePublication,
+  writePublication,
+} from "@/lib/markdown/publication";
+import {
   parseTitle,
   writeTitle,
   yamlTitleLine,
@@ -20,6 +24,7 @@ describe("newEssayFrontmatter", () => {
         "title: My Essay",
         "subtitle:",
         "author:",
+        "publication:",
         "date:",
         "description:",
         "tags:",
@@ -43,6 +48,7 @@ describe("newEssayFrontmatter", () => {
     const { frontmatter } = splitFrontmatter(newEssayFrontmatter("T"));
     expect(parseSubtitle(frontmatter)).toBe("");
     expect(parseAuthor(frontmatter)).toBe("");
+    expect(parsePublication(frontmatter)).toBe("");
   });
 });
 
@@ -64,8 +70,19 @@ describe("template fields survive edit round-trips", () => {
     expect(cleared).toContain("\nauthor:\n");
   });
 
+  it("clearing publication keeps the bare key line", () => {
+    const withValue = writePublication(frontmatter, "First Things");
+    expect(withValue).toContain("publication: First Things");
+    const cleared = writePublication(withValue, "");
+    expect(cleared).toContain("\npublication:\n");
+    expect(parsePublication(cleared)).toBe("");
+  });
+
   it("writing empty values over the fresh template is a no-op", () => {
-    const packed = writeAuthor(writeSubtitle(frontmatter, ""), "");
+    const packed = writePublication(
+      writeAuthor(writeSubtitle(frontmatter, ""), ""),
+      ""
+    );
     expect(packed).toBe(frontmatter);
   });
 
@@ -73,6 +90,7 @@ describe("template fields survive edit round-trips", () => {
     const minimal = "---\ntitle: Old\n---\n";
     expect(writeSubtitle(minimal, "")).toBe(minimal);
     expect(writeAuthor(minimal, "")).toBe(minimal);
+    expect(writePublication(minimal, "")).toBe(minimal);
   });
 });
 

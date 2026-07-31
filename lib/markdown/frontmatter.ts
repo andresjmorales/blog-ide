@@ -30,9 +30,10 @@ export function joinFrontmatter(doc: SplitDocument): string {
 
 /**
  * Frontmatter for a new essay. Matches the personal-site publishing schema:
- * title/subtitle/author map to BlogIDE's own fields; date, description,
- * tags, and canonical stay empty until filled in by hand (or a future UI).
- * Ends with a blank line so the body starts separated from the block.
+ * title/subtitle/author/publication map to BlogIDE's own fields; date,
+ * description, tags, and canonical stay empty until filled in by hand
+ * (or a future UI). Ends with a blank line so the body starts separated
+ * from the block.
  */
 export function newEssayFrontmatter(title: string): string {
   return [
@@ -40,6 +41,7 @@ export function newEssayFrontmatter(title: string): string {
     yamlTitleLine(title),
     "subtitle:",
     "author:",
+    "publication:",
     "date:",
     "description:",
     "tags:",

@@ -23,6 +23,7 @@ import {
   BulletListIcon,
   OrderedListIcon,
   PanelCaret,
+  SearchIcon,
 } from "@/components/icons";
 import { BoldIcon } from "@/components/tiptap-icons/bold-icon";
 import { ItalicIcon } from "@/components/tiptap-icons/italic-icon";
@@ -34,10 +35,16 @@ import { BlockquoteIcon } from "@/components/tiptap-icons/blockquote-icon";
 import { Undo2Icon } from "@/components/tiptap-icons/undo2-icon";
 import { Redo2Icon } from "@/components/tiptap-icons/redo2-icon";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
+import { CleanupToolbarButton } from "@/components/CleanupDialog";
 import { ConvertCaseMenu } from "@/components/ConvertCaseMenu";
-import { CleanWhitespaceButton } from "@/components/CleanWhitespaceButton";
+import type { DocRange } from "@/lib/editor/findReplaceInEditor";
+import { HeadingStyleMenu } from "@/components/HeadingStyleMenu";
+import { FindReplacePanel } from "@/components/FindReplacePanel";
+import { CitationInsertDialog } from "@/components/CitationInsertDialog";
+import { ShortcutCheatsheet } from "@/components/ShortcutCheatsheet";
 import { DocumentOutline } from "@/components/DocumentOutline";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
+import { useAppDialog } from "@/components/AppDialog";
 import { SidenoteRail } from "@/components/SidenoteRail";
 import { DeletedFootnotesPanel } from "@/components/DeletedFootnotesPanel";
 import { LinkEditCard } from "@/components/editor/LinkEditCard";
@@ -45,8 +52,11 @@ import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 import { transformPastedFootnoteHtml } from "@/lib/import/footnotePaste";
 import { ImageInsertMenu } from "@/components/ImageInsertMenu";
-import { TableDeleteControl } from "@/components/TableDeleteControl";
-
+import { TableControls } from "@/components/TableControls";
+import {
+  firstImageFile,
+  insertEssayImageFromFile,
+} from "@/lib/editor/insertEssayImage";
 type Props = {
   /** Markdown body (frontmatter already stripped by the caller). */
   markdown: string;
@@ -66,6 +76,8 @@ type Props = {
    * sidenote rail stay full-height beside it (Cursor-style bottom panel).
    */
   shellDock?: ReactNode;
+  cleanupOpen?: boolean;
+  onOpenCleanup?: () => void;
 };
 
 function withEditorNodeViews(extension: AnyExtension): AnyExtension {
@@ -110,11 +122,18 @@ export function DocumentEditor({
   toolbarExtra,
   spellcheckLanguages = [],
   shellDock,
+  cleanupOpen = false,
+  onOpenCleanup,
 }: Props) {
   const { prefs, updatePrefs } = useEditorPrefs();
+  const dialog = useAppDialog();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(true);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findStickyRange, setFindStickyRange] = useState<DocRange | null>(null);
+  const [citationOpen, setCitationOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const railEnabled =
     prefs.sidenotes && prefs.sidenoteLayout === "sticky";
   const spellcheckOn = prefs.spellcheckEnabled;
@@ -168,6 +187,18 @@ export function DocumentEditor({
     },
   });
 
+  function openFind() {
+    if (!editor) {
+      setFindOpen(true);
+      return;
+    }
+    const { from, to, empty } = editor.state.selection;
+    // Always refresh sticky from the live selection (same as a fresh Ctrl+F),
+    // even when the find bar is already open.
+    setFindStickyRange(empty ? null : { from, to });
+    setFindOpen(true);
+  }
+
   // Flush the deferred serialize on unmount so a fast doc switch or tab
   // close can't drop the last ~160ms of typing.
   const editorForUnmountRef = useRef<Editor | null>(null);
@@ -211,6 +242,115 @@ export function DocumentEditor({
     dom.setAttribute("lang", lang);
   }, [editor, spellcheckOn, lang]);
 
+  // Paste / drop images into the essay (footnotes stay image-free via schema).
+  useEffect(() => {
+    if (!editor) return;
+    const currentEditor = editor;
+    const dom = currentEditor.view.dom;
+
+    async function insertFile(file: File) {
+      await insertEssayImageFromFile(currentEditor, file, {
+        promptAlt: async () =>
+          dialog.prompt({
+            title: "Alt text",
+            message: "Optional description for accessibility.",
+            defaultValue: "",
+            confirmLabel: "Insert",
+          }),
+        alertQuota: async () => {
+          await dialog.confirm({
+            title: "Storage quota exceeded",
+            message:
+              "This image would exceed your combined markdown + Storage quota. Free space in Account settings (Clean unused images) or remove large files from the Library.",
+            confirmLabel: "OK",
+            cancelLabel: "Close",
+          });
+        },
+        alertError: async (message) => {
+          await dialog.confirm({
+            title: "Image failed",
+            message,
+            confirmLabel: "OK",
+            cancelLabel: "Close",
+          });
+        },
+      });
+    }
+
+    function onPaste(event: ClipboardEvent) {
+      const file = firstImageFile(event.clipboardData?.files);
+      if (!file) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void insertFile(file);
+    }
+
+    function onDragOver(event: DragEvent) {
+      if (!firstImageFile(event.dataTransfer?.files)) return;
+      event.preventDefault();
+    }
+
+    function onDrop(event: DragEvent) {
+      const file = firstImageFile(event.dataTransfer?.files);
+      if (!file) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void insertFile(file);
+    }
+
+    dom.addEventListener("paste", onPaste);
+    dom.addEventListener("dragover", onDragOver);
+    dom.addEventListener("drop", onDrop);
+    return () => {
+      dom.removeEventListener("paste", onPaste);
+      dom.removeEventListener("dragover", onDragOver);
+      dom.removeEventListener("drop", onDrop);
+    };
+  }, [editor, dialog]);
+
+  useEffect(() => {
+    if (!editor) return;
+    const current = editor;
+    function onKeyDown(event: KeyboardEvent) {
+      const mod = event.metaKey || event.ctrlKey;
+      if (!mod) return;
+      if (event.key !== "f" && event.key !== "F" && event.key !== "h" && event.key !== "H") {
+        return;
+      }
+      event.preventDefault();
+      const { from, to, empty } = current.state.selection;
+      setFindStickyRange(empty ? null : { from, to });
+      setFindOpen(true);
+    }
+    // Capture on the editor root so we win over the browser find UI.
+    const root = current.view.dom.closest(".flex.flex-col.h-full") ?? document;
+    root.addEventListener("keydown", onKeyDown as EventListener);
+    return () => root.removeEventListener("keydown", onKeyDown as EventListener);
+  }, [editor]);
+
+  // Global ? cheatsheet when not typing in an input / the prose.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "?" || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable ||
+          target.closest(".ProseMirror"))
+      ) {
+        return;
+      }
+      event.preventDefault();
+      setShortcutsOpen(true);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   useEffect(() => {
     if (editorRef) editorRef.current = editor;
     return () => {
@@ -253,7 +393,26 @@ export function DocumentEditor({
   return (
     <div className="flex flex-col h-full">
       {editor && (
-        <Toolbar editor={editor} extra={toolbarExtra} />
+        <Toolbar
+          editor={editor}
+          extra={toolbarExtra}
+          onOpenFind={openFind}
+          onOpenCitation={() => setCitationOpen(true)}
+          cleanupOpen={cleanupOpen}
+          onOpenCleanup={onOpenCleanup}
+        />
+      )}
+      {editor && findOpen && (
+        <FindReplacePanel
+          key={
+            findStickyRange
+              ? `${findStickyRange.from}-${findStickyRange.to}`
+              : "doc"
+          }
+          editor={editor}
+          initialStickyRange={findStickyRange}
+          onClose={() => setFindOpen(false)}
+        />
       )}
       <div className="flex min-h-0 flex-1">
         {editor && (
@@ -275,6 +434,7 @@ export function DocumentEditor({
               setScrollEl((current) => (current === node ? current : node));
             }}
             className="min-h-0 min-w-0 flex-1 overflow-y-auto"
+            data-blogide-editor-scroll=""
           >
             <div
               className={`mx-auto px-6 py-10 ${
@@ -287,7 +447,7 @@ export function DocumentEditor({
             >
               {titleSlot}
               <EditorContent editor={editor} />
-              {editor && <TableDeleteControl editor={editor} />}
+              {editor && <TableControls editor={editor} />}
               {/* Anchored / sidenotes-off: keep restore UI per-essay. */}
               {!railEnabled && (
                 <DeletedFootnotesPanel variant="inline" defaultOpen={false} />
@@ -298,6 +458,17 @@ export function DocumentEditor({
           <LinkEditCard
             editor={editor}
             showPreviews={prefs.linkPreviews}
+          />
+          {editor && (
+            <CitationInsertDialog
+              editor={editor}
+              open={citationOpen}
+              onClose={() => setCitationOpen(false)}
+            />
+          )}
+          <ShortcutCheatsheet
+            open={shortcutsOpen}
+            onClose={() => setShortcutsOpen(false)}
           />
         </div>
         {railEnabled && editor && (
@@ -334,9 +505,17 @@ export function DocumentEditor({
 function Toolbar({
   editor,
   extra,
+  onOpenFind,
+  onOpenCitation,
+  cleanupOpen,
+  onOpenCleanup,
 }: {
   editor: Editor;
   extra?: React.ReactNode;
+  onOpenFind: () => void;
+  onOpenCitation: () => void;
+  cleanupOpen: boolean;
+  onOpenCleanup?: () => void;
 }) {
   const state = useEditorState({
     editor,
@@ -352,10 +531,6 @@ function Toolbar({
       codeBlock: current.isActive("codeBlock"),
       canUndo: current.can().undo(),
       canRedo: current.can().redo(),
-      heading:
-        [1, 2, 3, 4].find((level) =>
-          current.isActive("heading", { level })
-        ) ?? 0,
     }),
   });
 
@@ -385,29 +560,7 @@ function Toolbar({
       <span className="blogide-editor-toolbar-sep" aria-hidden />
 
       <div className="blogide-editor-toolbar-group">
-        <select
-          aria-label="Paragraph style"
-          value={state.heading}
-          onChange={(e) => {
-            const level = Number(e.target.value);
-            if (level === 0) {
-              editor.chain().focus().setParagraph().run();
-            } else {
-              editor
-                .chain()
-                .focus()
-                .setHeading({ level: level as 1 | 2 | 3 | 4 })
-                .run();
-            }
-          }}
-          className="h-8 rounded border border-border bg-background px-1.5 text-xs outline-none"
-        >
-          <option value={0}>Paragraph</option>
-          <option value={1}>Heading 1</option>
-          <option value={2}>Heading 2</option>
-          <option value={3}>Heading 3</option>
-          <option value={4}>Heading 4</option>
-        </select>
+        <HeadingStyleMenu editor={editor} />
         <ToolButton
           title="Bullet list"
           active={state.bulletList}
@@ -471,8 +624,13 @@ function Toolbar({
         >
           <LinkIcon className="blogide-tool-icon" />
         </ToolButton>
+        <ToolButton title="Find (Ctrl+F)" onClick={onOpenFind}>
+          <SearchIcon className="blogide-tool-icon" />
+        </ToolButton>
         <ConvertCaseMenu editor={editor} />
-        <CleanWhitespaceButton editor={editor} />
+        {onOpenCleanup && (
+          <CleanupToolbarButton open={cleanupOpen} onOpen={onOpenCleanup} />
+        )}
       </div>
 
       <span className="blogide-editor-toolbar-sep" aria-hidden />
@@ -484,6 +642,12 @@ function Toolbar({
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
         >
           <BlockquoteIcon className="blogide-tool-icon" />
+        </ToolButton>
+        <ToolButton
+          title="Divider (horizontal rule)"
+          onClick={() => editor.chain().focus().setHorizontalRule().run()}
+        >
+          Div
         </ToolButton>
         <ToolButton
           title="Insert table"
@@ -509,6 +673,9 @@ function Toolbar({
           onClick={() => editor.chain().focus().insertFootnote().run()}
         >
           Footnote
+        </ToolButton>
+        <ToolButton title="Insert citation from BibTeX" onClick={onOpenCitation}>
+          Cite
         </ToolButton>
       </div>
 

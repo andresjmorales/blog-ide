@@ -643,6 +643,20 @@ function SettingsDialog({
               }
             />
           </label>
+          <label className="settings-row">
+            <span>Dash style (punctuation normalize)</span>
+            <select
+              value={prefs.dashStyle}
+              onChange={(event) =>
+                updatePrefs({
+                  dashStyle: event.target.value as "chicago" | "mla",
+                })
+              }
+            >
+              <option value="chicago">Chicago (em dash —)</option>
+              <option value="mla">MLA (spaced en dash –)</option>
+            </select>
+          </label>
           {prefs.spellcheckEnabled && (
             <>
               <p className="settings-help">

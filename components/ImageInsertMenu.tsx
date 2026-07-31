@@ -5,24 +5,9 @@ import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
 import { claimFloatZ } from "@/lib/pins/pinStore";
 import { useAppDialog } from "@/components/AppDialog";
-import {
-  compressImageFile,
-  pickImageFile,
-} from "@/lib/assets/imagePipeline";
-import {
-  QuotaExceededError,
-  uploadUserAsset,
-} from "@/lib/assets/upload";
+import { pickImageFile } from "@/lib/assets/imagePipeline";
+import { insertEssayImageFromFile } from "@/lib/editor/insertEssayImage";
 import { ImageIcon } from "@/components/icons";
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
-}
 
 /**
  * Toolbar image control: dropdown under the button (Upload / Use URL).
@@ -84,38 +69,32 @@ export function ImageInsertMenu({ editor }: { editor: Editor }) {
     setOpen(false);
     const file = await pickImageFile();
     if (!file) return;
-    try {
-      const compressed = await compressImageFile(file);
-      let src: string;
-      try {
-        const ext = compressed.mime === "image/webp" ? "webp" : "jpg";
-        src = await uploadUserAsset(
-          compressed.blob,
-          file.name.replace(/\.\w+$/, "") + `.${ext}`,
-          { kind: "essay_image" }
-        );
-      } catch (uploadErr) {
-        if (uploadErr instanceof QuotaExceededError) {
-          await dialog.confirm({
-            title: "Storage quota exceeded",
-            message:
-              "This image would exceed your combined markdown + Storage quota. Free space in Account settings (Clean unused images) or remove large files from the Library.",
-            confirmLabel: "OK",
-            cancelLabel: "Close",
-          });
-          return;
-        }
-        src = await blobToDataUrl(compressed.blob);
-      }
-      await finishInsert(src);
-    } catch (err) {
-      await dialog.confirm({
-        title: "Image failed",
-        message: err instanceof Error ? err.message : "Could not process image.",
-        confirmLabel: "OK",
-        cancelLabel: "Close",
-      });
-    }
+    await insertEssayImageFromFile(editor, file, {
+      promptAlt: async () =>
+        dialog.prompt({
+          title: "Alt text",
+          message: "Optional description for accessibility.",
+          defaultValue: "",
+          confirmLabel: "Insert",
+        }),
+      alertQuota: async () => {
+        await dialog.confirm({
+          title: "Storage quota exceeded",
+          message:
+            "This image would exceed your combined markdown + Storage quota. Free space in Account settings (Clean unused images) or remove large files from the Library.",
+          confirmLabel: "OK",
+          cancelLabel: "Close",
+        });
+      },
+      alertError: async (message) => {
+        await dialog.confirm({
+          title: "Image failed",
+          message,
+          confirmLabel: "OK",
+          cancelLabel: "Close",
+        });
+      },
+    });
   }
 
   async function insertFromUrl() {

@@ -158,7 +158,8 @@ body {
   padding: 0;
   width: 100%;
 }
-.essay-author-input {
+.essay-author-input,
+.essay-publication-input {
   background: transparent;
   border: 0;
   color: var(--muted);
@@ -174,7 +175,8 @@ body {
 }
 .essay-title-input::placeholder,
 .essay-subtitle-input::placeholder,
-.essay-author-input::placeholder {
+.essay-author-input::placeholder,
+.essay-publication-input::placeholder {
   color: var(--muted);
   opacity: 0.65;
 }
@@ -441,6 +443,397 @@ body {
   background: color-mix(in oklab, #b42318 12%, var(--panel));
   border-color: color-mix(in oklab, #b42318 35%, var(--border));
   color: #b42318;
+}
+
+.blogide-table-controls {
+  display: flex;
+  gap: 0.2rem;
+  position: fixed;
+  z-index: 30;
+}
+
+.blogide-table-controls button {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.65rem;
+  font-weight: 600;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+}
+
+.blogide-table-controls button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.blogide-table-controls button:last-child:hover {
+  background: color-mix(in oklab, #b42318 12%, var(--panel));
+  border-color: color-mix(in oklab, #b42318 35%, var(--border));
+  color: #b42318;
+}
+
+.blogide-heading-menu-trigger {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 0.75rem;
+  height: 2rem;
+  max-width: 7.5rem;
+  min-width: 5.5rem;
+  padding: 0 0.45rem;
+  text-align: left;
+}
+
+.blogide-heading-menu-trigger:hover {
+  border-color: var(--accent);
+}
+
+.blogide-toolbar-menu {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  box-shadow: 0 8px 28px color-mix(in oklab, #000 16%, transparent);
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 0.25rem;
+  position: fixed;
+}
+
+.blogide-toolbar-menu button {
+  background: transparent;
+  border: 0;
+  border-radius: 0.3rem;
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.55rem;
+  text-align: left;
+}
+
+.blogide-toolbar-menu button:hover,
+.blogide-toolbar-menu button.is-active {
+  background: var(--panel);
+}
+
+.blogide-toolbar-menu-check {
+  color: var(--muted);
+  font-size: 0.75rem;
+  padding: 0.35rem 0.55rem;
+}
+
+.blogide-toolbar-menu-hint {
+  color: var(--muted);
+  font-size: 0.65rem;
+  line-height: 1.35;
+  margin: 0;
+  padding: 0.25rem 0.55rem 0.45rem;
+}
+
+.blogide-find-replace {
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.4rem 0.65rem;
+}
+
+.blogide-find-replace-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.blogide-find-replace-row input[type="search"],
+.blogide-find-replace-row input[type="text"] {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  min-width: 8rem;
+  padding: 0.3rem 0.45rem;
+}
+
+.blogide-find-replace-row button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.45rem;
+}
+
+.blogide-find-replace-row button:disabled {
+  opacity: 0.45;
+}
+
+.blogide-find-replace-count {
+  color: var(--muted);
+  font-size: 0.7rem;
+  min-width: 2.5rem;
+}
+
+.blogide-find-replace-opts {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.7rem;
+  gap: 0.75rem;
+}
+
+.blogide-find-scope-label {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.blogide-find-scope-label select {
+  appearance: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  color: var(--foreground);
+  font-size: 0.7rem;
+  padding: 0.2rem 0.35rem;
+}
+
+.blogide-find-scope-hint {
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+
+.blogide-find-replace-error {
+  color: #b42318;
+}
+
+/* Scope first — match rules below must win when both classes share a span
+   (common when the query equals the whole selection). */
+.editor-prose .blogide-find-scope {
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  border-radius: 0.1rem;
+  box-shadow: inset 0 0 0 1px
+    color-mix(in oklab, var(--accent) 22%, transparent);
+}
+
+.blogide-find-match,
+.editor-prose .blogide-find-match,
+.editor-prose .blogide-find-scope.blogide-find-match,
+.editor-prose .blogide-find-scope .blogide-find-match {
+  background: color-mix(in oklab, #eab308 40%, transparent);
+  border-radius: 0.1rem;
+  box-shadow: none;
+}
+
+.blogide-find-match.is-current,
+.editor-prose .blogide-find-match.is-current,
+.editor-prose .blogide-find-scope.blogide-find-match.is-current,
+.editor-prose .blogide-find-scope .blogide-find-match.is-current {
+  background: color-mix(in oklab, #f59e0b 58%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, #d97706 50%, transparent);
+}
+
+.footnote-ref.blogide-find-match,
+.blogide-find-match.is-footnote {
+  background: color-mix(in oklab, #eab308 40%, transparent);
+  border-radius: 0.2rem;
+  box-shadow: 0 0 0 1px color-mix(in oklab, #ca8a04 40%, transparent);
+}
+
+.footnote-ref.blogide-find-match.is-current,
+.blogide-find-match.is-footnote.is-current {
+  background: color-mix(in oklab, #f59e0b 58%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in oklab, #d97706 55%, transparent);
+}
+
+.blogide-cleanup-layer {
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+}
+
+.blogide-cleanup-backdrop {
+  background: transparent;
+  border: 0;
+  inset: 0;
+  pointer-events: auto;
+  position: absolute;
+}
+
+.blogide-cleanup-panel {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 16px 40px rgb(0 0 0 / 18%);
+  display: flex;
+  flex-direction: column;
+  left: 50%;
+  max-height: min(32rem, calc(100vh - 2rem));
+  max-width: min(27.5rem, calc(100vw - 2rem));
+  pointer-events: auto;
+  position: absolute;
+  transform: translateX(-50%);
+  width: 100%;
+}
+
+.blogide-cleanup-bar {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  cursor: grab;
+  display: flex;
+  justify-content: space-between;
+  padding: 0.55rem 0.7rem;
+  user-select: none;
+}
+
+.blogide-cleanup-bar:active {
+  cursor: grabbing;
+}
+
+.blogide-cleanup-title {
+  align-items: center;
+  display: inline-flex;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.blogide-cleanup-bar-actions {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.blogide-cleanup-bar-actions button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.75rem;
+  justify-content: center;
+  min-height: 1.6rem;
+  min-width: 1.6rem;
+  padding: 0.15rem 0.4rem;
+}
+
+.blogide-cleanup-bar-actions button.is-active,
+.blogide-cleanup-bar-actions button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.blogide-cleanup-tabs {
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem;
+  padding: 0 0.55rem;
+}
+
+.blogide-cleanup-tab {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-bottom: -1px;
+  padding: 0.45rem 0.55rem;
+}
+
+.blogide-cleanup-tab:hover {
+  color: var(--foreground);
+}
+
+.blogide-cleanup-tab.is-active {
+  border-bottom-color: var(--accent);
+  color: var(--foreground);
+}
+
+.blogide-cleanup-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.65rem 0.75rem 0.85rem;
+}
+
+.blogide-cleanup-hint {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  margin: 0 0 0.65rem;
+}
+
+.blogide-cleanup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.blogide-cleanup-action {
+  align-items: baseline;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  color: var(--foreground);
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  max-width: 100%;
+  padding: 0.35rem 0.65rem;
+  text-align: left;
+}
+
+.blogide-cleanup-action:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.blogide-cleanup-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.blogide-cleanup-action-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.blogide-cleanup-action-hint {
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 400;
+}
+
+.blogide-toolbar-menu-section {
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin: 0.35rem 0 0.15rem;
+  padding: 0.2rem 0.55rem 0;
+  text-transform: uppercase;
+}
+
+.blogide-toolbar-menu-section:first-child {
+  margin-top: 0;
 }
 
 .editor-prose .blogide-math.is-inline {
@@ -1668,6 +2061,18 @@ html.app-shell-lock body {
 }
 .link-edit-card.is-above {
   transform: translateY(-100%);
+}
+.link-edit-card.is-mobile-sheet {
+  border-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  bottom: 0;
+  box-shadow: 0 -12px 36px rgb(0 0 0 / 24%);
+  left: 0;
+  max-width: none;
+  top: auto;
+  transform: translateY(-100%);
+  width: 100vw;
 }
 .link-edit-row {
   display: flex;

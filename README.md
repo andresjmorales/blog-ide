@@ -22,7 +22,15 @@ by design.
 - **Optional AI** — BYOK Anthropic / OpenAI keys (device-local), sidebar chat,
   import cleanup assist
 - **Export / import** — copy markdown + HTML, download `.md`, import markdown
-  from the Files panel; Convert Case and Clean whitespace for messy pastes
+  from the Files panel; Convert Case (Cc), Clean whitespace, and punctuation
+  normalize (Chicago/MLA dashes, smart quotes) for messy pastes
+- **Find / replace** — magnifying glass / Ctrl+F with soft highlights (Enter
+  steps matches); sticky find-in-selection; searches footnote bodies; scrolls
+  the active match into view; regex and headings-only scope; Ω special
+  characters insert into the find/replace fields when focused
+- **Cleanup** (broom) — pinnable tabbed panel: Import (fix footnotes), Text,
+  Punctuation, and Publish (link/image check); Convert Case is Cc on the
+  toolbar; Cite is separate; paste or drag-drop images into the essay
 
 ## Stack
 

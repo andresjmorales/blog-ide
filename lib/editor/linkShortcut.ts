@@ -4,6 +4,11 @@ export type LinkEditorOpenOptions = {
   /** When true and an href exists, show OG preview under the bubble. */
   allowPreview?: boolean;
   href?: string;
+  /**
+   * Focus the URL field (Ctrl+K / toolbar). Click-to-open leaves focus in the
+   * editor so link text can still be edited.
+   */
+  focusUrl?: boolean;
 };
 
 type LinkEditorOpener = (
@@ -52,7 +57,7 @@ export function openLinkEditor(
 
 /** Ctrl/Cmd+K and toolbar: open bubble without preview until paste/apply. */
 export function promptForLink(editor: Editor): boolean {
-  return openLinkEditor(editor, { allowPreview: false });
+  return openLinkEditor(editor, { allowPreview: false, focusUrl: true });
 }
 
 /** Standard editor hyperlink shortcut: Ctrl/Cmd+K. */

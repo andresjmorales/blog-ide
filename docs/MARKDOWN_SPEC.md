@@ -15,12 +15,14 @@ frontmatter as opaque aside from a few keys it edits in the UI:
 | `title` | Essay title (also drives suggested filename) |
 | `subtitle` | Optional deck under the title |
 | `author` | Optional byline |
+| `publication` | Optional venue / magazine / paper (BlogIDE-only; personal-site ignores unknown keys) |
 | `status` | Optional; new essays default to `draft`. personal-site hides `draft` / `unpublished` / `hidden` from the Writing rail (slug URL still works) |
 
-**Empty keys:** clearing the subtitle keeps a bare `subtitle:` line so export
-templates stay stable. The sibling [`personal-site`](../../personal-site)
-reader (`gray-matter` + `coerceString`) treats that as `null` — no BlogIDE
-change required.
+**Empty keys:** clearing subtitle, author, or publication keeps a bare
+`subtitle:` / `author:` / `publication:` line so export templates stay
+stable. The sibling [`personal-site`](../../personal-site) reader
+(`gray-matter` + `coerceString`) treats that as `null` — no BlogIDE change
+required.
 
 Other YAML keys (e.g. `date`, `tags`, `canonical`, or any custom key) are
 preserved verbatim. BlogIDE never parse→dumps the YAML block, so unknown

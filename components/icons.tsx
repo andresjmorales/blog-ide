@@ -227,6 +227,80 @@ export function PinIcon({ className = "" }: { className?: string }) {
   );
 }
 
+/** Magnifying glass for Find. */
+export function SearchIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width={TOOL_ICON}
+      height={TOOL_ICON}
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <circle
+        cx="7"
+        cy="7"
+        r="4.25"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M10.2 10.2 13.5 13.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Broom for cleanup / fix tools.
+ * Paths from Lucide Lab `broom` (ISC) — https://lucide.dev/icons/lab/broom
+ */
+export function BroomIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width={TOOL_ICON}
+      height={TOOL_ICON}
+      viewBox="0 0 24 24"
+      fill="none"
+    >
+      <path
+        d="m13 11 9-9"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14.6 12.6c.8.8.9 2.1.2 3L10 22l-8-8 6.4-4.8c.9-.7 2.2-.6 3 .2Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m6.8 10.4 6.8 6.8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m5 17 1.4-1.4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** Classic “picture frame with mountains” image affordance. */
 export function ImageIcon({ className = "" }: { className?: string }) {
   return (
