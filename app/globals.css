@@ -1778,6 +1778,79 @@ html.app-shell-lock body {
   }
 }
 
+/* Blocking workspace connection failure (boot) */
+.workspace-connection-overlay {
+  inset: 0;
+  position: fixed;
+  z-index: 80;
+}
+.workspace-connection-backdrop {
+  backdrop-filter: blur(4px);
+  background: rgb(0 0 0 / 55%);
+  inset: 0;
+  position: absolute;
+}
+.workspace-connection-dialog {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 18px 48px rgb(0 0 0 / 28%);
+  left: 50%;
+  max-height: min(36rem, calc(100dvh - 2rem));
+  overflow: auto;
+  padding: 1.25rem 1.35rem 1.3rem;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(28rem, calc(100vw - 2rem));
+}
+.workspace-connection-tips {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  list-style: disc;
+  margin: 0 0 0.85rem;
+  padding-left: 1.2rem;
+}
+.workspace-connection-tips li {
+  margin-bottom: 0.35rem;
+}
+.workspace-connection-tips code {
+  color: var(--foreground);
+  font-size: 0.8rem;
+}
+.workspace-connection-help {
+  font-size: 0.85rem;
+  margin: 0 0 0.9rem;
+}
+.workspace-connection-help a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.workspace-connection-detail {
+  margin: 0 0 1rem;
+}
+.workspace-connection-detail summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+.workspace-connection-detail pre {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.4;
+  max-height: 6rem;
+  overflow: auto;
+  padding: 0.5rem 0.65rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* App dialogs (replace window.prompt / confirm) */
 .app-dialog-overlay {
   inset: 0;

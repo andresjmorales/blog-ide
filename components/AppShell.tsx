@@ -19,8 +19,13 @@ import {
 import { DocumentWorkspace } from "@/components/DocumentWorkspace";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { EditorSettingsPanel } from "@/components/EditorSettingsPanel";
+import { WorkspaceConnectionDialog } from "@/components/WorkspaceConnectionDialog";
 import { GearIcon } from "@/components/icons";
 import { HelpPanel } from "@/components/HelpPanel";
+import {
+  classifyWorkspaceFailure,
+  type WorkspaceFailureKind,
+} from "@/lib/workspace/connectionError";
 import { UserMenu } from "@/components/UserMenu";
 import { AiSidebar } from "@/components/AiSidebar";
 import { EditorPrefsProvider } from "@/components/EditorPrefsContext";
@@ -279,6 +284,8 @@ function AppShellContent({
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
   const [treeLoading, setTreeLoading] = useState(false);
   const [treeError, setTreeError] = useState<string | null>(null);
+  const [treeErrorKind, setTreeErrorKind] =
+    useState<WorkspaceFailureKind>("unknown");
   /** Empty tree after wake/stale auth — keep prior nodes and offer Retry. */
   const [treeStale, setTreeStale] = useState(false);
   const nodesRef = useRef<WorkspaceNode[]>([]);
@@ -508,48 +515,55 @@ function AppShellContent({
     saveActiveDocumentId(activeNodeId);
   }, [activeNodeId, previewMode]);
 
+  const bootWorkspace = useCallback(async () => {
+    if (previewMode) return false;
+    setTreeLoading(true);
+    try {
+      const ids = await ensureDefaultWorkspace();
+      const list = await listWorkspaceNodes();
+      setNodes(list);
+      refreshDocTitles(list);
+      const remembered = loadActiveDocumentId();
+      const rememberedOk =
+        remembered != null &&
+        list.some(
+          (node) => node.id === remembered && node.kind === "document"
+        );
+      setActiveNodeId((current) => {
+        if (current) return current;
+        if (rememberedOk) return remembered;
+        return ids.scratchpadId;
+      });
+      setTreeError(null);
+      setTreeErrorKind("unknown");
+      setTreeStale(false);
+      return true;
+    } catch (error) {
+      setTreeErrorKind(classifyWorkspaceFailure(error));
+      setTreeError(
+        error instanceof Error
+          ? error.message
+          : "Could not reach BlogIDE’s cloud workspace."
+      );
+      return false;
+    } finally {
+      setTreeLoading(false);
+    }
+  }, [previewMode, refreshDocTitles]);
+
   useEffect(() => {
     if (previewMode) return;
-
+    // Defer: bootWorkspace setStates; sync call in effect trips set-state-in-effect.
     let cancelled = false;
-    async function boot() {
-      setTreeLoading(true);
-      try {
-        const ids = await ensureDefaultWorkspace();
-        const list = await listWorkspaceNodes();
-        if (cancelled) return;
-        setNodes(list);
-        refreshDocTitles(list);
-        const remembered = loadActiveDocumentId();
-        const rememberedOk =
-          remembered != null &&
-          list.some(
-            (node) => node.id === remembered && node.kind === "document"
-          );
-        setActiveNodeId((current) => {
-          if (current) return current;
-          if (rememberedOk) return remembered;
-          return ids.scratchpadId;
-        });
-        setTreeError(null);
-        setTreeStale(false);
-      } catch (error) {
-        if (cancelled) return;
-        setTreeError(
-          error instanceof Error
-            ? error.message
-            : "Could not bootstrap workspace. Did you run supabase/schema.sql?"
-        );
-      } finally {
-        if (!cancelled) setTreeLoading(false);
-      }
-    }
-
-    void boot();
+    const id = window.setTimeout(() => {
+      if (cancelled) return;
+      void bootWorkspace();
+    }, 0);
     return () => {
       cancelled = true;
+      window.clearTimeout(id);
     };
-  }, [previewMode, refreshDocTitles]);
+  }, [previewMode, bootWorkspace]);
 
   // Anchor the header/toolbar: the app scrolls in inner panes, so lock the
   // page itself while the shell is mounted.
@@ -1084,9 +1098,15 @@ function AppShellContent({
       onDeleteForever={handleDeleteForever}
       onExportAll={previewMode ? undefined : () => void exportAll()}
       loading={treeLoading}
-      error={treeError}
+      // Hard boot failures use WorkspaceConnectionDialog instead of a red blurb.
+      error={
+        treeError && nodes.length === 0 ? null : treeError
+      }
     />
   );
+
+  const connectionBlocked =
+    !previewMode && Boolean(treeError) && nodes.length === 0 && !treeLoading;
 
   const libraryPanel = <LibraryPanel />;
 
@@ -1430,6 +1450,15 @@ function AppShellContent({
           <EditorSettingsPanel
             open={editorSettingsOpen}
             onClose={() => setEditorSettingsOpen(false)}
+          />
+          <WorkspaceConnectionDialog
+            open={connectionBlocked}
+            kind={treeErrorKind}
+            detail={treeError}
+            retrying={treeLoading}
+            onRetry={() => {
+              void bootWorkspace();
+            }}
           />
           <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
           {!isMobile && (
