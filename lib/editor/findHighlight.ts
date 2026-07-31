@@ -48,11 +48,13 @@ export const FindHighlight = Extension.create({
             if (!tr.docChanged) {
               return value;
             }
-            const mapped = value.matches
-              .map((match) => {
+            const mapped: FindMatch[] = value.matches
+              .map((match): FindMatch => {
                 if (match.footnotePos != null) {
                   return {
-                    ...match,
+                    from: match.from,
+                    to: match.to,
+                    text: match.text,
                     footnotePos: tr.mapping.map(match.footnotePos),
                   };
                 }
@@ -62,12 +64,7 @@ export const FindHighlight = Extension.create({
                   text: match.text,
                 };
               })
-              .filter((match) => {
-                if (match.footnotePos != null) {
-                  return match.from < match.to;
-                }
-                return match.from < match.to;
-              });
+              .filter((match) => match.from < match.to);
             let scopeRange = value.scopeRange;
             if (scopeRange) {
               scopeRange = {
