@@ -74,18 +74,15 @@ export function findMatchesInText(
   // Guard against zero-length matches advancing forever.
   // Skip empty hits (`\d*`, `a?`, etc.) — they match every caret and explode
   // the match list; editors typically only surface non-empty matches.
-  let lastIndex = 0;
   while ((m = re.exec(haystack)) !== null) {
     if (m[0].length === 0) {
       re.lastIndex = m.index + 1;
       if (re.lastIndex > haystack.length) break;
-      lastIndex = re.lastIndex;
       continue;
     }
     const from = baseFrom + m.index;
     const to = from + m[0].length;
     matches.push({ from, to, text: m[0] });
-    lastIndex = re.lastIndex;
   }
   return matches;
 }

@@ -53,6 +53,7 @@ import { claimFloatZ } from "@/lib/pins/pinStore";
 import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
 import {
   getFootnoteFindSession,
+  setFootnoteFindSession,
   subscribeFootnoteFindSession,
 } from "@/lib/editor/footnoteFindBridge";
 
@@ -111,7 +112,8 @@ export function FootnoteNodeView({
     () => null
   );
   const isFindTarget = findSession?.footnoteId === footnoteId;
-  const openedByFindRef = useRef(false);
+  /** Find session or pin can keep the card visible without setState-in-effect. */
+  const cardOpen = open || isFindTarget || pinned;
 
   const [cardPosition, setCardPosition] = useState<{
     left?: number;
@@ -170,30 +172,11 @@ export function FootnoteNodeView({
     },
   });
 
-  // Find/replace session: open this card, highlight inside it, close when the
-  // active match moves elsewhere (unless the user pinned the note).
+  // Highlight inside the note while this footnote is the active find target.
   useEffect(() => {
-    if (isFindTarget) {
-      openedByFindRef.current = true;
-      stickyFootnoteIds.add(footnoteId);
-      setSticky(true);
-      setCardZ(claimFloatZ());
-      setOpen(true);
-      return;
-    }
-    if (!openedByFindRef.current) return;
-    openedByFindRef.current = false;
-    if (noteEditor) {
+    if (!noteEditor) return;
+    if (!cardOpen || !isFindTarget || !findSession) {
       clearFindHighlights(noteEditor);
-    }
-    if (pinnedRef.current) return;
-    stickyFootnoteIds.delete(footnoteId);
-    setSticky(false);
-    setOpen(false);
-  }, [isFindTarget, footnoteId, noteEditor]);
-
-  useEffect(() => {
-    if (!noteEditor || !open || !isFindTarget || !findSession) {
       return;
     }
     let matches;
@@ -222,15 +205,14 @@ export function FootnoteNodeView({
     setFindHighlights(noteEditor, matches, activeIndex);
     const active = matches[activeIndex];
     if (active) {
-      // Second frame: card portal has laid out.
       requestAnimationFrame(() => {
         scrollMatchIntoView(noteEditor, active);
       });
     }
-  }, [noteEditor, open, isFindTarget, findSession]);
+  }, [noteEditor, cardOpen, isFindTarget, findSession]);
 
   useEffect(() => {
-    if (!noteEditor || !open) return;
+    if (!noteEditor || !cardOpen) return;
     const current = noteEditor;
     function onClick(event: MouseEvent) {
       const target = event.target;
@@ -246,7 +228,7 @@ export function FootnoteNodeView({
     const dom = current.view.dom;
     dom.addEventListener("click", onClick);
     return () => dom.removeEventListener("click", onClick);
-  }, [noteEditor, open]);
+  }, [noteEditor, cardOpen]);
 
   useEffect(() => {
     if (!noteEditor || noteEditor.getMarkdown() === content) return;
@@ -269,7 +251,7 @@ export function FootnoteNodeView({
     contentRef.current = content;
   }, [content]);
   useEffect(() => {
-    if (!noteEditor || !open) return;
+    if (!noteEditor || !cardOpen) return;
     const sync = () => {
       const snapshot = noteEditor.getMarkdown().trim();
       if (snapshot === contentRef.current) return;
@@ -292,7 +274,7 @@ export function FootnoteNodeView({
       noteEditor.off("update", sync);
       if (attrSyncTimer.current) window.clearTimeout(attrSyncTimer.current);
     };
-  }, [noteEditor, open, updateAttributes]);
+  }, [noteEditor, cardOpen, updateAttributes]);
 
   const commitContent = useCallback(() => {
     if (!noteEditor) return;
@@ -308,6 +290,9 @@ export function FootnoteNodeView({
       hoverCloseTimer.current = null;
     }
     commitContent();
+    if (getFootnoteFindSession()?.footnoteId === footnoteId) {
+      setFootnoteFindSession(null);
+    }
     stickyFootnoteIds.delete(footnoteId);
     pinnedFootnoteIds.delete(footnoteId);
     expandedFootnoteIds.delete(footnoteId);
@@ -330,12 +315,14 @@ export function FootnoteNodeView({
     cancelHoverClose();
     hoverCloseTimer.current = setTimeout(() => {
       hoverCloseTimer.current = null;
+      // Find-opened cards stay until the find session moves on.
+      if (getFootnoteFindSession()?.footnoteId === footnoteId) return;
       // Clicked or pinned cards stay; hover previews dismiss on leave.
       if (!stickyRef.current && !pinnedRef.current) {
         commitAndClose();
       }
     }, 140);
-  }, [cancelHoverClose, commitAndClose]);
+  }, [cancelHoverClose, commitAndClose, footnoteId]);
 
   const openCard = useCallback(
     (options?: {
@@ -441,7 +428,7 @@ export function FootnoteNodeView({
   }, [footnoteId, freezeCardPosition]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!cardOpen) return;
     function positionCard() {
       if (window.innerWidth < 768) {
         setCardPosition({});
@@ -506,40 +493,37 @@ export function FootnoteNodeView({
       window.removeEventListener("resize", positionCard);
       window.removeEventListener("scroll", positionCard, true);
     };
-  }, [open, expanded, hasDraggedPosition, pinned]);
+  }, [cardOpen, expanded, hasDraggedPosition, pinned]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!cardOpen) return;
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
-      // Find session owns Escape while this card was opened by Find.
-      if (openedByFindRef.current) return;
+      // Find session owns Escape while this card is the active find target.
+      if (isFindTarget) return;
       event.preventDefault();
       commitAndClose();
       outerEditor.commands.focus();
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [commitAndClose, open, outerEditor]);
+  }, [commitAndClose, cardOpen, isFindTarget, outerEditor]);
 
   useEffect(() => {
     // Pinned cards ignore outside clicks. Hover-only and click-sticky both
     // dismiss on outside pointer (hover also dismisses on mouse leave).
     // Defer attaching so the same gesture that opened the card cannot close it
     // (important when opening from a sticky sidenote while the ref is off-screen).
-    if (!open || pinned) return;
+    if (!cardOpen || pinned || isFindTarget) return;
     function closeOnOutsidePointer(event: PointerEvent) {
       if (!(event.target instanceof Element)) {
-        if (!openedByFindRef.current) {
-          commitAndClose();
-        }
+        commitAndClose();
         return;
       }
       // Portaled special-chars panel is outside the card DOM but belongs to it.
       if (event.target.closest(".special-chars-panel")) return;
       // Find UI should not dismiss a find-opened footnote mid-search.
       if (event.target.closest(".blogide-find-replace")) return;
-      if (openedByFindRef.current) return;
       const targetFootnote = event.target
         .closest("[data-footnote-id]")
         ?.getAttribute("data-footnote-id");
@@ -554,7 +538,7 @@ export function FootnoteNodeView({
       window.clearTimeout(timer);
       document.removeEventListener("pointerdown", closeOnOutsidePointer);
     };
-  }, [commitAndClose, footnoteId, open, pinned]);
+  }, [commitAndClose, footnoteId, cardOpen, pinned, isFindTarget]);
 
   useEffect(() => {
     return () => {
@@ -634,7 +618,7 @@ export function FootnoteNodeView({
         type="button"
         className="footnote-ref"
         aria-label={`Edit footnote ${number}`}
-        aria-expanded={open}
+        aria-expanded={cardOpen}
         onMouseEnter={() => {
           if (prefs.footnoteOpenOnHover) {
             openCard({ focusEditor: false, sticky: false });
@@ -662,7 +646,7 @@ export function FootnoteNodeView({
         }
       />
 
-      {open &&
+      {cardOpen &&
         typeof document !== "undefined" &&
         createPortal(
           <span
