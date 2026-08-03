@@ -392,7 +392,7 @@ function AppShellContent({
     saveMobileSurface("capture");
     setMobileLeftOpen(false);
     setMobileRightOpen(false);
-  }, []);
+  }, [setMobileLeftOpen, setMobileRightOpen]);
 
   /** Phone: full-screen capture terminal. Desktop uses the Notes panel tab. */
   const openShell = useCallback(() => {
@@ -401,16 +401,18 @@ function AppShellContent({
 
   const handlePopInPanel = useCallback(
     (panelId: PanelId, side: DockSide) => {
-      applyLayout(popInPanel(panelLayout, panelId, side));
+      applyLayout(
+        popInPanel(prefsRef.current.panelLayout, panelId, side)
+      );
     },
-    [applyLayout, panelLayout]
+    [applyLayout]
   );
 
   const handleFloatClosed = useCallback(
     (panelId: PanelId) => {
-      commitLayout(closePanel(panelLayout, panelId));
+      commitLayout(closePanel(prefsRef.current.panelLayout, panelId));
     },
-    [commitLayout, panelLayout]
+    [commitLayout]
   );
 
   const registerDeletedActions = useCallback(
@@ -553,7 +555,7 @@ function AppShellContent({
     } finally {
       setTreeLoading(false);
     }
-  }, [previewMode, refreshDocTitles]);
+  }, [previewMode, refreshDocTitles, setActiveNodeId]);
 
   useEffect(() => {
     if (previewMode) return;
