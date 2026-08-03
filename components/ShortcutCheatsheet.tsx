@@ -13,6 +13,7 @@ const ROWS: { keys: string; action: string }[] = [
   { keys: "Ctrl+Shift+F", action: "Footnote" },
   { keys: "Ctrl+F", action: "Find (soft highlights)" },
   { keys: "Ctrl+H", action: "Find & replace" },
+  { keys: "Ctrl+\\", action: "Toggle markdown split / rich text" },
   { keys: "Enter", action: "Next find match (in find box)" },
   { keys: "?", action: "This cheatsheet (when not typing)" },
   { keys: "Esc", action: "Close bubbles / dialogs" },

@@ -51,6 +51,9 @@ notes is supported where the shared extension set allows it.
 - **Input rule:** only typing `1. ` auto-starts an ordered list. Digits other
   than `1` followed by `.` stay plain text (avoids trapping `123.` in a CSS
   list marker). Existing markdown lists with `start` ≠ 1 still round-trip.
+- **Parse:** ordered-list markers must be numeric (`1.` / `2)`). TipTap’s
+  stock alpha/roman markers (`a.` / `St.` / `i.`) are disabled so prose like
+  “St. George…” is not rewritten into a numbered list.
 
 ## Markdown typing shortcuts (rich text)
 
@@ -66,7 +69,41 @@ still recognizes those constructs regardless of the typing preference.
 GFM pipe tables are edited via TipTap’s table extension and serialize to pipe
 tables. Round-trip fixtures cover the padded canonical form TipTap emits.
 The lossy-check `normalize` collapses separator dash/space padding so short
-`|---|` vs TipTap’s `| ----- |` does not false-alarm when leaving source mode.
+`|---|` vs TipTap’s `| ----- |` does not false-alarm on the optional
+normalization banner.
+
+## Source / split view
+
+“View raw markdown” opens a **split** (editable markdown | debounced read-only
+TipTap preview). Markdown is canonical while split/source is open; closing
+applies the buffer into WYSIWYG with **no blocking lossy modal**. When
+`isLossy` is true, a quiet “Show normalization” affordance can expand the
+diff.
+
+**Markdown only** (full-pane source) is off by default. Enable **Allow
+markdown-only mode** in Editor settings to show it in the overflow menu; when
+that setting is on, narrow viewports (≤767px) may open markdown-only instead
+of split. Toggle split ↔ rich text with **Ctrl+\\** (Cmd+\\ on Mac), or use
+the **Rich text** chrome button while split/source is open.
+
+### Split preview fidelity
+
+The right pane is a **read-only** TipTap surface (not a second editor).
+
+| Present in preview | Absent / inactive |
+| --- | --- |
+| Prose, headings, lists, quotes, code, tables | Editing the preview (md buffer is canonical) |
+| Numbered footnote **blobs** (tooltip = note text) | Footnote cards, nested editors, pins, sidenote rail |
+| Images + captions, KaTeX math | Link edit bubble / hover OG preview |
+| Title / subtitle / author (display from FM) | Outline rail, find/replace, formatting toolbar |
+
+**Pinned / floating chrome while in split or markdown-only**
+
+- **Stays** (workspace-level): Cleanup dialog, Essay settings, Version history,
+  essay Pop-outs, Shell dock, overflow menu
+- **Goes away** (unmounted with WYSIWYG): pinned footnote cards, link edit
+  bubble, find panel, citation dialog, shortcut cheatsheet — reopen after
+  returning to rich text
 
 ## Math / LaTeX
 

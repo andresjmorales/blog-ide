@@ -257,7 +257,9 @@ function AppShellContent({
   );
   const hydrated = useHydrated();
   const isMobile = useIsMobileViewport();
-  const prefs = hydrated ? storedPrefs : mergePrefs({});
+  // Always merge defaults so new keys (e.g. allowMarkdownOnly) stay defined
+  // even when localStorage / in-memory state predates them.
+  const prefs = mergePrefs(hydrated ? storedPrefs : {});
   const dragging = useRef<"left" | "right" | "shell" | null>(null);
   const prefsRef = useRef(storedPrefs);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -318,7 +320,9 @@ function AppShellContent({
 
   const update = useCallback((patch: Partial<EditorPrefs>, persist = true) => {
     setPrefs((p) => {
-      const next = { ...p, ...patch };
+      // Remerge defaults so newly added pref keys are never undefined on
+      // long-lived state / older localStorage blobs (controlled inputs).
+      const next = mergePrefs({ ...p, ...patch });
       if (persist) savePrefs(next);
       return next;
     });
