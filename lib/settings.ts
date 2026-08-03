@@ -49,6 +49,13 @@ export type EditorPrefs = {
    * `full`: also bold/italic/strike/blockquote/HR from markdown punctuation.
    */
   markdownTypingShortcuts?: MarkdownTypingShortcuts;
+  /** Width (px) of the editable markdown pane in split view. */
+  markdownSplitWidth?: number;
+  /**
+   * When true, overflow offers “Markdown only” (full-pane source) and narrow
+   * viewports may auto-open that mode. Default off: View raw markdown → split.
+   */
+  allowMarkdownOnly?: boolean;
 };
 
 export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
@@ -69,6 +76,8 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   spellcheckLanguages: ["en-US"],
   dashStyle: "chicago",
   markdownTypingShortcuts: "conservative",
+  markdownSplitWidth: 480,
+  allowMarkdownOnly: false,
 };
 
 const LOCAL_KEY = "blogide.editorPrefs";

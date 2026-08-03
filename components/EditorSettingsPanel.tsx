@@ -72,6 +72,24 @@ export function EditorSettingsPanel({ open, onClose }: Props) {
         </section>
 
         <section className="settings-section">
+          <h3>Markdown views</h3>
+          <p className="settings-help">
+            “View raw markdown” opens a split (editable source beside a live
+            preview). Full-pane markdown-only is an advanced escape hatch.
+          </p>
+          <label className="settings-row">
+            <span>Allow markdown-only mode</span>
+            <input
+              type="checkbox"
+              checked={prefs.allowMarkdownOnly ?? false}
+              onChange={(event) =>
+                updatePrefs({ allowMarkdownOnly: event.target.checked })
+              }
+            />
+          </label>
+        </section>
+
+        <section className="settings-section">
           <h3>Editor</h3>
           <label className="settings-row">
             <span>Open footnote on hover</span>

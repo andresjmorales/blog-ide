@@ -106,6 +106,9 @@ export function HelpPanel({ open, onClose }: Props) {
               (soft highlights; Enter = next match)
             </li>
             <li>
+              <kbd>Ctrl</kbd>+<kbd>\</kbd>: toggle markdown split / rich text
+            </li>
+            <li>
               Broom / Cleanup: pinnable tabs for Import, Text, Punctuation,
               and Publish check; Cc = convert case; Cite is its own button
             </li>

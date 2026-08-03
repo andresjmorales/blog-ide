@@ -64,6 +64,7 @@ import {
 } from "@/lib/markdown/publication";
 import { EssaySettingsPanel } from "@/components/EssaySettingsPanel";
 import { EssayTitleBlock } from "@/components/EssayTitleBlock";
+import { MarkdownSplitView } from "@/components/MarkdownSplitView";
 import { convertMarkdownFootnoteLinks } from "@/lib/import/footnotePaste";
 import { getActiveProvider, loadAiKeys } from "@/lib/ai/keys";
 import { chatCompletion, IMPORT_CLEANUP_SYSTEM } from "@/lib/ai/client";
@@ -131,7 +132,18 @@ function packDocument(
   return `${fm}\n${body.replace(/^\n+/, "")}`;
 }
 
-type Mode = "wysiwyg" | "source";
+type Mode = "wysiwyg" | "split" | "source";
+
+function isMarkdownCanonical(mode: Mode): boolean {
+  return mode === "split" || mode === "source";
+}
+
+function preferMarkdownOnlyPane(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(max-width: 767px)").matches
+  );
+}
 
 type Props = {
   nodeId: string | null;
@@ -191,7 +203,16 @@ export function DocumentWorkspace({
   const [mode, setMode] = useState<Mode>("wysiwyg");
   const modeRef = useRef(mode);
   const [sourceText, setSourceText] = useState("");
-  const [lossyWarning, setLossyWarning] = useState(false);
+  const [outlineOpen, setOutlineOpen] = useState(true);
+  /** Outline/sidenotes before entering split/source — restored on exit. */
+  const [railsSnapshot, setRailsSnapshot] = useState<{
+    outlineOpen: boolean;
+    sidenotes: boolean;
+  } | null>(null);
+  /** Apply sidenotes restore after render (avoid updatePrefs during render). */
+  const [pendingSidenotesRestore, setPendingSidenotesRestore] = useState<
+    boolean | null
+  >(null);
   const [lossyDiffOpen, setLossyDiffOpen] = useState(false);
   const [essaySettingsOpen, setEssaySettingsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -215,7 +236,7 @@ export function DocumentWorkspace({
   const nodeIdRef = useRef(nodeId);
   const syncingNameRef = useRef(false);
   const prevDocumentNameRef = useRef<string | null | undefined>(documentName);
-  const { prefs } = useEditorPrefs();
+  const { prefs, updatePrefs } = useEditorPrefs();
   const persistEnabled = isSupabaseConfigured() && !previewMode && !!nodeId;
   const documentLanguages = parseSpellcheckLangs(frontmatter);
   const essayTitle =
@@ -249,9 +270,24 @@ export function DocumentWorkspace({
     // Always open the new document in rich text, even if the previous one
     // was being viewed as raw markdown.
     setMode("wysiwyg");
+    if (railsSnapshot) {
+      setOutlineOpen(railsSnapshot.outlineOpen);
+      setPendingSidenotesRestore(railsSnapshot.sidenotes);
+      setRailsSnapshot(null);
+    }
     setLoading(Boolean(persistEnabled && nodeId));
     setLoadError(null);
   }
+
+  useEffect(() => {
+    if (pendingSidenotesRestore === null) return;
+    const sidenotes = pendingSidenotesRestore;
+    const timer = window.setTimeout(() => {
+      updatePrefs({ sidenotes });
+      setPendingSidenotesRestore(null);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [pendingSidenotesRestore, updatePrefs]);
 
   useEffect(() => {
     onRenameRef.current = onRenameDocument;
@@ -320,7 +356,7 @@ export function DocumentWorkspace({
   ]);
 
   useEffect(() => {
-    if (mode === "source") onDeletedFootnotesChange([]);
+    if (isMarkdownCanonical(mode)) onDeletedFootnotesChange([]);
   }, [mode, onDeletedFootnotesChange]);
 
   /**
@@ -390,7 +426,7 @@ export function DocumentWorkspace({
         // Keep the source view showing THIS document. Without this, switching
         // essays while in markdown mode left the previous essay's text in the
         // textarea, and a keystroke would save it over the new document.
-        if (modeRef.current === "source") {
+        if (isMarkdownCanonical(modeRef.current)) {
           setSourceText(packed);
         }
         if (unpacked.changed) {
@@ -490,6 +526,7 @@ export function DocumentWorkspace({
       nodeId,
       onRequestTreeRefresh,
       syncFilenameFromTitle,
+      setBaseVersion,
     ]
   );
 
@@ -499,7 +536,7 @@ export function DocumentWorkspace({
 
   const getMarkdownForAi = useCallback(() => {
     flushMarkdownRef.current?.();
-    if (mode === "source") return sourceText || null;
+    if (isMarkdownCanonical(mode)) return sourceText || null;
     const editor = editorRef.current;
     const nextBody = editor ? serializeBody(editor.getJSON()) : body;
     return packDocument(
@@ -528,7 +565,7 @@ export function DocumentWorkspace({
         publication: unpacked.publication,
         body: unpacked.body,
       });
-      if (mode === "source") setSourceText(packed);
+      if (isMarkdownCanonical(mode)) setSourceText(packed);
       persistMarkdownRef.current(packed);
     },
     [documentName, mode]
@@ -543,10 +580,9 @@ export function DocumentWorkspace({
   }, [registerApplyMarkdown, applyMarkdown]);
 
   const convertFootnoteLinks = useCallback(async () => {
-    const full =
-      mode === "source"
-        ? sourceText
-        : packDocument(frontmatter, subtitle, author, publication, body);
+    const full = isMarkdownCanonical(mode)
+      ? sourceText
+      : packDocument(frontmatter, subtitle, author, publication, body);
     const { markdown, converted } = convertMarkdownFootnoteLinks(full);
     if (converted > 0) {
       applyMarkdown(markdown);
@@ -747,6 +783,7 @@ export function DocumentWorkspace({
       canRenameDocument,
       onExplorerTitleChange,
       onRequestTreeRefresh,
+      setBaseVersion,
     ]
   );
 
@@ -854,7 +891,7 @@ export function DocumentWorkspace({
         body: unpacked.body,
       });
       setBaseVersion(version);
-      if (mode === "source") {
+      if (isMarkdownCanonical(modeRef.current)) {
         setSourceText(
           packDocument(
             unpacked.frontmatter,
@@ -866,7 +903,7 @@ export function DocumentWorkspace({
         );
       }
     },
-    [mode]
+    [setBaseVersion]
   );
 
   // On tab wake: if this doc is clean locally but remote advanced (edited on
@@ -966,7 +1003,25 @@ export function DocumentWorkspace({
     };
   }, [persistEnabled, nodeId, onRequestTreeRefresh, commitPendingLocal]);
 
-  function toSource() {
+  function collapseRailsForMarkdown() {
+    if (railsSnapshot) return;
+    setRailsSnapshot({
+      outlineOpen,
+      sidenotes: prefs.sidenotes,
+    });
+    setOutlineOpen(false);
+    if (prefs.sidenotes) updatePrefs({ sidenotes: false });
+  }
+
+  function restoreRailsFromMarkdown() {
+    if (!railsSnapshot) return;
+    setOutlineOpen(railsSnapshot.outlineOpen);
+    updatePrefs({ sidenotes: railsSnapshot.sidenotes });
+    setRailsSnapshot(null);
+  }
+
+  /** Flush WYSIWYG → packed markdown buffer (shared by split / source). */
+  function flushEditorIntoSourceBuffer() {
     flushMarkdownRef.current?.();
     const editor = editorRef.current;
     const nextBody = editor ? serializeBody(editor.getJSON()) : body;
@@ -987,16 +1042,25 @@ export function DocumentWorkspace({
       }));
     }
     setSourceText(packed);
+    return packed;
+  }
+
+  function toSplit() {
+    if (mode === "wysiwyg") flushEditorIntoSourceBuffer();
+    collapseRailsForMarkdown();
+    setLossyDiffOpen(false);
+    setMode("split");
+  }
+
+  function toSource() {
+    if (mode === "wysiwyg") flushEditorIntoSourceBuffer();
+    collapseRailsForMarkdown();
+    setLossyDiffOpen(false);
     setMode("source");
   }
 
-  function toWysiwyg(force = false) {
-    if (!force && isLossy(sourceText)) {
-      setLossyWarning(true);
-      setLossyDiffOpen(false);
-      return;
-    }
-    setLossyWarning(false);
+  /** Apply markdown buffer into WYSIWYG — no blocking lossy gate. */
+  function toWysiwyg() {
     setLossyDiffOpen(false);
     const unpacked = unpackDocument(sourceText, documentName);
     setDoc({
@@ -1006,6 +1070,7 @@ export function DocumentWorkspace({
       publication: unpacked.publication,
       body: unpacked.body,
     });
+    restoreRailsFromMarkdown();
     setMode("wysiwyg");
     persistMarkdown(
       packDocument(
@@ -1018,7 +1083,8 @@ export function DocumentWorkspace({
     );
   }
 
-  const lossyDiffLines = lossyWarning
+  const sourceLossy = isMarkdownCanonical(mode) && isLossy(sourceText);
+  const lossyDiffLines = sourceLossy
     ? compactDiff(
         unifiedLineDiff(sourceText, previewRoundTrip(sourceText)),
         2
@@ -1029,7 +1095,7 @@ export function DocumentWorkspace({
     flushMarkdownRef.current?.();
     const editor = editorRef.current;
     const nextBody = editor ? serializeBody(editor.getJSON()) : body;
-    return mode === "source"
+    return isMarkdownCanonical(mode)
       ? sourceText
       : packDocument(frontmatter, subtitle, author, publication, nextBody);
   }
@@ -1074,16 +1140,59 @@ export function DocumentWorkspace({
     setCleanupOpen(true);
   }
 
+  function viewRawMarkdown() {
+    // Full-pane source only when the Editor setting allows it (and on narrow
+    // viewports). Otherwise always open split.
+    if (prefs.allowMarkdownOnly && preferMarkdownOnlyPane()) toSource();
+    else toSplit();
+  }
+
+  const showMarkdownOnly = prefs.allowMarkdownOnly;
+
   const overflowItems: OverflowItem[] = [
     // View
-    {
-      id: "mode",
-      label: mode === "wysiwyg" ? "View raw markdown" : "Rich text editor",
-      onSelect: () => {
-        if (mode === "wysiwyg") toSource();
-        else toWysiwyg();
-      },
-    },
+    ...(mode === "wysiwyg"
+      ? [
+          {
+            id: "mode-raw",
+            label: "View raw markdown",
+            onSelect: () => viewRawMarkdown(),
+          },
+          ...(showMarkdownOnly && !preferMarkdownOnlyPane()
+            ? [
+                {
+                  id: "mode-md-only",
+                  label: "Markdown only",
+                  onSelect: () => toSource(),
+                },
+              ]
+            : []),
+        ]
+      : [
+          {
+            id: "mode-rich",
+            label: "Rich text editor",
+            onSelect: () => toWysiwyg(),
+          },
+        ]),
+    ...(mode === "split" && showMarkdownOnly
+      ? [
+          {
+            id: "mode-md-only",
+            label: "Markdown only",
+            onSelect: () => toSource(),
+          },
+        ]
+      : []),
+    ...(mode === "source"
+      ? [
+          {
+            id: "mode-split",
+            label: "Split view",
+            onSelect: () => toSplit(),
+          },
+        ]
+      : []),
     {
       id: "preview",
       label: "Preview in new tab",
@@ -1124,7 +1233,8 @@ export function DocumentWorkspace({
     {
       id: "cleanup",
       label: "Cleanup",
-      onSelect: () => openCleanup(mode === "source" ? "publish" : "import"),
+      onSelect: () =>
+        openCleanup(isMarkdownCanonical(mode) ? "publish" : "import"),
     },
     ...(persistEnabled && nodeId
       ? [
@@ -1143,8 +1253,42 @@ export function DocumentWorkspace({
     },
   ];
 
+  function toggleMarkdownView() {
+    if (isMarkdownCanonical(mode)) toWysiwyg();
+    else viewRawMarkdown();
+  }
+
+  const toggleMarkdownViewRef = useRef(toggleMarkdownView);
+  useEffect(() => {
+    toggleMarkdownViewRef.current = toggleMarkdownView;
+  });
+
+  // Ctrl/Cmd+\ toggles raw markdown (split) ↔ rich text from any mode.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
+        return;
+      }
+      if (event.key !== "\\" && event.code !== "Backslash") return;
+      event.preventDefault();
+      toggleMarkdownViewRef.current();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   const toolbarActions = (
     <>
+      {isMarkdownCanonical(mode) && (
+        <button
+          type="button"
+          onClick={() => toWysiwyg()}
+          className="blogide-chrome-btn"
+          title="Return to rich text editor (Ctrl+\\)"
+        >
+          Rich text
+        </button>
+      )}
       {nodeId && !previewMode && (
         <button
           type="button"
@@ -1186,6 +1330,56 @@ export function DocumentWorkspace({
     );
   }
 
+  const markdownChrome = (
+    <>
+      <EssaySettingsPanel
+        open={essaySettingsOpen}
+        onClose={() => setEssaySettingsOpen(false)}
+        title={essayTitle}
+        onTitleChange={setEssayTitle}
+        documentLanguages={documentLanguages}
+        onDocumentLanguagesChange={setDocumentLanguages}
+        canEditTitle={canRenameDocument}
+      />
+      <VersionHistoryPanel
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        nodeId={nodeId}
+        onRestore={restoreRevision}
+      />
+      <CleanupDialog
+        open={cleanupOpen}
+        onClose={() => setCleanupOpen(false)}
+        editor={cleanupEditor}
+        initialTab={cleanupTab}
+        getMarkdown={currentMarkdown}
+        onFixFootnotes={() => void convertFootnoteLinks()}
+      />
+    </>
+  );
+
+  if (mode === "split") {
+    return (
+      <>
+        <MarkdownSplitView
+          sourceText={sourceText}
+          onSourceChange={(next) => {
+            setSourceText(next);
+            persistMarkdown(next);
+          }}
+          toolbarExtra={toolbarActions}
+          shellDock={shellDock}
+          spellcheckEnabled={prefs.spellcheckEnabled}
+          spellcheckLang={
+            (documentLanguages[0] ?? prefs.spellcheckLanguages[0]) || "en"
+          }
+          documentName={documentName}
+        />
+        {markdownChrome}
+      </>
+    );
+  }
+
   if (mode === "source") {
     return (
       <div className="flex h-full flex-col">
@@ -1196,47 +1390,29 @@ export function DocumentWorkspace({
           <span className="flex items-center gap-1">{toolbarActions}</span>
         </div>
 
-        {lossyWarning && (
+        {sourceLossy && (
           <div
-            role="alert"
-            className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-sm"
+            role="status"
+            className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm"
           >
             <div className="flex flex-wrap items-center gap-3">
               <span>
-                Switching to rich text would rewrite parts of this markdown
-                (normalization or unsupported constructs).
+                Rich text will show a normalized form of this markdown.
               </span>
-              <span className="flex flex-wrap gap-2 ml-auto">
-                <button
-                  type="button"
-                  onClick={() => setLossyDiffOpen((open) => !open)}
-                  className="rounded border border-border px-2.5 py-1 text-xs hover:bg-panel"
-                >
-                  {lossyDiffOpen ? "Hide diff" : "See diff"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toWysiwyg(true)}
-                  className="rounded bg-amber-600 px-2.5 py-1 text-xs font-medium text-white hover:opacity-90"
-                >
-                  Switch anyway
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLossyWarning(false);
-                    setLossyDiffOpen(false);
-                  }}
-                  className="rounded border border-border px-2.5 py-1 text-xs hover:bg-panel"
-                >
-                  Stay in source
-                </button>
-              </span>
+              <button
+                type="button"
+                onClick={() => setLossyDiffOpen((open) => !open)}
+                className="rounded border border-border px-2.5 py-1 text-xs hover:bg-panel ml-auto"
+              >
+                {lossyDiffOpen ? "Hide normalization" : "Show normalization"}
+              </button>
             </div>
             {lossyDiffOpen && (
               <pre className="lossy-diff mt-2 max-h-56 overflow-auto rounded border border-border bg-background p-2 font-mono text-[0.7rem] leading-snug">
                 {lossyDiffLines.length === 0 ? (
-                  <span className="text-muted">No line-level changes detected.</span>
+                  <span className="text-muted">
+                    No line-level changes detected.
+                  </span>
                 ) : (
                   lossyDiffLines.map((line, index) => (
                     <div
@@ -1266,7 +1442,6 @@ export function DocumentWorkspace({
           value={sourceText}
           onChange={(e) => {
             setSourceText(e.target.value);
-            setLossyWarning(false);
             persistMarkdown(e.target.value);
           }}
           spellCheck={prefs.spellcheckEnabled}
@@ -1277,29 +1452,7 @@ export function DocumentWorkspace({
           className="min-h-0 w-full flex-1 resize-none bg-transparent px-6 py-6 font-mono text-sm leading-relaxed outline-none"
         />
         {shellDock}
-        <EssaySettingsPanel
-          open={essaySettingsOpen}
-          onClose={() => setEssaySettingsOpen(false)}
-          title={essayTitle}
-          onTitleChange={setEssayTitle}
-          documentLanguages={documentLanguages}
-          onDocumentLanguagesChange={setDocumentLanguages}
-          canEditTitle={canRenameDocument}
-        />
-        <VersionHistoryPanel
-          open={historyOpen}
-          onClose={() => setHistoryOpen(false)}
-          nodeId={nodeId}
-          onRestore={restoreRevision}
-        />
-        <CleanupDialog
-          open={cleanupOpen}
-          onClose={() => setCleanupOpen(false)}
-          editor={cleanupEditor}
-          initialTab={cleanupTab}
-          getMarkdown={currentMarkdown}
-          onFixFootnotes={() => void convertFootnoteLinks()}
-        />
+        {markdownChrome}
       </div>
     );
   }
@@ -1343,6 +1496,8 @@ export function DocumentWorkspace({
         toolbarExtra={toolbarActions}
         cleanupOpen={cleanupOpen}
         onOpenCleanup={() => openCleanup("import")}
+        outlineOpen={outlineOpen}
+        onOutlineOpenChange={setOutlineOpen}
       />
       <EssaySettingsPanel
         open={essaySettingsOpen}

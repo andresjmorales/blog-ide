@@ -78,6 +78,9 @@ type Props = {
   shellDock?: ReactNode;
   cleanupOpen?: boolean;
   onOpenCleanup?: () => void;
+  /** Controlled outline rail (split mode snapshots / restores this). */
+  outlineOpen?: boolean;
+  onOutlineOpenChange?: (open: boolean) => void;
 };
 
 function withEditorNodeViews(extension: AnyExtension): AnyExtension {
@@ -124,12 +127,21 @@ export function DocumentEditor({
   shellDock,
   cleanupOpen = false,
   onOpenCleanup,
+  outlineOpen: outlineOpenProp,
+  onOutlineOpenChange,
 }: Props) {
   const { prefs, updatePrefs } = useEditorPrefs();
   const dialog = useAppDialog();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
-  const [outlineOpen, setOutlineOpen] = useState(true);
+  const [outlineOpenLocal, setOutlineOpenLocal] = useState(true);
+  const outlineOpen = outlineOpenProp ?? outlineOpenLocal;
+  const setOutlineOpen = (next: boolean | ((prev: boolean) => boolean)) => {
+    const value =
+      typeof next === "function" ? next(outlineOpen) : next;
+    if (onOutlineOpenChange) onOutlineOpenChange(value);
+    else setOutlineOpenLocal(value);
+  };
   const [findOpen, setFindOpen] = useState(false);
   const [findStickyRange, setFindStickyRange] = useState<DocRange | null>(null);
   const [citationOpen, setCitationOpen] = useState(false);
