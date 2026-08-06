@@ -68,8 +68,9 @@ export function HelpPanel({ open, onClose }: Props) {
             Use the icon buttons (new document / new folder) or hover a folder
             for the same actions. New document can also Import from .md / .txt.
             Nest folders (e.g. essays/Veganism/). Pop out any document to keep a
-            scratchpad floating. Hover links for Open Graph previews. Pin keeps
-            them on screen. The <strong>Library</strong> panel (right dock) holds
+            scratchpad floating. Click a link (or Ctrl+K) for the link menu with
+            Open Graph preview, Open, Pin, and Library. The{" "}
+            <strong>Library</strong> panel (right dock) holds
             research PDFs and bookmarks. Use ⋯ → Preview in new tab for
             publication-style HTML with Substack-like footnotes. Edits save
             locally first, then sync online.

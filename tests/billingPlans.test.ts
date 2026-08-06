@@ -13,8 +13,8 @@ import {
 import { formatSubscriptionLabel } from "@/lib/billing/subscriptionLabel";
 
 describe("hosted plan config", () => {
-  it("keeps free at 20 MiB and pro at 100 MiB", () => {
-    expect(FREE_QUOTA_BYTES).toBe(20 * 1024 * 1024);
+  it("keeps free at 10 MiB and pro at 100 MiB", () => {
+    expect(FREE_QUOTA_BYTES).toBe(10 * 1024 * 1024);
     expect(PRO_QUOTA_BYTES).toBe(100 * 1024 * 1024);
     expect(quotaBytesForPlan("free")).toBe(FREE_QUOTA_BYTES);
     expect(quotaBytesForPlan("pro")).toBe(PRO_QUOTA_BYTES);

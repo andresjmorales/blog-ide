@@ -10,7 +10,7 @@ export const BYTES_PER_GIB = 1024 * BYTES_PER_MIB;
 export const BYTES_PER_TIB = 1024 * BYTES_PER_GIB;
 
 /** Free hosted invite tier (default `user_settings.quota_bytes` on hosted). */
-export const FREE_QUOTA_BYTES = 20 * BYTES_PER_MIB;
+export const FREE_QUOTA_BYTES = 10 * BYTES_PER_MIB;
 
 /** Hosted Pro combined markdown + Storage quota. */
 export const PRO_QUOTA_BYTES = 100 * BYTES_PER_MIB;

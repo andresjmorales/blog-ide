@@ -268,7 +268,6 @@ function AppShellContent({
   // Mobile drawers are session-local and default closed: phones open to a
   // clean editor, and toggling them never rewrites the synced desktop layout.
   const [mobileLeftOpen, setMobileLeftOpen] = useState(false);
-  const [mobileRightOpen, setMobileRightOpen] = useState(false);
   const mobileSurface = useStoredMobileSurface();
   const [shellRefreshKey, setShellRefreshKey] = useState(0);
   const getMarkdownForAiRef = useRef<() => string | null>(() => null);
@@ -391,8 +390,7 @@ function AppShellContent({
   const enterCaptureSurface = useCallback(() => {
     saveMobileSurface("capture");
     setMobileLeftOpen(false);
-    setMobileRightOpen(false);
-  }, [setMobileLeftOpen, setMobileRightOpen]);
+  }, [setMobileLeftOpen]);
 
   /** Phone: full-screen capture terminal. Desktop uses the Notes panel tab. */
   const openShell = useCallback(() => {
@@ -1141,9 +1139,8 @@ function AppShellContent({
     },
   };
 
-  /** Mobile drawers: Files left, Library right (Notes has its own button). */
+  /** Mobile drawer: Files left only (Library is desktop; Notes uses Shell). */
   const mobileFilesDrawer = fileExplorer;
-  const mobileLibraryDrawer = libraryPanel;
 
   if (showTerminal) {
     return (
@@ -1248,15 +1245,6 @@ function AppShellContent({
                 onHelp={() => setHelpOpen(true)}
                 onSignOut={() => void signOut()}
               />
-              {isMobile && (
-                <button
-                  onClick={() => setMobileRightOpen((v) => !v)}
-                  title="Toggle Library"
-                  className="rounded p-1.5 text-muted hover:bg-panel hover:text-foreground"
-                >
-                  <PanelIcon side="right" />
-                </button>
-              )}
             </div>
           </header>
 
@@ -1421,26 +1409,6 @@ function AppShellContent({
               </>
             )}
 
-            {/* Mobile right drawer — Library (Notes uses the Shell button) */}
-            {isMobile && mobileRightOpen && (
-              <>
-                <button
-                  type="button"
-                  aria-label="Close Library panel"
-                  className="absolute inset-0 z-30 bg-black/40 md:hidden"
-                  onClick={() => setMobileRightOpen(false)}
-                />
-                <aside
-                  style={{ width: Math.min(prefs.rightWidth, 320) }}
-                  className="absolute inset-y-0 right-0 z-40 flex flex-col border-l border-border bg-panel shadow-lg md:hidden"
-                >
-                  <p className="border-b border-border px-3 py-2 text-xs font-medium text-muted">
-                    Library
-                  </p>
-                  {mobileLibraryDrawer}
-                </aside>
-              </>
-            )}
           </div>
 
           <SettingsPanel

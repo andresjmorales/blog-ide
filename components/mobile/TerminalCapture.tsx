@@ -17,6 +17,7 @@ import {
 import type { WorkspaceNode } from "@/lib/workspace/types";
 
 type HistoryLine = CaptureNote & {
+  channelId: string;
   channelName: string;
 };
 
@@ -75,8 +76,13 @@ export function TerminalCapture({
     () => getNotesChannel(nodes) ?? channels[0] ?? null,
     [nodes, channels]
   );
-  /** User override; null means derive from localStorage / default channel. */
-  const [channelOverride, setChannelOverride] = useState<string | null>(null);
+  /** Which channel's history is shown (top bar) — matches desktop Notes panel. */
+  const [viewFilter, setViewFilter] = useState<string>(() => {
+    const remembered = loadLastCaptureChannelId();
+    return remembered || "all";
+  });
+  /** User override for compose target; null means follow view / default. */
+  const [composeOverride, setComposeOverride] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -86,20 +92,23 @@ export function TerminalCapture({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const frame = useVisualViewportFrame();
 
-  const rememberedId = loadLastCaptureChannelId();
-  const preferredId =
-    channelOverride ??
-    (rememberedId && channels.some((c) => c.id === rememberedId)
-      ? rememberedId
-      : null);
+  const viewChannelId =
+    viewFilter !== "all" && channels.some((c) => c.id === viewFilter)
+      ? viewFilter
+      : viewFilter === "all"
+        ? "all"
+        : (defaultChannel?.id ?? "all");
 
-  const sendToAll = preferredId === ALL_CHANNELS;
-  const activeChannel = sendToAll
-    ? defaultChannel
-    : (channels.find((c) => c.id === preferredId) ?? defaultChannel);
-  const selectValue = sendToAll
+  const composeId =
+    composeOverride ??
+    (viewChannelId !== "all" ? viewChannelId : null);
+  const sendToAll = composeId === ALL_CHANNELS;
+  const composeChannel = sendToAll
+    ? null
+    : (channels.find((c) => c.id === composeId) ?? defaultChannel);
+  const composeSelectValue = sendToAll
     ? ALL_CHANNELS
-    : (activeChannel?.id ?? "");
+    : (composeChannel?.id ?? "");
 
   // Prevent the document from scrolling under the shell (esp. with keyboard).
   useEffect(() => {
@@ -116,31 +125,37 @@ export function TerminalCapture({
   }, []);
 
   const loadHistory = useCallback(async () => {
-    if (!activeChannel) {
+    if (channels.length === 0) {
       setHistory([]);
       return;
     }
     setLoading(true);
     try {
-      const opened = await openDocument(activeChannel.id);
-      const name = channelDisplayName(activeChannel);
-      const lines = parseCaptureNotes(opened.markdown).map((note) => ({
-        ...note,
-        channelName: name,
-      }));
-      lines.sort((a, b) => {
+      const collected: HistoryLine[] = [];
+      for (const channel of channels) {
+        const opened = await openDocument(channel.id);
+        const name = channelDisplayName(channel);
+        for (const note of parseCaptureNotes(opened.markdown)) {
+          collected.push({
+            ...note,
+            channelId: channel.id,
+            channelName: name,
+          });
+        }
+      }
+      collected.sort((a, b) => {
         if (a.atMs !== b.atMs) return a.atMs - b.atMs;
         return a.at.localeCompare(b.at);
       });
-      setHistory(lines);
-      const newest = lines.reduce((max, n) => Math.max(max, n.atMs), 0);
+      setHistory(collected);
+      const newest = collected.reduce((max, n) => Math.max(max, n.atMs), 0);
       markShellSeen(Math.max(Date.now(), newest));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load history.");
     } finally {
       setLoading(false);
     }
-  }, [activeChannel]);
+  }, [channels]);
 
   useEffect(() => {
     // Defer so the async loader's initial setState is not sync-in-effect.
@@ -150,16 +165,21 @@ export function TerminalCapture({
     return () => window.clearTimeout(id);
   }, [loadHistory, refreshKey]);
 
+  const visible = useMemo(() => {
+    if (viewChannelId === "all") return history;
+    return history.filter((n) => n.channelId === viewChannelId);
+  }, [history, viewChannelId]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [history.length, activeChannel?.id]);
+  }, [visible.length, viewChannelId]);
 
   async function send() {
     const text = input.trim();
     const targets = sendToAll
       ? channels
-      : activeChannel
-        ? [activeChannel]
+      : composeChannel
+        ? [composeChannel]
         : [];
     if (!text || busy || targets.length === 0) return;
     setBusy(true);
@@ -169,8 +189,8 @@ export function TerminalCapture({
       for (const channel of targets) {
         await appendQuickNote({ channelNodeId: channel.id, text, at });
       }
-      if (!sendToAll && activeChannel) {
-        saveLastCaptureChannelId(activeChannel.id);
+      if (!sendToAll && composeChannel) {
+        saveLastCaptureChannelId(composeChannel.id);
       }
       setInput("");
       await onRefreshTree?.();
@@ -229,6 +249,44 @@ export function TerminalCapture({
           </button>
         </header>
 
+        {/* Channel view filter — same role as the desktop Notes panel top bar. */}
+        <div className="flex shrink-0 items-center gap-2 border-b border-border bg-background/90 px-4 py-1.5 font-mono text-[0.7rem] text-muted backdrop-blur-sm">
+          <span className="text-accent" aria-hidden>
+            $
+          </span>
+          <label className="sr-only" htmlFor="terminal-channel-filter">
+            Viewing channel
+          </label>
+          <select
+            id="terminal-channel-filter"
+            value={viewChannelId}
+            onChange={(e) => {
+              const value = e.target.value;
+              setViewFilter(value);
+              if (value !== "all") {
+                saveLastCaptureChannelId(value);
+                setComposeOverride(null);
+              }
+            }}
+            className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 outline-none focus:border-accent"
+          >
+            <option value="all">All channels</option>
+            {channels.map((ch) => (
+              <option key={ch.id} value={ch.id}>
+                {channelDisplayName(ch)}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="rounded px-1.5 py-0.5 text-muted hover:text-foreground"
+            onClick={() => void loadHistory()}
+            title="Refresh"
+          >
+            refresh
+          </button>
+        </div>
+
         <div
           ref={scrollRef}
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 font-mono text-xs leading-relaxed"
@@ -238,15 +296,15 @@ export function TerminalCapture({
             like prior commands. The desktop Notes panel shows the same stream.
           </p>
           <div className="mt-4 space-y-3">
-            {loading && history.length === 0 && (
+            {loading && visible.length === 0 && (
               <p className="text-muted/80"># loading history…</p>
             )}
-            {!loading && history.length === 0 && (
+            {!loading && visible.length === 0 && (
               <p className="text-muted/80"># no history yet. Type below</p>
             )}
-            {history.map((line, i) => (
+            {visible.map((line, i) => (
               <div
-                key={`${line.at}-${line.text}-${i}`}
+                key={`${line.channelId}-${line.at}-${line.text}-${i}`}
                 className="space-y-0.5"
               >
                 <p className="whitespace-pre-wrap">
@@ -255,7 +313,8 @@ export function TerminalCapture({
                   <span className="text-foreground">{line.text}</span>
                 </p>
                 <p className="pl-3 text-[0.65rem] text-muted">
-                  # ok · {line.at} · {line.channelName}
+                  # ok · {line.at}
+                  {viewChannelId === "all" ? ` · ${line.channelName}` : ""}
                 </p>
               </div>
             ))}
@@ -275,13 +334,13 @@ export function TerminalCapture({
         >
           <div className="mb-2 flex items-center gap-2">
             <label className="font-mono text-[0.65rem] uppercase tracking-wider text-muted">
-              Channel
+              Send to
             </label>
             <select
-              value={selectValue}
+              value={composeSelectValue}
               onChange={(e) => {
                 const value = e.target.value;
-                setChannelOverride(value);
+                setComposeOverride(value);
                 if (value && value !== ALL_CHANNELS) {
                   saveLastCaptureChannelId(value);
                 }
@@ -327,7 +386,7 @@ export function TerminalCapture({
               disabled={
                 busy ||
                 !input.trim() ||
-                (sendToAll ? channels.length === 0 : !activeChannel)
+                (sendToAll ? channels.length === 0 : !composeChannel)
               }
               className="mb-0.5 shrink-0 rounded bg-accent px-3 py-2 font-mono text-xs font-medium text-white disabled:opacity-40"
             >
