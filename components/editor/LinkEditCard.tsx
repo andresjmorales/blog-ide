@@ -256,12 +256,15 @@ export function LinkEditCard({
     const active = card?.activeEditor;
     if (!active || active.isDestroyed) return;
     const url = raw.trim();
+    // Do not sync-focus the editor here. Enter in the URL field must not land
+    // in ProseMirror (that deletes the selected link text and inserts a newline).
+    // close() returns focus on the next animation frame.
     if (!url) {
-      active.chain().focus().extendMarkRange("link").unsetLink().run();
+      active.chain().extendMarkRange("link").unsetLink().run();
       close();
       return;
     }
-    const chain = active.chain().focus();
+    const chain = active.chain();
     if (active.isActive("link")) chain.extendMarkRange("link");
     chain.setLink({ href: url }).run();
     // Drop link from stored marks so the next keystrokes aren't linked.
@@ -335,7 +338,9 @@ export function LinkEditCard({
           }}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
+              // Confirm the URL only — never let Enter reach the document editor.
               event.preventDefault();
+              event.stopPropagation();
               applyHref(draft);
             }
           }}
