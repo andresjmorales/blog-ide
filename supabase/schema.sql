@@ -20,7 +20,7 @@ create table if not exists user_settings (
   -- NOTE: GitHub token and Anthropic key are NOT stored here (spec §8).
   editor_prefs jsonb default '{}',
   used_bytes bigint not null default 0,
-  quota_bytes bigint not null default 20971520,
+  quota_bytes bigint not null default 10485760,
   plan text not null default 'free',
   stripe_customer_id text,
   stripe_subscription_id text,
@@ -31,9 +31,13 @@ create table if not exists user_settings (
 
 -- Additive columns for projects created before M3.
 alter table user_settings add column if not exists used_bytes bigint not null default 0;
-alter table user_settings add column if not exists quota_bytes bigint not null default 20971520;
-alter table user_settings alter column quota_bytes set default 20971520;
-update user_settings set quota_bytes = 20971520 where quota_bytes = 209715200;
+alter table user_settings add column if not exists quota_bytes bigint not null default 10485760;
+alter table user_settings alter column quota_bytes set default 10485760;
+-- Legacy free defaults: 200 MiB → 20 MiB → 10 MiB.
+update user_settings set quota_bytes = 10485760 where quota_bytes = 209715200;
+update user_settings
+set quota_bytes = 10485760
+where quota_bytes = 20971520 and coalesce(plan, 'free') = 'free';
 alter table user_settings add column if not exists plan text not null default 'free';
 alter table user_settings add column if not exists stripe_customer_id text;
 alter table user_settings add column if not exists stripe_subscription_id text;

@@ -14,7 +14,7 @@ by design.
 - **Workspace** — folder/document/link tree, Trash, Notes channels, scratchpad
   bootstrap, phone terminal capture + desktop Shell
 - **Local-first sync** — IndexedDB autosave, optimistic Supabase sync, conflict
-  copies, hard per-user quota (default 20 MiB combined)
+  copies, hard per-user quota (default 10 MiB combined)
 - **Research surfaces** — pop-out documents, link hover/Pin, cloud Library
   (PDFs + site bookmarks under quota; bookmark from hover/pin), publication
   Preview, pre-publish link/image check, image compress + Storage upload with

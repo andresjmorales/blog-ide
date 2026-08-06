@@ -473,11 +473,7 @@ export function DocumentEditor({
             </div>
           </div>
           {shellDock}
-          <LinkEditCard
-            editor={editor}
-            // Hover/OG preview toggle hidden in Editor settings for now.
-            showPreviews={false}
-          />
+          <LinkEditCard editor={editor} showPreviews />
           {editor && (
             <CitationInsertDialog
               editor={editor}

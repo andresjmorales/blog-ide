@@ -161,10 +161,14 @@ export function LinkEditCard({
         "";
       const rect = anchorRectForLink(nextEditor);
       if (!rect) return;
+      const trimmedHref = href.trim();
+      // Show OG + Open/Pin/Library whenever the bubble opens on an http(s) link
+      // (click or Ctrl+K on an existing link). Empty Ctrl+K waits for paste/apply.
       const allowPreview =
-        Boolean(options.allowPreview) && Boolean(href.trim());
-      const estimatedHeight =
-        allowPreview && showPreviews ? 220 : 120;
+        showPreviews &&
+        trimmedHref.startsWith("http") &&
+        options.allowPreview !== false;
+      const estimatedHeight = allowPreview ? 260 : 120;
       const pos = placeNearRect(rect, estimatedHeight);
       setDraft(href);
       setPreview(null);
@@ -181,7 +185,7 @@ export function LinkEditCard({
         mobileSheet: pos.mobileSheet,
         focusUrl: options.focusUrl === true,
       });
-      if (allowPreview && showPreviews) {
+      if (allowPreview) {
         window.setTimeout(() => loadPreview(href), 0);
       }
     },
@@ -190,7 +194,7 @@ export function LinkEditCard({
 
   useEffect(() => {
     setLinkEditorOpener((target, options) => {
-      openAt(target, options ?? { allowPreview: false });
+      openAt(target, options ?? {});
     });
     return () => setLinkEditorOpener(null);
   }, [openAt]);
@@ -256,12 +260,15 @@ export function LinkEditCard({
     const active = card?.activeEditor;
     if (!active || active.isDestroyed) return;
     const url = raw.trim();
+    // Do not sync-focus the editor here. Enter in the URL field must not land
+    // in ProseMirror (that deletes the selected link text and inserts a newline).
+    // close() returns focus on the next animation frame.
     if (!url) {
-      active.chain().focus().extendMarkRange("link").unsetLink().run();
+      active.chain().extendMarkRange("link").unsetLink().run();
       close();
       return;
     }
-    const chain = active.chain().focus();
+    const chain = active.chain();
     if (active.isActive("link")) chain.extendMarkRange("link");
     chain.setLink({ href: url }).run();
     // Drop link from stored marks so the next keystrokes aren't linked.
@@ -304,8 +311,12 @@ export function LinkEditCard({
 
   if (!card || typeof document === "undefined") return null;
 
-  const title = preview?.title || draft.trim() || card.href;
-  const showPreviewChrome = showPreviews && card.allowPreview;
+  const resolvedUrl = draft.trim() || card.href;
+  const title = preview?.title || resolvedUrl;
+  const hasHttpUrl = resolvedUrl.startsWith("http");
+  // Preview chrome: after open-with-href / paste, or once an http URL is in the field.
+  const showPreviewChrome =
+    showPreviews && (card.allowPreview || hasHttpUrl);
 
   return createPortal(
     <div
@@ -335,7 +346,9 @@ export function LinkEditCard({
           }}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
+              // Confirm the URL only — never let Enter reach the document editor.
               event.preventDefault();
+              event.stopPropagation();
               applyHref(draft);
             }
           }}
@@ -361,6 +374,16 @@ export function LinkEditCard({
           {previewError && <p className="link-hover-error">{previewError}</p>}
           {preview && (
             <>
+              {preview.image && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={preview.image}
+                  alt=""
+                  className="link-hover-image"
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                />
+              )}
               {preview.siteName && (
                 <p className="link-hover-site">{preview.siteName}</p>
               )}
@@ -370,24 +393,19 @@ export function LinkEditCard({
               )}
             </>
           )}
-          {!previewLoading && !preview && !previewError && draft.trim() && (
-            <p className="link-hover-title">{draft.trim()}</p>
+          {!previewLoading && !preview && !previewError && resolvedUrl && (
+            <p className="link-hover-title">{resolvedUrl}</p>
           )}
-          {(draft.trim().startsWith("http") ||
-            card.href.startsWith("http")) && (
+          {hasHttpUrl && (
             <div className="link-hover-actions">
-              <a
-                href={draft.trim() || card.href}
-                target="_blank"
-                rel="noreferrer"
-              >
+              <a href={resolvedUrl} target="_blank" rel="noreferrer">
                 Open
               </a>
               <button
                 type="button"
                 onClick={() => {
                   openLinkPin({
-                    url: draft.trim() || card.href,
+                    url: resolvedUrl,
                     title,
                     description: preview?.description,
                     siteName: preview?.siteName,
@@ -399,7 +417,7 @@ export function LinkEditCard({
                 Pin
               </button>
               <AddToLibraryButton
-                url={draft.trim() || card.href}
+                url={resolvedUrl}
                 title={title}
                 variant="hover"
               />

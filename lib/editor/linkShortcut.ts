@@ -55,9 +55,17 @@ export function openLinkEditor(
   return true;
 }
 
-/** Ctrl/Cmd+K and toolbar: open bubble without preview until paste/apply. */
+/**
+ * Ctrl/Cmd+K and toolbar: open the link bubble (focus URL field).
+ * Preview / Open / Pin / Library show when an http(s) href is present.
+ */
 export function promptForLink(editor: Editor): boolean {
-  return openLinkEditor(editor, { allowPreview: false, focusUrl: true });
+  const href = editor.getAttributes("link").href as string | undefined;
+  return openLinkEditor(editor, {
+    allowPreview: Boolean(href?.trim()),
+    focusUrl: true,
+    href,
+  });
 }
 
 /** Standard editor hyperlink shortcut: Ctrl/Cmd+K. */

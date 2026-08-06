@@ -32,7 +32,10 @@ export type EditorPrefs = {
   sidenoteLayout?: SidenoteLayout;
   /** Open the footnote editor card on superscript hover. */
   footnoteOpenOnHover?: boolean;
-  /** Hover cards with page previews on hyperlinks (core feature; on by default). */
+  /**
+   * Reserved: OG chrome on the link edit bubble (Open / Pin / Library).
+   * Currently always on in DocumentEditor; pref kept for future toggle.
+   */
   linkPreviews?: boolean;
   /** Browser spellcheck in the editor (off by default). */
   spellcheckEnabled?: boolean;
