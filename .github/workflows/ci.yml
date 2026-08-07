@@ -56,13 +56,16 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Prefer --db-url over `supabase link` — link breaks on CLI v2.112.0+
+      # when decoding api-keys inserted_at (https://github.com/supabase/cli/issues/6115).
       - uses: supabase/setup-cli@v1
         if: steps.secrets.outputs.configured == 'true'
         with:
           version: latest
 
-      - name: Link project and push migrations
+      - name: Push migrations
         if: steps.secrets.outputs.configured == 'true'
         run: |
-          supabase link --project-ref "$SUPABASE_PROJECT_ID"
-          supabase db push
+          ENCODED_PW=$(python3 -c "import urllib.parse,os; print(urllib.parse.quote(os.environ['SUPABASE_DB_PASSWORD'], safe=''))")
+          supabase db push --yes \
+            --db-url "postgresql://postgres:${ENCODED_PW}@db.${SUPABASE_PROJECT_ID}.supabase.co:5432/postgres"
