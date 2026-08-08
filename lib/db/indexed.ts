@@ -139,6 +139,49 @@ export async function adoptRemoteDoc(
   await tx.done;
 }
 
+/**
+ * Resolve a conflict without overwriting a newer cross-tab edit that landed
+ * after the preserved conflict body was read.
+ */
+export async function settleConflictDoc(
+  nodeId: string,
+  preservedMarkdown: string,
+  remoteMarkdown: string,
+  remoteVersion: number,
+  updatedAt: string
+): Promise<LocalDoc> {
+  const db = await getDb();
+  const tx = db.transaction(["docs", "syncQueue"], "readwrite");
+  const docs = tx.objectStore("docs");
+  const current = await docs.get(nodeId);
+  let next: LocalDoc;
+  if (!current || current.markdown === preservedMarkdown) {
+    next = {
+      nodeId,
+      markdown: remoteMarkdown,
+      updatedAt,
+      dirty: false,
+      baseVersion: remoteVersion,
+    };
+    await docs.put(next);
+    await tx.objectStore("syncQueue").delete(nodeId);
+  } else {
+    next = {
+      ...current,
+      dirty: true,
+      baseVersion: Math.max(current.baseVersion, remoteVersion),
+    };
+    await docs.put(next);
+    await tx.objectStore("syncQueue").put({
+      nodeId,
+      op: "put",
+      queuedAt: next.updatedAt,
+    });
+  }
+  await tx.done;
+  return next;
+}
+
 export async function putLocalDoc(doc: LocalDoc): Promise<void> {
   const db = await getDb();
   await db.put("docs", doc);

@@ -31,6 +31,10 @@ import { AiSidebar } from "@/components/AiSidebar";
 import { EditorPrefsProvider } from "@/components/EditorPrefsContext";
 import { DocumentSessionProvider } from "@/components/DocumentSessionContext";
 import { FileExplorer } from "@/components/FileExplorer";
+import {
+  ConflictResolverPanel,
+  type ConflictResolutionSuccess,
+} from "@/components/ConflictResolverPanel";
 import { LibraryPanel } from "@/components/LibraryPanel";
 import { DockRegion } from "@/components/panels/DockRegion";
 import { PanelsMenu } from "@/components/panels/PanelsMenu";
@@ -86,6 +90,7 @@ import {
   saveActiveDocumentId,
 } from "@/lib/workspace/activeDocument";
 import type { WorkspaceNode } from "@/lib/workspace/types";
+import { classifyConflict } from "@/lib/workspace/conflicts";
 import {
   formatSyncLabel,
   getSyncStatus,
@@ -283,6 +288,11 @@ function AppShellContent({
     () => new Map()
   );
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
+  const [resolverCopyId, setResolverCopyId] = useState<string | null>(null);
+  const [dismissedConflictId, setDismissedConflictId] = useState<string | null>(
+    null
+  );
+  const [documentReloadKey, setDocumentReloadKey] = useState(0);
   const [treeLoading, setTreeLoading] = useState(false);
   const [treeError, setTreeError] = useState<string | null>(null);
   const [treeErrorKind, setTreeErrorKind] =
@@ -308,6 +318,15 @@ function AppShellContent({
     displayName?.trim() ||
     (previewMode ? "Preview" : userEmail.split("@")[0] || "Account");
   const activeNode = nodes.find((n) => n.id === activeNodeId) ?? null;
+  const activeConflict = useMemo(
+    () => (activeNode ? classifyConflict(activeNode) : null),
+    [activeNode]
+  );
+  const resolverCopyNode =
+    nodes.find((node) => node.id === resolverCopyId) ?? null;
+  const resolverOriginNode = resolverCopyNode?.conflict_of
+    ? nodes.find((node) => node.id === resolverCopyNode.conflict_of) ?? null
+    : null;
 
   useEffect(() => {
     prefsRef.current = storedPrefs;
@@ -381,7 +400,7 @@ function AppShellContent({
 
   const bumpShellRefresh = useCallback(() => {
     setShellRefreshKey((k) => k + 1);
-  }, []);
+  }, [setShellRefreshKey]);
 
   const enterAppSurface = useCallback(() => {
     saveMobileSurface("app");
@@ -438,7 +457,7 @@ function AppShellContent({
     void loadDocumentTitles(list).then((titles) => {
       if (titlesRequestRef.current === requestId) setDocTitles(titles);
     });
-  }, []);
+  }, [setDocTitles]);
 
   const handleExplorerTitleChange = useCallback(
     (nodeId: string, title: string) => {
@@ -448,7 +467,7 @@ function AppShellContent({
         return next;
       });
     },
-    []
+    [setDocTitles]
   );
 
   const handleDocumentLoaded = useCallback(
@@ -456,7 +475,7 @@ function AppShellContent({
       if (!activeNodeId) return;
       setDocTitles((prev) => setTitleFromMarkdown(prev, activeNodeId, markdown));
     },
-    [activeNodeId]
+    [activeNodeId, setDocTitles]
   );
 
   const refreshTree = useCallback(
@@ -486,8 +505,39 @@ function AppShellContent({
         return false;
       }
     },
-    [previewMode, refreshDocTitles]
+    [
+      previewMode,
+      refreshDocTitles,
+      setNodes,
+      setTreeError,
+      setTreeStale,
+    ]
   );
+
+  function handleReviewConflict(copyId: string) {
+    setResolverCopyId(copyId);
+  }
+
+  const refreshedConflictRef = useRef<string | null>(null);
+  useEffect(() => {
+    const copyId = syncStatus.conflictCopyId;
+    if (!copyId || refreshedConflictRef.current === copyId) return;
+    refreshedConflictRef.current = copyId;
+    void refreshTree();
+  }, [syncStatus.conflictCopyId, refreshTree]);
+
+  async function handleConflictResolved(result: ConflictResolutionSuccess) {
+    setDismissedConflictId(result.copyId);
+    if (result.resolution === "keep_both") {
+      setActiveNodeId(result.copyId);
+    } else {
+      setActiveNodeId(result.originId);
+      // Clean drafts fetch the authoritative RPC result; genuinely newer
+      // local typing remains dirty and is never discarded by resolution UI.
+      setDocumentReloadKey((key) => key + 1);
+    }
+    await refreshTree();
+  }
 
   /** Revalidate auth after idle tabs (Firefox throttles token refresh). */
   const recoverWorkspace = useCallback(async () => {
@@ -511,7 +561,7 @@ function AppShellContent({
     } catch {
       if (nodesRef.current.length > 0) setTreeStale(true);
     }
-  }, [previewMode, refreshTree]);
+  }, [previewMode, refreshTree, setTreeStale]);
 
   // Remember the open essay across refreshes (skip null so boot can restore).
   useEffect(() => {
@@ -553,7 +603,16 @@ function AppShellContent({
     } finally {
       setTreeLoading(false);
     }
-  }, [previewMode, refreshDocTitles, setActiveNodeId]);
+  }, [
+    previewMode,
+    refreshDocTitles,
+    setActiveNodeId,
+    setNodes,
+    setTreeError,
+    setTreeErrorKind,
+    setTreeLoading,
+    setTreeStale,
+  ]);
 
   useEffect(() => {
     if (previewMode) return;
@@ -1100,6 +1159,7 @@ function AppShellContent({
       onTogglePin={handleTogglePin}
       onSetColor={handleSetColor}
       onDeleteForever={handleDeleteForever}
+      onReviewConflict={handleReviewConflict}
       onExportAll={previewMode ? undefined : () => void exportAll()}
       loading={treeLoading}
       // Hard boot failures use WorkspaceConnectionDialog instead of a red blurb.
@@ -1275,7 +1335,8 @@ function AppShellContent({
             </div>
           )}
 
-          {syncBanner && (
+          {syncBanner &&
+            syncBanner.conflictCopyId !== dismissedConflictId && (
             <div
               role="status"
               className="flex flex-wrap items-center gap-3 border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm"
@@ -1285,9 +1346,13 @@ function AppShellContent({
                 <button
                   type="button"
                   className="rounded border border-border px-2 py-0.5 text-xs hover:bg-panel"
-                  onClick={() => setActiveNodeId(syncBanner.conflictCopyId)}
+                  onClick={() => {
+                    if (syncBanner.conflictCopyId) {
+                      handleReviewConflict(syncBanner.conflictCopyId);
+                    }
+                  }}
                 >
-                  Open conflict copy
+                  Review conflict
                 </button>
               )}
             </div>
@@ -1343,8 +1408,15 @@ function AppShellContent({
 
             <main className="min-h-0 min-w-0 flex-1">
               <DocumentWorkspace
+                key={`${previewMode ? "preview" : activeNodeId}-${documentReloadKey}`}
                 nodeId={previewMode ? null : activeNodeId}
                 documentName={activeNode?.name ?? null}
+                conflict={activeConflict}
+                onReviewConflict={
+                  activeConflict?.resolvable && activeNodeId
+                    ? () => handleReviewConflict(activeNodeId)
+                    : undefined
+                }
                 canRenameDocument={
                   !activeNode || !isScratchpad(activeNode)
                 }
@@ -1435,6 +1507,13 @@ function AppShellContent({
             }}
           />
           <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
+          <ConflictResolverPanel
+            open={Boolean(resolverCopyId)}
+            copyNode={resolverCopyNode}
+            originNode={resolverOriginNode}
+            onClose={() => setResolverCopyId(null)}
+            onResolved={handleConflictResolved}
+          />
           {!isMobile && (
             <>
               <PersistentPanel

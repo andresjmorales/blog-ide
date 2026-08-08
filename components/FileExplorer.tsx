@@ -8,6 +8,10 @@ import {
 import { TreeCaret } from "@/components/icons";
 import { NODE_COLOR_PALETTE } from "@/lib/workspace/nodeColors";
 import {
+  classifyConflict,
+  formatConflictTimestamp,
+} from "@/lib/workspace/conflicts";
+import {
   compareSiblings,
   eligibleMoveFolders,
   folderPathLabel,
@@ -35,6 +39,7 @@ type Props = {
   onTogglePin: (nodeId: string, pinned: boolean) => void;
   onSetColor: (nodeId: string, color: string | null) => void;
   onDeleteForever: (nodeId: string) => void;
+  onReviewConflict?: (copyId: string) => void;
   /** Download every essay (Trash excluded) as a .zip. */
   onExportAll?: () => void;
   loading?: boolean;
@@ -92,6 +97,7 @@ export function FileExplorer({
   onTogglePin,
   onSetColor,
   onDeleteForever,
+  onReviewConflict,
   onExportAll,
   loading,
   error,
@@ -163,6 +169,15 @@ export function FileExplorer({
     }
 
     if (node.kind === "document" && !inTrash) {
+      const conflict = classifyConflict(node);
+      if (conflict?.resolvable && onReviewConflict) {
+        items.push({
+          kind: "action",
+          id: "review-conflict",
+          label: "Review conflict",
+          onSelect: () => onReviewConflict(node.id),
+        });
+      }
       items.push({
         kind: "action",
         id: "pop-out",
@@ -176,7 +191,7 @@ export function FileExplorer({
         kind: "action",
         id: "rename",
         label: "Rename",
-        disabled: inTrash,
+        disabled: inTrash || Boolean(classifyConflict(node)?.unresolved),
         onSelect: () => onRename(node.id),
       });
       if (!inTrash) {
@@ -345,6 +360,7 @@ export function FileExplorer({
             onContextMenu={openMenu}
             collapsedIds={collapsedIds}
             onToggleCollapse={toggleCollapse}
+            onReviewConflict={onReviewConflict}
           />
         ))}
       </ul>
@@ -385,6 +401,7 @@ export function FileExplorer({
                     onContextMenu={openMenu}
                     collapsedIds={collapsedIds}
                     onToggleCollapse={toggleCollapse}
+                    onReviewConflict={onReviewConflict}
                   />
                 ))
               )}
@@ -517,6 +534,7 @@ function TreeNode({
   onContextMenu,
   collapsedIds,
   onToggleCollapse,
+  onReviewConflict,
 }: {
   node: WorkspaceNode;
   nodes: WorkspaceNode[];
@@ -530,6 +548,7 @@ function TreeNode({
   onContextMenu: (e: MouseEvent, node: WorkspaceNode) => void;
   collapsedIds: Set<string>;
   onToggleCollapse: (id: string) => void;
+  onReviewConflict?: (copyId: string) => void;
 }) {
   // System folders are rendered separately; never nest them in the main tree.
   const visibleKids = childrenOf(nodes, node.id).filter(
@@ -623,6 +642,7 @@ function TreeNode({
                 onContextMenu={onContextMenu}
                 collapsedIds={collapsedIds}
                 onToggleCollapse={onToggleCollapse}
+                onReviewConflict={onReviewConflict}
               />
             ))}
           </ul>
@@ -661,6 +681,18 @@ function TreeNode({
   }
 
   const active = node.id === activeNodeId;
+  const conflict = classifyConflict(node);
+  const origin = conflict?.originId
+    ? nodes.find((candidate) => candidate.id === conflict.originId)
+    : null;
+  const conflictTime = conflict
+    ? formatConflictTimestamp(conflict.createdAt)
+    : null;
+  const conflictTip = conflict
+    ? `${conflict.badge}: ${node.name} · ${
+        origin ? `original ${origin.name}` : "original unavailable"
+      } · ${conflictTime}`
+    : "";
   return (
     <li>
       <div
@@ -688,6 +720,35 @@ function TreeNode({
             </span>
           )}
         </button>
+        {conflict &&
+          (conflict.resolvable && onReviewConflict ? (
+            <button
+              type="button"
+              onClick={() => onReviewConflict(node.id)}
+              className="mr-1 inline-flex shrink-0 items-center gap-1 rounded border border-amber-500/50 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
+              title={`${conflictTip} · Review conflict`}
+              aria-label={`Review conflict for ${label}`}
+            >
+              <span>{conflict.badge}</span>
+              <span className="font-normal normal-case tracking-normal text-muted">
+                {conflictTime}
+              </span>
+            </button>
+          ) : (
+            <span
+              className={`mr-1 inline-flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
+                conflict.badge === "Local copy"
+                  ? "border-border bg-panel text-muted"
+                  : "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+              }`}
+              title={conflictTip}
+            >
+              <span>{conflict.badge}</span>
+              <span className="font-normal normal-case tracking-normal text-muted">
+                {conflictTime}
+              </span>
+            </span>
+          ))}
         <RowKebab node={node} onContextMenu={onContextMenu} />
       </div>
     </li>

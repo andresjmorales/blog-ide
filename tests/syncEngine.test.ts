@@ -5,6 +5,7 @@ import {
   getLocalDoc,
   listSyncQueue,
   putLocalDoc,
+  settleConflictDoc,
   stageLocalEdit,
 } from "@/lib/db/indexed";
 import {
@@ -18,6 +19,7 @@ import {
   syncDocument,
 } from "@/lib/sync/engine";
 import {
+  createDocumentConflictCopy,
   fetchRemoteDocument,
   saveDocumentRemote,
 } from "@/lib/workspace/api";
@@ -25,18 +27,30 @@ import {
 vi.mock("@/lib/workspace/api", () => ({
   fetchRemoteDocument: vi.fn(),
   saveDocumentRemote: vi.fn(),
+  createDocumentConflictCopy: vi.fn(),
   createWorkspaceNode: vi.fn(),
   getWorkspaceNode: vi.fn(),
 }));
 
 const mockFetchRemote = vi.mocked(fetchRemoteDocument);
 const mockSaveRemote = vi.mocked(saveDocumentRemote);
+const mockCreateConflict = vi.mocked(createDocumentConflictCopy);
 
 let seq = 0;
 function freshNodeId(): string {
   seq += 1;
   return `00000000-0000-0000-0000-${String(seq).padStart(12, "0")}`;
 }
+
+const remoteDoc = (nodeId: string, version: number, markdown: string) => ({
+  node_id: nodeId,
+  user_id: "u",
+  markdown,
+  status: null,
+  version,
+  size_bytes: markdown.length,
+  updated_at: new Date().toISOString(),
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -163,7 +177,9 @@ describe("syncDocument", () => {
     }
 
     // Let the deferred follow-up push settle so it can't leak across tests.
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await vi.waitFor(async () => {
+      expect((await getLocalDoc(nodeId))?.dirty).toBe(false);
+    });
     const settled = await getLocalDoc(nodeId);
     expect(settled?.markdown).toBe("first draft plus keystrokes");
     expect(settled?.dirty).toBe(false);
@@ -187,6 +203,81 @@ describe("syncDocument", () => {
     const doc = await getLocalDoc(nodeId);
     expect(doc?.dirty).toBe(true); // draft stays safe locally
   });
+
+  it("quietly catches up when a stale save already matches the cloud", async () => {
+    const nodeId = freshNodeId();
+    await saveLocal(nodeId, "same essay", 1);
+    mockFetchRemote.mockResolvedValue(remoteDoc(nodeId, 2, "same essay"));
+    mockSaveRemote.mockResolvedValue({
+      ok: false,
+      reason: "conflict",
+      remoteVersion: 2,
+      remoteMarkdown: "same essay",
+    });
+
+    await syncDocument(nodeId);
+
+    expect(mockCreateConflict).not.toHaveBeenCalled();
+    expect(await getLocalDoc(nodeId)).toMatchObject({
+      markdown: "same essay",
+      dirty: false,
+      baseVersion: 2,
+    });
+  });
+
+  it("creates one reviewable copy for divergent local content", async () => {
+    const nodeId = freshNodeId();
+    await saveLocal(nodeId, "local essay", 1);
+    mockFetchRemote.mockResolvedValue(remoteDoc(nodeId, 2, "cloud essay"));
+    mockSaveRemote.mockResolvedValue({
+      ok: false,
+      reason: "conflict",
+      remoteVersion: 2,
+      remoteMarkdown: "cloud essay",
+    });
+    mockCreateConflict.mockResolvedValue({
+      ok: true,
+      copyId: "conflict-copy",
+      created: false,
+    });
+    setSyncFocus(nodeId);
+
+    await syncDocument(nodeId);
+
+    expect(mockCreateConflict).toHaveBeenCalledOnce();
+    expect(mockCreateConflict).toHaveBeenCalledWith(nodeId, 1, "local essay");
+    expect(await getLocalDoc(nodeId)).toMatchObject({
+      markdown: "cloud essay",
+      dirty: false,
+      baseVersion: 2,
+    });
+    expect(getSyncStatus().conflictCopyId).toBe("conflict-copy");
+    setSyncFocus(null);
+  });
+});
+
+describe("settleConflictDoc", () => {
+  it("keeps a different cross-tab draft dirty while advancing its base", async () => {
+    const nodeId = freshNodeId();
+    await saveLocal(nodeId, "newer tab draft", 1);
+
+    const settled = await settleConflictDoc(
+      nodeId,
+      "preserved conflict",
+      "cloud essay",
+      4,
+      new Date().toISOString()
+    );
+
+    expect(settled).toMatchObject({
+      markdown: "newer tab draft",
+      dirty: true,
+      baseVersion: 4,
+    });
+    expect((await listSyncQueue()).some((item) => item.nodeId === nodeId)).toBe(
+      true
+    );
+  });
 });
 
 describe("isAuthError", () => {
@@ -206,16 +297,6 @@ describe("isAuthError", () => {
 });
 
 describe("fastForwardDocument", () => {
-  const remoteDoc = (nodeId: string, version: number, markdown: string) => ({
-    node_id: nodeId,
-    user_id: "u",
-    markdown,
-    status: null,
-    version,
-    size_bytes: markdown.length,
-    updated_at: new Date().toISOString(),
-  });
-
   it("adopts a newer remote version when local is clean", async () => {
     const nodeId = freshNodeId();
     await putLocalDoc({
