@@ -1,9 +1,9 @@
 import {
-  adoptRemoteDoc,
   dequeueSync,
   getLocalDoc,
   listSyncQueue,
   putLocalDoc,
+  settleConflictDoc,
   settleSyncedDoc,
   stageLocalEdit,
   type LocalDoc,
@@ -11,9 +11,8 @@ import {
 import { releaseRemovedEssayImages } from "@/lib/assets/quota";
 import { normalize } from "@/lib/markdown/pipeline";
 import {
-  createWorkspaceNode,
+  createDocumentConflictCopy,
   fetchRemoteDocument,
-  getWorkspaceNode,
   saveDocumentRemote,
 } from "@/lib/workspace/api";
 
@@ -46,6 +45,38 @@ const listeners = new Set<StatusListener>();
 const inflight = new Map<string, Promise<void>>();
 /** Per-document sync fields so inbox/pop-out opens don't clobber the badge. */
 const byNode = new Map<string, NodeSyncSlice>();
+const conflictChannel =
+  typeof BroadcastChannel !== "undefined"
+    ? new BroadcastChannel("blogide-sync-conflicts")
+    : null;
+
+export type CrossTabConflict = {
+  originId: string;
+  copyId: string;
+  localMarkdown: string;
+  remoteMarkdown: string;
+  remoteVersion: number;
+};
+
+type CrossTabConflictListener = (event: CrossTabConflict) => void;
+const crossTabConflictListeners = new Set<CrossTabConflictListener>();
+
+conflictChannel?.addEventListener("message", (message: MessageEvent<unknown>) => {
+  const event = message.data as Partial<CrossTabConflict> | null;
+  if (
+    !event ||
+    typeof event.originId !== "string" ||
+    typeof event.copyId !== "string" ||
+    typeof event.localMarkdown !== "string" ||
+    typeof event.remoteMarkdown !== "string" ||
+    typeof event.remoteVersion !== "number"
+  ) {
+    return;
+  }
+  for (const listener of crossTabConflictListeners) {
+    listener(event as CrossTabConflict);
+  }
+});
 
 let focusNodeId: string | null = null;
 
@@ -97,6 +128,13 @@ export function subscribeSyncStatus(listener: StatusListener): () => void {
   listeners.add(listener);
   listener(getSyncStatus());
   return () => listeners.delete(listener);
+}
+
+export function subscribeCrossTabConflict(
+  listener: CrossTabConflictListener
+): () => void {
+  crossTabConflictListeners.add(listener);
+  return () => crossTabConflictListeners.delete(listener);
 }
 
 export type OpenedDocument = {
@@ -221,36 +259,49 @@ export async function saveLocal(
 
 async function createConflictCopy(
   nodeId: string,
+  baseVersion: number,
   localMarkdown: string
 ): Promise<string> {
-  const node = await getWorkspaceNode(nodeId);
-  const baseName = node?.name?.replace(/\.md$/i, "") ?? "Document";
-  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-  const copyName = `${baseName} (conflict ${stamp}).md`;
-  return createWorkspaceNode({
-    kind: "document",
-    name: copyName,
-    parentId: node?.parent_id ?? null,
-    markdown: localMarkdown,
-  });
+  const result = await createDocumentConflictCopy(
+    nodeId,
+    baseVersion,
+    localMarkdown
+  );
+  if (result.ok) return result.copyId;
+  if (result.reason === "quota") {
+    throw new Error("Cloud sync blocked: storage quota exceeded.");
+  }
+  throw new Error(`Could not preserve local conflict (${result.reason}).`);
 }
 
 async function catchUpToRemote(
   nodeId: string,
+  preservedMarkdown: string,
   remoteMarkdown: string,
   remoteVersion: number
 ): Promise<void> {
   const updatedAt = new Date().toISOString();
-  await adoptRemoteDoc(nodeId, remoteMarkdown, remoteVersion, updatedAt);
+  const settled = await settleConflictDoc(
+    nodeId,
+    preservedMarkdown,
+    remoteMarkdown,
+    remoteVersion,
+    updatedAt
+  );
   emitFor(nodeId, {
     syncing: false,
-    dirty: false,
+    dirty: settled.dirty,
     syncedAt: updatedAt,
-    localSavedAt: updatedAt,
+    localSavedAt: settled.updatedAt,
     conflictCopyId: null,
     message: null,
     error: null,
   });
+  if (settled.dirty) {
+    setTimeout(() => {
+      void syncDocument(nodeId);
+    }, 0);
+  }
 }
 
 /**
@@ -274,7 +325,12 @@ async function handleSaveConflict(
 
   // Same bytes (or whitespace-normalized): just catch up — no copy.
   if (normalize(attempted.markdown) === normalize(result.remoteMarkdown)) {
-    await catchUpToRemote(nodeId, result.remoteMarkdown, remoteVersion);
+    await catchUpToRemote(
+      nodeId,
+      attempted.markdown,
+      result.remoteMarkdown,
+      remoteVersion
+    );
     return true;
   }
 
@@ -286,20 +342,41 @@ async function handleSaveConflict(
     fresh &&
     normalize(fresh.markdown) === normalize(remote.markdown)
   ) {
-    await catchUpToRemote(nodeId, remote.markdown, Number(remote.version));
+    await catchUpToRemote(
+      nodeId,
+      fresh.markdown,
+      remote.markdown,
+      Number(remote.version)
+    );
     return true;
   }
 
   const localMarkdown = fresh?.markdown ?? attempted.markdown;
-  const copyId = await createConflictCopy(nodeId, localMarkdown);
+  const copyId = await createConflictCopy(
+    nodeId,
+    attempted.baseVersion,
+    localMarkdown
+  );
   const resolvedRemote = remote?.markdown ?? result.remoteMarkdown;
   const resolvedVersion = Number(remote?.version ?? remoteVersion);
-  await catchUpToRemote(nodeId, resolvedRemote, resolvedVersion);
+  await catchUpToRemote(
+    nodeId,
+    localMarkdown,
+    resolvedRemote,
+    resolvedVersion
+  );
   emitFor(nodeId, {
     conflictCopyId: copyId,
     message:
-      "This document changed in the cloud while syncing. Your local edits were saved as a conflict copy.",
+      "This document changed elsewhere. Your local edits are safe—review the conflict to choose which version to keep.",
   });
+  conflictChannel?.postMessage({
+    originId: nodeId,
+    copyId,
+    localMarkdown,
+    remoteMarkdown: resolvedRemote,
+    remoteVersion: resolvedVersion,
+  } satisfies CrossTabConflict);
   return true;
 }
 
@@ -452,7 +529,16 @@ export async function fastForwardDocument(
 export async function syncDocument(nodeId: string): Promise<void> {
   const current = inflight.get(nodeId);
   if (current) return current;
-  const run = syncDocumentOnce(nodeId).finally(() => {
+  const sync = () => syncDocumentOnce(nodeId);
+  let guarded: Promise<void>;
+  if (typeof navigator !== "undefined" && navigator.locks?.request) {
+    guarded = (async () => {
+      await navigator.locks.request(`blogide-sync:${nodeId}`, () => sync());
+    })();
+  } else {
+    guarded = sync();
+  }
+  const run = guarded.finally(() => {
     inflight.delete(nodeId);
   });
   inflight.set(nodeId, run);

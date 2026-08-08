@@ -1,7 +1,10 @@
 import { createClient } from "@/lib/supabase/client";
 import type {
+  ConflictResolution,
+  CreateDocumentConflictCopyResult,
   DefaultWorkspaceIds,
   RemoteDocument,
+  ResolveDocumentConflictResult,
   SaveDocumentResult,
   WorkspaceKind,
   WorkspaceNode,
@@ -54,6 +57,37 @@ export async function saveDocumentRemote(
   });
   if (error) throw error;
   return data as SaveDocumentResult;
+}
+
+export async function createDocumentConflictCopy(
+  originId: string,
+  baseVersion: number,
+  markdown: string
+): Promise<CreateDocumentConflictCopyResult> {
+  const { data, error } = await client().rpc(
+    "create_document_conflict_copy",
+    {
+      p_origin_id: originId,
+      p_base_version: baseVersion,
+      p_markdown: markdown,
+    }
+  );
+  if (error) throw error;
+  return data as CreateDocumentConflictCopyResult;
+}
+
+export async function resolveDocumentConflict(
+  copyId: string,
+  resolution: ConflictResolution,
+  expectedOriginVersion?: number
+): Promise<ResolveDocumentConflictResult> {
+  const { data, error } = await client().rpc("resolve_document_conflict", {
+    p_copy_id: copyId,
+    p_resolution: resolution,
+    p_expected_origin_version: expectedOriginVersion ?? null,
+  });
+  if (error) throw error;
+  return data as ResolveDocumentConflictResult;
 }
 
 export async function createWorkspaceNode(input: {

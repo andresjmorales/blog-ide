@@ -23,6 +23,7 @@ import { splitFrontmatter } from "@/lib/markdown/frontmatter";
 import { compactDiff, unifiedLineDiff } from "@/lib/markdown/diff";
 import {
   isLossy,
+  normalize,
   previewRoundTrip,
   serializeBody,
 } from "@/lib/markdown/pipeline";
@@ -34,6 +35,7 @@ import {
   openDocument,
   saveLocal,
   setSyncFocus,
+  subscribeCrossTabConflict,
   subscribeSyncStatus,
   syncDocument,
 } from "@/lib/sync/engine";
@@ -74,6 +76,10 @@ import {
   downloadMarkdown,
 } from "@/lib/export/document";
 import { openPopOut } from "@/lib/pins/popOutStore";
+import {
+  formatConflictTimestamp,
+  type ConflictPresentation,
+} from "@/lib/workspace/conflicts";
 
 const SAMPLE_DOC = `---
 title: Welcome to BlogIDE
@@ -151,6 +157,8 @@ type Props = {
   documentName?: string | null;
   /** When false, title edits won't rename the file (scratchpad). */
   canRenameDocument?: boolean;
+  conflict?: ConflictPresentation | null;
+  onReviewConflict?: () => void;
   previewMode?: boolean;
   onDeletedFootnotesChange: (deleted: DeletedFootnote[]) => void;
   registerDeletedActions: (actions: {
@@ -176,6 +184,8 @@ export function DocumentWorkspace({
   nodeId,
   documentName = null,
   canRenameDocument = true,
+  conflict = null,
+  onReviewConflict,
   previewMode = false,
   onDeletedFootnotesChange,
   registerDeletedActions,
@@ -472,6 +482,7 @@ export function DocumentWorkspace({
         !persistEnabled ||
         !nodeId ||
         !canRenameDocument ||
+        conflict?.unresolved ||
         !onRenameRef.current ||
         syncingNameRef.current
       ) {
@@ -489,7 +500,13 @@ export function DocumentWorkspace({
         syncingNameRef.current = false;
       }
     },
-    [persistEnabled, nodeId, canRenameDocument, documentName]
+    [
+      persistEnabled,
+      nodeId,
+      canRenameDocument,
+      conflict?.unresolved,
+      documentName,
+    ]
   );
 
   const persistMarkdown = useCallback(
@@ -650,7 +667,14 @@ export function DocumentWorkspace({
   // current title (title-driven rename) so "Document: 1" is not stomped to
   // "Document 1".
   useEffect(() => {
-    if (loading || !documentName || syncingNameRef.current) return;
+    if (
+      loading ||
+      !documentName ||
+      syncingNameRef.current ||
+      conflict?.unresolved
+    ) {
+      return;
+    }
     if (prevDocumentNameRef.current === documentName) return;
     prevDocumentNameRef.current = documentName;
     const fromFile = fileNameToTitle(documentName);
@@ -683,7 +707,7 @@ export function DocumentWorkspace({
       });
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [documentName, loading]);
+  }, [documentName, loading, conflict?.unresolved]);
 
   const setDocumentLanguages = useCallback((languages: string[]) => {
     setDoc((current) => {
@@ -751,6 +775,7 @@ export function DocumentWorkspace({
 
         if (
           canRenameDocument &&
+          !conflict?.unresolved &&
           onRenameRef.current &&
           documentNameRef.current &&
           !fileNameMatchesTitle(documentNameRef.current, cleaned)
@@ -781,6 +806,7 @@ export function DocumentWorkspace({
       persistEnabled,
       nodeId,
       canRenameDocument,
+      conflict?.unresolved,
       onExplorerTitleChange,
       onRequestTreeRefresh,
       setBaseVersion,
@@ -835,53 +861,68 @@ export function DocumentWorkspace({
     });
   }, []);
 
-  const titleField = (
-    <EssayTitleBlock
-      title={essayTitle}
-      subtitle={subtitle}
-      author={author}
-      onTitleCommit={setEssayTitle}
-      onSubtitleCommit={commitSubtitle}
-      onAuthorCommit={commitAuthor}
-      onFocusBody={() => {
-        editorRef.current?.commands.focus("start");
-      }}
-      titleDisabled={!canRenameDocument && Boolean(nodeId) && !previewMode}
-    />
-  );
+  const conflictNotice = conflict ? (
+    <div
+      role={conflict.unresolved ? "status" : undefined}
+      className={`mb-3 flex flex-wrap items-center gap-2 rounded border px-3 py-2 text-xs ${
+        conflict.badge === "Conflict"
+          ? "border-amber-500/50 bg-amber-500/10"
+          : "border-border bg-panel/70"
+      }`}
+      title={`${documentName ?? "Document"} · ${formatConflictTimestamp(
+        conflict.createdAt
+      )}`}
+    >
+      <strong>
+        {conflict.badge === "Conflict" ? "Conflict copy" : "Local copy"}
+      </strong>
+      <span className="text-muted">
+        {formatConflictTimestamp(conflict.createdAt)}
+      </span>
+      {conflict.resolvable && onReviewConflict && (
+        <button
+          type="button"
+          className="ml-auto rounded border border-border bg-background px-2 py-0.5 font-medium hover:border-accent hover:text-accent"
+          onClick={onReviewConflict}
+        >
+          Review
+        </button>
+      )}
+    </div>
+  ) : null;
 
-  // After a conflict resolution, reload the canonical remote into the editor
-  // once per conflict copy (not on every later status emit).
-  const handledConflictRef = useRef<string | null>(null);
-  useEffect(() => {
-    handledConflictRef.current = null;
-  }, [nodeId]);
-  useEffect(() => {
-    if (!persistEnabled || !nodeId) return;
-    return subscribeSyncStatus((status) => {
-      if (!status.conflictCopyId || !status.message) return;
-      if (handledConflictRef.current === status.conflictCopyId) return;
-      handledConflictRef.current = status.conflictCopyId;
-      void openDocument(nodeId).then((opened) => {
-        if (nodeIdRef.current !== nodeId) return;
-        const unpacked = unpackDocument(opened.markdown);
-        setDoc({
-          frontmatter: unpacked.frontmatter,
-          subtitle: unpacked.subtitle,
-          author: unpacked.author,
-          publication: unpacked.publication,
-          body: unpacked.body,
-        });
-        setBaseVersion(opened.baseVersion);
-      });
-    });
-  }, [persistEnabled, nodeId]);
+  const titleField = (
+    <>
+      {conflictNotice}
+      <EssayTitleBlock
+        title={essayTitle}
+        subtitle={subtitle}
+        author={author}
+        onTitleCommit={setEssayTitle}
+        onSubtitleCommit={commitSubtitle}
+        onAuthorCommit={commitAuthor}
+        onFocusBody={() => {
+          editorRef.current?.commands.focus("start");
+        }}
+        titleDisabled={!canRenameDocument && Boolean(nodeId) && !previewMode}
+      />
+    </>
+  );
 
   /** Load fresh markdown into editor state (fast-forward / restore). */
   const applyOpenedMarkdown = useCallback(
     (markdown: string, version: number) => {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      if (syncTimer.current) {
+        clearTimeout(syncTimer.current);
+        syncTimer.current = null;
+      }
       pendingLocalRef.current = null;
       lastPersistedRef.current = markdown;
+      baseVersionRef.current = version;
       const unpacked = unpackDocument(markdown, documentNameRef.current);
       setDoc({
         frontmatter: unpacked.frontmatter,
@@ -905,6 +946,49 @@ export function DocumentWorkspace({
     },
     [setBaseVersion]
   );
+
+  // After a conflict resolution, clear stale debounces and reload the
+  // canonical remote once per conflict copy (not on every later status emit).
+  const handledConflictRef = useRef<string | null>(null);
+  useEffect(() => {
+    handledConflictRef.current = null;
+  }, [nodeId]);
+  useEffect(() => {
+    if (!persistEnabled || !nodeId) return;
+    return subscribeSyncStatus((status) => {
+      if (!status.conflictCopyId || !status.message) return;
+      if (handledConflictRef.current === status.conflictCopyId) return;
+      handledConflictRef.current = status.conflictCopyId;
+      void openDocument(nodeId).then((opened) => {
+        if (nodeIdRef.current !== nodeId) return;
+        applyOpenedMarkdown(opened.markdown, opened.baseVersion);
+      });
+    });
+  }, [persistEnabled, nodeId, applyOpenedMarkdown]);
+
+  // A sibling tab may resolve the same shared IndexedDB draft first. Reload
+  // when our pending text is already preserved; keep genuinely different
+  // typing dirty so it receives its own conflict review.
+  useEffect(() => {
+    if (!persistEnabled || !nodeId) return;
+    return subscribeCrossTabConflict((event) => {
+      if (event.originId !== nodeId || nodeIdRef.current !== nodeId) return;
+      const pending = pendingLocalRef.current;
+      if (
+        pending &&
+        normalize(pending.markdown) !== normalize(event.localMarkdown)
+      ) {
+        void commitPendingLocal().then(() => syncDocument(nodeId));
+        return;
+      }
+      applyOpenedMarkdown(event.remoteMarkdown, event.remoteVersion);
+    });
+  }, [
+    persistEnabled,
+    nodeId,
+    applyOpenedMarkdown,
+    commitPendingLocal,
+  ]);
 
   // On tab wake: if this doc is clean locally but remote advanced (edited on
   // another device while the tab slept), silently fast-forward the editor
@@ -1279,6 +1363,26 @@ export function DocumentWorkspace({
 
   const toolbarActions = (
     <>
+      {conflict &&
+        (conflict.resolvable && onReviewConflict ? (
+          <button
+            type="button"
+            onClick={onReviewConflict}
+            className="blogide-chrome-btn border-amber-500/50 text-amber-700 dark:text-amber-300"
+            title="Compare the cloud and local conflict versions"
+          >
+            Review conflict
+          </button>
+        ) : (
+          <span
+            className="rounded border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300"
+            title={`${documentName ?? "Document"} · ${formatConflictTimestamp(
+              conflict.createdAt
+            )}`}
+          >
+            {conflict.badge === "Conflict" ? "Conflict copy" : "Local copy"}
+          </span>
+        ))}
       {isMarkdownCanonical(mode) && (
         <button
           type="button"

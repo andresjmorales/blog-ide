@@ -32,9 +32,23 @@ side.
 ## Image captions (BlogIDE extension)
 
 Images may carry a caption stored on the TipTap image node and serialized as
-the next non-blank markdown line after the image (Substack-style), not as a
-standard GFM construct. Captions support **bold**, *italic*, and
-[links](https://example.com) only. See `lib/editor/imageCaption.ts`.
+the immediately adjacent line after the image, not as a standard GFM
+construct:
+
+```md
+![](assets/essay/cover.webp)
+Lao Tzu, *founder* of [Taoism](https://example.com)
+```
+
+A blank line means the following text is a normal paragraph, not a caption.
+Captions support **bold**, *italic*, and [links](https://example.com) only;
+image alt text remains accessibility text and is not displayed as the caption.
+Substack paste often inserts a blank line before its caption, so remove that
+line or use BlogIDE’s **Add caption** field. See
+`lib/editor/imageCaption.ts`.
+
+Images are centered in the editor and publication previews. Very tall images
+are limited to 75% of the viewport height while preserving their proportions.
 
 Broken or empty image URLs are hidden in the rich-text view; the markdown
 source still contains the `![…](…)` line so the URL can be fixed.
