@@ -48,23 +48,10 @@ export const FindHighlight = Extension.create({
             if (!tr.docChanged) {
               return value;
             }
-            const mapped: FindMatch[] = value.matches
-              .map((match): FindMatch => {
-                if (match.footnotePos != null) {
-                  return {
-                    from: match.from,
-                    to: match.to,
-                    text: match.text,
-                    footnotePos: tr.mapping.map(match.footnotePos),
-                  };
-                }
-                return {
-                  from: tr.mapping.map(match.from),
-                  to: tr.mapping.map(match.to),
-                  text: match.text,
-                };
-              })
-              .filter((match) => match.from < match.to);
+            // Drop match decorations on any content edit. Mapping ranges would
+            // stretch highlights as the user types inside a hit, and leave
+            // ghost marks on unrelated text after the query no longer matches.
+            // FindReplacePanel re-scans on editor updates and restores hits.
             let scopeRange = value.scopeRange;
             if (scopeRange) {
               scopeRange = {
@@ -76,11 +63,8 @@ export const FindHighlight = Extension.create({
               }
             }
             return {
-              matches: mapped,
-              activeIndex:
-                mapped.length === 0
-                  ? 0
-                  : Math.min(value.activeIndex, mapped.length - 1),
+              matches: [],
+              activeIndex: 0,
               scopeRange,
             };
           },
