@@ -735,6 +735,85 @@ body {
   box-shadow: 0 0 0 2px color-mix(in oklab, #d97706 55%, transparent);
 }
 
+/* Harper writing check (spelling = red, grammar/style = blue). */
+.blogide-harper-lint {
+  background: transparent;
+  border-radius: 0;
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
+}
+.blogide-harper-lint.is-spelling {
+  text-decoration-color: color-mix(in oklab, #dc2626 85%, transparent);
+}
+.blogide-harper-lint.is-grammar {
+  text-decoration-color: color-mix(in oklab, #2563eb 85%, transparent);
+}
+.blogide-harper-lint.is-active {
+  background: color-mix(in oklab, #2563eb 10%, transparent);
+}
+
+.harper-lint-card {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgb(0 0 0 / 16%);
+  max-width: min(18rem, calc(100vw - 1rem));
+  padding: 0.65rem 0.75rem 0.55rem;
+  position: fixed;
+}
+.harper-lint-card-kind {
+  color: var(--muted);
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.2rem;
+  text-transform: uppercase;
+}
+.harper-lint-card-message {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  margin: 0 0 0.45rem;
+}
+.harper-lint-card-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  list-style: none;
+  margin: 0 0 0.45rem;
+  padding: 0;
+}
+.harper-lint-card-suggestions button {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0.28rem 0.45rem;
+  text-align: left;
+  width: 100%;
+}
+.harper-lint-card-suggestions button:hover {
+  border-color: var(--accent);
+}
+.harper-lint-card-actions {
+  display: flex;
+  gap: 0.55rem;
+  justify-content: flex-end;
+}
+.harper-lint-card-actions button {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.72rem;
+  padding: 0.1rem 0;
+}
+.harper-lint-card-actions button:hover {
+  color: var(--foreground);
+}
+
 .blogide-cleanup-layer {
   inset: 0;
   pointer-events: none;

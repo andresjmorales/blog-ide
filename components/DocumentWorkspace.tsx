@@ -1516,7 +1516,7 @@ export function DocumentWorkspace({
           }}
           toolbarExtra={toolbarActions}
           shellDock={shellDock}
-          spellcheckEnabled={spellcheckEnabled}
+          spellcheckEnabled={false}
           spellcheckLang={spellcheckLang}
           documentName={documentName}
         />
@@ -1589,7 +1589,7 @@ export function DocumentWorkspace({
             setSourceText(e.target.value);
             persistMarkdown(e.target.value);
           }}
-          spellCheck={spellcheckEnabled}
+          spellCheck={false}
           lang={spellcheckLang}
           aria-label="Markdown source"
           className="min-h-0 w-full flex-1 resize-none bg-transparent px-6 py-6 font-mono text-sm leading-relaxed outline-none"

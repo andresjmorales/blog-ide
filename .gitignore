@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# Harper WASM (copied from node_modules by scripts/copy-harper-wasm.mjs)
+/public/vendor/harper/*.wasm
+
 # debug
 npm-debug.log*
 yarn-debug.log*

@@ -49,7 +49,10 @@ import { SidenoteRail } from "@/components/SidenoteRail";
 import { DeletedFootnotesPanel } from "@/components/DeletedFootnotesPanel";
 import { LinkEditCard } from "@/components/editor/LinkEditCard";
 import { EssaySpellcheckProvider } from "@/components/EssaySpellcheckContext";
-import { applySpellcheckDom } from "@/lib/editor/applySpellcheckDom";
+import { HarperLintCard } from "@/components/HarperLintCard";
+import { HarperHighlight } from "@/lib/editor/harper/HarperHighlight";
+import { dialectFromLang } from "@/lib/editor/harper/dialect";
+import { applyEditorDomLang } from "@/lib/editor/domAttrs";
 import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 import { transformPastedFootnoteHtml } from "@/lib/import/footnotePaste";
@@ -162,6 +165,7 @@ export function DocumentEditor({
       ? spellcheckLanguages
       : prefs.spellcheckLanguages;
   const lang = primaryLang(effectiveLanguages);
+  const harperDialect = dialectFromLang(lang);
 
   // Avoid re-serializing / setContent loops on every parent render.
   const lastEmittedRef = useRef(markdown);
@@ -184,6 +188,8 @@ export function DocumentEditor({
           // unfocused empty doc showed no placeholder at all.
           showOnlyCurrent: false,
         }),
+        // Editor-only: not part of the shared markdown schema / round-trip set.
+        HarperHighlight,
       ],
       content: parseBody(markdown),
       immediatelyRender: false,
@@ -191,7 +197,8 @@ export function DocumentEditor({
         attributes: {
           class: "editor-prose outline-none min-h-[60vh]",
           "aria-label": "Document editor",
-          spellcheck: spellcheckOn ? "true" : "false",
+          // Browser spellcheck is intentionally off; Harper owns underlines.
+          spellcheck: "false",
           lang,
         },
         transformPastedHTML(html) {
@@ -266,8 +273,10 @@ export function DocumentEditor({
 
   useEffect(() => {
     if (!editor) return;
-    applySpellcheckDom(editor.view.dom as HTMLElement, spellcheckOn, lang);
-  }, [editor, spellcheckOn, lang]);
+    applyEditorDomLang(editor.view.dom as HTMLElement, lang);
+    editor.commands.setHarperDialect(harperDialect);
+    editor.commands.setHarperEnabled(spellcheckOn && harperDialect != null);
+  }, [editor, spellcheckOn, lang, harperDialect]);
 
   // Paste / drop images into the essay (footnotes stay image-free via schema).
   useEffect(() => {
@@ -521,6 +530,7 @@ export function DocumentEditor({
             </div>
             {shellDock}
             <LinkEditCard editor={editor} showPreviews />
+            <HarperLintCard editor={editor} />
             {editor && (
               <CitationInsertDialog
                 editor={editor}

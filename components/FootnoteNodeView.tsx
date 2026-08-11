@@ -51,7 +51,7 @@ import { FootnoteSidenote } from "@/components/FootnoteSidenote";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { useEssaySpellcheck } from "@/components/EssaySpellcheckContext";
 import { claimFloatZ } from "@/lib/pins/pinStore";
-import { applySpellcheckDom } from "@/lib/editor/applySpellcheckDom";
+import { applyEditorDomLang } from "@/lib/editor/domAttrs";
 import {
   getFootnoteFindSession,
   setFootnoteFindSession,
@@ -126,7 +126,7 @@ export function FootnoteNodeView({
   const hasDraggedPosition = cardPositions.has(footnoteId);
   const { prefs } = useEditorPrefs();
   const essaySpell = useEssaySpellcheck();
-  const spellcheckOn = essaySpell.enabled;
+  // Footnote cards stay on browser-off; Harper currently covers the essay body.
   const spellLang = essaySpell.lang;
 
   const number = useEditorState({
@@ -168,7 +168,7 @@ export function FootnoteNodeView({
       attributes: {
         class: "footnote-card-editor outline-none",
         "aria-label": `Footnote ${number} content`,
-        spellcheck: spellcheckOn ? "true" : "false",
+        spellcheck: "false",
         lang: spellLang,
       },
     },
@@ -176,12 +176,8 @@ export function FootnoteNodeView({
 
   useEffect(() => {
     if (!noteEditor) return;
-    applySpellcheckDom(
-      noteEditor.view.dom as HTMLElement,
-      spellcheckOn,
-      spellLang
-    );
-  }, [noteEditor, spellcheckOn, spellLang]);
+    applyEditorDomLang(noteEditor.view.dom as HTMLElement, spellLang);
+  }, [noteEditor, spellLang]);
 
   // Highlight inside the note while this footnote is the active find target.
   useEffect(() => {
