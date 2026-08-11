@@ -2,7 +2,8 @@
 
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import type { MarkdownTypingShortcuts } from "@/lib/settings";
-import { SPELLCHECK_LANGUAGE_OPTIONS } from "@/lib/markdown/spellcheckFrontmatter";
+import { HARPER_LANGUAGE_OPTIONS } from "@/lib/editor/harper/dialect";
+import { toggleSpellcheckLanguage } from "@/lib/markdown/spellcheckFrontmatter";
 
 type Props = {
   open: boolean;
@@ -13,15 +14,23 @@ type Props = {
 export function EditorSettingsPanel({ open, onClose }: Props) {
   const { prefs, updatePrefs } = useEditorPrefs();
   const defaultLangs = prefs.spellcheckLanguages;
+  const primary = defaultLangs[0] ?? "en-US";
 
   if (!open) return null;
 
   function toggleDefaultLang(code: string) {
-    const next = defaultLangs.includes(code)
-      ? defaultLangs.filter((item) => item !== code)
-      : [...defaultLangs, code];
+    const next = toggleSpellcheckLanguage(defaultLangs, ["en-US"], code);
     updatePrefs({
       spellcheckLanguages: next.length > 0 ? next : ["en-US"],
+    });
+  }
+
+  function setPrimary(code: string) {
+    updatePrefs({
+      spellcheckLanguages: [
+        code,
+        ...defaultLangs.filter((item) => item !== code),
+      ],
     });
   }
 
@@ -102,7 +111,7 @@ export function EditorSettingsPanel({ open, onClose }: Props) {
             />
           </label>
           <label className="settings-row">
-            <span>Spell check</span>
+            <span>Writing check</span>
             <input
               type="checkbox"
               checked={prefs.spellcheckEnabled}
@@ -128,21 +137,44 @@ export function EditorSettingsPanel({ open, onClose }: Props) {
           {prefs.spellcheckEnabled && (
             <>
               <p className="settings-help">
-                Default languages for new essays. The first selected language is
-                primary for the browser dictionary. Override on/off and
-                languages per essay under Essay settings.
+                On-device English spelling and grammar via Harper (not the
+                browser dictionary). First selected dialect is primary. Override
+                per essay under Essay settings. Other languages may come later
+                via a separate dictionary checker.
               </p>
-              <div className="spellcheck-langs">
-                {SPELLCHECK_LANGUAGE_OPTIONS.map((option) => (
-                  <label key={option.code}>
-                    <input
-                      type="checkbox"
-                      checked={defaultLangs.includes(option.code)}
-                      onChange={() => toggleDefaultLang(option.code)}
-                    />
-                    {option.label}
-                  </label>
-                ))}
+              <div className="spellcheck-langs is-detailed">
+                {HARPER_LANGUAGE_OPTIONS.map((option) => {
+                  const checked = defaultLangs.includes(option.code);
+                  const isPrimary = checked && option.code === primary;
+                  return (
+                    <label key={option.code}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleDefaultLang(option.code)}
+                      />
+                      <span>{option.label}</span>
+                      {isPrimary && (
+                        <span className="spellcheck-primary-badge">
+                          primary
+                        </span>
+                      )}
+                      {checked && !isPrimary && (
+                        <button
+                          type="button"
+                          className="spellcheck-make-primary"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setPrimary(option.code);
+                          }}
+                        >
+                          Make primary
+                        </button>
+                      )}
+                    </label>
+                  );
+                })}
               </div>
             </>
           )}

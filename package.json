@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "postinstall": "node scripts/copy-harper-wasm.mjs",
+    "predev": "node scripts/copy-harper-wasm.mjs",
+    "prebuild": "node scripts/copy-harper-wasm.mjs",
     "dev": "next dev",
     "dev:fresh": "kill-port 3000 3001 3002 && next dev",
     "build": "next build",
@@ -22,6 +25,7 @@
     "@tiptap/pm": "^3.29.2",
     "@tiptap/react": "^3.29.2",
     "@tiptap/starter-kit": "^3.29.2",
+    "harper.js": "^2.7.0",
     "idb": "^8.0.3",
     "katex": "^0.18.1",
     "next": "16.3.0",

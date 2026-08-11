@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import {
-  SPELLCHECK_LANGUAGE_OPTIONS,
+  HARPER_LANGUAGE_OPTIONS,
+  isHarperSupportedLang,
+} from "@/lib/editor/harper/dialect";
+import {
   promoteSpellcheckLanguage,
   toggleSpellcheckLanguage,
   type SpellcheckOverride,
@@ -177,7 +180,7 @@ function EssaySettingsDialog({
         </section>
 
         <section className="settings-section">
-          <h3>Spell check</h3>
+          <h3>Writing check</h3>
           <label className="settings-row">
             <span>For this essay</span>
             <select
@@ -200,7 +203,7 @@ function EssaySettingsDialog({
 
           {!effectiveEnabled ? (
             <p className="settings-help">
-              Spell check is off for this essay
+              Writing check is off for this essay
               {spellcheckOverride === null && !prefs.spellcheckEnabled
                 ? " (account default). Turn it on here or under Editor settings."
                 : "."}
@@ -208,15 +211,14 @@ function EssaySettingsDialog({
           ) : (
             <>
               <p className="settings-help">
-                Languages for this essay (stored in frontmatter). The primary
-                language sets the browser dictionary. Selecting a language makes
-                it primary.
+                English dialect for Harper (on-device spelling + grammar).
+                Selecting a dialect makes it primary.
                 {inheritingLangs
                   ? " Showing account defaults until you change them."
                   : ""}
               </p>
               <div className="spellcheck-langs is-detailed">
-                {SPELLCHECK_LANGUAGE_OPTIONS.map((option) => {
+                {HARPER_LANGUAGE_OPTIONS.map((option) => {
                   const checked = essayLangs.includes(option.code);
                   const isPrimary = checked && option.code === primary;
                   return (
@@ -249,13 +251,17 @@ function EssaySettingsDialog({
                   );
                 })}
               </div>
+              {!isHarperSupportedLang(primary) && (
+                <p className="settings-help">
+                  Harper is English-only for now, so writing check stays idle
+                  until an English dialect is primary. A dictionary-based
+                  checker for other languages may come later.
+                </p>
+              )}
               <p className="settings-help">
-                Uses the browser&apos;s built-in spell checker. Install the
-                language pack in your OS or browser if suggestions look wrong
-                (Chrome often follows its own language settings more than the
-                page language). Grammar suggestions (blue underlines) are not
-                built in yet; open-source options include Harper and
-                LanguageTool if we add that later.
+                Red underlines are spelling/typos; blue are grammar and style.
+                Click an underline for suggestions. Runs locally in your
+                browser (WASM).
               </p>
             </>
           )}
