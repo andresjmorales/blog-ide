@@ -739,7 +739,6 @@ body {
 .blogide-harper-lint {
   background: transparent;
   border-radius: 0;
-  cursor: pointer;
   text-decoration-line: underline;
   text-decoration-style: wavy;
   text-decoration-thickness: 1.5px;
