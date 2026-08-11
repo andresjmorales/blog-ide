@@ -143,6 +143,8 @@ export function DocumentEditor({
     else setOutlineOpenLocal(value);
   };
   const [findOpen, setFindOpen] = useState(false);
+  /** Bumped on every Ctrl+F / Find click so an already-open panel refocuses. */
+  const [findFocusNonce, setFindFocusNonce] = useState(0);
   const [findStickyRange, setFindStickyRange] = useState<DocRange | null>(null);
   const [citationOpen, setCitationOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -206,16 +208,20 @@ export function DocumentEditor({
   );
 
   function openFind() {
-    if (!editor) {
-      setFindOpen(true);
-      return;
+    if (editor) {
+      const { from, to, empty } = editor.state.selection;
+      // Always refresh sticky from the live selection (same as a fresh Ctrl+F),
+      // even when the find bar is already open.
+      setFindStickyRange(empty ? null : { from, to });
     }
-    const { from, to, empty } = editor.state.selection;
-    // Always refresh sticky from the live selection (same as a fresh Ctrl+F),
-    // even when the find bar is already open.
-    setFindStickyRange(empty ? null : { from, to });
     setFindOpen(true);
+    setFindFocusNonce((n) => n + 1);
   }
+
+  const openFindRef = useRef(openFind);
+  useEffect(() => {
+    openFindRef.current = openFind;
+  });
 
   // Flush the deferred serialize on unmount so a fast doc switch or tab
   // close can't drop the last ~160ms of typing.
@@ -328,22 +334,46 @@ export function DocumentEditor({
 
   useEffect(() => {
     if (!editor) return;
-    const current = editor;
+    const shell =
+      editor.view.dom.closest(".flex.flex-col.h-full") ?? editor.view.dom;
     function onKeyDown(event: KeyboardEvent) {
       const mod = event.metaKey || event.ctrlKey;
-      if (!mod) return;
-      if (event.key !== "f" && event.key !== "F" && event.key !== "h" && event.key !== "H") {
+      if (!mod || event.altKey) return;
+      if (
+        event.key !== "f" &&
+        event.key !== "F" &&
+        event.key !== "h" &&
+        event.key !== "H"
+      ) {
         return;
       }
+      const target = event.target;
+      // Allow Find from the essay, find bar, or loose focus (after Escape).
+      // Do not steal Ctrl+F from unrelated chrome inputs (AI, explorer, etc.).
+      if (target instanceof Node) {
+        const inShell = shell.contains(target);
+        const inFind =
+          target instanceof Element &&
+          Boolean(target.closest(".blogide-find-replace"));
+        const looseFocus =
+          target === document.body ||
+          target === document.documentElement ||
+          !(target instanceof HTMLElement) ||
+          (!target.closest(
+            "input, textarea, select, [contenteditable='true']"
+          ) &&
+            !target.isContentEditable);
+        if (!inShell && !inFind && !looseFocus) {
+          return;
+        }
+      }
       event.preventDefault();
-      const { from, to, empty } = current.state.selection;
-      setFindStickyRange(empty ? null : { from, to });
-      setFindOpen(true);
+      openFindRef.current();
     }
-    // Capture on the editor root so we win over the browser find UI.
-    const root = current.view.dom.closest(".flex.flex-col.h-full") ?? document;
-    root.addEventListener("keydown", onKeyDown as EventListener);
-    return () => root.removeEventListener("keydown", onKeyDown as EventListener);
+    // Capture on document so Ctrl+F still works after Escape unmounts the
+    // find input and leaves focus outside the editor shell.
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
   }, [editor]);
 
   // Global ? cheatsheet when not typing in an input / the prose.
@@ -429,7 +459,14 @@ export function DocumentEditor({
           }
           editor={editor}
           initialStickyRange={findStickyRange}
-          onClose={() => setFindOpen(false)}
+          focusNonce={findFocusNonce}
+          onClose={() => {
+            setFindOpen(false);
+            // Return focus so the next Ctrl+F lands in a known place.
+            queueMicrotask(() => {
+              if (!editor.isDestroyed) editor.commands.focus();
+            });
+          }}
         />
       )}
       <div className="flex min-h-0 flex-1">

@@ -28,6 +28,8 @@ type Props = {
   onClose: () => void;
   /** Selection captured when Find was opened (survives focus loss). */
   initialStickyRange: DocRange | null;
+  /** Incremented on each Ctrl+F / Find click to refocus the find field. */
+  focusNonce?: number;
 };
 
 type ScanResult = {
@@ -110,6 +112,7 @@ export function FindReplacePanel({
   editor,
   onClose,
   initialStickyRange,
+  focusNonce = 0,
 }: Props) {
   const [query, setQuery] = useState(() =>
     seedQueryFromSticky(editor, initialStickyRange)
@@ -130,6 +133,35 @@ export function FindReplacePanel({
   const replaceInputRef = useRef<HTMLInputElement | null>(null);
   const activeFieldRef = useRef<"find" | "replace">("find");
   const seededRef = useRef(query.length > 0);
+  /** Skip one editor update after our own replace/highlight transactions. */
+  const ignoreNextUpdateRef = useRef(false);
+  const scanArgsRef = useRef({
+    query,
+    regex,
+    caseSensitive,
+    scope,
+    stickyRange,
+    index,
+  });
+  scanArgsRef.current = {
+    query,
+    regex,
+    caseSensitive,
+    scope,
+    stickyRange,
+    index,
+  };
+
+  function focusFindField(select = true) {
+    const field =
+      activeFieldRef.current === "replace"
+        ? replaceInputRef.current
+        : findInputRef.current;
+    field?.focus();
+    if (select && field === findInputRef.current) {
+      field?.select();
+    }
+  }
 
   /**
    * Like Ctrl+F: if the essay has a non-empty selection when Find is focused,
@@ -176,6 +208,8 @@ export function FindReplacePanel({
       preferIndex?: number;
       /** Reset to the first match (default for new queries). */
       resetIndex?: boolean;
+      /** Refocus the active find/replace field (default true). */
+      focus?: boolean;
     }
   ) {
     const sticky = nextScope === "selection" ? nextSticky : null;
@@ -203,6 +237,7 @@ export function FindReplacePanel({
     setMatches(result.matches);
     setError(result.error);
     setIndex(nextIndex);
+    ignoreNextUpdateRef.current = true;
     setFindHighlights(editor, result.matches, nextIndex, sticky);
     syncFootnoteFindSession(editor, result.matches, nextIndex, {
       query: nextQuery,
@@ -212,16 +247,15 @@ export function FindReplacePanel({
     if (options?.scroll && result.matches[nextIndex]) {
       scrollMatchIntoView(editor, result.matches[nextIndex]);
     }
-    const field =
-      activeFieldRef.current === "replace"
-        ? replaceInputRef.current
-        : findInputRef.current;
-    field?.focus();
+    if (options?.focus !== false) {
+      focusFindField(false);
+    }
   }
 
   useEffect(() => {
     const sticky = initialStickyRange;
     if (sticky) {
+      ignoreNextUpdateRef.current = true;
       setFindHighlights(editor, [], 0, sticky);
     }
     if (seededRef.current) {
@@ -232,11 +266,10 @@ export function FindReplacePanel({
         false,
         sticky ? "selection" : "document",
         sticky,
-        { scroll: true, resetIndex: true }
+        { scroll: true, resetIndex: true, focus: false }
       );
     }
-    findInputRef.current?.focus();
-    findInputRef.current?.select();
+    focusFindField(true);
     return () => {
       clearFindHighlights(editor);
       setFootnoteFindSession(null);
@@ -245,6 +278,32 @@ export function FindReplacePanel({
     // Mount-only bootstrap for seeded selection → query.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, initialStickyRange]);
+
+  // Ctrl+F while Find is already open (same sticky key → no remount):
+  // refocus the field and scroll to the first match. A new selection changes
+  // the panel key and remounts, so sticky adoption happens in openFind/mount.
+  const lastFocusNonceRef = useRef(focusNonce);
+  useEffect(() => {
+    if (lastFocusNonceRef.current === focusNonce) {
+      return;
+    }
+    lastFocusNonceRef.current = focusNonce;
+    focusFindField(true);
+    const args = scanArgsRef.current;
+    if (!args.query) return;
+    // Defer so we do not setState synchronously inside this effect body.
+    queueMicrotask(() => {
+      applyScan(
+        args.query,
+        args.regex,
+        args.caseSensitive,
+        args.scope,
+        args.stickyRange,
+        { scroll: true, resetIndex: true, focus: false }
+      );
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusNonce]);
 
   useEffect(() => {
     setTextInsertTarget((payload) => {
@@ -259,6 +318,47 @@ export function FindReplacePanel({
     });
     return () => setTextInsertTarget(null);
   }, []);
+
+  // Re-scan when the essay changes so highlights track the live query
+  // instead of mapped (often wrong) ranges.
+  useEffect(() => {
+    function onEditorUpdate() {
+      if (ignoreNextUpdateRef.current) {
+        ignoreNextUpdateRef.current = false;
+        return;
+      }
+      const args = scanArgsRef.current;
+      if (!args.query) {
+        ignoreNextUpdateRef.current = true;
+        setFindHighlights(
+          editor,
+          [],
+          0,
+          args.scope === "selection" ? args.stickyRange : null
+        );
+        setMatches([]);
+        setIndex(0);
+        return;
+      }
+      applyScan(
+        args.query,
+        args.regex,
+        args.caseSensitive,
+        args.scope,
+        args.stickyRange,
+        {
+          scroll: false,
+          preferIndex: args.index,
+          focus: false,
+        }
+      );
+    }
+    editor.on("update", onEditorUpdate);
+    return () => {
+      editor.off("update", onEditorUpdate);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -294,6 +394,7 @@ export function FindReplacePanel({
   function doReplace() {
     if (matches.length === 0) return;
     const match = matches[index];
+    ignoreNextUpdateRef.current = true;
     const delta = replaceMatch(editor, match, {
       query,
       replacement,
@@ -319,6 +420,7 @@ export function FindReplacePanel({
   }
 
   function doReplaceAll() {
+    ignoreNextUpdateRef.current = true;
     const result = replaceAllInEditor(
       editor,
       { query, replacement, regex, caseSensitive },
@@ -358,10 +460,9 @@ export function FindReplacePanel({
           onChange={(event) => {
             const next = event.target.value;
             setQuery(next);
-            // Update highlights while typing, but do not scroll on every key —
-            // that stacks smooth/instant jumps and feels broken.
+            // Instant scroll to the first hit as the query changes (Chrome-like).
             applyScan(next, regex, caseSensitive, scope, stickyRange, {
-              scroll: false,
+              scroll: true,
               resetIndex: true,
             });
           }}
