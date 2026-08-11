@@ -44,7 +44,12 @@ import { VersionHistoryPanel } from "@/components/VersionHistoryPanel";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   parseSpellcheckLangs,
+  parseSpellcheckOverride,
+  primaryLang,
+  resolveSpellcheckEnabled,
   writeSpellcheckLangs,
+  writeSpellcheckOverride,
+  type SpellcheckOverride,
 } from "@/lib/markdown/spellcheckFrontmatter";
 import {
   fileNameMatchesTitle,
@@ -249,6 +254,16 @@ export function DocumentWorkspace({
   const { prefs, updatePrefs } = useEditorPrefs();
   const persistEnabled = isSupabaseConfigured() && !previewMode && !!nodeId;
   const documentLanguages = parseSpellcheckLangs(frontmatter);
+  const spellcheckOverride = parseSpellcheckOverride(frontmatter);
+  const spellcheckEnabled = resolveSpellcheckEnabled(
+    spellcheckOverride,
+    prefs.spellcheckEnabled
+  );
+  const spellcheckLanguages =
+    documentLanguages.length > 0
+      ? documentLanguages
+      : prefs.spellcheckLanguages;
+  const spellcheckLang = primaryLang(spellcheckLanguages);
   const essayTitle =
     parseTitle(frontmatter) ??
     (documentName ? fileNameToTitle(documentName) : "Untitled");
@@ -714,6 +729,32 @@ export function DocumentWorkspace({
       const nextFrontmatter = writeSpellcheckLangs(
         current.frontmatter,
         languages
+      );
+      const next = {
+        frontmatter: nextFrontmatter,
+        subtitle: current.subtitle,
+        author: current.author,
+        publication: current.publication,
+        body: current.body,
+      };
+      persistMarkdownRef.current(
+        packDocument(
+          next.frontmatter,
+          next.subtitle,
+          next.author,
+          next.publication,
+          next.body
+        )
+      );
+      return next;
+    });
+  }, []);
+
+  const setSpellcheckOverride = useCallback((override: SpellcheckOverride) => {
+    setDoc((current) => {
+      const nextFrontmatter = writeSpellcheckOverride(
+        current.frontmatter,
+        override
       );
       const next = {
         frontmatter: nextFrontmatter,
@@ -1443,6 +1484,8 @@ export function DocumentWorkspace({
         onTitleChange={setEssayTitle}
         documentLanguages={documentLanguages}
         onDocumentLanguagesChange={setDocumentLanguages}
+        spellcheckOverride={spellcheckOverride}
+        onSpellcheckOverrideChange={setSpellcheckOverride}
         canEditTitle={canRenameDocument}
       />
       <VersionHistoryPanel
@@ -1473,10 +1516,8 @@ export function DocumentWorkspace({
           }}
           toolbarExtra={toolbarActions}
           shellDock={shellDock}
-          spellcheckEnabled={prefs.spellcheckEnabled}
-          spellcheckLang={
-            (documentLanguages[0] ?? prefs.spellcheckLanguages[0]) || "en"
-          }
+          spellcheckEnabled={spellcheckEnabled}
+          spellcheckLang={spellcheckLang}
           documentName={documentName}
         />
         {markdownChrome}
@@ -1548,10 +1589,8 @@ export function DocumentWorkspace({
             setSourceText(e.target.value);
             persistMarkdown(e.target.value);
           }}
-          spellCheck={prefs.spellcheckEnabled}
-          lang={
-            (documentLanguages[0] ?? prefs.spellcheckLanguages[0]) || "en"
-          }
+          spellCheck={spellcheckEnabled}
+          lang={spellcheckLang}
           aria-label="Markdown source"
           className="min-h-0 w-full flex-1 resize-none bg-transparent px-6 py-6 font-mono text-sm leading-relaxed outline-none"
         />
@@ -1592,11 +1631,8 @@ export function DocumentWorkspace({
         flushMarkdownRef={flushMarkdownRef}
         titleSlot={titleField}
         shellDock={shellDock}
-        spellcheckLanguages={
-          documentLanguages.length > 0
-            ? documentLanguages
-            : prefs.spellcheckLanguages
-        }
+        spellcheckEnabled={spellcheckEnabled}
+        spellcheckLanguages={spellcheckLanguages}
         toolbarExtra={toolbarActions}
         cleanupOpen={cleanupOpen}
         onOpenCleanup={() => openCleanup("import")}
@@ -1610,6 +1646,8 @@ export function DocumentWorkspace({
         onTitleChange={setEssayTitle}
         documentLanguages={documentLanguages}
         onDocumentLanguagesChange={setDocumentLanguages}
+        spellcheckOverride={spellcheckOverride}
+        onSpellcheckOverrideChange={setSpellcheckOverride}
         canEditTitle={canRenameDocument}
       />
       <VersionHistoryPanel

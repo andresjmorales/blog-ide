@@ -269,6 +269,58 @@ body {
   line-height: 1.4;
   padding: 0.4rem 0.45rem;
 }
+.doc-outline-collapsed-words {
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  margin: 0.55rem 0 0;
+  text-align: center;
+  writing-mode: vertical-rl;
+}
+.doc-stats {
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.55rem 0.55rem 0.7rem;
+}
+.doc-stats-primary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.doc-stats-words {
+  color: var(--foreground);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+.doc-stats-read {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+.doc-stats-grid {
+  display: grid;
+  gap: 0.28rem 0.5rem;
+  grid-template-columns: 1fr 1fr;
+  margin: 0;
+}
+.doc-stats-grid div {
+  min-width: 0;
+}
+.doc-stats-grid dt {
+  color: var(--muted);
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.doc-stats-grid dd {
+  color: var(--foreground);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  margin: 0.05rem 0 0;
+}
 @media (min-width: 768px) {
   .doc-outline {
     display: flex;
@@ -1938,6 +1990,24 @@ html.app-shell-lock body {
   color: #fff;
 }
 
+.spellcheck-primary-badge {
+  color: var(--muted);
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  margin-left: auto;
+  text-transform: uppercase;
+}
+.spellcheck-make-primary {
+  background: transparent;
+  border: 0;
+  color: var(--accent, var(--foreground));
+  cursor: pointer;
+  font-size: 0.65rem;
+  margin-left: auto;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .spellcheck-langs {
   display: flex;
   flex-wrap: wrap;
@@ -1957,6 +2027,14 @@ html.app-shell-lock body {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-color: var(--accent);
   color: var(--accent);
+}
+.spellcheck-langs.is-detailed {
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+.spellcheck-langs.is-detailed label {
+  border-radius: 6px;
+  width: 100%;
 }
 
 .lossy-diff-add {

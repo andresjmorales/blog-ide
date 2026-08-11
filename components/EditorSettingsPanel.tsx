@@ -128,8 +128,9 @@ export function EditorSettingsPanel({ open, onClose }: Props) {
           {prefs.spellcheckEnabled && (
             <>
               <p className="settings-help">
-                Default languages for new essays. Override languages for the
-                open essay under Essay settings in the toolbar.
+                Default languages for new essays. The first selected language is
+                primary for the browser dictionary. Override on/off and
+                languages per essay under Essay settings.
               </p>
               <div className="spellcheck-langs">
                 {SPELLCHECK_LANGUAGE_OPTIONS.map((option) => (
