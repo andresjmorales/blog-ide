@@ -2,7 +2,7 @@
 
 import type { Dialect, Linter } from "harper.js";
 
-const WASM_URL = "/vendor/harper/harper_wasm_bg.wasm";
+const WASM_PATH = "/vendor/harper/harper_wasm_bg.wasm";
 
 type Shared = {
   linter: Linter;
@@ -11,6 +11,12 @@ type Shared = {
 };
 
 let shared: Shared | null = null;
+
+function harperWasmUrl(): string {
+  // WorkerLinter boots from a blob: URL, so a root-relative path would resolve
+  // against the blob origin and 404. Always pass an absolute http(s) URL.
+  return new URL(WASM_PATH, window.location.origin).href;
+}
 
 /**
  * Shared WorkerLinter for the app session. Lazy-loads harper.js + WASM only
@@ -34,7 +40,7 @@ export async function getHarperLinter(dialect: Dialect): Promise<Linter> {
     const { WorkerLinter, createBinaryModuleFromUrl } = await import(
       "harper.js"
     );
-    const binary = createBinaryModuleFromUrl(WASM_URL);
+    const binary = createBinaryModuleFromUrl(harperWasmUrl());
     const linter = new WorkerLinter({ binary, dialect });
     await linter.setup();
     return linter;
