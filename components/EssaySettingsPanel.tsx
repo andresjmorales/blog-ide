@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
-import { SPELLCHECK_LANGUAGE_OPTIONS } from "@/lib/markdown/spellcheckFrontmatter";
+import {
+  SPELLCHECK_LANGUAGE_OPTIONS,
+  promoteSpellcheckLanguage,
+  toggleSpellcheckLanguage,
+  type SpellcheckOverride,
+} from "@/lib/markdown/spellcheckFrontmatter";
 
 type Props = {
   open: boolean;
@@ -11,6 +16,8 @@ type Props = {
   onTitleChange: (title: string) => void;
   documentLanguages: string[];
   onDocumentLanguagesChange: (languages: string[]) => void;
+  spellcheckOverride: SpellcheckOverride;
+  onSpellcheckOverrideChange: (override: SpellcheckOverride) => void;
   canEditTitle?: boolean;
 };
 
@@ -21,6 +28,8 @@ export function EssaySettingsPanel({
   onTitleChange,
   documentLanguages,
   onDocumentLanguagesChange,
+  spellcheckOverride,
+  onSpellcheckOverrideChange,
   canEditTitle = true,
 }: Props) {
   useEffect(() => {
@@ -43,6 +52,8 @@ export function EssaySettingsPanel({
       onTitleChange={onTitleChange}
       documentLanguages={documentLanguages}
       onDocumentLanguagesChange={onDocumentLanguagesChange}
+      spellcheckOverride={spellcheckOverride}
+      onSpellcheckOverrideChange={onSpellcheckOverrideChange}
       canEditTitle={canEditTitle}
     />
   );
@@ -54,6 +65,8 @@ function EssaySettingsDialog({
   onTitleChange,
   documentLanguages,
   onDocumentLanguagesChange,
+  spellcheckOverride,
+  onSpellcheckOverrideChange,
   canEditTitle,
 }: {
   title: string;
@@ -61,6 +74,8 @@ function EssaySettingsDialog({
   onTitleChange: (title: string) => void;
   documentLanguages: string[];
   onDocumentLanguagesChange: (languages: string[]) => void;
+  spellcheckOverride: SpellcheckOverride;
+  onSpellcheckOverrideChange: (override: SpellcheckOverride) => void;
   canEditTitle: boolean;
 }) {
   const { prefs } = useEditorPrefs();
@@ -69,14 +84,39 @@ function EssaySettingsDialog({
   const defaultLangs = prefs.spellcheckLanguages;
   const essayLangs =
     documentLanguages.length > 0 ? documentLanguages : defaultLangs;
+  const inheritingLangs = documentLanguages.length === 0;
+  const primary = essayLangs[0] ?? "en-US";
+
+  const effectiveEnabled =
+    spellcheckOverride === "on"
+      ? true
+      : spellcheckOverride === "off"
+        ? false
+        : prefs.spellcheckEnabled;
 
   function toggleDocumentLang(code: string) {
-    const base =
-      documentLanguages.length > 0 ? documentLanguages : defaultLangs;
-    const next = base.includes(code)
-      ? base.filter((item) => item !== code)
-      : [...base, code];
-    onDocumentLanguagesChange(next.length > 0 ? next : [...defaultLangs]);
+    const next = toggleSpellcheckLanguage(
+      documentLanguages,
+      defaultLangs,
+      code
+    );
+    onDocumentLanguagesChange(next);
+  }
+
+  function setPrimaryLang(code: string) {
+    if (documentLanguages.length === 0) {
+      // Materialize defaults with the chosen language first.
+      onDocumentLanguagesChange(
+        promoteSpellcheckLanguage(
+          [code, ...defaultLangs.filter((item) => item !== code)],
+          code
+        )
+      );
+      return;
+    }
+    onDocumentLanguagesChange(
+      promoteSpellcheckLanguage(documentLanguages, code)
+    );
   }
 
   function commitTitle() {
@@ -138,28 +178,85 @@ function EssaySettingsDialog({
 
         <section className="settings-section">
           <h3>Spell check</h3>
-          {!prefs.spellcheckEnabled ? (
+          <label className="settings-row">
+            <span>For this essay</span>
+            <select
+              value={spellcheckOverride ?? "inherit"}
+              onChange={(event) => {
+                const value = event.target.value;
+                onSpellcheckOverrideChange(
+                  value === "on" ? "on" : value === "off" ? "off" : null
+                );
+              }}
+            >
+              <option value="inherit">
+                Inherit account default (
+                {prefs.spellcheckEnabled ? "on" : "off"})
+              </option>
+              <option value="on">On</option>
+              <option value="off">Off</option>
+            </select>
+          </label>
+
+          {!effectiveEnabled ? (
             <p className="settings-help">
-              Spell check is off globally. Turn it on under Editor settings.
+              Spell check is off for this essay
+              {spellcheckOverride === null && !prefs.spellcheckEnabled
+                ? " (account default). Turn it on here or under Editor settings."
+                : "."}
             </p>
           ) : (
             <>
               <p className="settings-help">
-                Languages for this essay (stored in frontmatter). Defaults from
-                Account settings apply when none are set.
+                Languages for this essay (stored in frontmatter). The primary
+                language sets the browser dictionary. Selecting a language makes
+                it primary.
+                {inheritingLangs
+                  ? " Showing account defaults until you change them."
+                  : ""}
               </p>
-              <div className="spellcheck-langs">
-                {SPELLCHECK_LANGUAGE_OPTIONS.map((option) => (
-                  <label key={option.code}>
-                    <input
-                      type="checkbox"
-                      checked={essayLangs.includes(option.code)}
-                      onChange={() => toggleDocumentLang(option.code)}
-                    />
-                    {option.label}
-                  </label>
-                ))}
+              <div className="spellcheck-langs is-detailed">
+                {SPELLCHECK_LANGUAGE_OPTIONS.map((option) => {
+                  const checked = essayLangs.includes(option.code);
+                  const isPrimary = checked && option.code === primary;
+                  return (
+                    <label key={option.code}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleDocumentLang(option.code)}
+                      />
+                      <span>{option.label}</span>
+                      {isPrimary && (
+                        <span className="spellcheck-primary-badge">
+                          primary
+                        </span>
+                      )}
+                      {checked && !isPrimary && (
+                        <button
+                          type="button"
+                          className="spellcheck-make-primary"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setPrimaryLang(option.code);
+                          }}
+                        >
+                          Make primary
+                        </button>
+                      )}
+                    </label>
+                  );
+                })}
               </div>
+              <p className="settings-help">
+                Uses the browser&apos;s built-in spell checker. Install the
+                language pack in your OS or browser if suggestions look wrong
+                (Chrome often follows its own language settings more than the
+                page language). Grammar suggestions (blue underlines) are not
+                built in yet; open-source options include Harper and
+                LanguageTool if we add that later.
+              </p>
             </>
           )}
         </section>

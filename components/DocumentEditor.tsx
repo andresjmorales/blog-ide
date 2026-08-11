@@ -48,6 +48,8 @@ import { useAppDialog } from "@/components/AppDialog";
 import { SidenoteRail } from "@/components/SidenoteRail";
 import { DeletedFootnotesPanel } from "@/components/DeletedFootnotesPanel";
 import { LinkEditCard } from "@/components/editor/LinkEditCard";
+import { EssaySpellcheckProvider } from "@/components/EssaySpellcheckContext";
+import { applySpellcheckDom } from "@/lib/editor/applySpellcheckDom";
 import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 import { transformPastedFootnoteHtml } from "@/lib/import/footnotePaste";
@@ -69,6 +71,8 @@ type Props = {
   toolbarExtra?: React.ReactNode;
   /** Substack-style title field above the body (not a Heading 1). */
   titleSlot?: React.ReactNode;
+  /** Effective spellcheck on/off for this essay (global ⊕ override). */
+  spellcheckEnabled?: boolean;
   /** Effective spellcheck language tags for this essay. */
   spellcheckLanguages?: string[];
   /**
@@ -123,6 +127,7 @@ export function DocumentEditor({
   editorRef,
   flushMarkdownRef,
   toolbarExtra,
+  spellcheckEnabled,
   spellcheckLanguages = [],
   shellDock,
   cleanupOpen = false,
@@ -150,13 +155,13 @@ export function DocumentEditor({
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   // Anchored layout is hidden for now — always use the sidenote rail.
   const railEnabled = prefs.sidenotes;
-  const spellcheckOn = prefs.spellcheckEnabled;
+  const spellcheckOn = spellcheckEnabled ?? prefs.spellcheckEnabled;
   const markdownTypingShortcuts = prefs.markdownTypingShortcuts;
-  const lang = primaryLang(
+  const effectiveLanguages =
     spellcheckLanguages.length > 0
       ? spellcheckLanguages
-      : prefs.spellcheckLanguages
-  );
+      : prefs.spellcheckLanguages;
+  const lang = primaryLang(effectiveLanguages);
 
   // Avoid re-serializing / setContent loops on every parent render.
   const lastEmittedRef = useRef(markdown);
@@ -261,9 +266,7 @@ export function DocumentEditor({
 
   useEffect(() => {
     if (!editor) return;
-    const dom = editor.view.dom as HTMLElement;
-    dom.setAttribute("spellcheck", spellcheckOn ? "true" : "false");
-    dom.setAttribute("lang", lang);
+    applySpellcheckDom(editor.view.dom as HTMLElement, spellcheckOn, lang);
   }, [editor, spellcheckOn, lang]);
 
   // Paste / drop images into the essay (footnotes stay image-free via schema).
@@ -439,118 +442,126 @@ export function DocumentEditor({
   }, [editor, markdown]);
 
   return (
-    <div className="flex flex-col h-full">
-      {editor && (
-        <Toolbar
-          editor={editor}
-          extra={toolbarExtra}
-          onOpenFind={openFind}
-          onOpenCitation={() => setCitationOpen(true)}
-          cleanupOpen={cleanupOpen}
-          onOpenCleanup={onOpenCleanup}
-        />
-      )}
-      {editor && findOpen && (
-        <FindReplacePanel
-          key={
-            findStickyRange
-              ? `${findStickyRange.from}-${findStickyRange.to}`
-              : "doc"
-          }
-          editor={editor}
-          initialStickyRange={findStickyRange}
-          focusNonce={findFocusNonce}
-          onClose={() => {
-            setFindOpen(false);
-            // Return focus so the next Ctrl+F lands in a known place.
-            queueMicrotask(() => {
-              if (!editor.isDestroyed) editor.commands.focus();
-            });
-          }}
-        />
-      )}
-      <div className="flex min-h-0 flex-1">
+    <EssaySpellcheckProvider
+      value={{
+        enabled: spellcheckOn,
+        languages: effectiveLanguages,
+        lang,
+      }}
+    >
+      <div className="flex flex-col h-full">
         {editor && (
-          <DocumentOutline
+          <Toolbar
             editor={editor}
-            open={outlineOpen}
-            onToggle={() => setOutlineOpen((open) => !open)}
+            extra={toolbarExtra}
+            onOpenFind={openFind}
+            onOpenCitation={() => setCitationOpen(true)}
+            cleanupOpen={cleanupOpen}
+            onOpenCleanup={onOpenCleanup}
           />
         )}
-        {/* Prose + optional bottom dock — between Outline and Notes rail. */}
-        <div
-          className={`relative flex min-h-0 min-w-0 flex-1 flex-col ${
-            prefs.sidenotes ? "show-sidenotes" : ""
-          } ${railEnabled ? "sidenotes-rail" : ""}`}
-        >
-          <div
-            ref={(node) => {
-              scrollRef.current = node;
-              setScrollEl((current) => (current === node ? current : node));
+        {editor && findOpen && (
+          <FindReplacePanel
+            key={
+              findStickyRange
+                ? `${findStickyRange.from}-${findStickyRange.to}`
+                : "doc"
+            }
+            editor={editor}
+            initialStickyRange={findStickyRange}
+            focusNonce={findFocusNonce}
+            onClose={() => {
+              setFindOpen(false);
+              // Return focus so the next Ctrl+F lands in a known place.
+              queueMicrotask(() => {
+                if (!editor.isDestroyed) editor.commands.focus();
+              });
             }}
-            className="min-h-0 min-w-0 flex-1 overflow-y-auto"
-            data-blogide-editor-scroll=""
-          >
-            <div
-              className={`mx-auto px-6 py-10 ${
-                railEnabled
-                  ? "max-w-2xl"
-                  : prefs.sidenotes
-                    ? "max-w-5xl"
-                    : "max-w-2xl"
-              }`}
-            >
-              {titleSlot}
-              <EditorContent editor={editor} />
-              {editor && <TableControls editor={editor} />}
-              {/* Anchored / sidenotes-off: keep restore UI per-essay. */}
-              {!railEnabled && (
-                <DeletedFootnotesPanel variant="inline" defaultOpen={false} />
-              )}
-            </div>
-          </div>
-          {shellDock}
-          <LinkEditCard editor={editor} showPreviews />
+          />
+        )}
+        <div className="flex min-h-0 flex-1">
           {editor && (
-            <CitationInsertDialog
+            <DocumentOutline
               editor={editor}
-              open={citationOpen}
-              onClose={() => setCitationOpen(false)}
+              open={outlineOpen}
+              onToggle={() => setOutlineOpen((open) => !open)}
             />
           )}
-          <ShortcutCheatsheet
-            open={shortcutsOpen}
-            onClose={() => setShortcutsOpen(false)}
-          />
-        </div>
-        {railEnabled && editor && (
-          <SidenoteRail
-            editor={editor}
-            scrollRoot={scrollEl}
-            onCollapse={() => updatePrefs({ sidenotes: false })}
-          />
-        )}
-        {!railEnabled && editor && (
-          <aside className="footnote-rail-collapsed" aria-label="Footnotes">
-            <button
-              type="button"
-              className="footnote-rail-collapsed-toggle"
-              aria-expanded={prefs.sidenotes}
-              title={
-                prefs.sidenotes
-                  ? "Hide margin footnotes"
-                  : "Show footnotes beside the essay"
-              }
-              onClick={() => updatePrefs({ sidenotes: !prefs.sidenotes })}
+          {/* Prose + optional bottom dock — between Outline and Notes rail. */}
+          <div
+            className={`relative flex min-h-0 min-w-0 flex-1 flex-col ${
+              prefs.sidenotes ? "show-sidenotes" : ""
+            } ${railEnabled ? "sidenotes-rail" : ""}`}
+          >
+            <div
+              ref={(node) => {
+                scrollRef.current = node;
+                setScrollEl((current) => (current === node ? current : node));
+              }}
+              className="min-h-0 min-w-0 flex-1 overflow-y-auto"
+              data-blogide-editor-scroll=""
             >
-              <PanelCaret
-                direction={prefs.sidenotes ? "right" : "left"}
+              <div
+                className={`mx-auto px-6 py-10 ${
+                  railEnabled
+                    ? "max-w-2xl"
+                    : prefs.sidenotes
+                      ? "max-w-5xl"
+                      : "max-w-2xl"
+                }`}
+              >
+                {titleSlot}
+                <EditorContent editor={editor} />
+                {editor && <TableControls editor={editor} />}
+                {/* Anchored / sidenotes-off: keep restore UI per-essay. */}
+                {!railEnabled && (
+                  <DeletedFootnotesPanel variant="inline" defaultOpen={false} />
+                )}
+              </div>
+            </div>
+            {shellDock}
+            <LinkEditCard editor={editor} showPreviews />
+            {editor && (
+              <CitationInsertDialog
+                editor={editor}
+                open={citationOpen}
+                onClose={() => setCitationOpen(false)}
               />
-            </button>
-          </aside>
-        )}
+            )}
+            <ShortcutCheatsheet
+              open={shortcutsOpen}
+              onClose={() => setShortcutsOpen(false)}
+            />
+          </div>
+          {railEnabled && editor && (
+            <SidenoteRail
+              editor={editor}
+              scrollRoot={scrollEl}
+              onCollapse={() => updatePrefs({ sidenotes: false })}
+            />
+          )}
+          {!railEnabled && editor && (
+            <aside className="footnote-rail-collapsed" aria-label="Footnotes">
+              <button
+                type="button"
+                className="footnote-rail-collapsed-toggle"
+                aria-expanded={prefs.sidenotes}
+                title={
+                  prefs.sidenotes
+                    ? "Hide margin footnotes"
+                    : "Show footnotes beside the essay"
+                }
+                onClick={() => updatePrefs({ sidenotes: !prefs.sidenotes })}
+              >
+                <PanelCaret
+                  direction={prefs.sidenotes ? "right" : "left"}
+                />
+              </button>
+            </aside>
+          )}
+        </div>
       </div>
-    </div>
+    </EssaySpellcheckProvider>
   );
 }
 

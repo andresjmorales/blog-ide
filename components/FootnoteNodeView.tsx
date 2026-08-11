@@ -49,8 +49,9 @@ import { ConvertCaseMenu } from "@/components/ConvertCaseMenu";
 import { CleanWhitespaceButton } from "@/components/CleanWhitespaceButton";
 import { FootnoteSidenote } from "@/components/FootnoteSidenote";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
+import { useEssaySpellcheck } from "@/components/EssaySpellcheckContext";
 import { claimFloatZ } from "@/lib/pins/pinStore";
-import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
+import { applySpellcheckDom } from "@/lib/editor/applySpellcheckDom";
 import {
   getFootnoteFindSession,
   setFootnoteFindSession,
@@ -124,8 +125,9 @@ export function FootnoteNodeView({
   // Only user drags are sticky; auto-placement should follow the ref on scroll.
   const hasDraggedPosition = cardPositions.has(footnoteId);
   const { prefs } = useEditorPrefs();
-  const spellcheckOn = prefs.spellcheckEnabled;
-  const spellLang = primaryLang(prefs.spellcheckLanguages);
+  const essaySpell = useEssaySpellcheck();
+  const spellcheckOn = essaySpell.enabled;
+  const spellLang = essaySpell.lang;
 
   const number = useEditorState({
     editor: outerEditor,
@@ -171,6 +173,15 @@ export function FootnoteNodeView({
       },
     },
   });
+
+  useEffect(() => {
+    if (!noteEditor) return;
+    applySpellcheckDom(
+      noteEditor.view.dom as HTMLElement,
+      spellcheckOn,
+      spellLang
+    );
+  }, [noteEditor, spellcheckOn, spellLang]);
 
   // Highlight inside the note while this footnote is the active find target.
   useEffect(() => {

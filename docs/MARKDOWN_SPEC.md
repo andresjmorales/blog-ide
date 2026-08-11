@@ -17,6 +17,8 @@ frontmatter as opaque aside from a few keys it edits in the UI:
 | `author` | Optional byline |
 | `publication` | Optional venue / magazine / paper (BlogIDE-only; personal-site ignores unknown keys) |
 | `status` | Optional; new essays default to `draft`. personal-site hides `draft` / `unpublished` / `hidden` from the Writing rail (slug URL still works) |
+| `spellcheck` | Optional per-essay override: `on` / `off`. Absent = inherit account Editor settings |
+| `spellcheck_langs` | Optional comma-separated BCP-47 tags (first is primary for browser `lang`). Absent = inherit account defaults |
 
 **Empty keys:** clearing subtitle, author, or publication keeps a bare
 `subtitle:` / `author:` / `publication:` line so export templates stay

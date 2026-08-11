@@ -2,6 +2,12 @@
 
 import { useEditorState, type Editor } from "@tiptap/react";
 import { PanelCaret } from "@/components/icons";
+import {
+  collectDocumentStats,
+  formatReadingTime,
+  formatWordCount,
+  type DocumentStats,
+} from "@/lib/editor/documentStats";
 
 export type OutlineHeading = {
   level: number;
@@ -20,6 +26,15 @@ function collectHeadings(editor: Editor): OutlineHeading[] {
   });
   return headings;
 }
+
+const EMPTY_STATS: DocumentStats = {
+  words: 0,
+  characters: 0,
+  charactersNoSpaces: 0,
+  paragraphs: 0,
+  headings: 0,
+  readingMinutes: 0,
+};
 
 type Props = {
   editor: Editor | null;
@@ -63,9 +78,14 @@ function DocumentOutlineLive({
   open: boolean;
   onToggle: () => void;
 }) {
-  const headings = useEditorState({
+  const { headings, stats } = useEditorState({
     editor,
-    selector: ({ editor: current }) => collectHeadings(current),
+    selector: ({ editor: current }) => ({
+      headings: collectHeadings(current),
+      stats: current
+        ? collectDocumentStats(current.state.doc)
+        : EMPTY_STATS,
+    }),
   });
 
   const minLevel =
@@ -100,33 +120,76 @@ function DocumentOutlineLive({
       </button>
 
       {open && (
-        <nav className="doc-outline-nav">
-          {headings.length === 0 ? (
-            <p className="doc-outline-empty">
-              Headings in this essay will show up here.
-            </p>
-          ) : (
-            <ul className="doc-outline-list">
-              {headings.map((heading) => {
-                const depth = Math.max(0, heading.level - minLevel);
-                return (
-                  <li key={`${heading.pos}-${heading.text}`}>
-                    <button
-                      type="button"
-                      className="doc-outline-item"
-                      style={{ paddingLeft: `${0.5 + depth * 0.75}rem` }}
-                      onClick={() => scrollTo(heading.pos)}
-                      title={heading.text}
-                    >
-                      {heading.text}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </nav>
+        <>
+          <nav className="doc-outline-nav">
+            {headings.length === 0 ? (
+              <p className="doc-outline-empty">
+                Headings in this essay will show up here.
+              </p>
+            ) : (
+              <ul className="doc-outline-list">
+                {headings.map((heading) => {
+                  const depth = Math.max(0, heading.level - minLevel);
+                  return (
+                    <li key={`${heading.pos}-${heading.text}`}>
+                      <button
+                        type="button"
+                        className="doc-outline-item"
+                        style={{ paddingLeft: `${0.5 + depth * 0.75}rem` }}
+                        onClick={() => scrollTo(heading.pos)}
+                        title={heading.text}
+                      >
+                        {heading.text}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </nav>
+          <DocumentStatsFooter stats={stats} />
+        </>
+      )}
+
+      {!open && (
+        <p
+          className="doc-outline-collapsed-words"
+          title={formatWordCount(stats.words)}
+        >
+          {stats.words.toLocaleString("en-US")}
+        </p>
       )}
     </aside>
+  );
+}
+
+function DocumentStatsFooter({ stats }: { stats: DocumentStats }) {
+  return (
+    <div className="doc-stats" aria-label="Writing stats">
+      <div className="doc-stats-primary">
+        <span className="doc-stats-words">{formatWordCount(stats.words)}</span>
+        <span className="doc-stats-read">
+          {formatReadingTime(stats.readingMinutes, stats.words)}
+        </span>
+      </div>
+      <dl className="doc-stats-grid">
+        <div>
+          <dt>Characters</dt>
+          <dd>{stats.characters.toLocaleString("en-US")}</dd>
+        </div>
+        <div>
+          <dt>Paragraphs</dt>
+          <dd>{stats.paragraphs.toLocaleString("en-US")}</dd>
+        </div>
+        <div>
+          <dt>Headings</dt>
+          <dd>{stats.headings.toLocaleString("en-US")}</dd>
+        </div>
+        <div>
+          <dt>No spaces</dt>
+          <dd>{stats.charactersNoSpaces.toLocaleString("en-US")}</dd>
+        </div>
+      </dl>
+    </div>
   );
 }
