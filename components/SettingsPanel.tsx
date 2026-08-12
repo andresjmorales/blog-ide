@@ -25,6 +25,7 @@ import {
   HOSTED_PRO_PRICE_LABEL,
 } from "@/lib/billing/plans";
 import { ProfilePhotoField } from "@/components/avatar/ProfilePhotoField";
+import { GitHubSettingsSection } from "@/components/GitHubSettingsSection";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -37,6 +38,11 @@ type Props = {
   previewMode?: boolean;
   onDisplayNameChange?: (name: string) => void;
   onAvatarUrlChange?: (url: string | null) => void;
+  githubMapNodes?: Array<{
+    id: string;
+    label: string;
+    kind: "folder" | "document";
+  }>;
 };
 
 export function SettingsPanel({
@@ -48,6 +54,7 @@ export function SettingsPanel({
   previewMode = false,
   onDisplayNameChange,
   onAvatarUrlChange,
+  githubMapNodes,
 }: Props) {
   useEffect(() => {
     if (!open) return;
@@ -71,6 +78,7 @@ export function SettingsPanel({
       previewMode={previewMode}
       onDisplayNameChange={onDisplayNameChange}
       onAvatarUrlChange={onAvatarUrlChange}
+      githubMapNodes={githubMapNodes}
     />
   );
 }
@@ -83,6 +91,7 @@ function SettingsDialog({
   previewMode,
   onDisplayNameChange,
   onAvatarUrlChange,
+  githubMapNodes,
 }: {
   onClose: () => void;
   email: string;
@@ -91,6 +100,11 @@ function SettingsDialog({
   previewMode: boolean;
   onDisplayNameChange?: (name: string) => void;
   onAvatarUrlChange?: (url: string | null) => void;
+  githubMapNodes?: Array<{
+    id: string;
+    label: string;
+    kind: "folder" | "document";
+  }>;
 }) {
   const { prefs, updatePrefs } = useEditorPrefs();
   const [aiKeys, setAiKeys] = useState<AiKeys>(() => loadAiKeys());
@@ -556,6 +570,11 @@ function SettingsDialog({
             <p className="mt-2 text-xs text-muted">Keys saved on this device.</p>
           )}
         </section>
+
+        <GitHubSettingsSection
+          previewMode={previewMode}
+          mapNodes={githubMapNodes}
+        />
 
         <section className="settings-section">
           <h3>Mobile</h3>

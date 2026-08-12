@@ -8,8 +8,6 @@ import {
   useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
-import StarterKit from "@tiptap/starter-kit";
-import { Markdown } from "@tiptap/markdown";
 import {
   EditorContent,
   NodeViewWrapper,
@@ -19,7 +17,6 @@ import {
 } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import {
-  LinkShortcut,
   openLinkEditor,
   promptForLink,
 } from "@/lib/editor/linkShortcut";
@@ -35,10 +32,7 @@ import { Code2Icon } from "@/components/tiptap-icons/code2-icon";
 import { CodeBlockIcon } from "@/components/tiptap-icons/code-block-icon";
 import { LinkIcon } from "@/components/tiptap-icons/link-icon";
 import { BlockquoteIcon } from "@/components/tiptap-icons/blockquote-icon";
-import { StrictOrderedList } from "@/lib/editor/orderedList";
-import { BlogideLink } from "@/lib/editor/blogideLink";
 import {
-  FindHighlight,
   clearFindHighlights,
   scrollMatchIntoView,
   setFindHighlights,
@@ -57,6 +51,9 @@ import {
   setFootnoteFindSession,
   subscribeFootnoteFindSession,
 } from "@/lib/editor/footnoteFindBridge";
+import { createFootnoteExtensions } from "@/lib/editor/footnoteSchema";
+import { firstImageFile } from "@/lib/editor/insertEssayImage";
+import { PinnedSurface } from "@/components/pins/PinnedSurface";
 
 // ProseMirror may recreate an atom NodeView when its selection changes.
 // Keep click-/pin-sticky card visibility keyed by the node's stable ID so a
@@ -65,7 +62,10 @@ import {
 const stickyFootnoteIds = new Set<string>();
 const pinnedFootnoteIds = new Set<string>();
 const expandedFootnoteIds = new Set<string>();
-const cardPositions = new Map<string, { left: number; top: number }>();
+const cardPositions = new Map<
+  string,
+  { left: number; top: number; width?: number; height?: number }
+>();
 
 export function FootnoteNodeView({
   node,
@@ -119,6 +119,8 @@ export function FootnoteNodeView({
   const [cardPosition, setCardPosition] = useState<{
     left?: number;
     top?: number;
+    width?: number;
+    height?: number;
   }>(() => cardPositions.get(footnoteId) ?? {});
   const [cardZ, setCardZ] = useState(40);
   const content = String(node.attrs.content ?? "");
@@ -145,22 +147,7 @@ export function FootnoteNodeView({
   });
 
   const noteEditor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        // Headings stay document-level only (spec / UX: footnotes are asides).
-        heading: false,
-        underline: false,
-        trailingNode: false,
-        orderedList: false,
-        link: false,
-      }),
-      BlogideLink,
-      StrictOrderedList,
-      // Images stay essay-body only — footnotes are text asides.
-      LinkShortcut,
-      Markdown,
-      FindHighlight,
-    ],
+    extensions: createFootnoteExtensions(),
     content,
     contentType: "markdown",
     immediatelyRender: false,
@@ -170,6 +157,20 @@ export function FootnoteNodeView({
         "aria-label": `Footnote ${number} content`,
         spellcheck: "false",
         lang: spellLang,
+      },
+      handlePaste: (_view, event) => {
+        if (firstImageFile(event.clipboardData?.files)) {
+          event.preventDefault();
+          return true;
+        }
+        return false;
+      },
+      handleDrop: (_view, event) => {
+        if (firstImageFile(event.dataTransfer?.files)) {
+          event.preventDefault();
+          return true;
+        }
+        return false;
       },
     },
   });
@@ -378,26 +379,33 @@ export function FootnoteNodeView({
   /** Freeze the floating card at its current viewport spot (pin or drag). */
   const freezeCardPosition = useCallback(() => {
     setCardPosition((current) => {
+      const width = current.width ?? (expanded ? 448 : 360);
+      const height = current.height ?? (expanded ? 320 : 280);
       if (
         typeof current.left === "number" &&
         typeof current.top === "number"
       ) {
-        cardPositions.set(footnoteId, {
+        const next = {
           left: current.left,
           top: current.top,
-        });
-        return current;
+          width,
+          height,
+        };
+        cardPositions.set(footnoteId, next);
+        return next;
       }
       const rect = buttonRef.current?.getBoundingClientRect();
-      if (!rect) return current;
+      if (!rect) return { ...current, width, height };
       const next = {
-        left: Math.max(8, Math.min(window.innerWidth - 360, rect.left)),
+        left: Math.max(8, Math.min(window.innerWidth - width, rect.left)),
         top: Math.max(8, Math.min(window.innerHeight - 120, rect.bottom + 8)),
+        width,
+        height,
       };
       cardPositions.set(footnoteId, next);
       return next;
     });
-  }, [footnoteId]);
+  }, [expanded, footnoteId]);
 
   const togglePinned = useCallback(() => {
     setPinned((currentlyPinned) => {
@@ -655,6 +663,69 @@ export function FootnoteNodeView({
 
       {cardOpen &&
         typeof document !== "undefined" &&
+        (pinned && window.innerWidth >= 768 ? (
+          <PinnedSurface
+            title={`Footnote ${number}`}
+            left={cardPosition.left ?? 72}
+            top={cardPosition.top ?? 72}
+            width={cardPosition.width ?? 360}
+            height={cardPosition.height ?? 280}
+            zIndex={cardZ}
+            className="footnote-pin"
+            closeLabel="Close footnote"
+            minWidth={280}
+            minHeight={200}
+            onClose={commitAndClose}
+            onRaise={() => setCardZ(claimFloatZ())}
+            onMove={(left, top) => {
+              const next = {
+                left,
+                top,
+                width: cardPosition.width ?? 360,
+                height: cardPosition.height ?? 280,
+              };
+              cardPositions.set(footnoteId, next);
+              setCardPosition(next);
+            }}
+            onResize={(width, height) => {
+              const next = {
+                left: cardPosition.left ?? 72,
+                top: cardPosition.top ?? 72,
+                width,
+                height,
+              };
+              cardPositions.set(footnoteId, next);
+              setCardPosition(next);
+            }}
+            onMouseEnter={cancelHoverClose}
+            headerActions={
+              <button
+                type="button"
+                className="pinned-surface-btn"
+                onClick={togglePinned}
+                aria-pressed={pinned}
+                title="Unpin footnote"
+                aria-label="Unpin footnote"
+              >
+                <PinIcon />
+              </button>
+            }
+          >
+            {noteEditor && (
+              <FootnoteToolbar
+                editor={noteEditor}
+                expanded={expanded}
+                onToggleExpanded={toggleExpanded}
+              />
+            )}
+            <EditorContent editor={noteEditor} />
+            <span className="footnote-card-hint">
+              {expanded
+                ? "Full formatting except headings and images. Nested footnotes are not supported."
+                : "Bold, italic, and links. Expand for lists, quotes, code, and more."}
+            </span>
+          </PinnedSurface>
+        ) : (
         createPortal(
           <span
             className={`footnote-card ${pinned ? "is-pinned" : ""} ${
@@ -723,7 +794,8 @@ export function FootnoteNodeView({
             </span>
           </span>,
           document.body
-        )}
+        )
+        ))}
     </NodeViewWrapper>
   );
 }

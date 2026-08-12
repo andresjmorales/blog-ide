@@ -4,6 +4,14 @@
 import type { Editor } from "@tiptap/core";
 import { compressImageFile } from "@/lib/assets/imagePipeline";
 import {
+  classifyStorageError,
+  isBrowserOffline,
+} from "@/lib/assets/errors";
+import {
+  beginUploadStatus,
+  updateUploadStatus,
+} from "@/lib/assets/uploadStatus";
+import {
   QuotaExceededError,
   uploadUserAsset,
 } from "@/lib/assets/upload";
@@ -18,7 +26,11 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 }
 
 export type InsertEssayImageDialogs = {
-  promptAlt: () => Promise<string | null>;
+  /**
+   * Optional alt prompt. Omit to insert immediately (paste/drop) — alt can
+   * be edited on the selected figure.
+   */
+  promptAlt?: () => Promise<string | null>;
   alertQuota: () => Promise<void>;
   alertError: (message: string) => Promise<void>;
 };
@@ -33,27 +45,74 @@ export async function insertEssayImageFromFile(
   dialogs: InsertEssayImageDialogs
 ): Promise<boolean> {
   if (!file.type.startsWith("image/")) return false;
+  const statusId = beginUploadStatus("compressing", "Compressing image…");
   try {
     const compressed = await compressImageFile(file);
     let src: string;
+    let usedDataUrl = false;
     try {
+      if (isBrowserOffline()) {
+        throw new Error("offline");
+      }
+      updateUploadStatus(statusId, {
+        phase: "uploading",
+        message: "Uploading image…",
+        progress: 0,
+      });
       const ext = compressed.mime === "image/webp" ? "webp" : "jpg";
       src = await uploadUserAsset(
         compressed.blob,
         file.name.replace(/\.\w+$/, "") + `.${ext}`,
-        { kind: "essay_image" }
+        {
+          kind: "essay_image",
+          onProgress: (progress) => {
+            updateUploadStatus(statusId, {
+              phase: "uploading",
+              progress: progress.percent,
+              message: `Uploading image… ${progress.percent}%`,
+            });
+          },
+        }
       );
     } catch (uploadErr) {
       if (uploadErr instanceof QuotaExceededError) {
+        updateUploadStatus(statusId, {
+          phase: "error",
+          message: "Storage quota exceeded.",
+        });
         await dialogs.alertQuota();
         return false;
       }
       src = await blobToDataUrl(compressed.blob);
+      usedDataUrl = true;
+      const offline = isBrowserOffline();
+      updateUploadStatus(statusId, {
+        phase: offline ? "offline" : "error",
+        message: offline
+          ? "Offline — image kept in the essay locally. Reconnect and re-upload to put it in Storage."
+          : `${classifyStorageError(uploadErr)} A local copy was inserted so you can keep writing.`,
+      });
     }
-    const alt = (await dialogs.promptAlt()) ?? "";
+    const alt = dialogs.promptAlt
+      ? ((await dialogs.promptAlt()) ?? "")
+      : "";
     editor.chain().focus().setImage({ src, alt }).run();
+    if (!usedDataUrl) {
+      updateUploadStatus(statusId, {
+        phase: "done",
+        progress: 100,
+        message: alt
+          ? "Image uploaded."
+          : "Image uploaded. Select it to add alt text.",
+      });
+    }
     return true;
   } catch (err) {
+    updateUploadStatus(statusId, {
+      phase: "error",
+      message:
+        err instanceof Error ? err.message : "Could not process image.",
+    });
     await dialogs.alertError(
       err instanceof Error ? err.message : "Could not process image."
     );

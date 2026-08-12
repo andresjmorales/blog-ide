@@ -20,6 +20,12 @@ type Props = {
   onResize: (width: number, height: number) => void;
   headerActions?: ReactNode;
   children: ReactNode;
+  className?: string;
+  closeLabel?: string;
+  minWidth?: number;
+  minHeight?: number;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 };
 
 export function PinnedSurface({
@@ -35,6 +41,12 @@ export function PinnedSurface({
   onResize,
   headerActions,
   children,
+  className,
+  closeLabel = "Close pop-out",
+  minWidth = POP_OUT_MIN_WIDTH,
+  minHeight = POP_OUT_MIN_HEIGHT,
+  onMouseEnter,
+  onMouseLeave,
 }: Props) {
   const dragRef = useRef<{
     pointerId: number;
@@ -109,17 +121,14 @@ export function PinnedSurface({
       const resize = resizeRef.current;
       if (!resize || resize.pointerId !== event.pointerId) return;
       onResize(
+        Math.max(minWidth, resize.startW + (event.clientX - resize.startX)),
         Math.max(
-          POP_OUT_MIN_WIDTH,
-          resize.startW + (event.clientX - resize.startX)
-        ),
-        Math.max(
-          POP_OUT_MIN_HEIGHT,
+          minHeight,
           resize.startH + (event.clientY - resize.startY)
         )
       );
     },
-    [onResize]
+    [minHeight, minWidth, onResize]
   );
 
   const endResize = useCallback((event: React.PointerEvent<HTMLElement>) => {
@@ -137,9 +146,11 @@ export function PinnedSurface({
 
   return createPortal(
     <div
-      className="pinned-surface"
+      className={["pinned-surface", className].filter(Boolean).join(" ")}
       style={{ left, top, width, height, zIndex }}
       onPointerDown={onRaise}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       role="dialog"
       aria-label={title}
     >
@@ -158,7 +169,7 @@ export function PinnedSurface({
           <button
             type="button"
             className="pinned-surface-close"
-            aria-label="Close pop-out"
+            aria-label={closeLabel}
             onClick={onClose}
           >
             ×

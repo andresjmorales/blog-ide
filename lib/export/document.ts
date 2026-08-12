@@ -13,7 +13,12 @@ export function downloadMarkdown(markdown: string, fileName: string): void {
   URL.revokeObjectURL(url);
 }
 
-/** Copy markdown + HTML for pasting into Substack / Docs / etc. */
+/** Copy the essay markdown (plain text only). */
+export async function copyMarkdownToClipboard(markdown: string): Promise<void> {
+  await navigator.clipboard.writeText(markdown);
+}
+
+/** Copy markdown + HTML for pasting into a rich editor (Substack / Medium / Docs). */
 export async function copyDocumentForPaste(input: {
   markdown: string;
   html: string;
@@ -50,18 +55,45 @@ export function pickMarkdownFile(): Promise<{
   name: string;
   markdown: string;
 } | null> {
+  return pickEssayImportFile().then((picked) => {
+    if (!picked || picked.kind !== "markdown") return null;
+    return { name: picked.name, markdown: picked.markdown };
+  });
+}
+
+export type PickedEssayImport =
+  | { kind: "markdown"; name: string; markdown: string }
+  | { kind: "office"; name: string; file: File };
+
+/** Read a local essay import: markdown, or Word/OpenDocument for Pandoc. */
+export function pickEssayImportFile(): Promise<PickedEssayImport | null> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".md,.markdown,.txt,text/markdown,text/plain";
+    input.accept = [
+      ".md",
+      ".markdown",
+      ".txt",
+      ".docx",
+      ".odt",
+      "text/markdown",
+      "text/plain",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.oasis.opendocument.text",
+    ].join(",");
     input.addEventListener("change", async () => {
       const file = input.files?.[0];
       if (!file) {
         resolve(null);
         return;
       }
+      const lower = file.name.toLowerCase();
+      if (lower.endsWith(".docx") || lower.endsWith(".odt")) {
+        resolve({ kind: "office", name: file.name, file });
+        return;
+      }
       const markdown = await file.text();
-      resolve({ name: file.name, markdown });
+      resolve({ kind: "markdown", name: file.name, markdown });
     });
     input.click();
   });

@@ -18,20 +18,27 @@ by design.
 - **Research surfaces** — pop-out documents, link hover/Pin, cloud Library
   (PDFs + site bookmarks under quota; bookmark from hover/pin), publication
   Preview, pre-publish link/image check, image compress + Storage upload with
-  combined quota accounting and zip export that bundles owned assets
+  progress, clearer errors, alt text on the selected figure, broken-image
+  cards, combined quota accounting, and zip export that bundles owned assets
 - **Optional AI** — BYOK Anthropic / OpenAI keys (device-local), sidebar chat with
   canned actions (critique / tighten / title / expand), selection context,
   streaming replies, light model picker, smarter Apply (diff / patch), and
   import cleanup assist
-- **Export / import** — copy markdown + HTML, download `.md`, import markdown
-  from the Files panel; Convert Case (Cc), Clean whitespace, and punctuation
-  normalize (Chicago/MLA dashes, smart quotes) for messy pastes
+- **Export / import** — Copy all text copies markdown; Copy for Substack /
+  Medium (⋯ or Cleanup → Publish) pastes platform-specific footnote HTML;
+  download `.md`; optional Word `.docx` when Pandoc is installed
+  (`PANDOC_PATH`); import markdown or `.docx` / `.odt` from the Files panel;
+  Convert Case (Cc), Clean whitespace, and punctuation normalize (Chicago/MLA
+  dashes, smart quotes) for messy pastes
+- **GitHub backup** — optional one-way push (device-local PAT). Map a folder to
+  a repo path or a document to `README.md`; matching files are overwritten,
+  extras in the repo are left alone. Supabase stays the source of truth.
 - **Find / replace** — magnifying glass / Ctrl+F with soft highlights (Enter
   steps matches); sticky find-in-selection; searches footnote bodies; scrolls
   the active match into view; regex and headings-only scope; Ω special
   characters insert into the find/replace fields when focused
 - **Cleanup** (broom) — pinnable tabbed panel: Import (fix footnotes), Text,
-  Punctuation, and Publish (link/image check); Convert Case is Cc on the
+  Punctuation, and Publish (copy for Substack/Medium + link/image check); Convert Case is Cc on the
   toolbar; Cite is separate; paste or drag-drop images into the essay
 
 ## Stack
@@ -117,9 +124,12 @@ legacy `notes.md` still works). Edits save to IndexedDB immediately and sync to
 Supabase. On a phone, you land in a terminal-style quick-capture screen; on
 desktop, open **Shell** for the same Notes stream.
 
-Optional: open **Account settings** to set a profile photo, display name, or
-paste Anthropic / OpenAI keys for the AI sidebar (keys stay on the device;
-requests go through a thin proxy).
+Optional: open **Account settings** to set a profile photo, display name, a
+GitHub backup repo (PAT stays on the device), or paste Anthropic / OpenAI keys
+for the AI sidebar (keys stay on the device; requests go through a thin proxy).
+
+Self-host Word export/import by installing Pandoc and setting `PANDOC_PATH`
+(for example `/usr/bin/pandoc`) in `.env.local`.
 
 ```bash
 npm test   # round-trip + footnote/import suites

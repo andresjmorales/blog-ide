@@ -78,9 +78,171 @@ let windows: PinWindow[] = [];
 let nextZ = 40;
 let cascade = 0;
 const listeners = new Set<Listener>();
+let hydrated = false;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+const PIN_LAYOUT_KEY = "blogide.pinLayout.v1";
+
+export type PersistedPin =
+  | {
+      kind: "document";
+      nodeId: string;
+      title: string;
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+    }
+  | {
+      kind: "link";
+      url: string;
+      title: string;
+      description?: string;
+      siteName?: string;
+      image?: string | null;
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+    };
+
+export function persistablePin(window: PinWindow): PersistedPin | null {
+  if (window.kind === "document") {
+    return {
+      kind: "document",
+      nodeId: window.nodeId,
+      title: window.title,
+      left: window.left,
+      top: window.top,
+      width: window.width,
+      height: window.height,
+    };
+  }
+  if (window.kind === "link") {
+    return {
+      kind: "link",
+      url: window.url,
+      title: window.title,
+      description: window.description,
+      siteName: window.siteName,
+      image: window.image,
+      left: window.left,
+      top: window.top,
+      width: window.width,
+      height: window.height,
+    };
+  }
+  return null;
+}
+
+export function parsePersistedPins(raw: unknown): PersistedPin[] {
+  if (!Array.isArray(raw)) return [];
+  const out: PersistedPin[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const rec = row as Record<string, unknown>;
+    const left = Number(rec.left);
+    const top = Number(rec.top);
+    const width = Number(rec.width);
+    const height = Number(rec.height);
+    if (![left, top, width, height].every((n) => Number.isFinite(n))) continue;
+    if (rec.kind === "document" && typeof rec.nodeId === "string" && rec.nodeId) {
+      out.push({
+        kind: "document",
+        nodeId: rec.nodeId,
+        title: typeof rec.title === "string" ? rec.title : "Document",
+        left,
+        top,
+        width,
+        height,
+      });
+    } else if (rec.kind === "link" && typeof rec.url === "string" && rec.url) {
+      out.push({
+        kind: "link",
+        url: rec.url,
+        title: typeof rec.title === "string" ? rec.title : rec.url,
+        description:
+          typeof rec.description === "string" ? rec.description : undefined,
+        siteName: typeof rec.siteName === "string" ? rec.siteName : undefined,
+        image: typeof rec.image === "string" ? rec.image : null,
+        left,
+        top,
+        width,
+        height,
+      });
+    }
+  }
+  return out;
+}
+
+export function serializePersistedPins(open: PinWindow[]): PersistedPin[] {
+  return open
+    .map(persistablePin)
+    .filter((row): row is PersistedPin => row != null);
+}
+
+function hydratePinLayout() {
+  if (hydrated || typeof window === "undefined") return;
+  hydrated = true;
+  try {
+    const raw = sessionStorage.getItem(PIN_LAYOUT_KEY);
+    if (!raw) return;
+    const parsed = parsePersistedPins(JSON.parse(raw) as unknown);
+    const restored: PinWindow[] = [];
+    for (const rec of parsed) {
+      const geometry = clampGeometry({
+        left: rec.left,
+        top: rec.top,
+        width: rec.width,
+        height: rec.height,
+      });
+      if (rec.kind === "document") {
+        restored.push({
+          id: `doc:${rec.nodeId}`,
+          kind: "document",
+          nodeId: rec.nodeId,
+          title: rec.title || "Document",
+          ...geometry,
+          zIndex: claimFloatZ(),
+        });
+      } else {
+        restored.push({
+          id: `link:${rec.url}`,
+          kind: "link",
+          url: rec.url,
+          title: rec.title || rec.url,
+          description: rec.description,
+          siteName: rec.siteName,
+          image: rec.image,
+          ...geometry,
+          zIndex: claimFloatZ(),
+        });
+      }
+    }
+    if (restored.length) windows = restored;
+  } catch {
+    /* ignore quota / private mode / bad JSON */
+  }
+}
+
+function persistPinLayout() {
+  if (typeof window === "undefined") return;
+  const payload = serializePersistedPins(windows);
+  try {
+    sessionStorage.setItem(PIN_LAYOUT_KEY, JSON.stringify(payload));
+  } catch {
+    /* quota / private mode */
+  }
+}
 
 function emit() {
   for (const listener of listeners) listener();
+  if (typeof window === "undefined") return;
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    persistPinLayout();
+  }, 120);
 }
 
 /** Shared stacking for pins + footnote cards — always above previous floats. */
@@ -119,10 +281,12 @@ function defaultPlacement(size?: Partial<Geometry>): Geometry {
 }
 
 export function getPinWindows(): PinWindow[] {
+  hydratePinLayout();
   return windows;
 }
 
 export function subscribePinWindows(listener: Listener): () => void {
+  hydratePinLayout();
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
@@ -136,6 +300,7 @@ function raiseId(id: string) {
 }
 
 export function closePin(id: string): void {
+  hydratePinLayout();
   const closing = windows.find((w) => w.id === id);
   if (closing?.kind === "pdf" && closing.revokeOnClose && closing.src.startsWith("blob:")) {
     try {
@@ -151,6 +316,7 @@ export function closePin(id: string): void {
 }
 
 export function raisePin(id: string): void {
+  hydratePinLayout();
   if (!windows.some((w) => w.id === id)) return;
   raiseId(id);
 }
@@ -159,6 +325,7 @@ export function updatePin(
   id: string,
   patch: Partial<Geometry & { title: string }>
 ): void {
+  hydratePinLayout();
   windows = windows.map((w) => {
     if (w.id !== id) return w;
     const geometry = clampGeometry({
@@ -177,6 +344,7 @@ export function updatePin(
 }
 
 export function openDocumentPin(nodeId: string, title: string): void {
+  hydratePinLayout();
   const id = `doc:${nodeId}`;
   const existing = windows.find((w) => w.id === id);
   if (existing) {
@@ -207,6 +375,7 @@ export function openLinkPin(input: {
   siteName?: string;
   image?: string | null;
 }): void {
+  hydratePinLayout();
   const id = `link:${input.url}`;
   const existing = windows.find((w) => w.id === id);
   if (existing) {
@@ -235,6 +404,7 @@ export function openPdfPin(input: {
   title: string;
   revokeOnClose?: boolean;
 }): void {
+  hydratePinLayout();
   const id = `pdf:${input.src}`;
   const existing = windows.find((w) => w.id === id);
   if (existing) {
@@ -258,6 +428,7 @@ export function openPdfPin(input: {
 
 /** Floating Pushbullet / iMessage-style Notes Shell. */
 export function openShellPin(): void {
+  hydratePinLayout();
   const existing = windows.find((w) => w.id === SHELL_PIN_ID);
   if (existing) {
     raiseId(SHELL_PIN_ID);
@@ -302,6 +473,7 @@ export function openToolPanelPin(
   panelId: "files" | "ai" | "library",
   title: string
 ): void {
+  hydratePinLayout();
   const id = toolPanelPinId(panelId);
   const existing = windows.find((w) => w.id === id);
   if (existing) {

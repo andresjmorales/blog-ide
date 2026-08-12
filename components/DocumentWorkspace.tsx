@@ -85,8 +85,18 @@ import {
 import { useAppDialog } from "@/components/AppDialog";
 import {
   copyDocumentForPaste,
+  copyMarkdownToClipboard,
   downloadMarkdown,
 } from "@/lib/export/document";
+import {
+  htmlForPublishTarget,
+  PUBLISH_COPY_TARGETS,
+  type PublishCopyTarget,
+} from "@/lib/export/clipboardHtml";
+import {
+  exportMarkdownAsDocx,
+} from "@/lib/pandoc/client";
+import { pushWorkspaceToGithubWithStatus } from "@/lib/github/push";
 import { openPopOut } from "@/lib/pins/popOutStore";
 import {
   formatConflictTimestamp,
@@ -192,6 +202,8 @@ type Props = {
   registerApplySelectionForAi?: (
     apply: (markdown: string, selection: AiSelection) => boolean
   ) => void;
+  /** Flush the open essay to IndexedDB (GitHub push, etc.). */
+  registerFlushDocument?: (flush: () => Promise<void>) => void;
   /** Docked under the prose column (between Outline and sidenotes). */
   shellDock?: ReactNode;
 };
@@ -213,6 +225,7 @@ export function DocumentWorkspace({
   registerApplyMarkdown,
   registerGetSelectionForAi,
   registerApplySelectionForAi,
+  registerFlushDocument,
   shellDock,
 }: Props) {
   const dialog = useAppDialog();
@@ -624,6 +637,13 @@ export function DocumentWorkspace({
   useEffect(() => {
     registerApplyMarkdown?.(applyMarkdown);
   }, [registerApplyMarkdown, applyMarkdown]);
+
+  useEffect(() => {
+    registerFlushDocument?.(() => {
+      flushMarkdownRef.current?.();
+      return commitPendingLocal();
+    });
+  }, [registerFlushDocument, commitPendingLocal]);
 
   const getSelectionForAi = useCallback((): AiSelection | null => {
     if (isMarkdownCanonical(mode)) {
@@ -1323,26 +1343,71 @@ export function DocumentWorkspace({
   }
 
   async function copyForExport() {
-    const markdown = currentMarkdown();
-    const editor = editorRef.current;
-    const html =
-      mode === "wysiwyg" && editor
-        ? editor.getHTML()
-        : `<pre>${markdown
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")}</pre>`;
     try {
-      await copyDocumentForPaste({
-        markdown,
-        html,
-        title: essayTitle,
-      });
+      await copyMarkdownToClipboard(currentMarkdown());
     } catch {
       await dialog.confirm({
         title: "Copy failed",
         message:
           "Could not write to the clipboard. Try downloading .md instead.",
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
+    }
+  }
+
+  async function copyForPublish(target: PublishCopyTarget) {
+    const markdown = currentMarkdown();
+    const { html } = htmlForPublishTarget(markdown, target);
+    try {
+      await copyDocumentForPaste({ markdown, html });
+    } catch {
+      await dialog.confirm({
+        title: "Copy failed",
+        message:
+          "Could not write to the clipboard. Try downloading .md instead.",
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
+    }
+  }
+
+  async function exportDocx() {
+    try {
+      await exportMarkdownAsDocx(currentMarkdown(), essayTitle);
+    } catch (error) {
+      await dialog.confirm({
+        title: "Word export failed",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Could not convert this essay to Word.",
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
+    }
+  }
+
+  async function pushCurrentToGithub() {
+    if (!nodeId) return;
+    flushMarkdownRef.current?.();
+    await commitPendingLocal();
+    try {
+      const results = await pushWorkspaceToGithubWithStatus({
+        scope: { nodeId },
+      });
+      const files = results.reduce((n, r) => n + r.fileCount, 0);
+      await dialog.confirm({
+        title: "Pushed to GitHub",
+        message: `Wrote ${files} file${files === 1 ? "" : "s"}. Matching paths were overwritten; extra files in the repo were left alone.`,
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
+    } catch (error) {
+      await dialog.confirm({
+        title: "GitHub push failed",
+        message:
+          error instanceof Error ? error.message : "Could not push to GitHub.",
         confirmLabel: "OK",
         cancelLabel: "Close",
       });
@@ -1437,12 +1502,42 @@ export function DocumentWorkspace({
       },
     },
     {
+      kind: "submenu",
+      id: "copy-for",
+      label: "Copy for",
+      items: PUBLISH_COPY_TARGETS.map((target) => ({
+        id: `copy-for-${target.id}`,
+        label: target.label,
+        onSelect: () => {
+          void copyForPublish(target.id);
+        },
+      })),
+    },
+    {
       id: "export",
       label: "Export .md",
       onSelect: () => {
         void exportMarkdownFile();
       },
     },
+    {
+      id: "export-docx",
+      label: "Export Word (.docx)",
+      onSelect: () => {
+        void exportDocx();
+      },
+    },
+    ...(persistEnabled && nodeId
+      ? [
+          {
+            id: "push-github",
+            label: "Push to GitHub",
+            onSelect: () => {
+              void pushCurrentToGithub();
+            },
+          },
+        ]
+      : []),
     // Tools
     { kind: "separator", id: "sep-tools" },
     {
@@ -1583,6 +1678,7 @@ export function DocumentWorkspace({
         onClose={() => setHistoryOpen(false)}
         nodeId={nodeId}
         onRestore={restoreRevision}
+        getCurrentMarkdown={currentMarkdown}
       />
       <CleanupDialog
         open={cleanupOpen}
@@ -1747,6 +1843,7 @@ export function DocumentWorkspace({
         onClose={() => setHistoryOpen(false)}
         nodeId={nodeId}
         onRestore={restoreRevision}
+        getCurrentMarkdown={currentMarkdown}
       />
       <CleanupDialog
         open={cleanupOpen}

@@ -58,7 +58,8 @@ export function HelpPanel({ open, onClose }: Props) {
             it Linked to scroll with the essay, or Free to browse notes on their
             own. Deleted notes for the current essay stay in a collapsed section
             at the bottom of the rail so you can restore or dismiss them. Pin a
-            footnote card to freeze it on screen while you scroll.
+            footnote card to freeze it on screen while you scroll. Document and
+            link pins keep their layout if you reload the tab.
           </p>
         </section>
 
@@ -66,14 +67,20 @@ export function HelpPanel({ open, onClose }: Props) {
           <h3>Files</h3>
           <p className="settings-help">
             Use the icon buttons (new document / new folder) or hover a folder
-            for the same actions. New document can also Import from .md / .txt.
-            Nest folders (e.g. essays/Veganism/). Pop out any document to keep a
-            scratchpad floating. Click a link (or Ctrl+K) for the link menu with
-            Open Graph preview, Open, Pin, and Library. The{" "}
+            for the same actions. New document can also Import from .md / .txt /
+            .docx (Word needs Pandoc on the server). Nest folders (e.g.
+            essays/Veganism/). Pop out any document to keep a scratchpad
+            floating. Right-click a folder or essay to map it to a GitHub
+            path or push a one-way backup (token stays on this device). Click a
+            link (or Ctrl+K) for the link menu with Open Graph preview, Open,
+            Pin, and Library. The{" "}
             <strong>Library</strong> panel (right dock) holds
             research PDFs and bookmarks. Use ⋯ → Preview in new tab for
-            publication-style HTML with Substack-like footnotes. Edits save
-            locally first, then sync online.
+            publication-style HTML. Copy all text copies the markdown. Copy for
+            Substack / Medium (⋯ or Cleanup → Publish) turns GFM footnotes into
+            numbered notes for that platform. Export Word when Pandoc is
+            installed, or Push to GitHub. Edits save locally first, then sync
+            online.
           </p>
         </section>
 
@@ -117,7 +124,8 @@ export function HelpPanel({ open, onClose }: Props) {
               <kbd>?</kbd>: shortcut cheatsheet (when not typing in the essay)
             </li>
             <li>
-              Paste or drag an image into the essay to upload
+              Paste or drag an image into the essay to upload (select it to add
+              alt text). Offline inserts stay in the essay until you reconnect.
             </li>
             <li>
               <kbd>Esc</kbd>: close floating footnote / dialogs

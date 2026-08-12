@@ -19,9 +19,9 @@ import { ItalicIcon, LinkIcon } from "@/components/icons";
 /**
  * Substack-style image with a gray “Add caption” field under the image.
  * Caption is stored on the image node (markdown string: bold / italic / link
- * only) and serialized as an adjacent markdown line (no blank line). Broken /
- * empty src is hidden in the rich-text UI (source mode still shows the
- * markdown so the URL can be fixed).
+ * only) and serialized as an adjacent markdown line (no blank line). Broken
+ * or empty src shows a card with the URL and Retry; select the figure to
+ * edit alt text.
  */
 export function ImageCaptionNodeView({
   node,
@@ -118,19 +118,62 @@ export function ImageCaptionNodeView({
     }),
   });
 
-  // Prefer the caption attr while the nested editor hydrates — isEmpty can be
-  // true for a frame after source↔rich switch even when a caption exists.
   const showPlaceholder =
     !normalizeCaptionMarkdown(caption) && editorEmpty !== false;
 
-  if (!src.trim() || broken) {
+  function retryLoad() {
+    setBrokenSrc(null);
+  }
+
+  const altField = selected ? (
+    <FigureAltField
+      key={alt}
+      alt={alt}
+      onCommit={(next) => updateAttributes({ alt: next })}
+    />
+  ) : null;
+
+  if (!src.trim()) {
     return (
       <NodeViewWrapper
-        as="span"
-        className="blogide-figure-broken"
+        as="figure"
+        className={`blogide-figure blogide-figure-broken-card${
+          selected ? " is-selected" : ""
+        }`}
         data-drag-handle
-        contentEditable={false}
-      />
+      >
+        <div className="blogide-figure-broken-frame" contentEditable={false}>
+          <p className="blogide-figure-broken-label">Missing image URL</p>
+        </div>
+        {altField}
+      </NodeViewWrapper>
+    );
+  }
+
+  if (broken) {
+    return (
+      <NodeViewWrapper
+        as="figure"
+        className={`blogide-figure blogide-figure-broken-card${
+          selected ? " is-selected" : ""
+        }`}
+        data-drag-handle
+      >
+        <div className="blogide-figure-broken-frame" contentEditable={false}>
+          <p className="blogide-figure-broken-label">Couldn&apos;t load image</p>
+          <p className="blogide-figure-broken-url" title={src}>
+            {src}
+          </p>
+          <button
+            type="button"
+            className="blogide-figure-broken-retry"
+            onClick={retryLoad}
+          >
+            Retry
+          </button>
+        </div>
+        {altField}
+      </NodeViewWrapper>
     );
   }
 
@@ -148,6 +191,7 @@ export function ImageCaptionNodeView({
         draggable={false}
         onError={() => setBrokenSrc(src)}
       />
+      {altField}
       <div
         className={`blogide-figcaption${showPlaceholder ? " is-empty" : ""}${
           focused ? " is-focused" : ""
@@ -161,6 +205,31 @@ export function ImageCaptionNodeView({
         <EditorContent editor={captionEditor} />
       </div>
     </NodeViewWrapper>
+  );
+}
+
+function FigureAltField({
+  alt,
+  onCommit,
+}: {
+  alt: string;
+  onCommit: (next: string) => void;
+}) {
+  const [draft, setDraft] = useState(alt);
+  return (
+    <label className="blogide-figure-alt" contentEditable={false}>
+      <span>Alt</span>
+      <input
+        type="text"
+        value={draft}
+        placeholder="Describe the image (accessibility)"
+        onMouseDown={(event) => event.stopPropagation()}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => {
+          if (draft !== alt) onCommit(draft);
+        }}
+      />
+    </label>
   );
 }
 

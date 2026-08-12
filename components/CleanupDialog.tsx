@@ -11,6 +11,12 @@ import {
   runPrePublishCheck,
   type PrePublishReport,
 } from "@/lib/preview/runPrePublishCheck";
+import {
+  htmlForPublishTarget,
+  PUBLISH_COPY_TARGETS,
+  type PublishCopyTarget,
+} from "@/lib/export/clipboardHtml";
+import { copyDocumentForPaste } from "@/lib/export/document";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { BroomIcon, PinIcon } from "@/components/icons";
 import { claimFloatZ } from "@/lib/pins/pinStore";
@@ -420,6 +426,8 @@ function PublishTab({
   const [busy, setBusy] = useState(true);
   const [report, setReport] = useState<PrePublishReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState<string | null>(null);
+  const [copyBusy, setCopyBusy] = useState<PublishCopyTarget | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -447,8 +455,46 @@ function PublishTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function copyFor(target: PublishCopyTarget) {
+    const spec = PUBLISH_COPY_TARGETS.find((item) => item.id === target);
+    setCopyBusy(target);
+    setCopyStatus(null);
+    try {
+      const markdown = getMarkdown();
+      const { html } = htmlForPublishTarget(markdown, target);
+      await copyDocumentForPaste({ markdown, html });
+      setCopyStatus(`Copied for ${spec?.label ?? target}.`);
+    } catch {
+      setCopyStatus("Copy failed. Try ⋯ → Copy all text for markdown.");
+    } finally {
+      setCopyBusy(null);
+    }
+  }
+
   return (
     <section>
+      <p className="blogide-cleanup-hint">
+        Copy a platform-specific HTML paste (GFM footnotes become numbered
+        notes for that site). ⋯ Copy all text stays raw markdown.
+      </p>
+      <div className="blogide-cleanup-actions mb-3">
+        {PUBLISH_COPY_TARGETS.map((target) => (
+          <ActionButton
+            key={target.id}
+            label={
+              copyBusy === target.id ? "Copying…" : `Copy for ${target.label}`
+            }
+            hint={target.hint}
+            disabled={copyBusy != null}
+            onClick={() => void copyFor(target.id)}
+          />
+        ))}
+      </div>
+      {copyStatus && (
+        <p className="mb-3 text-xs text-muted" role="status">
+          {copyStatus}
+        </p>
+      )}
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="blogide-cleanup-hint mb-0">
           Check http(s) links and images before you publish.

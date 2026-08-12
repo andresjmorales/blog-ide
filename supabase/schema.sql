@@ -17,6 +17,8 @@ create table if not exists user_settings (
   user_id uuid primary key references auth.users(id),
   github_repo text,              -- optional one-way backup: "owner/repo"
   github_branch text default 'main',
+  github_path text,              -- default prefix in the repo (e.g. content/essays)
+  github_maps jsonb not null default '[]'::jsonb, -- folder/document → repo/path
   -- NOTE: GitHub token and Anthropic key are NOT stored here (spec §8).
   editor_prefs jsonb default '{}',
   used_bytes bigint not null default 0,
@@ -43,6 +45,8 @@ alter table user_settings add column if not exists stripe_customer_id text;
 alter table user_settings add column if not exists stripe_subscription_id text;
 alter table user_settings add column if not exists stripe_subscription_status text;
 alter table user_settings add column if not exists stripe_cancel_at timestamptz;
+alter table user_settings add column if not exists github_path text;
+alter table user_settings add column if not exists github_maps jsonb not null default '[]'::jsonb;
 do $$
 begin
   if not exists (
@@ -286,9 +290,25 @@ grant select on document_revisions to authenticated;
 revoke insert, update, delete on documents from anon, authenticated;
 
 revoke insert, update on user_settings from anon, authenticated;
-grant insert (user_id, github_repo, github_branch, editor_prefs, updated_at)
+grant insert (
+  user_id,
+  github_repo,
+  github_branch,
+  github_path,
+  github_maps,
+  editor_prefs,
+  updated_at
+)
   on user_settings to authenticated;
-grant update (user_id, github_repo, github_branch, editor_prefs, updated_at)
+grant update (
+  user_id,
+  github_repo,
+  github_branch,
+  github_path,
+  github_maps,
+  editor_prefs,
+  updated_at
+)
   on user_settings to authenticated;
 
 revoke insert, update, delete on workspace_nodes from anon, authenticated;
