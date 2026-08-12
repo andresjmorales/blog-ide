@@ -14,6 +14,10 @@ export type AiKeys = {
   preferred?: AiProvider;
   /** Offer AI help when cleaning pasted Substack/Docs imports. */
   importAssist?: boolean;
+  /** Preferred Anthropic model id (see lib/ai/models.ts). */
+  anthropicModel?: string;
+  /** Preferred OpenAI model id (see lib/ai/models.ts). */
+  openaiModel?: string;
 };
 
 function read(): AiKeys {

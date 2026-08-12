@@ -28,6 +28,7 @@ import {
 } from "@/lib/workspace/connectionError";
 import { UserMenu } from "@/components/UserMenu";
 import { AiSidebar } from "@/components/AiSidebar";
+import type { AiSelection } from "@/lib/ai/selection";
 import { EditorPrefsProvider } from "@/components/EditorPrefsContext";
 import { DocumentSessionProvider } from "@/components/DocumentSessionContext";
 import { FileExplorer } from "@/components/FileExplorer";
@@ -182,7 +183,7 @@ function useSyncStatusLabel() {
   const [status, setStatus] = useState<SyncStatus>(getSyncStatus);
   const [nowTick, setNowTick] = useState(0);
   useEffect(() => subscribeSyncStatus(setStatus), []);
-  // Refresh relative "Synced Xm ago" without waiting for another sync event.
+  // Refresh relative "Synced 6h30m ago" without waiting for another sync event.
   useEffect(() => {
     const id = window.setInterval(() => setNowTick((n) => n + 1), 30_000);
     return () => window.clearInterval(id);
@@ -277,6 +278,10 @@ function AppShellContent({
   const [shellRefreshKey, setShellRefreshKey] = useState(0);
   const getMarkdownForAiRef = useRef<() => string | null>(() => null);
   const applyMarkdownRef = useRef<(markdown: string) => void>(() => {});
+  const getSelectionForAiRef = useRef<() => AiSelection | null>(() => null);
+  const applySelectionForAiRef = useRef<
+    (markdown: string, selection: AiSelection) => boolean
+  >(() => false);
   const [deletedFootnotes, setDeletedFootnotes] = useState<DeletedFootnote[]>(
     []
   );
@@ -1178,7 +1183,11 @@ function AppShellContent({
     <AiSidebar
       essayAvailable={Boolean(previewMode || activeNodeId)}
       getDocumentMarkdown={() => getMarkdownForAiRef.current()}
+      getSelection={() => getSelectionForAiRef.current()}
       onApplyMarkdown={(markdown) => applyMarkdownRef.current(markdown)}
+      onApplySelection={(markdown, selection) =>
+        applySelectionForAiRef.current(markdown, selection)
+      }
       onOpenSettings={() => setSettingsOpen(true)}
     />
   );
@@ -1432,6 +1441,12 @@ function AppShellContent({
                 }}
                 registerApplyMarkdown={(apply) => {
                   applyMarkdownRef.current = apply;
+                }}
+                registerGetSelectionForAi={(get) => {
+                  getSelectionForAiRef.current = get;
+                }}
+                registerApplySelectionForAi={(apply) => {
+                  applySelectionForAiRef.current = apply;
                 }}
                 shellDock={
                   !previewMode &&

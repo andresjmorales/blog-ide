@@ -19,7 +19,9 @@ by design.
   (PDFs + site bookmarks under quota; bookmark from hover/pin), publication
   Preview, pre-publish link/image check, image compress + Storage upload with
   combined quota accounting and zip export that bundles owned assets
-- **Optional AI** — BYOK Anthropic / OpenAI keys (device-local), sidebar chat,
+- **Optional AI** — BYOK Anthropic / OpenAI keys (device-local), sidebar chat with
+  canned actions (critique / tighten / title / expand), selection context,
+  streaming replies, light model picker, smarter Apply (diff / patch), and
   import cleanup assist
 - **Export / import** — copy markdown + HTML, download `.md`, import markdown
   from the Files panel; Convert Case (Cc), Clean whitespace, and punctuation

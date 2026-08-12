@@ -74,7 +74,14 @@ import { EssayTitleBlock } from "@/components/EssayTitleBlock";
 import { MarkdownSplitView } from "@/components/MarkdownSplitView";
 import { convertMarkdownFootnoteLinks } from "@/lib/import/footnotePaste";
 import { getActiveProvider, loadAiKeys } from "@/lib/ai/keys";
-import { chatCompletion, IMPORT_CLEANUP_SYSTEM } from "@/lib/ai/client";
+import { chatCompletion, IMPORT_CLEANUP_SYSTEM, unwrapMarkdownReply } from "@/lib/ai/client";
+import {
+  getSourceSelection,
+  getWysiwygSelection,
+  replaceSourceRange,
+  replaceWysiwygRange,
+  type AiSelection,
+} from "@/lib/ai/selection";
 import { useAppDialog } from "@/components/AppDialog";
 import {
   copyDocumentForPaste,
@@ -181,6 +188,10 @@ type Props = {
   /** Pull current essay markdown when the AI sidebar sends / cleans. */
   registerGetMarkdownForAi?: (get: () => string | null) => void;
   registerApplyMarkdown?: (apply: (markdown: string) => void) => void;
+  registerGetSelectionForAi?: (get: () => AiSelection | null) => void;
+  registerApplySelectionForAi?: (
+    apply: (markdown: string, selection: AiSelection) => boolean
+  ) => void;
   /** Docked under the prose column (between Outline and sidenotes). */
   shellDock?: ReactNode;
 };
@@ -200,6 +211,8 @@ export function DocumentWorkspace({
   onRenameDocument,
   registerGetMarkdownForAi,
   registerApplyMarkdown,
+  registerGetSelectionForAi,
+  registerApplySelectionForAi,
   shellDock,
 }: Props) {
   const dialog = useAppDialog();
@@ -238,6 +251,7 @@ export function DocumentWorkspace({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [baseVersion, setBaseVersion] = useState(1);
   const editorRef = useRef<Editor | null>(null);
+  const sourceTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const flushMarkdownRef = useRef<(() => void) | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -611,6 +625,82 @@ export function DocumentWorkspace({
     registerApplyMarkdown?.(applyMarkdown);
   }, [registerApplyMarkdown, applyMarkdown]);
 
+  const getSelectionForAi = useCallback((): AiSelection | null => {
+    if (isMarkdownCanonical(mode)) {
+      const el = sourceTextareaRef.current;
+      if (!el) return null;
+      return getSourceSelection(
+        sourceText,
+        el.selectionStart,
+        el.selectionEnd
+      );
+    }
+    const editor = editorRef.current;
+    if (!editor) return null;
+    return getWysiwygSelection(editor);
+  }, [mode, sourceText]);
+
+  const applySelectionForAi = useCallback(
+    (markdown: string, selection: AiSelection): boolean => {
+      if (selection.mode === "wysiwyg" && !isMarkdownCanonical(mode)) {
+        const editor = editorRef.current;
+        if (!editor) return false;
+        const live = getWysiwygSelection(editor);
+        if (live && live.text === selection.text) {
+          return replaceWysiwygRange(editor, live.from, live.to, markdown);
+        }
+        if (selection.from >= 0 && selection.to >= selection.from) {
+          return replaceWysiwygRange(
+            editor,
+            selection.from,
+            selection.to,
+            markdown
+          );
+        }
+        return false;
+      }
+
+      const full = isMarkdownCanonical(mode)
+        ? sourceText
+        : packDocument(frontmatter, subtitle, author, publication, body);
+
+      let from = selection.from;
+      let to = selection.to;
+      if (
+        from < 0 ||
+        to < from ||
+        full.slice(from, to) !== selection.text
+      ) {
+        const index = full.indexOf(selection.text);
+        if (index === -1) return false;
+        from = index;
+        to = index + selection.text.length;
+      }
+      const next = replaceSourceRange(full, from, to, markdown);
+      if (next == null) return false;
+      applyMarkdown(next);
+      return true;
+    },
+    [
+      mode,
+      sourceText,
+      frontmatter,
+      subtitle,
+      author,
+      publication,
+      body,
+      applyMarkdown,
+    ]
+  );
+
+  useEffect(() => {
+    registerGetSelectionForAi?.(getSelectionForAi);
+  }, [registerGetSelectionForAi, getSelectionForAi]);
+
+  useEffect(() => {
+    registerApplySelectionForAi?.(applySelectionForAi);
+  }, [registerApplySelectionForAi, applySelectionForAi]);
+
   const convertFootnoteLinks = useCallback(async () => {
     const full = isMarkdownCanonical(mode)
       ? sourceText
@@ -642,7 +732,7 @@ export function DocumentWorkspace({
           system: IMPORT_CLEANUP_SYSTEM,
           provider,
         });
-        applyMarkdown(reply.trim());
+        applyMarkdown(unwrapMarkdownReply(reply.trim()));
       } catch (error) {
         await dialog.confirm({
           title: "AI cleanup failed",
@@ -1514,6 +1604,7 @@ export function DocumentWorkspace({
             setSourceText(next);
             persistMarkdown(next);
           }}
+          sourceTextareaRef={sourceTextareaRef}
           toolbarExtra={toolbarActions}
           shellDock={shellDock}
           spellcheckEnabled={false}
@@ -1584,6 +1675,7 @@ export function DocumentWorkspace({
         )}
 
         <textarea
+          ref={sourceTextareaRef}
           value={sourceText}
           onChange={(e) => {
             setSourceText(e.target.value);

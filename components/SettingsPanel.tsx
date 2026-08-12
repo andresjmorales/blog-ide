@@ -476,7 +476,8 @@ function SettingsDialog({
           <p className="settings-help">
             Bring your own Anthropic and/or OpenAI key. Keys are stored only in
             this browser and sent to the provider when you use the assistant,
-            never saved to BlogIDE&apos;s database.
+            never saved to BlogIDE&apos;s database. Hosted BlogIDE keeps BYOK as
+            the default so model usage stays on your API bill.
           </p>
           <label className="settings-row">
             <span>Provider</span>
