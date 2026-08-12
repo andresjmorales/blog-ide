@@ -76,9 +76,11 @@ export function HelpPanel({ open, onClose }: Props) {
             Pin, and Library. The{" "}
             <strong>Library</strong> panel (right dock) holds
             research PDFs and bookmarks. Use ⋯ → Preview in new tab for
-            publication-style HTML with Substack-like footnotes, Copy all text
-            for paste-friendly HTML, Export Word when Pandoc is installed, or
-            Push to GitHub. Edits save locally first, then sync online.
+            publication-style HTML. Copy all text copies the markdown. Copy for
+            Substack / Medium (⋯ or Cleanup → Publish) turns GFM footnotes into
+            that platform's numbered notes. Export Word when Pandoc is
+            installed, or Push to GitHub. Edits save locally first, then sync
+            online.
           </p>
         </section>
 

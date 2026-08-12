@@ -13,7 +13,12 @@ export function downloadMarkdown(markdown: string, fileName: string): void {
   URL.revokeObjectURL(url);
 }
 
-/** Copy markdown + HTML for pasting into Substack / Docs / etc. */
+/** Copy the essay markdown (plain text only). */
+export async function copyMarkdownToClipboard(markdown: string): Promise<void> {
+  await navigator.clipboard.writeText(markdown);
+}
+
+/** Copy markdown + HTML for pasting into a rich editor (Substack / Medium / Docs). */
 export async function copyDocumentForPaste(input: {
   markdown: string;
   html: string;

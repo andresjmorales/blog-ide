@@ -85,9 +85,14 @@ import {
 import { useAppDialog } from "@/components/AppDialog";
 import {
   copyDocumentForPaste,
+  copyMarkdownToClipboard,
   downloadMarkdown,
 } from "@/lib/export/document";
-import { clipboardHtmlFromMarkdown } from "@/lib/export/clipboardHtml";
+import {
+  htmlForPublishTarget,
+  PUBLISH_COPY_TARGETS,
+  type PublishCopyTarget,
+} from "@/lib/export/clipboardHtml";
 import {
   exportMarkdownAsDocx,
 } from "@/lib/pandoc/client";
@@ -1338,13 +1343,24 @@ export function DocumentWorkspace({
   }
 
   async function copyForExport() {
-    const markdown = currentMarkdown();
-    const { html } = clipboardHtmlFromMarkdown(markdown);
     try {
-      await copyDocumentForPaste({
-        markdown,
-        html,
+      await copyMarkdownToClipboard(currentMarkdown());
+    } catch {
+      await dialog.confirm({
+        title: "Copy failed",
+        message:
+          "Could not write to the clipboard. Try downloading .md instead.",
+        confirmLabel: "OK",
+        cancelLabel: "Close",
       });
+    }
+  }
+
+  async function copyForPublish(target: PublishCopyTarget) {
+    const markdown = currentMarkdown();
+    const { html } = htmlForPublishTarget(markdown, target);
+    try {
+      await copyDocumentForPaste({ markdown, html });
     } catch {
       await dialog.confirm({
         title: "Copy failed",
@@ -1484,6 +1500,18 @@ export function DocumentWorkspace({
       onSelect: () => {
         void copyForExport();
       },
+    },
+    {
+      kind: "submenu",
+      id: "copy-for",
+      label: "Copy for",
+      items: PUBLISH_COPY_TARGETS.map((target) => ({
+        id: `copy-for-${target.id}`,
+        label: target.label,
+        onSelect: () => {
+          void copyForPublish(target.id);
+        },
+      })),
     },
     {
       id: "export",

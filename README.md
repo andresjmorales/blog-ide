@@ -24,11 +24,12 @@ by design.
   canned actions (critique / tighten / title / expand), selection context,
   streaming replies, light model picker, smarter Apply (diff / patch), and
   import cleanup assist
-- **Export / import** — copy markdown + Substack-tuned HTML, download `.md`,
-  optional Word `.docx` when Pandoc is installed (`PANDOC_PATH`); import
-  markdown or `.docx` / `.odt` from the Files panel; Convert Case (Cc), Clean
-  whitespace, and punctuation normalize (Chicago/MLA dashes, smart quotes) for
-  messy pastes
+- **Export / import** — Copy all text copies markdown; Copy for Substack /
+  Medium (⋯ or Cleanup → Publish) pastes platform-specific footnote HTML;
+  download `.md`; optional Word `.docx` when Pandoc is installed
+  (`PANDOC_PATH`); import markdown or `.docx` / `.odt` from the Files panel;
+  Convert Case (Cc), Clean whitespace, and punctuation normalize (Chicago/MLA
+  dashes, smart quotes) for messy pastes
 - **GitHub backup** — optional one-way push (device-local PAT). Map a folder to
   a repo path or a document to `README.md`; matching files are overwritten,
   extras in the repo are left alone. Supabase stays the source of truth.
@@ -37,7 +38,7 @@ by design.
   the active match into view; regex and headings-only scope; Ω special
   characters insert into the find/replace fields when focused
 - **Cleanup** (broom) — pinnable tabbed panel: Import (fix footnotes), Text,
-  Punctuation, and Publish (link/image check); Convert Case is Cc on the
+  Punctuation, and Publish (copy for Substack/Medium + link/image check); Convert Case is Cc on the
   toolbar; Cite is separate; paste or drag-drop images into the essay
 
 ## Stack

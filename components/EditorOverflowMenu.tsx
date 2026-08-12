@@ -17,7 +17,14 @@ export type OverflowSeparator = {
   id: string;
 };
 
-export type OverflowItem = OverflowAction | OverflowSeparator;
+export type OverflowSubmenu = {
+  kind: "submenu";
+  id: string;
+  label: string;
+  items: OverflowAction[];
+};
+
+export type OverflowItem = OverflowAction | OverflowSeparator | OverflowSubmenu;
 
 type Props = {
   items: OverflowItem[];
@@ -26,6 +33,7 @@ type Props = {
 /** Compact ⋯ menu for secondary editor actions (portaled so toolbar overflow cannot clip it). */
 export function EditorOverflowMenu({ items }: Props) {
   const [open, setOpen] = useState(false);
+  const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ top: number; right: number } | null>(
     null
   );
@@ -47,7 +55,10 @@ export function EditorOverflowMenu({ items }: Props) {
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        setOpen(false);
+        setOpenSubmenu(null);
+      }
     }
     function onPointer(e: PointerEvent) {
       const target = e.target as Node;
@@ -58,6 +69,7 @@ export function EditorOverflowMenu({ items }: Props) {
         return;
       }
       setOpen(false);
+      setOpenSubmenu(null);
     }
     document.addEventListener("keydown", onKey);
     document.addEventListener("pointerdown", onPointer, true);
@@ -77,7 +89,10 @@ export function EditorOverflowMenu({ items }: Props) {
         aria-expanded={open}
         aria-controls={menuId}
         title="More actions"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => !v);
+          setOpenSubmenu(null);
+        }}
       >
         <span
           aria-hidden
@@ -97,14 +112,66 @@ export function EditorOverflowMenu({ items }: Props) {
             className="fixed min-w-[11rem] rounded-md border border-border bg-background py-1 text-sm shadow-md"
             style={{ top: coords.top, right: coords.right, zIndex }}
           >
-            {items.map((item) =>
-              item.kind === "separator" ? (
-                <div
-                  key={item.id}
-                  role="separator"
-                  className="my-1 border-t border-border"
-                />
-              ) : (
+            {items.map((item) => {
+              if (item.kind === "separator") {
+                return (
+                  <div
+                    key={item.id}
+                    role="separator"
+                    className="my-1 border-t border-border"
+                  />
+                );
+              }
+              if (item.kind === "submenu") {
+                return (
+                  <div
+                    key={item.id}
+                    className="relative"
+                    onMouseEnter={() => setOpenSubmenu(item.id)}
+                    onMouseLeave={() => setOpenSubmenu(null)}
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      aria-haspopup="menu"
+                      aria-expanded={openSubmenu === item.id}
+                      className="flex w-full items-center justify-between gap-4 px-3 py-1.5 text-left text-foreground hover:bg-panel"
+                      onClick={() =>
+                        setOpenSubmenu((cur) =>
+                          cur === item.id ? null : item.id
+                        )
+                      }
+                    >
+                      <span>{item.label}</span>
+                      <span className="text-muted">‹</span>
+                    </button>
+                    {openSubmenu === item.id && (
+                      <div
+                        role="menu"
+                        className="absolute right-full top-0 z-50 mr-0.5 min-w-[10rem] rounded-md border border-border bg-background py-1 shadow-md"
+                      >
+                        {item.items.map((sub) => (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            role="menuitem"
+                            disabled={sub.disabled}
+                            className="flex w-full px-3 py-1.5 text-left text-foreground hover:bg-panel disabled:opacity-40"
+                            onClick={() => {
+                              setOpen(false);
+                              setOpenSubmenu(null);
+                              sub.onSelect();
+                            }}
+                          >
+                            {sub.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return (
                 <button
                   key={item.id}
                   type="button"
@@ -118,8 +185,8 @@ export function EditorOverflowMenu({ items }: Props) {
                 >
                   {item.label}
                 </button>
-              )
-            )}
+              );
+            })}
           </div>,
           document.body
         )}
