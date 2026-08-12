@@ -474,8 +474,8 @@ function PublishTab({
   return (
     <section>
       <p className="blogide-cleanup-hint">
-        Copy a platform-specific HTML paste (GFM footnotes become that site's
-        numbered notes). ⋯ Copy all text stays raw markdown.
+        Copy a platform-specific HTML paste (GFM footnotes become numbered
+        notes for that site). ⋯ Copy all text stays raw markdown.
       </p>
       <div className="blogide-cleanup-actions mb-3">
         {PUBLISH_COPY_TARGETS.map((target) => (

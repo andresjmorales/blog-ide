@@ -78,7 +78,7 @@ export function HelpPanel({ open, onClose }: Props) {
             research PDFs and bookmarks. Use ⋯ → Preview in new tab for
             publication-style HTML. Copy all text copies the markdown. Copy for
             Substack / Medium (⋯ or Cleanup → Publish) turns GFM footnotes into
-            that platform's numbered notes. Export Word when Pandoc is
+            numbered notes for that platform. Export Word when Pandoc is
             installed, or Push to GitHub. Edits save locally first, then sync
             online.
           </p>
