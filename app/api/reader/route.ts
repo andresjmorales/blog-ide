@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/supabase/requireUser";
 import { assertSafePublicUrl } from "@/lib/preview/ssrf";
 import { cacheGet, cacheSet } from "@/lib/preview/cache";
 import { extractOpenGraph } from "@/lib/preview/openGraph";
-import { decodeHtmlEntities } from "@/lib/preview/htmlEntities";
+import { extractMainText } from "@/lib/preview/readerExtract";
 
 export const runtime = "nodejs";
 
@@ -18,33 +18,6 @@ type ReaderPayload = {
   text: string;
 };
 
-function extractMainText(html: string): string {
-  const cleaned = html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
-    .replace(/<footer[\s\S]*?<\/footer>/gi, " ")
-    .replace(/<header[\s\S]*?<\/header>/gi, " ");
-
-  const article =
-    cleaned.match(/<article[\s\S]*?<\/article>/i)?.[0] ||
-    cleaned.match(/<main[\s\S]*?<\/main>/i)?.[0] ||
-    cleaned;
-
-  const text = decodeHtmlEntities(
-    article
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/p>/gi, "\n\n")
-      .replace(/<\/h[1-6]>/gi, "\n\n")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/[ \t]+\n/g, "\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .replace(/[ \t]{2,}/g, " ")
-      .trim()
-  );
-
-  return text.slice(0, 12_000);
-}
 
 export async function GET(request: Request) {
   const denied = await requireUser();
@@ -55,8 +28,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing url" }, { status: 400 });
   }
 
-  // v2: decode HTML entities in extract text
-  const cached = cacheGet<ReaderPayload>(`reader:v2:${url}`);
+  // v3: source-specific Wikipedia / LessWrong extracts
+  const cached = cacheGet<ReaderPayload>(`reader:v3:${url}`);
   if (cached) return NextResponse.json(cached);
 
   try {
@@ -89,7 +62,7 @@ export async function GET(request: Request) {
     const buf = Buffer.from(await response.arrayBuffer());
     const html = buf.subarray(0, MAX_BYTES).toString("utf8");
     const og = extractOpenGraph(html, response.url || safe.href);
-    const text = extractMainText(html);
+    const text = extractMainText(html, response.url || safe.href);
     if (!text) {
       return NextResponse.json(
         { error: "Could not extract readable text" },
@@ -103,7 +76,7 @@ export async function GET(request: Request) {
       siteName: og.siteName,
       text,
     };
-    cacheSet(`reader:v2:${url}`, payload);
+    cacheSet(`reader:v3:${url}`, payload);
     return NextResponse.json(payload);
   } catch (error) {
     const message =

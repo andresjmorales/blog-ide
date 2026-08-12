@@ -32,6 +32,8 @@ import type { AiSelection } from "@/lib/ai/selection";
 import { EditorPrefsProvider } from "@/components/EditorPrefsContext";
 import { DocumentSessionProvider } from "@/components/DocumentSessionContext";
 import { FileExplorer } from "@/components/FileExplorer";
+import { UploadStatusBar } from "@/components/UploadStatusBar";
+import { GitHubMapDialog } from "@/components/GitHubMapDialog";
 import {
   ConflictResolverPanel,
   type ConflictResolutionSuccess,
@@ -75,8 +77,16 @@ import {
   loadDocumentTitles,
   setTitleFromMarkdown,
 } from "@/lib/workspace/docTitles";
-import { pickMarkdownFile } from "@/lib/export/document";
+import { pickEssayImportFile } from "@/lib/export/document";
 import { downloadWorkspaceZip } from "@/lib/export/workspaceZip";
+import { importPandocFile } from "@/lib/pandoc/client";
+import { listGithubMapNodes } from "@/lib/github/files";
+import { pushWorkspaceToGithubWithStatus } from "@/lib/github/push";
+import {
+  loadGithubSettings,
+  saveGithubSettings,
+} from "@/lib/github/settings";
+import type { GithubSyncMap } from "@/lib/github/types";
 import {
   documentIdsInSubtree,
   getInboxNode,
@@ -282,6 +292,14 @@ function AppShellContent({
   const applySelectionForAiRef = useRef<
     (markdown: string, selection: AiSelection) => boolean
   >(() => false);
+  const flushDocumentRef = useRef<() => Promise<void>>(async () => {});
+  const [githubMapOpen, setGithubMapOpen] = useState(false);
+  const [githubMapInitial, setGithubMapInitial] = useState<{
+    nodeId: string;
+    existing: GithubSyncMap | null;
+    defaultRepo: string;
+    defaultBranch: string;
+  } | null>(null);
   const [deletedFootnotes, setDeletedFootnotes] = useState<DeletedFootnote[]>(
     []
   );
@@ -289,6 +307,7 @@ function AppShellContent({
   const dismissRef = useRef<(id: string) => void>(() => {});
 
   const [nodes, setNodes] = useState<WorkspaceNode[]>([]);
+  const githubMapNodes = useMemo(() => listGithubMapNodes(nodes), [nodes]);
   const [docTitles, setDocTitles] = useState<Map<string, string>>(
     () => new Map()
   );
@@ -797,7 +816,7 @@ function AppShellContent({
       message: "Title for the essay (also used as the file name).",
       defaultValue: "Untitled",
       confirmLabel: "Create",
-      secondaryLabel: "Import from file (.md, .txt)",
+      secondaryLabel: "Import from file (.md, .txt, .docx)",
     });
     if (name === PROMPT_SECONDARY) {
       await handleImportDocument(parentId);
@@ -869,12 +888,26 @@ function AppShellContent({
 
   async function handleImportDocument(parentId: string | null) {
     if (previewMode) return;
-    const picked = await pickMarkdownFile();
+    const picked = await pickEssayImportFile();
     if (!picked) return;
-    const baseName = picked.name.replace(/\.(md|markdown|txt)$/i, "").trim();
+    const baseName = picked.name
+      .replace(/\.(md|markdown|txt|docx|odt)$/i, "")
+      .trim();
     const title = baseName || "Imported";
     const fileName = uniqueSiblingName(nodes, parentId, titleToFileName(title));
-    let markdown = picked.markdown.replace(/^\uFEFF/, "");
+    let markdown: string;
+    if (picked.kind === "office") {
+      try {
+        markdown = await importPandocFile(picked.file);
+      } catch (error) {
+        setTreeError(
+          error instanceof Error ? error.message : "Could not import Word file."
+        );
+        return;
+      }
+    } else {
+      markdown = picked.markdown.replace(/^\uFEFF/, "");
+    }
     if (!/^---\s*\n/.test(markdown)) {
       markdown = newEssayFrontmatter(title) + markdown;
     }
@@ -891,6 +924,75 @@ function AppShellContent({
       setTreeError(
         error instanceof Error ? error.message : "Could not import document."
       );
+    }
+  }
+
+  async function handleMapToGithub(nodeId: string) {
+    if (previewMode) return;
+    try {
+      const settings = await loadGithubSettings();
+      setGithubMapInitial({
+        nodeId,
+        existing: settings.maps.find((m) => m.nodeId === nodeId) ?? null,
+        defaultRepo: settings.repo,
+        defaultBranch: settings.branch,
+      });
+      setGithubMapOpen(true);
+    } catch (error) {
+      await dialog.confirm({
+        title: "GitHub mapping",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Could not load GitHub settings.",
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
+    }
+  }
+
+  async function handleSaveGithubMap(map: GithubSyncMap) {
+    try {
+      const settings = await loadGithubSettings();
+      await saveGithubSettings({
+        ...settings,
+        maps: [...settings.maps.filter((m) => m.nodeId !== map.nodeId), map],
+      });
+    } catch (error) {
+      await dialog.confirm({
+        title: "Could not save mapping",
+        message:
+          error instanceof Error ? error.message : "GitHub settings failed.",
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
+    }
+  }
+
+  async function handlePushToGithub(nodeId: string) {
+    if (previewMode) return;
+    await flushDocumentRef.current();
+    try {
+      const results = await pushWorkspaceToGithubWithStatus({
+        scope: { nodeId },
+      });
+      const files = results.reduce((n, r) => n + r.fileCount, 0);
+      await dialog.confirm({
+        title: "Pushed to GitHub",
+        message: `Wrote ${files} file${
+          files === 1 ? "" : "s"
+        }. Matching paths were overwritten; extra files in the repo were left alone.`,
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
+    } catch (error) {
+      await dialog.confirm({
+        title: "GitHub push failed",
+        message:
+          error instanceof Error ? error.message : "Could not push to GitHub.",
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
     }
   }
 
@@ -1166,6 +1268,8 @@ function AppShellContent({
       onDeleteForever={handleDeleteForever}
       onReviewConflict={handleReviewConflict}
       onExportAll={previewMode ? undefined : () => void exportAll()}
+      onMapToGithub={previewMode ? undefined : (id) => void handleMapToGithub(id)}
+      onPushToGithub={previewMode ? undefined : (id) => void handlePushToGithub(id)}
       loading={treeLoading}
       // Hard boot failures use WorkspaceConnectionDialog instead of a red blurb.
       error={
@@ -1448,6 +1552,9 @@ function AppShellContent({
                 registerApplySelectionForAi={(apply) => {
                   applySelectionForAiRef.current = apply;
                 }}
+                registerFlushDocument={(flush) => {
+                  flushDocumentRef.current = flush;
+                }}
                 shellDock={
                   !previewMode &&
                   !isMobile &&
@@ -1507,6 +1614,7 @@ function AppShellContent({
             previewMode={previewMode}
             onDisplayNameChange={setAccountName}
             onAvatarUrlChange={setAccountAvatarUrl}
+            githubMapNodes={githubMapNodes}
           />
           <EditorSettingsPanel
             open={editorSettingsOpen}
@@ -1522,6 +1630,22 @@ function AppShellContent({
             }}
           />
           <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
+          <GitHubMapDialog
+            open={githubMapOpen}
+            onClose={() => {
+              setGithubMapOpen(false);
+              setGithubMapInitial(null);
+            }}
+            nodes={githubMapNodes}
+            initialNodeId={githubMapInitial?.nodeId}
+            existing={githubMapInitial?.existing}
+            defaultRepo={githubMapInitial?.defaultRepo ?? ""}
+            defaultBranch={githubMapInitial?.defaultBranch ?? "main"}
+            onSave={(map) => {
+              void handleSaveGithubMap(map);
+            }}
+          />
+          <UploadStatusBar />
           <ConflictResolverPanel
             open={Boolean(resolverCopyId)}
             copyNode={resolverCopyNode}

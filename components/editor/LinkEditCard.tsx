@@ -18,6 +18,7 @@ import {
   setLinkEditorOpener,
   type LinkEditorOpenOptions,
 } from "@/lib/editor/linkShortcut";
+import { placeLinkBubble } from "@/lib/editor/linkPlacement";
 
 type CardState = {
   activeEditor: Editor;
@@ -55,37 +56,11 @@ function anchorRectForLink(editor: Editor): DOMRect | null {
   }
 }
 
-const MOBILE_LINK_BREAKPOINT_PX = 767;
-
-function isMobileViewport(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    window.innerWidth <= MOBILE_LINK_BREAKPOINT_PX
-  );
-}
-
 function placeNearRect(
   rect: DOMRect,
   estimatedHeight: number
 ): { left: number; top: number; placeAbove: boolean; mobileSheet: boolean } {
-  // Match footnote-card mobile sheet: full width, anchored to bottom.
-  if (isMobileViewport()) {
-    return {
-      left: 0,
-      top: window.innerHeight,
-      placeAbove: true,
-      mobileSheet: true,
-    };
-  }
-  const left = Math.min(window.innerWidth - 320, Math.max(8, rect.left));
-  const spaceBelow = window.innerHeight - rect.bottom - 8;
-  // Prefer below; only flip above when it won't fit and there is room above.
-  const placeAbove =
-    spaceBelow < estimatedHeight && rect.top > estimatedHeight + 8;
-  const top = placeAbove
-    ? Math.max(8, rect.top - 6)
-    : Math.min(window.innerHeight - 8, rect.bottom + 6);
-  return { left, top, placeAbove, mobileSheet: false };
+  return placeLinkBubble(rect, estimatedHeight);
 }
 
 /**
@@ -324,7 +299,11 @@ export function LinkEditCard({
       className={`link-edit-card${card.placeAbove ? " is-above" : ""}${
         card.mobileSheet ? " is-mobile-sheet" : ""
       }`}
-      style={{ left: card.left, top: card.top, zIndex: card.zIndex }}
+      style={
+        card.mobileSheet
+          ? { zIndex: card.zIndex }
+          : { left: card.left, top: card.top, zIndex: card.zIndex }
+      }
       onMouseDown={(event) => event.stopPropagation()}
     >
       <div className="link-edit-row">

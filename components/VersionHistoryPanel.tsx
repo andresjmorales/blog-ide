@@ -5,6 +5,7 @@ import {
   listDocumentRevisions,
   type DocumentRevision,
 } from "@/lib/workspace/api";
+import { compactDiff, unifiedLineDiff, type DiffLine } from "@/lib/markdown/diff";
 
 type Props = {
   open: boolean;
@@ -12,6 +13,9 @@ type Props = {
   nodeId: string | null;
   /** Restore the given revision into the editor (throws on failure). */
   onRestore: (version: number) => Promise<void>;
+  /** Current editor markdown, for diffs against a snapshot. */
+  currentMarkdown?: string | null;
+  getCurrentMarkdown?: () => string;
 };
 
 function formatStamp(iso: string): string {
@@ -30,11 +34,44 @@ function formatSize(markdown: string): string {
   return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
-export function VersionHistoryPanel({ open, onClose, nodeId, onRestore }: Props) {
+function DiffPreview({ lines }: { lines: DiffLine[] }) {
+  if (lines.length === 0) {
+    return <p className="settings-help mt-2">No differences.</p>;
+  }
+  return (
+    <pre className="lossy-diff mt-2 max-h-56 overflow-auto rounded border border-border bg-panel p-2 font-mono text-[0.7rem] leading-snug">
+      {lines.map((line, index) => (
+        <div
+          key={`${index}-${line.type}`}
+          className={
+            line.type === "add"
+              ? "lossy-diff-add"
+              : line.type === "remove"
+                ? "lossy-diff-remove"
+                : ""
+          }
+        >
+          {line.type === "add" ? "+" : line.type === "remove" ? "−" : " "}
+          {line.text}
+        </div>
+      ))}
+    </pre>
+  );
+}
+
+export function VersionHistoryPanel({
+  open,
+  onClose,
+  nodeId,
+  onRestore,
+  currentMarkdown = null,
+  getCurrentMarkdown,
+}: Props) {
   const [revisions, setRevisions] = useState<DocumentRevision[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewVersion, setPreviewVersion] = useState<number | null>(null);
+  const [compareVersion, setCompareVersion] = useState<number | null>(null);
   const [confirmVersion, setConfirmVersion] = useState<number | null>(null);
   const [restoringVersion, setRestoringVersion] = useState<number | null>(null);
   const [restoredVersion, setRestoredVersion] = useState<number | null>(null);
@@ -60,6 +97,7 @@ export function VersionHistoryPanel({ open, onClose, nodeId, onRestore }: Props)
     // Defer so we don't sync-setState inside the effect body (eslint).
     const timer = window.setTimeout(() => {
       setPreviewVersion(null);
+      setCompareVersion(null);
       setConfirmVersion(null);
       setRestoredVersion(null);
       void load();
@@ -119,7 +157,8 @@ export function VersionHistoryPanel({ open, onClose, nodeId, onRestore }: Props)
             The last {revisions.length > 0 ? revisions.length : 20} saved
             versions of this essay, snapshotted in the cloud on every sync.
             Restoring snapshots the current version first, so a restore is
-            always reversible.
+            always reversible. Use Diff to compare a snapshot to the current
+            essay.
           </p>
 
           {error && (
@@ -164,6 +203,19 @@ export function VersionHistoryPanel({ open, onClose, nodeId, onRestore }: Props)
                     >
                       {previewVersion === rev.version ? "Hide" : "Preview"}
                     </button>
+                    {(currentMarkdown != null || getCurrentMarkdown) && (
+                      <button
+                        type="button"
+                        className="rounded border border-border px-2 py-0.5 text-xs hover:bg-panel"
+                        onClick={() =>
+                          setCompareVersion((current) =>
+                            current === rev.version ? null : rev.version
+                          )
+                        }
+                      >
+                        {compareVersion === rev.version ? "Hide diff" : "Diff"}
+                      </button>
+                    )}
                     {confirmVersion === rev.version ? (
                       <>
                         <button
@@ -200,6 +252,18 @@ export function VersionHistoryPanel({ open, onClose, nodeId, onRestore }: Props)
                   <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded border border-border bg-panel p-2 font-mono text-xs leading-snug">
                     {rev.markdown}
                   </pre>
+                )}
+                {compareVersion === rev.version &&
+                  (currentMarkdown != null || getCurrentMarkdown) && (
+                  <DiffPreview
+                    lines={compactDiff(
+                      unifiedLineDiff(
+                        rev.markdown,
+                        currentMarkdown ?? getCurrentMarkdown?.() ?? ""
+                      ),
+                      2
+                    )}
+                  />
                 )}
               </li>
             ))}

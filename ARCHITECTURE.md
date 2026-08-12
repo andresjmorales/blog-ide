@@ -39,12 +39,16 @@ markdown.
   not stored server-side.
 - Optional hosted-instance routes (`/api/billing/*`) when a shared deploy
   enables storage tiers — see [docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md).
-- Optional Pandoc export where a deployment enables it (not required).
+- Optional Pandoc export/import (`/api/export/docx`, `/api/import/pandoc`)
+  when `PANDOC_PATH` points at a working binary. TipTap stays the editor;
+  markdown and clipboard HTML remain the happy path.
 
 ### Optional external services
 
-- GitHub is intended as a one-way backup/export target, not required
-  onboarding and not overflow media storage.
+- GitHub is a one-way backup/export target (browser PAT, Git Data API).
+  Folder and document maps live in `user_settings`; the token is never stored
+  in Supabase. Pushes overwrite matching files and never delete extras.
+  Not required onboarding and not overflow media storage.
 - Anthropic / OpenAI are called with the user’s own key via the proxy above.
 - Stripe only if a shared hosted deploy opts into paid storage tiers
   ([docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md)).
@@ -117,7 +121,9 @@ lib/sync/             Autosave / Supabase sync engine
 lib/workspace/        Workspace tree + document RPC clients
 lib/supabase/         Browser, server, and service-role clients
 lib/pins/             Floating pin / pop-out session store
-lib/preview/          Publication HTML, SSRF helpers, OG helpers
+lib/preview/          Publication HTML, SSRF helpers, OG helpers, reader extracts
+lib/github/           One-way GitHub backup (PAT, maps, Git Data push)
+lib/pandoc/           Optional Word export/import when PANDOC_PATH is set
 lib/billing/          Public plan limits + Stripe plan application
 lib/stripe/           Server Stripe client and env helpers
 supabase/schema.sql   Database bootstrap, RLS, and RPCs

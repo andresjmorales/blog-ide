@@ -286,13 +286,6 @@ export function DocumentEditor({
 
     async function insertFile(file: File) {
       await insertEssayImageFromFile(currentEditor, file, {
-        promptAlt: async () =>
-          dialog.prompt({
-            title: "Alt text",
-            message: "Optional description for accessibility.",
-            defaultValue: "",
-            confirmLabel: "Insert",
-          }),
         alertQuota: async () => {
           await dialog.confirm({
             title: "Storage quota exceeded",

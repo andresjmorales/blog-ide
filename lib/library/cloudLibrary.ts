@@ -3,6 +3,7 @@ import {
   QuotaExceededError,
   uploadUserAsset,
   deleteUserAsset,
+  type UploadProgress,
 } from "@/lib/assets/upload";
 import { assetPathFromUrl } from "@/lib/assets/paths";
 import { canonicalizeLibraryUrl } from "@/lib/library/urls";
@@ -97,7 +98,10 @@ export async function upsertCloudLibraryLink(input: {
   return data as CloudLibraryRow;
 }
 
-export async function uploadCloudLibraryPdf(file: File): Promise<{
+export async function uploadCloudLibraryPdf(
+  file: File,
+  options?: { onProgress?: (progress: UploadProgress) => void }
+): Promise<{
   row: CloudLibraryRow;
   src: string;
 }> {
@@ -117,6 +121,7 @@ export async function uploadCloudLibraryPdf(file: File): Promise<{
     src = await uploadUserAsset(file, safe, {
       kind: "library_pdf",
       relativePath,
+      onProgress: options?.onProgress,
     });
   } catch (err) {
     if (err instanceof QuotaExceededError) throw err;

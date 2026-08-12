@@ -42,6 +42,8 @@ type Props = {
   onReviewConflict?: (copyId: string) => void;
   /** Download every essay (Trash excluded) as a .zip. */
   onExportAll?: () => void;
+  onMapToGithub?: (nodeId: string) => void;
+  onPushToGithub?: (nodeId: string) => void;
   loading?: boolean;
   error?: string | null;
 };
@@ -99,6 +101,8 @@ export function FileExplorer({
   onDeleteForever,
   onReviewConflict,
   onExportAll,
+  onMapToGithub,
+  onPushToGithub,
   loading,
   error,
 }: Props) {
@@ -184,6 +188,30 @@ export function FileExplorer({
         label: "Pop out",
         onSelect: () => onPopOutDocument(node.id),
       });
+    }
+
+    if (
+      (node.kind === "folder" || node.kind === "document") &&
+      !inTrash &&
+      (onMapToGithub || onPushToGithub)
+    ) {
+      items.push({ kind: "separator", id: "sep-github" });
+      if (onMapToGithub) {
+        items.push({
+          kind: "action",
+          id: "map-github",
+          label: "Map to GitHub…",
+          onSelect: () => onMapToGithub(node.id),
+        });
+      }
+      if (onPushToGithub) {
+        items.push({
+          kind: "action",
+          id: "push-github",
+          label: "Push to GitHub",
+          onSelect: () => onPushToGithub(node.id),
+        });
+      }
     }
 
     if (!scratch) {

@@ -14,6 +14,11 @@ import {
   upsertCloudLibraryLink,
 } from "@/lib/library/cloudLibrary";
 import { canonicalizeLibraryUrl } from "@/lib/library/urls";
+import {
+  beginUploadStatus,
+  updateUploadStatus,
+} from "@/lib/assets/uploadStatus";
+import { classifyStorageError } from "@/lib/assets/errors";
 
 export { canonicalizeLibraryUrl };
 
@@ -193,22 +198,47 @@ export function addLibraryPdf(file: File): LibraryPdfEntry {
 /** Prefer cloud upload when signed in; otherwise session-only. */
 export async function addLibraryPdfDurable(file: File): Promise<LibraryPdfEntry> {
   if (await signedIn()) {
-    const { row, src } = await uploadCloudLibraryPdf(file);
-    srcById.set(row.id, src);
-    const entry = cloudRowToMeta(row);
-    meta = [...meta.filter((e) => e.id !== entry.id), entry];
-    saveMeta(meta);
-    emit();
-    return {
-      id: entry.id,
-      kind: "pdf",
-      name: entry.name,
-      src,
-      revokeOnClose: false,
-      url: entry.url,
-      assetPath: entry.assetPath,
-      byteSize: entry.byteSize,
-    };
+    const statusId = beginUploadStatus("uploading", "Uploading PDF…");
+    try {
+      const { row, src } = await uploadCloudLibraryPdf(file, {
+        onProgress: (progress) => {
+          updateUploadStatus(statusId, {
+            phase: "uploading",
+            progress: progress.percent,
+            message: `Uploading PDF… ${progress.percent}%`,
+          });
+        },
+      });
+      updateUploadStatus(statusId, {
+        phase: "done",
+        progress: 100,
+        message: "PDF uploaded to Library.",
+      });
+      srcById.set(row.id, src);
+      const entry = cloudRowToMeta(row);
+      meta = [...meta.filter((e) => e.id !== entry.id), entry];
+      saveMeta(meta);
+      emit();
+      return {
+        id: entry.id,
+        kind: "pdf",
+        name: entry.name,
+        src,
+        revokeOnClose: false,
+        url: entry.url,
+        assetPath: entry.assetPath,
+        byteSize: entry.byteSize,
+      };
+    } catch (err) {
+      updateUploadStatus(statusId, {
+        phase: "error",
+        message:
+          err instanceof Error
+            ? classifyStorageError(err)
+            : "Could not upload PDF.",
+      });
+      throw err;
+    }
   }
   return addLibraryPdf(file);
 }
