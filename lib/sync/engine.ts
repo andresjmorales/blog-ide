@@ -555,19 +555,38 @@ export async function flushSyncQueue(): Promise<void> {
   }
 }
 
+/**
+ * Compact relative age for the sync badge.
+ * Under 2 days: minutes / hours+minutes (`6h30m`). From 2 days on: whole days (`5d`).
+ */
+export function formatRelativeSyncAge(
+  syncedAt: string | Date,
+  nowMs: number = Date.now()
+): string {
+  const mins = Math.max(
+    0,
+    Math.round((nowMs - new Date(syncedAt).getTime()) / 60000)
+  );
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  if (hours >= 48) {
+    return `${Math.floor(hours / 24)}d`;
+  }
+  if (remMins === 0) return `${hours}h`;
+  return `${hours}h${remMins}m`;
+}
+
 export function formatSyncLabel(s: SyncStatus): string {
   if (!s.focusNodeId) return "Not synced yet";
   if (s.syncing) return "Syncing…";
   if (s.error) return "Sync error";
   if (s.dirty) return "Saved locally · syncing soon";
   if (s.syncedAt) {
-    const mins = Math.max(
-      0,
-      Math.round((Date.now() - new Date(s.syncedAt).getTime()) / 60000)
-    );
-    if (mins < 1) return "Saved locally · Synced just now";
-    if (mins === 1) return "Saved locally · Synced 1m ago";
-    return `Saved locally · Synced ${mins}m ago`;
+    const age = formatRelativeSyncAge(s.syncedAt);
+    if (age === "just now") return "Saved locally · Synced just now";
+    return `Saved locally · Synced ${age} ago`;
   }
   if (s.localSavedAt) return "Saved locally";
   return "Not synced yet";

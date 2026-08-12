@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   EditorContent,
   ReactNodeViewRenderer,
@@ -71,6 +71,7 @@ type Props = {
   spellcheckLang?: string;
   /** Fallback title when frontmatter has none. */
   documentName?: string | null;
+  sourceTextareaRef?: RefObject<HTMLTextAreaElement | null>;
 };
 
 function unpackPreviewMeta(
@@ -100,6 +101,7 @@ export function MarkdownSplitView({
   spellcheckEnabled = false,
   spellcheckLang = "en",
   documentName = null,
+  sourceTextareaRef,
 }: Props) {
   const { prefs, updatePrefs } = useEditorPrefs();
   /** While dragging the gutter; otherwise width comes from prefs. */
@@ -246,6 +248,7 @@ export function MarkdownSplitView({
           style={{ width: paneWidth }}
         >
           <textarea
+            ref={sourceTextareaRef}
             value={sourceText}
             onChange={(e) => onSourceChange(e.target.value)}
             spellCheck={spellcheckEnabled}
