@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { FrontmatterFieldsMenu } from "@/components/FrontmatterFieldsMenu";
 
 type Props = {
   title: string;
   subtitle: string;
-  author: string;
+  frontmatter: string;
   onTitleCommit: (title: string) => void;
   onSubtitleCommit: (subtitle: string) => void;
-  onAuthorCommit: (author: string) => void;
+  onFrontmatterChange: (frontmatter: string) => void;
   onFocusBody?: () => void;
   titleDisabled?: boolean;
 };
@@ -20,29 +21,26 @@ function autosize(el: HTMLTextAreaElement | null) {
 }
 
 /**
- * Title / subtitle / author fields with local draft state so typing does not
- * re-render the TipTap editor or the rest of the workspace.
- * (`publication:` and other frontmatter keys stay opaque / Essay-settings-only.)
+ * Title / subtitle with local draft state so typing does not re-render the
+ * TipTap editor. Extra frontmatter (author, date, tags, custom keys) lives
+ * behind the info control so the default chrome stays title + subtitle.
  */
 export function EssayTitleBlock({
   title,
   subtitle,
-  author,
+  frontmatter,
   onTitleCommit,
   onSubtitleCommit,
-  onAuthorCommit,
+  onFrontmatterChange,
   onFocusBody,
   titleDisabled = false,
 }: Props) {
   const [titleFocused, setTitleFocused] = useState(false);
   const [subtitleFocused, setSubtitleFocused] = useState(false);
-  const [authorFocused, setAuthorFocused] = useState(false);
   const [titleDraft, setTitleDraft] = useState(title);
   const [subtitleDraft, setSubtitleDraft] = useState(subtitle);
-  const [authorDraft, setAuthorDraft] = useState(author);
   const titleRef = useRef<HTMLTextAreaElement | null>(null);
   const subtitleRef = useRef<HTMLInputElement | null>(null);
-  const authorRef = useRef<HTMLInputElement | null>(null);
 
   const titleValue = titleFocused ? titleDraft : title;
 
@@ -60,19 +58,9 @@ export function EssayTitleBlock({
     }
   }
 
-  function commitSubtitle(focusNext: "author" | "body" | null) {
+  function commitSubtitle(focusBody: boolean) {
     setSubtitleFocused(false);
     if (subtitleDraft !== subtitle) onSubtitleCommit(subtitleDraft);
-    if (focusNext === "author") {
-      requestAnimationFrame(() => authorRef.current?.focus());
-    } else if (focusNext === "body") {
-      requestAnimationFrame(() => onFocusBody?.());
-    }
-  }
-
-  function commitAuthor(focusBody: boolean) {
-    setAuthorFocused(false);
-    if (authorDraft !== author) onAuthorCommit(authorDraft);
     if (focusBody) {
       requestAnimationFrame(() => onFocusBody?.());
     }
@@ -80,6 +68,10 @@ export function EssayTitleBlock({
 
   return (
     <div className="essay-title-block">
+      <FrontmatterFieldsMenu
+        frontmatter={frontmatter}
+        onFrontmatterChange={onFrontmatterChange}
+      />
       <textarea
         ref={titleRef}
         rows={1}
@@ -110,36 +102,16 @@ export function EssayTitleBlock({
           setSubtitleDraft(subtitle);
         }}
         onChange={(e) => setSubtitleDraft(e.target.value)}
-        onBlur={() => commitSubtitle(null)}
+        onBlur={() => commitSubtitle(false)}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
-            commitSubtitle("author");
+            commitSubtitle(true);
           }
         }}
         aria-label="Essay subtitle"
         placeholder="Subtitle (optional)"
         className="essay-subtitle-input"
-      />
-      <input
-        ref={authorRef}
-        type="text"
-        value={authorFocused ? authorDraft : author}
-        onFocus={() => {
-          setAuthorFocused(true);
-          setAuthorDraft(author);
-        }}
-        onChange={(e) => setAuthorDraft(e.target.value)}
-        onBlur={() => commitAuthor(false)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            commitAuthor(true);
-          }
-        }}
-        aria-label="Author byline"
-        placeholder="Author (optional)"
-        className="essay-author-input"
       />
     </div>
   );

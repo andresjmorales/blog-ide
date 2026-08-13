@@ -18,7 +18,10 @@ import {
   setFootnoteFindSession,
   syncFootnoteFindSession,
 } from "@/lib/editor/footnoteFindBridge";
-import { setTextInsertTarget } from "@/lib/editor/textInsertTarget";
+import {
+  insertIntoTextControl,
+  setTextInsertTarget,
+} from "@/lib/editor/textInsertTarget";
 
 /** Max chars to seed Find from the current selection (single-line only). */
 const SEED_QUERY_MAX_CHARS = 80;
@@ -82,30 +85,6 @@ function seedQueryFromSticky(
   } catch {
     return "";
   }
-}
-
-function insertIntoInput(
-  input: HTMLInputElement,
-  payload: { text: string; wrap?: { before: string; after: string } }
-): void {
-  const start = input.selectionStart ?? input.value.length;
-  const end = input.selectionEnd ?? start;
-  const selected = input.value.slice(start, end);
-  const nextChunk = payload.wrap
-    ? payload.wrap.before + (selected || "") + payload.wrap.after
-    : payload.text;
-  const value = input.value.slice(0, start) + nextChunk + input.value.slice(end);
-  const nativeSetter = Object.getOwnPropertyDescriptor(
-    HTMLInputElement.prototype,
-    "value"
-  )?.set;
-  nativeSetter?.call(input, value);
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  const caret = payload.wrap
-    ? start + payload.wrap.before.length + (selected ? selected.length : 0)
-    : start + nextChunk.length;
-  input.setSelectionRange(caret, caret);
-  input.focus();
 }
 
 export function FindReplacePanel({
@@ -313,7 +292,7 @@ export function FindReplacePanel({
       const input =
         active === replace ? replace : active === find ? find : null;
       if (!input) return false;
-      insertIntoInput(input, payload);
+      insertIntoTextControl(input, payload);
       return true;
     });
     return () => setTextInsertTarget(null);
