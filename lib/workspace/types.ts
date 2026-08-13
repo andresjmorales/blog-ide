@@ -10,7 +10,7 @@ export type WorkspaceNode = {
   position: number;
   url: string | null;
   pinned: boolean;
-  /** Reserved system folders, e.g. "trash" | "inbox". */
+  /** Reserved system folders ("trash" | "inbox") or seeded scratchpad identity. */
   system_key: string | null;
   /** Optional accent color (CSS color string) shown in the Files explorer. */
   color: string | null;
@@ -37,7 +37,7 @@ export type RemoteDocument = {
 export type DefaultWorkspaceIds = {
   essaysId: string;
   draftsId: string;
-  scratchpadId: string;
+  scratchpadId?: string | null;
   inboxId?: string;
   notesChannelId?: string;
   trashId?: string;

@@ -177,7 +177,7 @@ type Props = {
   nodeId: string | null;
   /** Current workspace file name for the open document (e.g. essay.md). */
   documentName?: string | null;
-  /** When false, title edits won't rename the file (scratchpad). */
+  /** When false, title edits won't rename the file. */
   canRenameDocument?: boolean;
   conflict?: ConflictPresentation | null;
   onReviewConflict?: () => void;

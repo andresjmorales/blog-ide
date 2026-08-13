@@ -17,7 +17,6 @@ import {
   folderPathLabel,
   getTrashNode,
   isInTrash,
-  isScratchpad,
   isSystemFolder,
   systemFolderDisplayName,
 } from "@/lib/workspace/tree";
@@ -139,7 +138,6 @@ export function FileExplorer({
   function buildMenuItems(node: WorkspaceNode): ContextMenuItem[] {
     const inTrash = isInTrash(node.id, nodes, trashId);
     const systemFolder = isSystemFolder(node);
-    const scratch = isScratchpad(node);
     const items: ContextMenuItem[] = [];
 
     if (systemFolder) {
@@ -214,25 +212,23 @@ export function FileExplorer({
       }
     }
 
-    if (!scratch) {
+    items.push({
+      kind: "action",
+      id: "rename",
+      label: "Rename",
+      disabled: inTrash || Boolean(classifyConflict(node)?.unresolved),
+      onSelect: () => onRename(node.id),
+    });
+    if (!inTrash) {
       items.push({
         kind: "action",
-        id: "rename",
-        label: "Rename",
-        disabled: inTrash || Boolean(classifyConflict(node)?.unresolved),
-        onSelect: () => onRename(node.id),
+        id: "pin",
+        label: node.pinned ? "Unpin" : "Pin to top",
+        onSelect: () => onTogglePin(node.id, !node.pinned),
       });
-      if (!inTrash) {
-        items.push({
-          kind: "action",
-          id: "pin",
-          label: node.pinned ? "Unpin" : "Pin to top",
-          onSelect: () => onTogglePin(node.id, !node.pinned),
-        });
-      }
     }
 
-    if (!inTrash && !scratch) {
+    if (!inTrash) {
       items.push({
         kind: "submenu",
         id: "color",
@@ -308,7 +304,7 @@ export function FileExplorer({
         kind: "action",
         id: "trash",
         label: "Move to Trash",
-        disabled: scratch || !trashId,
+        disabled: !trashId,
         onSelect: () => onMoveToTrash(node.id),
       });
     }

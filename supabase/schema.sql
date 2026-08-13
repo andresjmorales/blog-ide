@@ -368,7 +368,7 @@ status: draft
 ---
 # Scratchpad
 
-Quick notes land here. Persistence is live — edits autosave locally, then sync to Supabase.
+Scraps and half-formed thoughts. This is a regular essay. Rename, move, or trash it like any other file.
 $md$;
   notes_md text := $md$---
 title: General
@@ -386,15 +386,21 @@ tags:
 canonical:
 ---
 
-BlogIDE is a local-first writing IDE for essays that publish as clean markdown. Everything you type autosaves to this browser instantly and syncs to the cloud a moment later — watch the check mark next to your avatar. This page is a regular essay: edit it, or delete it from the Files panel when you're done.
+BlogIDE is a local-first writing IDE for essays that publish as clean markdown. Everything you type autosaves to this browser instantly and syncs to the cloud a moment later. Watch the check mark next to your avatar.
+
+This page is a regular essay. So is the pinned scratchpad.md next to it. Rename, move, unpin, or trash either of them whenever you want; the Files panel still has essays/, drafts/, Notes, and Trash.
 
 ## The panels
 
-The **Files** panel (left) is your workspace tree. Hover a folder for quick-create buttons, right-click (or use the ⋯ kebab) for rename, move, pin, and Trash. Pinned items stay at the top. Every panel tab can be dragged between the left and right docks, popped out into a floating window, or closed — reopen them from the panels menu in the header.
+The **Files** panel (left) is your workspace tree. Hover a folder for quick-create buttons, or use New document to import `.md` / `.txt` / `.docx` (Word needs Pandoc on the server). Right-click (or the ⋯ kebab) for rename, move, pin, color, Trash, and optional GitHub map or push. Pinned items stay at the top. Changing an essay title also renames its file. Pop out any document to keep it floating while you write.
+
+Every panel tab can be dragged between the left and right docks, popped out into a floating window, or closed. Reopen them from the panels menu in the header.
 
 ## Writing
 
-The editor is rich text over pure markdown — switch to **View raw markdown** from the ⋯ menu in the toolbar any time; nothing is lost in either direction. The **Outline** rail (left edge of the essay) tracks your headings. The **Footnotes** rail (right edge) collects every footnote beside the essay; collapse it when you want a clean page. Insert footnotes with Ctrl+Shift+F.
+The editor is rich text over pure markdown. Switch to **View raw markdown** from the ⋯ menu (or Ctrl+backslash) any time; nothing is lost in either direction. Title and subtitle sit above the essay; **Essay metadata** (the info control beside them) holds author, date, tags, and any extra frontmatter.
+
+The **Outline** rail (left edge) tracks headings and live writing stats: words, reading time, characters. The **Footnotes** rail (right edge) collects every footnote beside the essay; collapse it when you want a clean page. Insert footnotes with Ctrl+Shift+F. Hover a note to preview, pin or drag a card to keep it on screen, and restore deleted notes from the bottom of the rail.
 
 A few constructs you can try right here:
 
@@ -411,20 +417,41 @@ const greeting = "hello, BlogIDE";
 | --- | --- |
 | Footnote | Ctrl+Shift+F |
 | Link | Ctrl+K |
+| Find | Ctrl+F |
+| Markdown split | Ctrl+backslash |
 
 Inline math works too: $x^2$.
 
+Press **?** when you are not typing for the shortcut cheatsheet.
+
+## Tools
+
+The toolbar has more than formatting:
+
+- **Find** (magnifying glass / Ctrl+F) searches the essay and footnote bodies. Regex and headings-only scopes live in the panel.
+- **Cleanup** (broom) is a pinnable panel: Import (fix pasted footnotes), Text, Punctuation (Chicago/MLA dashes, smart quotes), and Publish (copy for Substack/Medium plus a link/image check).
+- **Cc** converts case. **Cite** inserts a citation from BibTeX. **Ω** inserts special characters into the essay, title, or find field.
+- **Essay settings** (⋯) turns writing check on or off for this essay. Harper runs on-device for English spelling and grammar.
+
 ## Research while you write
 
-Paste a link and hover it for a live page preview. Pin a PDF from the **Library** panel to float it over the workspace while you quote from it. Images paste straight in — they're compressed and uploaded automatically.
+Paste a link and hover it for a live page preview, then Open, Pin, or save it to the **Library**. Pin a PDF from Library to float it over the workspace while you quote. Images paste or drag straight in; they are compressed and uploaded automatically. Select a figure to add alt text or a caption.
+
+## Share and backup
+
+⋯ → **Preview in new tab** shows publication-style HTML. **Copy all text** copies markdown; **Copy for** Substack or Medium pastes platform-specific footnote HTML. Download `.md`, or Word when Pandoc is installed. **Export all (.zip)** in the Files panel bundles your workspace and owned images. Optional GitHub backup (Account settings; the PAT stays on this device) is a one-way push. Supabase stays the source of truth.
 
 ## Notes
 
-The **Notes** panel is a capture stream for notes-to-self: type a thought and it lands timestamped in a channel (default `general`). Manage channels from the Notes panel toolbar — Open channel doc only when you need the raw markdown. On your phone, BlogIDE opens straight into capture mode so you can push notes from anywhere.
+The **Notes** panel is a capture stream for notes-to-self: type a thought and it lands timestamped in a channel (default `general`). Manage channels from the Notes panel toolbar. On your phone, BlogIDE opens straight into capture mode.
+
+## Optional AI
+
+Paste an Anthropic or OpenAI key in Account settings (it stays on this device). The AI panel can critique, tighten, retitle, or expand a selection, then Apply a rewrite as a diff.
 
 ## Safety net
 
-Every cloud save keeps the previous version — **Version history** in the ⋯ menu lists the last 20 snapshots of each essay with one-click restore. Deletes go to the Trash first. **Export all (.zip)** in the Files panel downloads your whole workspace as portable markdown.
+Every cloud save keeps the previous version. **Version history** in the ⋯ menu lists the last 20 snapshots of each essay with one-click restore. Deletes go to the Trash first. If two devices edit at once, BlogIDE keeps a conflict copy rather than dropping either version.
 
 Happy writing.
 $md$;
@@ -469,24 +496,26 @@ begin
   limit 1;
 
   if scratch_id is null then
-    -- Claim a legacy scratchpad from before system_key existed (prefer the
-    -- pinned bootstrap row; fall back to the old name-based match so
-    -- existing installs keep their scratchpad instead of growing a second).
+    -- Claim a legacy pinned root scratchpad.md from before system_key
+    -- existed. Unpinned or nested files with that name are left alone.
     select id into scratch_id
     from workspace_nodes
     where user_id = uid and parent_id is null and kind = 'document'
+      and pinned = true
       and lower(name) = 'scratchpad.md'
-    order by pinned desc, created_at asc
+    order by created_at asc
     limit 1;
 
     if scratch_id is not null then
       update workspace_nodes
-      set system_key = 'scratchpad', pinned = true
+      set system_key = 'scratchpad'
       where id = scratch_id;
     end if;
   end if;
 
-  if scratch_id is null then
+  -- Seed once for brand-new workspaces. Deleting it is permanent;
+  -- essays/, drafts/, Notes, and Trash still keep the Files panel populated.
+  if scratch_id is null and is_fresh then
     insert into workspace_nodes (user_id, parent_id, kind, name, position, pinned, system_key)
     values (uid, null, 'document', 'scratchpad.md', 2, true, 'scratchpad')
     returning id into scratch_id;
@@ -812,7 +841,7 @@ begin
     raise exception 'Node not found';
   end if;
 
-  if node.system_key in ('trash', 'inbox', 'scratchpad') then
+  if node.system_key in ('trash', 'inbox') then
     raise exception 'Cannot move a system item';
   end if;
 
@@ -880,7 +909,7 @@ begin
     raise exception 'Node not found';
   end if;
 
-  if node.system_key in ('trash', 'inbox', 'scratchpad') then
+  if node.system_key in ('trash', 'inbox') then
     raise exception 'Cannot delete a system item';
   end if;
 

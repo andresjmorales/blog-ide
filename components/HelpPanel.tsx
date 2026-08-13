@@ -92,8 +92,8 @@ export function HelpPanel({ open, onClose }: Props) {
             Panels menu. Channel files are managed from the Notes manager icon in
             that panel (new channel, open channel doc, rename, trash), not from
             the Files tree. On phone, the header Notes button opens capture mode;
-            Shell can open by default (Account settings → Mobile). Scratchpad
-            stays for writing scraps.
+            Shell can open by default (Account settings → Mobile). A pinned
+            scratchpad.md is seeded for scraps; treat it like any other essay.
           </p>
         </section>
 

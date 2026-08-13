@@ -11,8 +11,8 @@ by design.
   byte-for-byte round-trip for supported constructs
 - **First-class footnotes** — inline notes, sidenote rail or anchored notes,
   pin/drag cards, deleted-note archive, Substack-style paste repair
-- **Workspace** — folder/document/link tree, Trash, Notes channels, scratchpad
-  bootstrap, phone terminal capture + desktop Shell
+- **Workspace** — folder/document/link tree, Trash, Notes channels, a seeded
+  scratchpad you can rename or trash, phone terminal capture + desktop Shell
 - **Local-first sync** — IndexedDB autosave, optimistic Supabase sync, conflict
   copies, hard per-user quota (default 10 MiB combined)
 - **Research surfaces** — pop-out documents, link hover/Pin, cloud Library
@@ -120,8 +120,9 @@ npm run dev
 
 Open http://localhost:3000 → **Sign up** → create an account (no beta code on
 self-host). On first editor load, BlogIDE bootstraps `essays/`, `drafts/`,
-pinned `scratchpad.md`, and a `Notes/` folder (default `general.md` channel;
-legacy `notes.md` still works). Edits save to IndexedDB immediately and sync to
+a pinned `scratchpad.md` (a regular essay you can rename, move, or trash), and a
+`Notes/` folder (default `general.md` channel; legacy `notes.md` still works).
+Edits save to IndexedDB immediately and sync to
 Supabase. On a phone, you land in a terminal-style quick-capture screen; on
 desktop, open **Shell** for the same Notes stream.
 
