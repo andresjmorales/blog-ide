@@ -92,8 +92,8 @@ import {
   getInboxNode,
   getTrashNode,
   isInTrash,
-  isScratchpad,
   isSystemFolder,
+  pickDefaultOpenDocument,
   uniqueSiblingName,
 } from "@/lib/workspace/tree";
 import {
@@ -605,12 +605,17 @@ function AppShellContent({
       const rememberedOk =
         remembered != null &&
         list.some(
-          (node) => node.id === remembered && node.kind === "document"
+          (node) =>
+            node.id === remembered &&
+            node.kind === "document" &&
+            !isInTrash(node.id, list)
         );
       setActiveNodeId((current) => {
         if (current) return current;
         if (rememberedOk) return remembered;
-        return ids.scratchpadId;
+        return pickDefaultOpenDocument(list, {
+          scratchpadId: ids.scratchpadId,
+        });
       });
       setTreeError(null);
       setTreeErrorKind("unknown");
@@ -1034,7 +1039,7 @@ function AppShellContent({
   async function handleMoveToTrash(nodeId: string) {
     if (previewMode) return;
     const node = nodes.find((n) => n.id === nodeId);
-    if (!node || isScratchpad(node) || isSystemFolder(node)) return;
+    if (!node || isSystemFolder(node)) return;
     const trash = getTrashNode(nodes);
     if (!trash) {
       setTreeError("Trash folder is missing. Re-run supabase/schema.sql.");
@@ -1050,7 +1055,7 @@ function AppShellContent({
   async function handleRename(nodeId: string) {
     if (previewMode) return;
     const node = nodes.find((n) => n.id === nodeId);
-    if (!node || isSystemFolder(node) || isScratchpad(node)) return;
+    if (!node || isSystemFolder(node)) return;
 
     const currentTitle =
       node.kind === "document"
@@ -1149,7 +1154,7 @@ function AppShellContent({
   ): Promise<string | void> {
     if (previewMode) return;
     const node = nodes.find((n) => n.id === nodeId);
-    if (!node || isScratchpad(node)) return;
+    if (!node) return;
     const finalName = uniqueSiblingName(
       nodes,
       node.parent_id,
@@ -1165,7 +1170,7 @@ function AppShellContent({
   async function handleTogglePin(nodeId: string, pinned: boolean) {
     if (previewMode) return;
     const node = nodes.find((n) => n.id === nodeId);
-    if (!node || isSystemFolder(node) || isScratchpad(node)) return;
+    if (!node || isSystemFolder(node)) return;
     try {
       await setWorkspaceNodePinned(nodeId, pinned);
       await refreshTree();
@@ -1179,7 +1184,7 @@ function AppShellContent({
   async function handleSetColor(nodeId: string, color: string | null) {
     if (previewMode) return;
     const node = nodes.find((n) => n.id === nodeId);
-    if (!node || isSystemFolder(node) || isScratchpad(node)) return;
+    if (!node || isSystemFolder(node)) return;
     try {
       await setWorkspaceNodeColor(nodeId, color);
       await refreshTree();
@@ -1193,7 +1198,7 @@ function AppShellContent({
   async function handleDeleteForever(nodeId: string) {
     if (previewMode) return;
     const node = nodes.find((n) => n.id === nodeId);
-    if (!node || isScratchpad(node) || isSystemFolder(node)) return;
+    if (!node || isSystemFolder(node)) return;
     // Only items already in the Trash can be destroyed permanently.
     if (!isInTrash(nodeId, nodes)) return;
 
@@ -1529,9 +1534,6 @@ function AppShellContent({
                   activeConflict?.resolvable && activeNodeId
                     ? () => handleReviewConflict(activeNodeId)
                     : undefined
-                }
-                canRenameDocument={
-                  !activeNode || !isScratchpad(activeNode)
                 }
                 previewMode={previewMode}
                 onDeletedFootnotesChange={setDeletedFootnotes}

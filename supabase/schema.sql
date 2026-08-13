@@ -368,7 +368,7 @@ status: draft
 ---
 # Scratchpad
 
-Quick notes land here. Persistence is live — edits autosave locally, then sync to Supabase.
+Scraps and half-formed thoughts. This is a regular essay. Rename, move, or trash it like any other file.
 $md$;
   notes_md text := $md$---
 title: General
@@ -386,11 +386,13 @@ tags:
 canonical:
 ---
 
-BlogIDE is a local-first writing IDE for essays that publish as clean markdown. Everything you type autosaves to this browser instantly and syncs to the cloud a moment later — watch the check mark next to your avatar. This page is a regular essay: edit it, or delete it from the Files panel when you're done.
+BlogIDE is a local-first writing IDE for essays that publish as clean markdown. Everything you type autosaves to this browser instantly and syncs to the cloud a moment later — watch the check mark next to your avatar.
+
+This page is a regular essay. So is the pinned scratchpad.md next to it. Rename, move, unpin, or trash either of them whenever you want; the Files panel still has essays/, drafts/, Notes, and Trash.
 
 ## The panels
 
-The **Files** panel (left) is your workspace tree. Hover a folder for quick-create buttons, right-click (or use the ⋯ kebab) for rename, move, pin, and Trash. Pinned items stay at the top. Every panel tab can be dragged between the left and right docks, popped out into a floating window, or closed — reopen them from the panels menu in the header.
+The **Files** panel (left) is your workspace tree. Hover a folder for quick-create buttons, right-click (or use the ⋯ kebab) for rename, move, pin, color, and Trash. Pinned items stay at the top. Changing an essay title also renames its file. Every panel tab can be dragged between the left and right docks, popped out into a floating window, or closed — reopen them from the panels menu in the header.
 
 ## Writing
 
@@ -469,24 +471,26 @@ begin
   limit 1;
 
   if scratch_id is null then
-    -- Claim a legacy scratchpad from before system_key existed (prefer the
-    -- pinned bootstrap row; fall back to the old name-based match so
-    -- existing installs keep their scratchpad instead of growing a second).
+    -- Claim a legacy pinned root scratchpad.md from before system_key
+    -- existed. Unpinned or nested files with that name are left alone.
     select id into scratch_id
     from workspace_nodes
     where user_id = uid and parent_id is null and kind = 'document'
+      and pinned = true
       and lower(name) = 'scratchpad.md'
-    order by pinned desc, created_at asc
+    order by created_at asc
     limit 1;
 
     if scratch_id is not null then
       update workspace_nodes
-      set system_key = 'scratchpad', pinned = true
+      set system_key = 'scratchpad'
       where id = scratch_id;
     end if;
   end if;
 
-  if scratch_id is null then
+  -- Seed once for brand-new workspaces. Deleting it is permanent;
+  -- essays/, drafts/, Notes, and Trash still keep the Files panel populated.
+  if scratch_id is null and is_fresh then
     insert into workspace_nodes (user_id, parent_id, kind, name, position, pinned, system_key)
     values (uid, null, 'document', 'scratchpad.md', 2, true, 'scratchpad')
     returning id into scratch_id;
@@ -812,7 +816,7 @@ begin
     raise exception 'Node not found';
   end if;
 
-  if node.system_key in ('trash', 'inbox', 'scratchpad') then
+  if node.system_key in ('trash', 'inbox') then
     raise exception 'Cannot move a system item';
   end if;
 
@@ -880,7 +884,7 @@ begin
     raise exception 'Node not found';
   end if;
 
-  if node.system_key in ('trash', 'inbox', 'scratchpad') then
+  if node.system_key in ('trash', 'inbox') then
     raise exception 'Cannot delete a system item';
   end if;
 

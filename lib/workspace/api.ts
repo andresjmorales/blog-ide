@@ -18,8 +18,8 @@ export async function ensureDefaultWorkspace(): Promise<DefaultWorkspaceIds> {
   const { data, error } = await client().rpc("ensure_default_workspace");
   if (error) throw error;
   const payload = data as DefaultWorkspaceIds;
-  if (!payload?.scratchpadId) {
-    throw new Error("Workspace bootstrap returned no scratchpad");
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Workspace bootstrap returned no payload");
   }
   return payload;
 }

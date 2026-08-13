@@ -172,11 +172,6 @@ function EssaySettingsDialog({
               className="settings-text-input"
             />
           </label>
-          {!canEditTitle && (
-            <p className="settings-help">
-              The scratchpad keeps a fixed file name.
-            </p>
-          )}
         </section>
 
         <section className="settings-section">

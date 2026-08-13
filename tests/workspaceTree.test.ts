@@ -9,6 +9,7 @@ import {
   isInTrash,
   isScratchpad,
   listInboxChannels,
+  pickDefaultOpenDocument,
   systemFolderDisplayName,
   uniqueSiblingName,
 } from "@/lib/workspace/tree";
@@ -184,6 +185,51 @@ describe("isScratchpad", () => {
   it("does not claim an unpinned root scratchpad.md", () => {
     const userFile = node({ name: "scratchpad.md" });
     expect(isScratchpad(userFile)).toBe(false);
+  });
+});
+
+describe("pickDefaultOpenDocument", () => {
+  it("prefers a root welcome.md over the scratchpad", () => {
+    const welcome = node({ name: "welcome.md" });
+    const scratch = node({
+      name: "scratchpad.md",
+      system_key: "scratchpad",
+      pinned: true,
+    });
+    expect(pickDefaultOpenDocument([scratch, welcome])).toBe(welcome.id);
+  });
+
+  it("falls back to the seeded scratchpad", () => {
+    const scratch = node({
+      name: "scratchpad.md",
+      system_key: "scratchpad",
+      pinned: true,
+    });
+    const essay = node({ name: "essay.md" });
+    expect(
+      pickDefaultOpenDocument([essay, scratch], { scratchpadId: scratch.id })
+    ).toBe(scratch.id);
+  });
+
+  it("skips a trashed welcome or scratchpad", () => {
+    const trash = node({ kind: "folder", name: "Trash", system_key: "trash" });
+    const welcome = node({ name: "welcome.md", parent_id: trash.id });
+    const scratch = node({
+      name: "scratchpad.md",
+      system_key: "scratchpad",
+      parent_id: trash.id,
+    });
+    const essay = node({ name: "essay.md" });
+    expect(
+      pickDefaultOpenDocument([trash, welcome, scratch, essay], {
+        scratchpadId: scratch.id,
+      })
+    ).toBe(essay.id);
+  });
+
+  it("returns null when only folders remain", () => {
+    const essays = node({ kind: "folder", name: "essays" });
+    expect(pickDefaultOpenDocument([essays])).toBeNull();
   });
 });
 

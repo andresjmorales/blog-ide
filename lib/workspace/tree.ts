@@ -65,12 +65,53 @@ export function isScratchpad(node: WorkspaceNode): boolean {
   if (node.system_key === "scratchpad") return true;
   // Legacy fallback for rows created before the scratchpad got a system_key.
   // Root-level only, so a user's own pinned "scratchpad.md" inside a folder
-  // is never treated as the system file.
+  // is never treated as the seeded file.
   return (
     node.kind === "document" &&
     node.pinned &&
     node.parent_id === null &&
     node.name.toLowerCase() === "scratchpad.md"
+  );
+}
+
+function isOpenableDocument(
+  node: WorkspaceNode | undefined,
+  nodes: WorkspaceNode[],
+  trashId?: string | null
+): node is WorkspaceNode {
+  return Boolean(
+    node &&
+      node.kind === "document" &&
+      !isInTrash(node.id, nodes, trashId)
+  );
+}
+
+/**
+ * Document to open when nothing is remembered: Welcome, then the seeded
+ * scratchpad, then the first essay that is not in Trash.
+ */
+export function pickDefaultOpenDocument(
+  nodes: WorkspaceNode[],
+  options?: { scratchpadId?: string | null }
+): string | null {
+  const trashId = getTrashNode(nodes)?.id;
+  const welcome = nodes.find(
+    (n) =>
+      n.parent_id === null &&
+      n.kind === "document" &&
+      n.name.toLowerCase() === "welcome.md"
+  );
+  if (isOpenableDocument(welcome, nodes, trashId)) return welcome.id;
+
+  const scratchpadId = options?.scratchpadId;
+  const seeded =
+    (scratchpadId
+      ? nodes.find((n) => n.id === scratchpadId)
+      : undefined) ?? nodes.find(isScratchpad);
+  if (isOpenableDocument(seeded, nodes, trashId)) return seeded.id;
+
+  return (
+    nodes.find((n) => isOpenableDocument(n, nodes, trashId))?.id ?? null
   );
 }
 
