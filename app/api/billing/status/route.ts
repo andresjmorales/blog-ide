@@ -72,7 +72,7 @@ export async function GET() {
   const usedBytes = Number(data?.used_bytes) || 0;
 
   // Refresh cancel_at / status from Stripe when we have a subscription id
-  // so Account settings stay accurate after portal cancels.
+  // so Settings stay accurate after portal cancels.
   const subscriptionId = data?.stripe_subscription_id ?? null;
   if (billingAvailable && subscriptionId) {
     try {

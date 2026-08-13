@@ -6,7 +6,7 @@ const DATE_FORMAT: Intl.DateTimeFormatOptions = {
   day: "numeric",
 };
 
-/** Human label for Account settings near Manage billing. */
+/** Human label for Settings near Manage billing. */
 export function formatSubscriptionLabel(input: {
   plan: HostedPlanId;
   subscriptionStatus: string | null | undefined;

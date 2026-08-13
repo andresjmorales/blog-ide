@@ -137,7 +137,7 @@ export function buildGithubPushPlans(
 
   if (input.scope === "workspace") {
     if (!defaultRepo && maps.length === 0) {
-      throw new Error("Set a default GitHub repo in Account settings first.");
+      throw new Error("Set a default GitHub repo in Settings first.");
     }
     for (const node of nodes) consider(node);
   } else {
@@ -148,7 +148,7 @@ export function buildGithubPushPlans(
     const repo = (mapped?.repo || defaultRepo).trim();
     const branch = (mapped?.branch || defaultBranch).trim() || "main";
     if (!repo) {
-      throw new Error("Set a GitHub repo on this item or in Account settings.");
+      throw new Error("Set a GitHub repo on this item or in Settings.");
     }
     if (root.kind === "document") {
       const path =

@@ -42,7 +42,7 @@ export type EditorPrefs = {
   /** Default BCP-47 language tags when a document has none set. */
   spellcheckLanguages?: string[];
   /**
-   * Dash style for Normalize punctuation / citation defaults.
+   * Dash style for Cleanup punctuation normalize / citation defaults.
    * Chicago: em dash without spaces; MLA: spaced en dash.
    */
   dashStyle?: "chicago" | "mla";

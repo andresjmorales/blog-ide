@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
   if (!apiKey) {
     return NextResponse.json(
-      { error: "Missing API key. Add one under Account settings." },
+      { error: "Missing API key. Add one under Settings." },
       { status: 401 }
     );
   }

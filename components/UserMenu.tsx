@@ -109,7 +109,7 @@ export function UserMenu({
               onAccountSettings();
             }}
           >
-            Account settings
+            Settings
           </button>
 
           <label className="user-menu-item user-menu-toggle">

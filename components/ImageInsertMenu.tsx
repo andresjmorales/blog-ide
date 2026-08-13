@@ -81,7 +81,7 @@ export function ImageInsertMenu({ editor }: { editor: Editor }) {
         await dialog.confirm({
           title: "Storage quota exceeded",
           message:
-            "This image would exceed your combined markdown + Storage quota. Free space in Account settings (Clean unused images) or remove large files from the Library.",
+            "This image would exceed your combined markdown + Storage quota. Free space in Settings (Clean unused images) or remove large files from the Library.",
           confirmLabel: "OK",
           cancelLabel: "Close",
         });

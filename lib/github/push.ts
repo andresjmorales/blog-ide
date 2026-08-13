@@ -41,7 +41,7 @@ export async function pushWorkspaceToGithub(input: {
   const token = loadGithubToken();
   if (!token) {
     throw new Error(
-      "Add a GitHub personal access token in Account settings. It stays on this device."
+      "Add a GitHub personal access token in Settings. It stays on this device."
     );
   }
 

@@ -293,7 +293,7 @@ function CleanupPanel({
             <section>
               <p className="blogide-cleanup-hint">
                 Repair paste from Substack / Docs (footnote markers and split
-                notes). May offer AI cleanup if enabled in Account settings.
+                notes). May offer AI cleanup if enabled in Settings.
               </p>
               <div className="blogide-cleanup-actions">
                 <ActionButton
@@ -377,7 +377,7 @@ function PunctuationTab({
   dashStyle: DashStyle;
   onDashStyle: (style: DashStyle) => void;
 }) {
-  const { prefs } = useEditorPrefs();
+  const { prefs, updatePrefs } = useEditorPrefs();
 
   return (
     <section>
@@ -386,6 +386,20 @@ function PunctuationTab({
         spaced <code className="text-[0.7rem]"> - </code> /{" "}
         <code className="text-[0.7rem]"> – </code> (not good-faith or 12–14).
       </p>
+      <label className="settings-row">
+        <span>Dash style</span>
+        <select
+          value={dashStyle}
+          onChange={(event) =>
+            updatePrefs({
+              dashStyle: event.target.value as DashStyle,
+            })
+          }
+        >
+          <option value="chicago">Chicago (em dash —)</option>
+          <option value="mla">MLA (spaced en dash –)</option>
+        </select>
+      </label>
       <div className="blogide-cleanup-actions">
         <ActionButton
           label="Smart quotes"
@@ -409,9 +423,6 @@ function PunctuationTab({
           onClick={() => onDashStyle("mla")}
         />
       </div>
-      <p className="mt-2 text-[0.65rem] text-muted">
-        Default dash style: {dashStyle === "chicago" ? "Chicago" : "MLA"}
-      </p>
     </section>
   );
 }
@@ -465,7 +476,7 @@ function PublishTab({
       await copyDocumentForPaste({ markdown, html });
       setCopyStatus(`Copied for ${spec?.label ?? target}.`);
     } catch {
-      setCopyStatus("Copy failed. Try ⋯ → Copy all text for markdown.");
+      setCopyStatus("Copy failed. Try ⋯ → Copy → All text for markdown.");
     } finally {
       setCopyBusy(null);
     }
@@ -475,7 +486,7 @@ function PublishTab({
     <section>
       <p className="blogide-cleanup-hint">
         Copy a platform-specific HTML paste (GFM footnotes become numbered
-        notes for that site). ⋯ Copy all text stays raw markdown.
+        notes for that site). ⋯ Copy → All text stays raw markdown.
       </p>
       <div className="blogide-cleanup-actions mb-3">
         {PUBLISH_COPY_TARGETS.map((target) => (

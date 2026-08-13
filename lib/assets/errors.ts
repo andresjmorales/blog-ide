@@ -57,7 +57,7 @@ export function classifyStorageError(error: unknown): string {
   }
 
   if (lower.includes("quota")) {
-    return "This would exceed your combined markdown + Storage quota. Free space in Account settings (Clean unused images) or remove Library files.";
+    return "This would exceed your combined markdown + Storage quota. Free space in Settings (Clean unused images) or remove Library files.";
   }
 
   return raw.trim() || "Could not upload to Storage.";
