@@ -24,6 +24,13 @@ type Props = {
   canEditTitle?: boolean;
 };
 
+type EssayTab = "title" | "writing";
+
+const TABS: { id: EssayTab; label: string }[] = [
+  { id: "title", label: "Title" },
+  { id: "writing", label: "Writing check" },
+];
+
 export function EssaySettingsPanel({
   open,
   onClose,
@@ -83,6 +90,7 @@ function EssaySettingsDialog({
 }) {
   const { prefs } = useEditorPrefs();
   const [draftTitle, setDraftTitle] = useState(title);
+  const [tab, setTab] = useState<EssayTab>("title");
 
   const defaultLangs = prefs.spellcheckLanguages;
   const essayLangs =
@@ -139,7 +147,7 @@ function EssaySettingsDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="essay-settings-title"
-        className="settings-panel"
+        className="settings-panel is-anchored"
       >
         <div className="settings-panel-header">
           <h2 id="essay-settings-title">Essay settings</h2>
@@ -148,119 +156,147 @@ function EssaySettingsDialog({
           </button>
         </div>
 
-        <section className="settings-section">
-          <h3>Title</h3>
-          <p className="settings-help">
-            Same as the Title field at the top of the essay. Changing it
-            renames the file in the Files panel.
-          </p>
-          <label className="settings-row settings-row-stack">
-            <span className="sr-only">Essay title</span>
-            <input
-              type="text"
-              value={draftTitle}
-              disabled={!canEditTitle}
-              onChange={(e) => setDraftTitle(e.target.value)}
-              onBlur={commitTitle}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  commitTitle();
-                  (e.target as HTMLInputElement).blur();
-                }
-              }}
-              className="settings-text-input"
-            />
-          </label>
-        </section>
-
-        <section className="settings-section">
-          <h3>Writing check</h3>
-          <label className="settings-row">
-            <span>For this essay</span>
-            <select
-              value={spellcheckOverride ?? "inherit"}
-              onChange={(event) => {
-                const value = event.target.value;
-                onSpellcheckOverrideChange(
-                  value === "on" ? "on" : value === "off" ? "off" : null
-                );
-              }}
+        <div
+          className="settings-panel-tabs"
+          role="tablist"
+          aria-label="Essay settings"
+        >
+          {TABS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === item.id}
+              className={
+                tab === item.id
+                  ? "settings-panel-tab is-active"
+                  : "settings-panel-tab"
+              }
+              onClick={() => setTab(item.id)}
             >
-              <option value="inherit">
-                Inherit account default (
-                {prefs.spellcheckEnabled ? "on" : "off"})
-              </option>
-              <option value="on">On</option>
-              <option value="off">Off</option>
-            </select>
-          </label>
+              {item.label}
+            </button>
+          ))}
+        </div>
 
-          {!effectiveEnabled ? (
-            <p className="settings-help">
-              Writing check is off for this essay
-              {spellcheckOverride === null && !prefs.spellcheckEnabled
-                ? " (account default). Turn it on here or under Editor settings."
-                : "."}
-            </p>
-          ) : (
-            <>
+        <div className="settings-panel-body" role="tabpanel">
+          {tab === "title" && (
+            <section className="settings-section">
               <p className="settings-help">
-                English dialect for Harper (on-device spelling + grammar).
-                Selecting a dialect makes it primary.
-                {inheritingLangs
-                  ? " Showing account defaults until you change them."
-                  : ""}
+                Same as the Title field at the top of the essay. Changing it
+                renames the file in the Files panel.
               </p>
-              <div className="spellcheck-langs is-detailed">
-                {HARPER_LANGUAGE_OPTIONS.map((option) => {
-                  const checked = essayLangs.includes(option.code);
-                  const isPrimary = checked && option.code === primary;
-                  return (
-                    <label key={option.code}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleDocumentLang(option.code)}
-                      />
-                      <span>{option.label}</span>
-                      {isPrimary && (
-                        <span className="spellcheck-primary-badge">
-                          primary
-                        </span>
-                      )}
-                      {checked && !isPrimary && (
-                        <button
-                          type="button"
-                          className="spellcheck-make-primary"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            setPrimaryLang(option.code);
-                          }}
-                        >
-                          Make primary
-                        </button>
-                      )}
-                    </label>
-                  );
-                })}
-              </div>
-              {!isHarperSupportedLang(primary) && (
-                <p className="settings-help">
-                  Harper is English-only for now, so writing check stays idle
-                  until an English dialect is primary. A dictionary-based
-                  checker for other languages may come later.
-                </p>
-              )}
-              <p className="settings-help">
-                Red underlines are spelling/typos; blue are grammar and style.
-                Click an underline for suggestions. Runs locally in your
-                browser (WASM).
-              </p>
-            </>
+              <label className="settings-row settings-row-stack">
+                <span className="sr-only">Essay title</span>
+                <input
+                  type="text"
+                  value={draftTitle}
+                  disabled={!canEditTitle}
+                  onChange={(e) => setDraftTitle(e.target.value)}
+                  onBlur={commitTitle}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      commitTitle();
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  className="settings-text-input"
+                />
+              </label>
+            </section>
           )}
-        </section>
+
+          {tab === "writing" && (
+            <section className="settings-section">
+              <label className="settings-row">
+                <span>For this essay</span>
+                <select
+                  value={spellcheckOverride ?? "inherit"}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    onSpellcheckOverrideChange(
+                      value === "on" ? "on" : value === "off" ? "off" : null
+                    );
+                  }}
+                >
+                  <option value="inherit">
+                    Inherit default (
+                    {prefs.spellcheckEnabled ? "on" : "off"})
+                  </option>
+                  <option value="on">On</option>
+                  <option value="off">Off</option>
+                </select>
+              </label>
+
+              {!effectiveEnabled ? (
+                <p className="settings-help">
+                  Writing check is off for this essay
+                  {spellcheckOverride === null && !prefs.spellcheckEnabled
+                    ? " (Preferences default). Turn it on here or under Preferences."
+                    : "."}
+                </p>
+              ) : (
+                <>
+                  <p className="settings-help">
+                    English dialect for Harper (on-device spelling + grammar).
+                    Selecting a dialect makes it primary.
+                    {inheritingLangs
+                      ? " Showing Preferences defaults until you change them."
+                      : ""}
+                  </p>
+                  <div className="spellcheck-langs is-detailed">
+                    {HARPER_LANGUAGE_OPTIONS.map((option) => {
+                      const checked = essayLangs.includes(option.code);
+                      const isPrimary = checked && option.code === primary;
+                      return (
+                        <label key={option.code}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleDocumentLang(option.code)}
+                          />
+                          <span>{option.label}</span>
+                          {isPrimary && (
+                            <span className="spellcheck-primary-badge">
+                              primary
+                            </span>
+                          )}
+                          {checked && !isPrimary && (
+                            <button
+                              type="button"
+                              className="spellcheck-make-primary"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setPrimaryLang(option.code);
+                              }}
+                            >
+                              Make primary
+                            </button>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {!isHarperSupportedLang(primary) && (
+                    <p className="settings-help">
+                      Harper is English-only for now, so writing check stays
+                      idle until an English dialect is primary. A
+                      dictionary-based checker for other languages may come
+                      later.
+                    </p>
+                  )}
+                  <p className="settings-help">
+                    Red underlines are spelling/typos; blue are grammar and
+                    style. Click an underline for suggestions. Runs locally in
+                    your browser (WASM).
+                  </p>
+                </>
+              )}
+            </section>
+          )}
+        </div>
       </div>
     </div>
   );

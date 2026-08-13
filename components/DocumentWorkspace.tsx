@@ -768,7 +768,7 @@ export function DocumentWorkspace({
     await dialog.confirm({
       title: "Nothing to convert",
       message:
-        "No Substack-style footnote links or split note blocks matched. Re-paste from Substack, or enable AI import assist in Account settings.",
+        "No Substack-style footnote links or split note blocks matched. Re-paste from Substack, or enable AI import assist in Settings.",
       confirmLabel: "OK",
       cancelLabel: "Close",
     });
@@ -1492,39 +1492,47 @@ export function DocumentWorkspace({
       },
     },
     { kind: "separator", id: "sep-export" },
-    // Export
     {
+      kind: "submenu",
       id: "copy",
-      label: "Copy all text",
-      onSelect: () => {
-        void copyForExport();
-      },
+      label: "Copy",
+      items: [
+        {
+          id: "copy-all",
+          label: "All text",
+          onSelect: () => {
+            void copyForExport();
+          },
+        },
+        ...PUBLISH_COPY_TARGETS.map((target) => ({
+          id: `copy-for-${target.id}`,
+          label: `For ${target.label}`,
+          onSelect: () => {
+            void copyForPublish(target.id);
+          },
+        })),
+      ],
     },
     {
       kind: "submenu",
-      id: "copy-for",
-      label: "Copy for",
-      items: PUBLISH_COPY_TARGETS.map((target) => ({
-        id: `copy-for-${target.id}`,
-        label: target.label,
-        onSelect: () => {
-          void copyForPublish(target.id);
-        },
-      })),
-    },
-    {
       id: "export",
-      label: "Export .md",
-      onSelect: () => {
-        void exportMarkdownFile();
-      },
-    },
-    {
-      id: "export-docx",
-      label: "Export Word (.docx)",
-      onSelect: () => {
-        void exportDocx();
-      },
+      label: "Export",
+      items: [
+        {
+          id: "export-md",
+          label: "Markdown",
+          onSelect: () => {
+            void exportMarkdownFile();
+          },
+        },
+        {
+          id: "export-docx",
+          label: "Word (.docx)",
+          onSelect: () => {
+            void exportDocx();
+          },
+        },
+      ],
     },
     ...(persistEnabled && nodeId
       ? [
@@ -1537,14 +1545,7 @@ export function DocumentWorkspace({
           },
         ]
       : []),
-    // Tools
-    { kind: "separator", id: "sep-tools" },
-    {
-      id: "cleanup",
-      label: "Cleanup",
-      onSelect: () =>
-        openCleanup(isMarkdownCanonical(mode) ? "publish" : "import"),
-    },
+    { kind: "separator", id: "sep-settings" },
     ...(persistEnabled && nodeId
       ? [
           {
@@ -1554,7 +1555,6 @@ export function DocumentWorkspace({
           },
         ]
       : []),
-    { kind: "separator", id: "sep-settings" },
     {
       id: "essay-settings",
       label: "Essay settings",

@@ -1577,6 +1577,53 @@ html.app-shell-lock body {
   font-size: 0.75rem;
   padding: 0.25rem 0.55rem;
 }
+/* Title + tabs stay put; body scrolls (Windows-style properties dialog). */
+.settings-panel.is-anchored {
+  gap: 0;
+  min-height: min(22rem, calc(100dvh - 2rem));
+  overflow: hidden;
+  padding: 0;
+}
+.settings-panel.is-anchored .settings-panel-header {
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  padding: 0.85rem 1.15rem;
+}
+.settings-panel-tabs {
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 0.1rem;
+  padding: 0 0.7rem;
+}
+.settings-panel-tab {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 600;
+  margin-bottom: -1px;
+  padding: 0.5rem 0.6rem;
+}
+.settings-panel-tab:hover {
+  color: var(--foreground);
+}
+.settings-panel-tab.is-active {
+  border-bottom-color: var(--accent);
+  color: var(--foreground);
+}
+.settings-panel-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem 1.25rem 1.35rem;
+}
 .settings-section h3 {
   font-size: 0.72rem;
   font-weight: 650;

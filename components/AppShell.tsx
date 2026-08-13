@@ -20,7 +20,6 @@ import { DocumentWorkspace } from "@/components/DocumentWorkspace";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { EditorSettingsPanel } from "@/components/EditorSettingsPanel";
 import { WorkspaceConnectionDialog } from "@/components/WorkspaceConnectionDialog";
-import { GearIcon } from "@/components/icons";
 import { HelpPanel } from "@/components/HelpPanel";
 import {
   classifyWorkspaceFailure,
@@ -1365,11 +1364,11 @@ function AppShellContent({
               <button
                 type="button"
                 onClick={() => setEditorSettingsOpen(true)}
-                title="Editor settings"
-                aria-label="Editor settings"
-                className="blogide-chrome-btn is-icon"
+                title="Preferences"
+                aria-label="Preferences"
+                className="blogide-chrome-btn"
               >
-                <GearIcon size={14} />
+                Preferences
               </button>
               {isMobile && !previewMode && (
                 <ShellButton

@@ -39,7 +39,7 @@ function resolveRequest(input: ChatCompletionInput): {
   const keys = loadAiKeys();
   const provider = input.provider ?? getActiveProvider(keys);
   if (!provider) {
-    throw new Error("Add an Anthropic or OpenAI API key in Account settings.");
+    throw new Error("Add an Anthropic or OpenAI API key in Settings.");
   }
   const apiKey = provider === "anthropic" ? keys.anthropic : keys.openai;
   if (!apiKey) {

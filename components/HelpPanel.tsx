@@ -76,7 +76,7 @@ export function HelpPanel({ open, onClose }: Props) {
             Pin, and Library. The{" "}
             <strong>Library</strong> panel (right dock) holds
             research PDFs and bookmarks. Use ⋯ → Preview in new tab for
-            publication-style HTML. Copy all text copies the markdown. Copy for
+            publication-style HTML. Copy → All text copies the markdown. Copy →
             Substack / Medium (⋯ or Cleanup → Publish) turns GFM footnotes into
             numbered notes for that platform. Export Word when Pandoc is
             installed, or Push to GitHub. Edits save locally first, then sync
@@ -92,7 +92,7 @@ export function HelpPanel({ open, onClose }: Props) {
             Panels menu. Channel files are managed from the Notes manager icon in
             that panel (new channel, open channel doc, rename, trash), not from
             the Files tree. On phone, the header Notes button opens capture mode;
-            Shell can open by default (Account settings → Mobile). A pinned
+            Shell can open by default (Settings → Account → Mobile). A pinned
             scratchpad.md is seeded for scraps; treat it like any other essay.
           </p>
         </section>

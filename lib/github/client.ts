@@ -21,7 +21,7 @@ export class GithubApiError extends Error {
 export function githubErrorCopy(error: unknown): string {
   if (error instanceof GithubApiError) {
     if (error.status === 401) {
-      return "GitHub rejected the token. Create a fine-grained PAT with Contents: Read and write on the target repo, and paste it under Account settings.";
+      return "GitHub rejected the token. Create a fine-grained PAT with Contents: Read and write on the target repo, and paste it under Settings.";
     }
     if (error.status === 403) {
       return "GitHub forbade that request (permissions or rate limit). Check the token scopes and try again in a few minutes.";

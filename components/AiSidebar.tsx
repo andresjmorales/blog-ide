@@ -491,7 +491,7 @@ export function AiSidebar({
           className="rounded border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:border-accent hover:text-accent"
           onClick={onOpenSettings}
         >
-          Open Account settings
+          Open Settings
         </button>
       </div>
     );
