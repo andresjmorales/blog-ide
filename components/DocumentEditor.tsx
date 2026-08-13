@@ -682,6 +682,13 @@ function Toolbar({
           <CodeBlockIcon className="blogide-tool-icon" />
         </ToolButton>
         <ToolButton
+          title="Blockquote"
+          active={state.blockquote}
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        >
+          <BlockquoteIcon className="blogide-tool-icon" />
+        </ToolButton>
+        <ToolButton
           title="Add or edit link (Ctrl+K)"
           active={state.link}
           onClick={() => {
@@ -690,25 +697,14 @@ function Toolbar({
         >
           <LinkIcon className="blogide-tool-icon" />
         </ToolButton>
-        <ToolButton title="Find (Ctrl+F)" onClick={onOpenFind}>
-          <SearchIcon className="blogide-tool-icon" />
-        </ToolButton>
         <ConvertCaseMenu editor={editor} />
-        {onOpenCleanup && (
-          <CleanupToolbarButton open={cleanupOpen} onOpen={onOpenCleanup} />
-        )}
       </div>
 
       <span className="blogide-editor-toolbar-sep" aria-hidden />
 
       <div className="blogide-editor-toolbar-group">
-        <ToolButton
-          title="Blockquote"
-          active={state.blockquote}
-          onClick={() => editor.chain().focus().toggleBlockquote().run()}
-        >
-          <BlockquoteIcon className="blogide-tool-icon" />
-        </ToolButton>
+        <SpecialCharsMenu editor={editor} />
+        <ImageInsertMenu editor={editor} />
         <ToolButton
           title="Divider (horizontal rule)"
           onClick={() => editor.chain().focus().setHorizontalRule().run()}
@@ -733,7 +729,6 @@ function Toolbar({
         >
           TeX
         </ToolButton>
-        <ImageInsertMenu editor={editor} />
         <ToolButton
           title="Insert footnote (Ctrl+Shift+F)"
           onClick={() => editor.chain().focus().insertFootnote().run()}
@@ -748,7 +743,12 @@ function Toolbar({
       <span className="blogide-editor-toolbar-sep" aria-hidden />
 
       <div className="blogide-editor-toolbar-group">
-        <SpecialCharsMenu editor={editor} />
+        <ToolButton title="Find (Ctrl+F)" onClick={onOpenFind}>
+          <SearchIcon className="blogide-tool-icon" />
+        </ToolButton>
+        {onOpenCleanup && (
+          <CleanupToolbarButton open={cleanupOpen} onOpen={onOpenCleanup} />
+        )}
       </div>
 
       {extra ? <div className="blogide-toolbar-extra">{extra}</div> : null}
