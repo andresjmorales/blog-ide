@@ -35,8 +35,9 @@ by design.
   extras in the repo are left alone. Supabase stays the source of truth.
 - **Find / replace** — magnifying glass / Ctrl+F with soft highlights (Enter
   steps matches); sticky find-in-selection; searches footnote bodies; scrolls
-  the active match into view; regex and headings-only scope; Ω special
-  characters insert into the find/replace fields when focused
+  the active match into view;   regex and headings-only scope; Ω special
+  characters insert into the focused field (title, subtitle, metadata,
+  find/replace)
 - **Cleanup** (broom) — pinnable tabbed panel: Import (fix footnotes), Text,
   Punctuation, and Publish (copy for Substack/Medium + link/image check); Convert Case is Cc on the
   toolbar; Cite is separate; paste or drag-drop images into the essay

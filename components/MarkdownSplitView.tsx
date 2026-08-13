@@ -16,7 +16,6 @@ import {
   parseTitle,
 } from "@/lib/markdown/titleFrontmatter";
 import { parseSubtitle } from "@/lib/markdown/subtitle";
-import { parseAuthor } from "@/lib/markdown/author";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { FootnotePreviewNodeView } from "@/components/FootnotePreviewNodeView";
 import { ImageCaptionNodeView } from "@/components/ImageCaptionNodeView";
@@ -84,7 +83,6 @@ function unpackPreviewMeta(
       parseTitle(frontmatter) ||
       (fallbackFileName ? fileNameToTitle(fallbackFileName) : "Untitled"),
     subtitle: parseSubtitle(frontmatter) || "",
-    author: parseAuthor(frontmatter) || "",
     body,
   };
 }
@@ -273,11 +271,6 @@ export function MarkdownSplitView({
               {meta.subtitle ? (
                 <div className="essay-subtitle-input" aria-hidden>
                   {meta.subtitle}
-                </div>
-              ) : null}
-              {meta.author ? (
-                <div className="essay-author-input" aria-hidden>
-                  {meta.author}
                 </div>
               ) : null}
             </div>

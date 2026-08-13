@@ -227,6 +227,41 @@ export function PinIcon({ className = "" }: { className?: string }) {
   );
 }
 
+/** Circle-i for extra frontmatter fields on the title block. */
+export function InfoIcon({
+  className = "",
+  size = TOOL_ICON,
+}: {
+  className?: string;
+  size?: number;
+}) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <circle
+        cx="8"
+        cy="8"
+        r="6.25"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+      <path
+        d="M8 7.15v4.1"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <circle cx="8" cy="5.15" r="0.85" fill="currentColor" />
+    </svg>
+  );
+}
+
 /** Magnifying glass for Find. */
 export function SearchIcon({ className = "" }: { className?: string }) {
   return (

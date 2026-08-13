@@ -8,28 +8,36 @@ extends) [GitHub Flavored Markdown](https://github.github.com/gfm/).
 ## Frontmatter
 
 Essays may begin with a YAML block between `---` fences. BlogIDE treats
-frontmatter as opaque aside from a few keys it edits in the UI:
+frontmatter as opaque aside from a few keys it edits in the UI. Rich text
+shows **title** and **subtitle** on the essay; the info control next to the
+title opens the rest (author, publication, date, description, tags,
+canonical, status, plus custom keys). Spellcheck stays in Essay settings.
+Raw markdown can still edit the whole block.
 
 | Key | Role |
 | --- | --- |
 | `title` | Essay title (also drives suggested filename) |
 | `subtitle` | Optional deck under the title |
-| `author` | Optional byline |
+| `author` | Optional byline (metadata menu, not the default title chrome) |
 | `publication` | Optional venue / magazine / paper (BlogIDE-only; personal-site ignores unknown keys) |
+| `date` | Optional; metadata menu |
+| `description` | Optional summary; metadata menu |
+| `tags` | Optional; metadata menu (single-line scalar or list text) |
+| `canonical` | Optional canonical URL; metadata menu |
 | `status` | Optional; new essays default to `draft`. personal-site hides `draft` / `unpublished` / `hidden` from the Writing rail (slug URL still works) |
 | `spellcheck` | Optional per-essay override: `on` / `off`. Absent = inherit account Editor settings |
 | `spellcheck_langs` | Optional comma-separated BCP-47 tags (first is primary). Harper writing check uses English dialects (`en-US`, `en-GB`, …); other tags are reserved for a future dictionary checker |
 
-**Empty keys:** clearing subtitle, author, or publication keeps a bare
-`subtitle:` / `author:` / `publication:` line so export templates stay
-stable. The sibling [`personal-site`](../../personal-site) reader
-(`gray-matter` + `coerceString`) treats that as `null` — no BlogIDE change
-required.
+**Empty keys:** clearing subtitle, author, publication, or other template
+fields keeps a bare `key:` line so export templates stay stable. The sibling
+[`personal-site`](../../personal-site) reader (`gray-matter` + `coerceString`)
+treats that as `null` — no BlogIDE change required. Custom keys can be
+removed from the metadata menu.
 
-Other YAML keys (e.g. `date`, `tags`, `canonical`, or any custom key) are
-preserved verbatim. BlogIDE never parse→dumps the YAML block, so unknown
-fields survive round-trips and sync to personal-site without breaking either
-side.
+Other YAML keys (or any custom key) are preserved verbatim. BlogIDE never
+parse→dumps the YAML block, so unknown fields survive round-trips and sync
+to personal-site without breaking either side. Nested / multiline YAML is
+still edited in raw markdown.
 
 ## Image captions (BlogIDE extension)
 
@@ -111,7 +119,7 @@ The right pane is a **read-only** TipTap surface (not a second editor).
 | Prose, headings, lists, quotes, code, tables | Editing the preview (md buffer is canonical) |
 | Numbered footnote **blobs** (tooltip = note text) | Footnote cards, nested editors, pins, sidenote rail |
 | Images + captions, KaTeX math | Link edit bubble / hover OG preview |
-| Title / subtitle / author (display from FM) | Outline rail, find/replace, formatting toolbar |
+| Title / subtitle (display from FM) | Outline rail, find/replace, formatting toolbar |
 
 **Pinned / floating chrome while in split or markdown-only**
 

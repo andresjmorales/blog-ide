@@ -988,15 +988,14 @@ export function DocumentWorkspace({
     });
   }, []);
 
-  const commitAuthor = useCallback((next: string) => {
+  const commitFrontmatter = useCallback((nextFrontmatter: string) => {
     setDoc((current) => {
-      if (current.author === next) return current;
-      const nextFrontmatter = writeAuthor(current.frontmatter, next);
+      if (current.frontmatter === nextFrontmatter) return current;
       const updated = {
         frontmatter: nextFrontmatter,
-        subtitle: current.subtitle,
-        author: next,
-        publication: current.publication,
+        subtitle: parseSubtitle(nextFrontmatter),
+        author: parseAuthor(nextFrontmatter),
+        publication: parsePublication(nextFrontmatter),
         body: current.body,
       };
       persistMarkdownRef.current(
@@ -1048,10 +1047,10 @@ export function DocumentWorkspace({
       <EssayTitleBlock
         title={essayTitle}
         subtitle={subtitle}
-        author={author}
+        frontmatter={frontmatter}
         onTitleCommit={setEssayTitle}
         onSubtitleCommit={commitSubtitle}
-        onAuthorCommit={commitAuthor}
+        onFrontmatterChange={commitFrontmatter}
         onFocusBody={() => {
           editorRef.current?.commands.focus("start");
         }}
