@@ -56,6 +56,11 @@ import { applyEditorDomLang } from "@/lib/editor/domAttrs";
 import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 import { transformPastedFootnoteHtml } from "@/lib/import/footnotePaste";
+import {
+  collapseExtraBlankLines,
+  normalizePastedHtml,
+  sliceFromPastedPlainText,
+} from "@/lib/editor/normalizePastedWhitespace";
 import { ImageInsertMenu } from "@/components/ImageInsertMenu";
 import { TableControls } from "@/components/TableControls";
 import {
@@ -202,7 +207,13 @@ export function DocumentEditor({
           lang,
         },
         transformPastedHTML(html) {
-          return transformPastedFootnoteHtml(html);
+          return normalizePastedHtml(transformPastedFootnoteHtml(html));
+        },
+        transformPastedText(text) {
+          return collapseExtraBlankLines(text);
+        },
+        clipboardTextParser(text, _context, _plain, view) {
+          return sliceFromPastedPlainText(view.state.schema, text);
         },
       },
       onUpdate: ({ editor: current }) => {

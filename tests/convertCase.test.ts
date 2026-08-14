@@ -26,4 +26,18 @@ describe("convertCase", () => {
   it("preserves surrounding whitespace", () => {
     expect(convertCase("  hello  ", "upper")).toBe("  HELLO  ");
   });
+
+  it("keeps Shift-Enter newlines (single \\n, no blank line)", () => {
+    expect(convertCase("hello\nworld", "upper")).toBe("HELLO\nWORLD");
+    expect(convertCase("hello\nworld", "lower")).toBe("hello\nworld");
+    expect(convertCase("hello\nworld", "sentence")).toBe("Hello\nworld");
+    expect(convertCase("hello\nworld", "capitalized")).toBe("Hello\nWorld");
+    expect(convertCase("of mice\nand men", "title")).toBe("Of Mice\nand Men");
+  });
+
+  it("keeps paragraph breaks (blank lines)", () => {
+    expect(convertCase("hello\n\nworld", "upper")).toBe("HELLO\n\nWORLD");
+    expect(convertCase("hello\n\nworld", "sentence")).toBe("Hello\n\nworld");
+    expect(convertCase("hello\n\n\n\nworld", "lower")).toBe("hello\n\n\n\nworld");
+  });
 });

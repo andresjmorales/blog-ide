@@ -2,21 +2,7 @@
 
 import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
-import { cleanWhitespace } from "@/lib/editor/cleanWhitespace";
-
-function applyCleanWhitespace(editor: Editor) {
-  const { from, to, empty } = editor.state.selection;
-  if (empty) return;
-  const text = editor.state.doc.textBetween(from, to, "\n");
-  const next = cleanWhitespace(text);
-  if (next === text) return;
-  editor
-    .chain()
-    .focus()
-    .insertContentAt({ from, to }, next)
-    .setTextSelection({ from, to: from + next.length })
-    .run();
-}
+import { applyCleanWhitespace } from "@/lib/editor/applyCleanWhitespace";
 
 export function CleanWhitespaceButton({ editor }: { editor: Editor }) {
   const hasSelection = useEditorState({
@@ -27,7 +13,7 @@ export function CleanWhitespaceButton({ editor }: { editor: Editor }) {
   return (
     <button
       type="button"
-      title="Clean whitespace (collapse newlines from PDF paste)"
+      title="Clean whitespace (join Shift-Enter / PDF wraps; keep paragraph breaks)"
       disabled={!hasSelection}
       onMouseDown={(event) => event.preventDefault()}
       onClick={() => applyCleanWhitespace(editor)}

@@ -118,7 +118,9 @@ export function HelpPanel({ open, onClose }: Props) {
             </li>
             <li>
               Broom / Cleanup: pinnable tabs for Import, Text, Punctuation,
-              and Publish check; Cc = convert case; Cite is its own button
+              and Publish check; Text → Clean whitespace joins wrapped lines
+              to spaces and keeps blank lines; Cc = convert case; Cite is its
+              own button
             </li>
             <li>
               <kbd>?</kbd>: shortcut cheatsheet (when not typing in the essay)

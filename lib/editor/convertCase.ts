@@ -35,7 +35,10 @@ function capitalizeWord(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 }
 
-/** Preserve leading/trailing whitespace; transform the inner text. */
+/**
+ * Preserve leading/trailing whitespace (including Shift-Enter newlines and
+ * paragraph breaks); transform only the inner letters.
+ */
 export function convertCase(text: string, mode: CaseMode): string {
   const match = text.match(/^(\s*)([\s\S]*?)(\s*)$/);
   if (!match) return text;
