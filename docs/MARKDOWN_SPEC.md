@@ -79,6 +79,18 @@ notes is supported where the shared extension set allows it.
   stock alpha/roman markers (`a.` / `St.` / `i.`) are disabled so prose like
   “St. George…” is not rewritten into a numbered list.
 
+## Hard breaks and paste whitespace
+
+**Shift-Enter** inserts a GFM hard line break (`  \n` / `<br>`), not a
+paragraph. Convert case keeps that break. Clean whitespace (Cleanup → Text)
+turns those single newlines into spaces and keeps true paragraph breaks
+(blank lines), collapsing extra empty lines to one.
+
+Plain-text paste is parsed as markdown after extra blank lines collapse to
+one paragraph break, so PDF wraps stay in one paragraph instead of becoming
+a new block per line. HTML paste drops empty `<p><br></p>`-style paragraphs
+from Word / Docs / some PDF clipboards.
+
 ## Markdown typing shortcuts (rich text)
 
 While typing in the WYSIWYG, TipTap **input rules** can auto-transform

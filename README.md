@@ -28,7 +28,8 @@ by design.
   Medium (⋯ or Cleanup → Publish) pastes platform-specific footnote HTML;
   download `.md`; optional Word `.docx` when Pandoc is installed
   (`PANDOC_PATH`); import markdown or `.docx` / `.odt` from the Files panel;
-  Convert Case (Cc), Clean whitespace, and punctuation normalize (Chicago/MLA
+  Convert Case (Cc), Clean whitespace (joins Shift-Enter / PDF wraps to
+  spaces and keeps paragraph breaks), and punctuation normalize (Chicago/MLA
   dashes, smart quotes) for messy pastes
 - **GitHub backup** — optional one-way push (device-local PAT). Map a folder to
   a repo path or a document to `README.md`; matching files are overwritten,
@@ -39,7 +40,9 @@ by design.
   characters insert into the focused field (title, subtitle, metadata,
   find/replace)
 - **Cleanup** (broom) — pinnable tabbed panel: Import (fix footnotes), Text,
-  Punctuation, and Publish (copy for Substack/Medium + link/image check); Convert Case is Cc on the
+  Punctuation, and Publish (copy for Substack/Medium + link/image check);
+  Clean whitespace joins Shift-Enter / PDF wraps to spaces and keeps blank
+  lines; paste collapses extra empty paragraphs; Convert Case is Cc on the
   toolbar; Cite is separate; paste or drag-drop images into the essay
 
 ## Stack

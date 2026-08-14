@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
-import { cleanWhitespace } from "@/lib/editor/cleanWhitespace";
+import { applyCleanWhitespace } from "@/lib/editor/applyCleanWhitespace";
 import { applyNormalizePunctuation } from "@/lib/editor/applyNormalizePunctuation";
 import type { DashStyle } from "@/lib/editor/normalizePunctuation";
 import {
@@ -36,20 +36,6 @@ const TABS: { id: CleanupTab; label: string }[] = [
 ];
 
 type PopupPos = { left: number; top: number };
-
-function applyCleanWhitespace(editor: Editor) {
-  const { from, to, empty } = editor.state.selection;
-  if (empty) return;
-  const text = editor.state.doc.textBetween(from, to, "\n");
-  const next = cleanWhitespace(text);
-  if (next === text) return;
-  editor
-    .chain()
-    .focus()
-    .insertContentAt({ from, to }, next)
-    .setTextSelection({ from, to: from + next.length })
-    .run();
-}
 
 type Props = {
   open: boolean;
@@ -359,7 +345,7 @@ function TextTab({ editor }: { editor: Editor }) {
       <div className="blogide-cleanup-actions">
         <ActionButton
           label="Clean whitespace"
-          hint="Collapse messy PDF / paste spaces"
+          hint="Join Shift-Enter / PDF wraps to spaces; keep blank lines"
           disabled={!hasSelection}
           onClick={() => applyCleanWhitespace(editor)}
         />

@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
-import { convertCase, type CaseMode } from "@/lib/editor/convertCase";
+import { applyConvertCase, type CaseMode } from "@/lib/editor/applyConvertCase";
 import { claimFloatZ } from "@/lib/pins/pinStore";
 
 const OPTIONS: { mode: CaseMode; label: string; title: string }[] = [
@@ -21,20 +21,6 @@ const OPTIONS: { mode: CaseMode; label: string; title: string }[] = [
     title: "Capitalize every word",
   },
 ];
-
-function applyCase(editor: Editor, mode: CaseMode) {
-  const { from, to, empty } = editor.state.selection;
-  if (empty) return;
-  const text = editor.state.doc.textBetween(from, to, "\n");
-  const next = convertCase(text, mode);
-  if (next === text) return;
-  editor
-    .chain()
-    .focus()
-    .insertContentAt({ from, to }, next)
-    .setTextSelection({ from, to: from + next.length })
-    .run();
-}
 
 export function ConvertCaseMenu({ editor }: { editor: Editor }) {
   const [open, setOpen] = useState(false);
@@ -113,7 +99,7 @@ export function ConvertCaseMenu({ editor }: { editor: Editor }) {
                 title={option.title}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
-                  applyCase(editor, option.mode);
+                  applyConvertCase(editor, option.mode);
                   setOpen(false);
                 }}
                 className="block w-full px-3 py-1.5 text-left text-sm text-muted hover:bg-panel hover:text-foreground"
