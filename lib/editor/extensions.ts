@@ -10,6 +10,7 @@ import { Extension, type AnyExtension, type JSONContent } from "@tiptap/core";
 import { FootnoteRef } from "@/lib/editor/footnote";
 import { FootnoteDeletionTracker } from "@/lib/editor/footnoteDeletion";
 import { LinkShortcut } from "@/lib/editor/linkShortcut";
+import { SmartQuotes } from "@/lib/editor/smartQuotes";
 import { BlogideLink } from "@/lib/editor/blogideLink";
 import {
   ImageCaptionMarkdown,
@@ -130,6 +131,7 @@ export function createExtensions(
     FootnoteRef,
     FootnoteDeletionTracker,
     LinkShortcut,
+    SmartQuotes,
     FindHighlight,
     Markdown,
     preserveAsLiteralText("def"),

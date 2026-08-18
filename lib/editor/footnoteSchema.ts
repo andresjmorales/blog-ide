@@ -9,6 +9,7 @@ import type { AnyExtension } from "@tiptap/core";
 import { BlogideLink } from "@/lib/editor/blogideLink";
 import { StrictOrderedList } from "@/lib/editor/orderedList";
 import { LinkShortcut } from "@/lib/editor/linkShortcut";
+import { SmartQuotes } from "@/lib/editor/smartQuotes";
 import { FindHighlight } from "@/lib/editor/findHighlight";
 
 export function createFootnoteExtensions(): AnyExtension[] {
@@ -23,6 +24,7 @@ export function createFootnoteExtensions(): AnyExtension[] {
     BlogideLink,
     StrictOrderedList,
     LinkShortcut,
+    SmartQuotes,
     Markdown,
     FindHighlight,
   ];
