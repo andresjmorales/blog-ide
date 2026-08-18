@@ -102,7 +102,7 @@ describe("LinkEditCard Enter confirm", () => {
     });
 
     const input = document.querySelector(
-      ".link-edit-input"
+      'input[aria-label="Link URL"]'
     ) as HTMLInputElement | null;
     expect(input).toBeTruthy();
 

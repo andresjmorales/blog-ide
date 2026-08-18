@@ -123,6 +123,22 @@ export function EditorSettingsPanel({ open, onClose }: Props) {
                     <option value="full">Full</option>
                   </select>
                 </label>
+                <p className="settings-help">
+                  While typing: curly quotes, em dashes from --, ellipsis,
+                  arrows, and a few symbols. Backspace or Ctrl+Z right after a
+                  replacement restores what you typed. Cleanup → Punctuation is
+                  a separate pass on a selection.
+                </p>
+                <label className="settings-row">
+                  <span>Typography</span>
+                  <input
+                    type="checkbox"
+                    checked={prefs.typography}
+                    onChange={(event) =>
+                      updatePrefs({ typography: event.target.checked })
+                    }
+                  />
+                </label>
               </section>
 
               <section className="settings-section">

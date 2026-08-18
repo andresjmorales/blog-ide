@@ -14,10 +14,15 @@ import type { LinkPreview } from "@/lib/preview/openGraph";
 import { openLinkPin } from "@/lib/pins/pinStore";
 import { claimFloatZ } from "@/lib/pins/pinStore";
 import { AddToLibraryButton } from "@/components/library/AddToLibraryButton";
+import { LinkIcon } from "@/components/icons";
 import {
   setLinkEditorOpener,
   type LinkEditorOpenOptions,
 } from "@/lib/editor/linkShortcut";
+import {
+  applyLinkHrefAndText,
+  readLinkDisplayText,
+} from "@/lib/editor/linkFields";
 import { placeLinkBubble } from "@/lib/editor/linkPlacement";
 
 type CardState = {
@@ -32,8 +37,10 @@ type CardState = {
   placeAbove: boolean;
   /** Full-width bottom sheet on narrow viewports. */
   mobileSheet: boolean;
-  /** Focus the URL input (keyboard/toolbar open only). */
+  /** Focus the URL input (Ctrl+K on selected prose / named links). */
   focusUrl: boolean;
+  /** Focus the display-text input (Ctrl+K on a naked pasted URL). */
+  focusText: boolean;
 };
 
 function anchorRectForLink(editor: Editor): DOMRect | null {
@@ -64,7 +71,7 @@ function placeNearRect(
 }
 
 /**
- * Docs-style link bubble: URL field + Clear / Copy / Apply.
+ * Docs-style link bubble: display text + URL + Clear / Copy / Apply.
  * Preview loads only after a URL is applied or pasted (not on empty Ctrl+K).
  * Opens on Ctrl+K / toolbar, or when clicking an existing link in the editor.
  *
@@ -80,12 +87,15 @@ export function LinkEditCard({
 }) {
   const [card, setCard] = useState<CardState | null>(null);
   const [draft, setDraft] = useState("");
+  const [textDraft, setTextDraft] = useState("");
   const [preview, setPreview] = useState<LinkPreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const textInputRef = useRef<HTMLInputElement | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const activeEditorRef = useRef<Editor | null>(null);
+  const textDirtyRef = useRef(false);
 
   useEffect(() => {
     activeEditorRef.current = card?.activeEditor ?? null;
@@ -97,6 +107,7 @@ export function LinkEditCard({
     setPreview(null);
     setPreviewError(null);
     setPreviewLoading(false);
+    textDirtyRef.current = false;
     // Return focus to the editor that owned the bubble (main or footnote).
     if (active && !active.isDestroyed) {
       window.requestAnimationFrame(() => {
@@ -143,9 +154,12 @@ export function LinkEditCard({
         showPreviews &&
         trimmedHref.startsWith("http") &&
         options.allowPreview !== false;
-      const estimatedHeight = allowPreview ? 260 : 120;
+      const estimatedHeight = allowPreview ? 290 : 150;
       const pos = placeNearRect(rect, estimatedHeight);
+      const displayText = readLinkDisplayText(nextEditor);
+      textDirtyRef.current = false;
       setDraft(href);
+      setTextDraft(displayText);
       setPreview(null);
       setPreviewError(null);
       setPreviewLoading(false);
@@ -159,6 +173,7 @@ export function LinkEditCard({
         placeAbove: pos.placeAbove,
         mobileSheet: pos.mobileSheet,
         focusUrl: options.focusUrl === true,
+        focusText: options.focusText === true,
       });
       if (allowPreview) {
         window.setTimeout(() => loadPreview(href), 0);
@@ -195,9 +210,29 @@ export function LinkEditCard({
   }, [editor, openAt]);
 
   useLayoutEffect(() => {
-    if (!card?.focusUrl) return;
-    inputRef.current?.focus();
-    inputRef.current?.select();
+    if (!card) return;
+    if (card.focusUrl) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    } else if (card.focusText) {
+      textInputRef.current?.focus();
+      textInputRef.current?.select();
+    }
+  }, [card]);
+
+  useEffect(() => {
+    if (!card) return;
+    const active = card.activeEditor;
+    function syncDisplayText() {
+      if (active.isDestroyed) return;
+      if (textDirtyRef.current) return;
+      if (document.activeElement === textInputRef.current) return;
+      setTextDraft(readLinkDisplayText(active));
+    }
+    active.on("update", syncDisplayText);
+    return () => {
+      active.off("update", syncDisplayText);
+    };
   }, [card]);
 
   useEffect(() => {
@@ -239,28 +274,20 @@ export function LinkEditCard({
     // in ProseMirror (that deletes the selected link text and inserts a newline).
     // close() returns focus on the next animation frame.
     if (!url) {
-      active.chain().extendMarkRange("link").unsetLink().run();
+      applyLinkHrefAndText(active, "", textDraft);
       close();
       return;
     }
-    const chain = active.chain();
-    if (active.isActive("link")) chain.extendMarkRange("link");
-    chain.setLink({ href: url }).run();
-    // Drop link from stored marks so the next keystrokes aren't linked.
-    active.commands.command(({ tr, dispatch }) => {
-      if (!dispatch) return true;
-      const marks = (
-        tr.storedMarks ?? tr.selection.$from.marks()
-      ).filter((mark) => mark.type.name !== "link");
-      dispatch(tr.setStoredMarks(marks));
-      return true;
-    });
+    applyLinkHrefAndText(active, url, textDraft);
 
     if (options?.keepOpen) {
       setCard((current) =>
         current ? { ...current, href: url, allowPreview: true } : current
       );
       setDraft(url);
+      if (!textDirtyRef.current) {
+        setTextDraft(readLinkDisplayText(active));
+      }
       if (showPreviews) loadPreview(url);
       return;
     }
@@ -307,6 +334,28 @@ export function LinkEditCard({
       onMouseDown={(event) => event.stopPropagation()}
     >
       <div className="link-edit-row">
+        <input
+          ref={textInputRef}
+          type="text"
+          className="link-edit-input"
+          value={textDraft}
+          placeholder="Text"
+          aria-label="Link text"
+          onChange={(event) => {
+            textDirtyRef.current = true;
+            setTextDraft(event.target.value);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.stopPropagation();
+              applyHref(draft);
+            }
+          }}
+        />
+      </div>
+      <div className="link-edit-row">
+        <LinkIcon className="link-edit-field-icon" />
         <input
           ref={inputRef}
           type="url"

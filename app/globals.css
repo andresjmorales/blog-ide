@@ -2500,7 +2500,14 @@ html.app-shell-lock body {
 }
 .link-edit-row {
   display: flex;
+  align-items: center;
   gap: 0.35rem;
+}
+.link-edit-field-icon {
+  color: var(--muted);
+  flex-shrink: 0;
+  height: 0.9rem;
+  width: 0.9rem;
 }
 .link-edit-input {
   background: var(--panel);
