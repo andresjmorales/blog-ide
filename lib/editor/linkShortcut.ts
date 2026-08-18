@@ -1,14 +1,19 @@
 import { Extension, type Editor } from "@tiptap/core";
+import { resolveLinkShortcutFocusField } from "@/lib/editor/linkFields";
 
 export type LinkEditorOpenOptions = {
   /** When true and an href exists, show OG preview under the bubble. */
   allowPreview?: boolean;
   href?: string;
   /**
-   * Focus the URL field (Ctrl+K / toolbar). Click-to-open leaves focus in the
-   * editor so link text can still be edited.
+   * Focus the URL field (Ctrl+K / toolbar on named links or selected prose).
+   * Click-to-open leaves focus in the editor so link text can still be edited.
    */
   focusUrl?: boolean;
+  /**
+   * Focus the display-text field (Ctrl+K on a naked pasted URL).
+   */
+  focusText?: boolean;
 };
 
 type LinkEditorOpener = (
@@ -56,14 +61,17 @@ export function openLinkEditor(
 }
 
 /**
- * Ctrl/Cmd+K and toolbar: open the link bubble (focus URL field).
+ * Ctrl/Cmd+K and toolbar: open the link bubble. Named links and selected
+ * prose focus the URL field; a naked pasted URL focuses display text.
  * Preview / Open / Pin / Library show when an http(s) href is present.
  */
 export function promptForLink(editor: Editor): boolean {
   const href = editor.getAttributes("link").href as string | undefined;
+  const focusField = resolveLinkShortcutFocusField(editor);
   return openLinkEditor(editor, {
     allowPreview: Boolean(href?.trim()),
-    focusUrl: true,
+    focusUrl: focusField === "url",
+    focusText: focusField === "text",
     href,
   });
 }
