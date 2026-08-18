@@ -31,9 +31,16 @@ by design.
   Convert Case (Cc), Clean whitespace (joins Shift-Enter / PDF wraps to
   spaces and keeps paragraph breaks), and punctuation normalize (Chicago/MLA
   dashes, smart quotes) for messy pastes
-- **GitHub backup** — optional one-way push (device-local PAT). Map a folder to
-  a repo path or a document to `README.md`; matching files are overwritten,
-  extras in the repo are left alone. Supabase stays the source of truth.
+- **GitHub backup** — optional push (device-local PAT). Map a folder to a
+  repo path or a document to `README.md`; matching files are overwritten,
+  extras in the repo are left alone. Pull is explicit: you review a diff and
+  confirm before the editor is replaced. Mapped items show a GitHub badge
+  (green if the path exists, orange with a slash if it was moved or deleted).
+  If you `git mv` a mapped file outside BlogIDE, push warns instead of
+  silently recreating the old path (which would duplicate it). Refreshing
+  BlogIDE never imports a second essay from GitHub; if two Files entries
+  share a name, they already existed in the workspace (or are a sync
+  conflict copy). Supabase stays the source of truth.
 - **Find / replace** — magnifying glass / Ctrl+F with soft highlights (Enter
   steps matches); sticky find-in-selection; searches footnote bodies; scrolls
   the active match into view;   regex and headings-only scope; Ω special

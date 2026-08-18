@@ -5,7 +5,7 @@ import {
   ExplorerContextMenu,
   type ContextMenuItem,
 } from "@/components/ExplorerContextMenu";
-import { TreeCaret } from "@/components/icons";
+import { GithubMark, TreeCaret } from "@/components/icons";
 import { NODE_COLOR_PALETTE } from "@/lib/workspace/nodeColors";
 import {
   classifyConflict,
@@ -18,9 +18,12 @@ import {
   getTrashNode,
   isInTrash,
   isSystemFolder,
+  sameNamedDocumentTwins,
   systemFolderDisplayName,
 } from "@/lib/workspace/tree";
 import type { WorkspaceNode } from "@/lib/workspace/types";
+import type { GithubMapStatus } from "@/lib/github/types";
+import { githubStatusTitle, unimportedGithubNoticePaths } from "@/lib/github/status";
 
 type Props = {
   nodes: WorkspaceNode[];
@@ -43,6 +46,8 @@ type Props = {
   onExportAll?: () => void;
   onMapToGithub?: (nodeId: string) => void;
   onPushToGithub?: (nodeId: string) => void;
+  onPullFromGithub?: (nodeId: string) => void;
+  githubByNode?: Map<string, GithubMapStatus>;
   loading?: boolean;
   error?: string | null;
 };
@@ -83,6 +88,39 @@ function displayName(
   return fileStem(node);
 }
 
+function ambiguousDisplayTitles(
+  nodes: WorkspaceNode[],
+  trashId: string | null,
+  docTitles?: Map<string, string>
+): Set<string> {
+  const counts = new Map<string, number>();
+  for (const node of nodes) {
+    if (node.kind !== "document") continue;
+    if (isInTrash(node.id, nodes, trashId)) continue;
+    const key = displayName(node, docTitles).trim().toLowerCase();
+    if (!key) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const ambiguous = new Set<string>();
+  for (const [key, count] of counts) {
+    if (count > 1) ambiguous.add(key);
+  }
+  return ambiguous;
+}
+
+function explorerLabel(
+  node: WorkspaceNode,
+  nodes: WorkspaceNode[],
+  docTitles: Map<string, string> | undefined,
+  ambiguous: Set<string>
+): string {
+  const label = displayName(node, docTitles);
+  if (node.kind !== "document" || !ambiguous.has(label.trim().toLowerCase())) {
+    return label;
+  }
+  return `${label} · ${folderPathLabel(node.id, nodes)}`;
+}
+
 export function FileExplorer({
   nodes,
   activeNodeId,
@@ -102,6 +140,8 @@ export function FileExplorer({
   onExportAll,
   onMapToGithub,
   onPushToGithub,
+  onPullFromGithub,
+  githubByNode,
   loading,
   error,
 }: Props) {
@@ -128,6 +168,11 @@ export function FileExplorer({
       !isInTrash(n.id, nodes, trashId)
   );
   const trashChildren = trashId ? childrenOf(nodes, trashId) : [];
+  const ambiguousTitles = ambiguousDisplayTitles(nodes, trashId, docTitles);
+  const nameTwins = sameNamedDocumentTwins(nodes);
+  const unimportedGithub = unimportedGithubNoticePaths(
+    githubByNode?.values() ?? []
+  );
 
   function openMenu(e: MouseEvent, node: WorkspaceNode) {
     e.preventDefault();
@@ -200,6 +245,14 @@ export function FileExplorer({
           id: "map-github",
           label: "Map to GitHub…",
           onSelect: () => onMapToGithub(node.id),
+        });
+      }
+      if (onPullFromGithub && githubByNode?.has(node.id)) {
+        items.push({
+          kind: "action",
+          id: "pull-github",
+          label: "Pull from GitHub…",
+          onSelect: () => onPullFromGithub(node.id),
         });
       }
       if (onPushToGithub) {
@@ -378,6 +431,9 @@ export function FileExplorer({
             activeNodeId={activeNodeId}
             trashId={trashId}
             docTitles={docTitles}
+            ambiguousTitles={ambiguousTitles}
+            nameTwins={nameTwins}
+            githubByNode={githubByNode}
             onOpen={onOpen}
             onNewDocument={onNewDocument}
             onNewFolder={onNewFolder}
@@ -388,6 +444,15 @@ export function FileExplorer({
           />
         ))}
       </ul>
+
+      {unimportedGithub.length > 0 && (
+        <p className="mt-3 px-2 text-[11px] leading-snug text-muted">
+          GitHub has extra markdown under a mapped folder (
+          {unimportedGithub.slice(0, 3).join(", ")}
+          {unimportedGithub.length > 3 ? ", …" : ""}). BlogIDE did not import
+          {unimportedGithub.length === 1 ? " a second essay" : " extra essays"}.
+        </p>
+      )}
 
       {trash && (
         <div className="mt-4 border-t border-border pt-3">
@@ -419,6 +484,9 @@ export function FileExplorer({
                     activeNodeId={activeNodeId}
                     trashId={trashId}
                     docTitles={docTitles}
+                    ambiguousTitles={ambiguousTitles}
+                    nameTwins={nameTwins}
+                    githubByNode={githubByNode}
                     onOpen={onOpen}
                     onNewDocument={onNewDocument}
                     onNewFolder={onNewFolder}
@@ -552,6 +620,9 @@ function TreeNode({
   activeNodeId,
   trashId,
   docTitles,
+  ambiguousTitles,
+  nameTwins,
+  githubByNode,
   onOpen,
   onNewDocument,
   onNewFolder,
@@ -566,6 +637,9 @@ function TreeNode({
   activeNodeId: string | null;
   trashId: string | null;
   docTitles?: Map<string, string>;
+  ambiguousTitles: Set<string>;
+  nameTwins: Map<string, Array<{ nodeId: string; label: string }>>;
+  githubByNode?: Map<string, GithubMapStatus>;
   onOpen: (nodeId: string) => void;
   onNewDocument: (parentId: string | null) => void;
   onNewFolder: (parentId: string | null) => void;
@@ -580,9 +654,10 @@ function TreeNode({
   );
 
   const paddingLeft = 8 + depth * 12;
-  const label = displayName(node, docTitles);
+  const label = explorerLabel(node, nodes, docTitles, ambiguousTitles);
   const stem = fileStem(node);
   const tip = label !== stem ? `${label} (${node.name})` : node.name;
+  const twins = nameTwins.get(node.id) ?? [];
 
   if (node.kind === "folder") {
     const expanded = !collapsedIds.has(node.id);
@@ -603,6 +678,7 @@ function TreeNode({
             <TreeCaret expanded={expanded} />
             <ColorDot color={node.color} />
             <span className="truncate">{label}/</span>
+            <GithubMappingIcon status={githubByNode?.get(node.id)} />
             {node.pinned && (
               <span className="ml-0.5 inline-flex shrink-0 text-muted" title="Pinned">
                 <PinIcon />
@@ -660,6 +736,9 @@ function TreeNode({
                 activeNodeId={activeNodeId}
                 trashId={trashId}
                 docTitles={docTitles}
+                ambiguousTitles={ambiguousTitles}
+                nameTwins={nameTwins}
+                githubByNode={githubByNode}
                 onOpen={onOpen}
                 onNewDocument={onNewDocument}
                 onNewFolder={onNewFolder}
@@ -738,6 +817,10 @@ function TreeNode({
         >
           <ColorDot color={node.color} />
           <span className="truncate">{label}</span>
+          <GithubMappingIcon status={githubByNode?.get(node.id)} />
+          {twins.length > 0 && (
+            <SameNameCopyChip twins={twins} />
+          )}
           {node.pinned && (
             <span className="ml-0.5 inline-flex shrink-0 text-muted" title="Pinned">
               <PinIcon />
@@ -797,5 +880,49 @@ function RowKebab({
     >
       <KebabIcon />
     </button>
+  );
+}
+
+function SameNameCopyChip({
+  twins,
+}: {
+  twins: Array<{ nodeId: string; label: string }>;
+}) {
+  const labels = twins.map((twin) => twin.label);
+  const shown = labels[0] ?? "another file";
+  const extra = labels.length > 1 ? ` (+${labels.length - 1})` : "";
+  return (
+    <span
+      className="explorer-same-name-chip"
+      title={`Same file name as ${labels.join(", ")}. BlogIDE did not create this from GitHub.`}
+    >
+      also {shown}
+      {extra}
+    </span>
+  );
+}
+
+function GithubMappingIcon({
+  status,
+}: {
+  status?: GithubMapStatus;
+}) {
+  if (!status) return null;
+  const broken =
+    status.health === "missing" || status.health === "error" || status.stale;
+  const healthClass =
+    status.health === "ok"
+      ? "explorer-github-ok"
+      : broken
+        ? "explorer-github-missing"
+        : "explorer-github-unchecked";
+  return (
+    <span
+      className={`explorer-github-icon ${healthClass}`}
+      title={githubStatusTitle(status)}
+      aria-label={githubStatusTitle(status)}
+    >
+      <GithubMark size={12} struck={broken} />
+    </span>
   );
 }

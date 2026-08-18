@@ -2297,6 +2297,42 @@ html.app-shell-lock body {
   color: var(--accent);
   background: var(--background);
 }
+
+.explorer-github-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-left: 0.15rem;
+}
+.explorer-github-ok {
+  color: var(--accent);
+}
+.explorer-github-missing {
+  color: #c47a12;
+}
+.explorer-github-unchecked {
+  color: var(--muted);
+}
+.explorer-same-name-chip {
+  display: inline-flex;
+  flex-shrink: 0;
+  max-width: 9rem;
+  margin-left: 0.2rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 0.2rem;
+  border: 1px solid #c47a1280;
+  background: #c47a1214;
+  padding: 0 0.3rem;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #9a5f0d;
+}
+:root[data-theme="dark"] .explorer-same-name-chip {
+  color: #f0c078;
+}
 @media (hover: none) {
   .explorer-folder-actions {
     opacity: 1;

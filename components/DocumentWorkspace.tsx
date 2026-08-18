@@ -195,6 +195,9 @@ type Props = {
     nodeId: string,
     fileName: string
   ) => Promise<string | void>;
+  githubMapped?: boolean;
+  onPullFromGithub?: () => void;
+  onPushToGithub?: () => void;
   /** Pull current essay markdown when the AI sidebar sends / cleans. */
   registerGetMarkdownForAi?: (get: () => string | null) => void;
   registerApplyMarkdown?: (apply: (markdown: string) => void) => void;
@@ -221,6 +224,9 @@ export function DocumentWorkspace({
   onExplorerTitleChange,
   onRequestTreeRefresh,
   onRenameDocument,
+  githubMapped = false,
+  onPullFromGithub,
+  onPushToGithub,
   registerGetMarkdownForAi,
   registerApplyMarkdown,
   registerGetSelectionForAi,
@@ -1388,6 +1394,10 @@ export function DocumentWorkspace({
   }
 
   async function pushCurrentToGithub() {
+    if (onPushToGithub) {
+      onPushToGithub();
+      return;
+    }
     if (!nodeId) return;
     flushMarkdownRef.current?.();
     await commitPendingLocal();
@@ -1536,6 +1546,15 @@ export function DocumentWorkspace({
     },
     ...(persistEnabled && nodeId
       ? [
+          ...(githubMapped && onPullFromGithub
+            ? [
+                {
+                  id: "pull-github",
+                  label: "Pull from GitHub…",
+                  onSelect: () => onPullFromGithub(),
+                },
+              ]
+            : []),
           {
             id: "push-github",
             label: "Push to GitHub",

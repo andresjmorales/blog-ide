@@ -71,7 +71,12 @@ export function HelpPanel({ open, onClose }: Props) {
             .docx (Word needs Pandoc on the server). Nest folders (e.g.
             essays/Veganism/). Pop out any document to keep a scratchpad
             floating. Right-click a folder or essay to map it to a GitHub
-            path or push a one-way backup (token stays on this device). Click a
+            path, pull with a diff, or push a backup (token stays on this
+            device). Mapped items show a small GitHub icon: green if the path
+            is still there, orange with a slash if git moved or deleted it.
+            Two essays with the same file name get an “also …” chip so a
+            workspace copy is obvious; GitHub extras under a mapped folder
+            are listed and never imported as a new essay. Click a
             link (or Ctrl+K) for the link menu with Open Graph preview, Open,
             Pin, and Library. The{" "}
             <strong>Library</strong> panel (right dock) holds

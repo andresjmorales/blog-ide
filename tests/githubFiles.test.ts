@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   buildGithubPushPlans,
+  documentBindingsInScope,
   listGithubMapNodes,
+  resolveGithubBindings,
+  staleGithubMaps,
 } from "@/lib/github/files";
 import type { WorkspaceNode } from "@/lib/workspace/types";
 
@@ -86,7 +89,7 @@ describe("buildGithubPushPlans", () => {
       ["posts/series/one.md", "posts/two.md"]
     );
     expect(byRepo.get("me/blog-ide")?.files).toEqual([
-      { path: "README.md", content: "# About\n" },
+      { path: "README.md", content: "# About\n", nodeId: f.readme.id },
     ]);
   });
 
@@ -102,7 +105,7 @@ describe("buildGithubPushPlans", () => {
       scope: { nodeId: f.doc2.id },
     });
     expect(plans[0].files).toEqual([
-      { path: "essays/two.md", content: "# Two\n" },
+      { path: "essays/two.md", content: "# Two\n", nodeId: f.doc2.id },
     ]);
   });
 
@@ -141,5 +144,67 @@ describe("listGithubMapNodes", () => {
     expect(labels).toContain("essays/series/one.md");
     expect(labels.some((l) => l.toLowerCase().includes("trash"))).toBe(false);
     expect(labels.some((l) => l.includes("gone"))).toBe(false);
+  });
+});
+
+describe("resolveGithubBindings", () => {
+  it("resolves a document map and inherited folder paths", () => {
+    const f = fixture();
+    const bindings = resolveGithubBindings({
+      nodes: f.all,
+      maps: [
+        { nodeId: f.essays.id, path: "drafts" },
+        { nodeId: f.readme.id, path: "README.md" },
+      ],
+      defaultRepo: "me/site",
+      defaultBranch: "main",
+    });
+    const byId = new Map(bindings.map((b) => [b.nodeId, b]));
+    expect(byId.get(f.essays.id)).toMatchObject({
+      path: "drafts",
+      source: "direct",
+      kind: "folder",
+    });
+    expect(byId.get(f.doc1.id)).toMatchObject({
+      path: "drafts/series/one.md",
+      source: "inherited",
+      mapNodeId: f.essays.id,
+    });
+    expect(byId.get(f.doc2.id)).toMatchObject({
+      path: "drafts/two.md",
+      source: "inherited",
+    });
+    expect(byId.get(f.readme.id)).toMatchObject({
+      path: "README.md",
+      source: "direct",
+    });
+    expect(byId.has(f.trashed.id)).toBe(false);
+  });
+
+  it("scopes document bindings to a folder subtree", () => {
+    const f = fixture();
+    const bindings = resolveGithubBindings({
+      nodes: f.all,
+      maps: [{ nodeId: f.essays.id, path: "drafts" }],
+      defaultRepo: "me/site",
+      defaultBranch: "main",
+    });
+    const docs = documentBindingsInScope(bindings, f.all, {
+      nodeId: f.series.id,
+    });
+    expect(docs.map((d) => d.path)).toEqual(["drafts/series/one.md"]);
+  });
+
+  it("marks maps whose node was trashed as stale", () => {
+    const f = fixture();
+    expect(
+      staleGithubMaps(f.all, [{ nodeId: f.trashed.id, path: "gone.md" }])
+    ).toHaveLength(1);
+    expect(
+      staleGithubMaps(f.all, [{ nodeId: "missing", path: "x.md" }])
+    ).toHaveLength(1);
+    expect(
+      staleGithubMaps(f.all, [{ nodeId: f.doc2.id, path: "two.md" }])
+    ).toHaveLength(0);
   });
 });

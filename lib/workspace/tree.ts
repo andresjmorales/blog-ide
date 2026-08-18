@@ -233,3 +233,54 @@ export function folderPathLabel(
   }
   return parts.join("/") || "Workspace root";
 }
+
+/** Normalize a document filename for same-name comparisons (`Essay` → `essay.md`). */
+export function documentFileKey(name: string): string {
+  const base = name.trim().toLowerCase();
+  if (!base) return "";
+  return base.endsWith(".md") ? base : `${base}.md`;
+}
+
+/**
+ * Live documents that share a file name (Trash excluded), keyed by node id.
+ * Used to spot a second BlogIDE copy after a git mv / import, without
+ * creating anything from GitHub.
+ */
+export function sameNamedDocumentTwins(
+  nodes: WorkspaceNode[]
+): Map<string, Array<{ nodeId: string; label: string }>> {
+  const trash = getTrashNode(nodes);
+  const groups = new Map<string, WorkspaceNode[]>();
+  for (const node of nodes) {
+    if (node.kind !== "document") continue;
+    if (isInTrash(node.id, nodes, trash?.id)) continue;
+    const key = documentFileKey(node.name);
+    if (!key) continue;
+    const list = groups.get(key) ?? [];
+    list.push(node);
+    groups.set(key, list);
+  }
+  const out = new Map<string, Array<{ nodeId: string; label: string }>>();
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    for (const node of group) {
+      out.set(
+        node.id,
+        group
+          .filter((other) => other.id !== node.id)
+          .map((other) => ({
+            nodeId: other.id,
+            label: folderPathLabel(other.id, nodes),
+          }))
+      );
+    }
+  }
+  return out;
+}
+
+export function listSameNamedDocuments(
+  nodes: WorkspaceNode[],
+  nodeId: string
+): Array<{ nodeId: string; label: string }> {
+  return sameNamedDocumentTwins(nodes).get(nodeId) ?? [];
+}

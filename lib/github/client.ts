@@ -4,7 +4,11 @@
  */
 
 import { parseGithubRepo, type GithubRepoRef } from "@/lib/github/repo";
-import type { GithubFile, GithubPushResult } from "@/lib/github/types";
+import type {
+  GithubFile,
+  GithubPushResult,
+  GithubTreeIndex,
+} from "@/lib/github/types";
 
 const API = "https://api.github.com";
 const VERSION = "2022-11-28";
@@ -73,6 +77,132 @@ export async function githubWhoAmI(
   token: string
 ): Promise<{ login: string }> {
   return githubFetch(token, "/user");
+}
+
+const TREE_TTL_MS = 20_000;
+const treeCache = new Map<
+  string,
+  { expires: number; index: GithubTreeIndex }
+>();
+
+export function invalidateGithubTreeCache(
+  repo?: string,
+  branch?: string
+): void {
+  if (!repo) {
+    treeCache.clear();
+    return;
+  }
+  const parsed = parseGithubRepo(repo);
+  const ownerRepo = parsed ? `${parsed.owner}/${parsed.repo}` : repo.trim();
+  if (!branch) {
+    for (const key of [...treeCache.keys()]) {
+      if (key.startsWith(`${ownerRepo}#`)) treeCache.delete(key);
+    }
+    return;
+  }
+  treeCache.delete(`${ownerRepo}#${branch}`);
+}
+
+function encodeGithubContentPath(path: string): string {
+  return path
+    .replace(/^\/+/, "")
+    .split("/")
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join("/");
+}
+
+/** Decode a GitHub Contents API payload (base64, possibly wrapped). */
+export function decodeGithubFileContent(
+  content: string,
+  encoding?: string
+): string {
+  if (encoding && encoding !== "base64") return content;
+  const raw = content.replace(/\s+/g, "");
+  const bytes = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0));
+  return new TextDecoder("utf-8").decode(bytes);
+}
+
+type GitTreePayload = {
+  sha: string;
+  truncated?: boolean;
+  tree?: Array<{ path?: string; type?: string }>;
+};
+
+export async function fetchGithubTreeIndex(input: {
+  token: string;
+  repo: string;
+  branch: string;
+}): Promise<GithubTreeIndex> {
+  const parsed = parseGithubRepo(input.repo);
+  if (!parsed) {
+    throw new Error('Repo must look like "owner/repo".');
+  }
+  const branch = (input.branch || "main").trim() || "main";
+  const cacheKey = `${parsed.owner}/${parsed.repo}#${branch}`;
+  const cached = treeCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) return cached.index;
+
+  const base = `/repos/${parsed.owner}/${parsed.repo}`;
+  const ref = await githubFetch<GitRef>(
+    input.token,
+    `${base}/git/ref/heads/${encodeURIComponent(branch)}`
+  );
+  const commit = await githubFetch<GitCommit>(
+    input.token,
+    `${base}/git/commits/${ref.object.sha}`
+  );
+  const tree = await githubFetch<GitTreePayload>(
+    input.token,
+    `${base}/git/trees/${commit.tree.sha}?recursive=1`
+  );
+  const index: GithubTreeIndex = {
+    blobs: [],
+    trees: [],
+    truncated: Boolean(tree.truncated),
+  };
+  for (const item of tree.tree ?? []) {
+    if (!item.path) continue;
+    if (item.type === "blob") index.blobs.push(item.path);
+    else if (item.type === "tree") index.trees.push(item.path);
+  }
+  treeCache.set(cacheKey, { expires: Date.now() + TREE_TTL_MS, index });
+  return index;
+}
+
+type ContentPayload = {
+  type: string;
+  encoding?: string;
+  content?: string;
+  path: string;
+};
+
+export async function fetchGithubFileContent(input: {
+  token: string;
+  repo: string;
+  branch: string;
+  path: string;
+}): Promise<string | null> {
+  const parsed = parseGithubRepo(input.repo);
+  if (!parsed) {
+    throw new Error('Repo must look like "owner/repo".');
+  }
+  const branch = (input.branch || "main").trim() || "main";
+  const path = encodeGithubContentPath(input.path);
+  if (!path) return null;
+  const base = `/repos/${parsed.owner}/${parsed.repo}`;
+  try {
+    const data = await githubFetch<ContentPayload>(
+      input.token,
+      `${base}/contents/${path}?ref=${encodeURIComponent(branch)}`
+    );
+    if (data.type !== "file" || typeof data.content !== "string") return null;
+    return decodeGithubFileContent(data.content, data.encoding);
+  } catch (error) {
+    if (error instanceof GithubApiError && error.status === 404) return null;
+    throw error;
+  }
 }
 
 type GitRef = { object: { sha: string } };
@@ -206,6 +336,8 @@ export async function pushFilesToGithub(input: {
       }),
     });
   }
+
+  invalidateGithubTreeCache(`${owner}/${repo}`, branch);
 
   return {
     owner,

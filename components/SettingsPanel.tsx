@@ -28,6 +28,20 @@ import { ProfilePhotoField } from "@/components/avatar/ProfilePhotoField";
 import { GitHubSettingsSection } from "@/components/GitHubSettingsSection";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import type { GithubMapStatus } from "@/lib/github/types";
+
+type GithubSettingsProps = {
+  githubMapNodes?: Array<{
+    id: string;
+    label: string;
+    kind: "folder" | "document";
+  }>;
+  githubMapStatuses?: GithubMapStatus[];
+  githubSettingsEpoch?: number;
+  onGithubSettingsChanged?: () => void;
+  onPushWorkspace?: () => void;
+  onPullMapped?: () => void;
+};
 
 type Props = {
   open: boolean;
@@ -38,12 +52,7 @@ type Props = {
   previewMode?: boolean;
   onDisplayNameChange?: (name: string) => void;
   onAvatarUrlChange?: (url: string | null) => void;
-  githubMapNodes?: Array<{
-    id: string;
-    label: string;
-    kind: "folder" | "document";
-  }>;
-};
+} & GithubSettingsProps;
 
 type SettingsTab = "account" | "storage" | "integrations";
 
@@ -63,6 +72,11 @@ export function SettingsPanel({
   onDisplayNameChange,
   onAvatarUrlChange,
   githubMapNodes,
+  githubMapStatuses,
+  githubSettingsEpoch,
+  onGithubSettingsChanged,
+  onPushWorkspace,
+  onPullMapped,
 }: Props) {
   useEffect(() => {
     if (!open) return;
@@ -87,6 +101,11 @@ export function SettingsPanel({
       onDisplayNameChange={onDisplayNameChange}
       onAvatarUrlChange={onAvatarUrlChange}
       githubMapNodes={githubMapNodes}
+      githubMapStatuses={githubMapStatuses}
+      githubSettingsEpoch={githubSettingsEpoch}
+      onGithubSettingsChanged={onGithubSettingsChanged}
+      onPushWorkspace={onPushWorkspace}
+      onPullMapped={onPullMapped}
     />
   );
 }
@@ -100,6 +119,11 @@ function SettingsDialog({
   onDisplayNameChange,
   onAvatarUrlChange,
   githubMapNodes,
+  githubMapStatuses,
+  githubSettingsEpoch,
+  onGithubSettingsChanged,
+  onPushWorkspace,
+  onPullMapped,
 }: {
   onClose: () => void;
   email: string;
@@ -108,12 +132,7 @@ function SettingsDialog({
   previewMode: boolean;
   onDisplayNameChange?: (name: string) => void;
   onAvatarUrlChange?: (url: string | null) => void;
-  githubMapNodes?: Array<{
-    id: string;
-    label: string;
-    kind: "folder" | "document";
-  }>;
-}) {
+} & GithubSettingsProps) {
   const { prefs, updatePrefs } = useEditorPrefs();
   const [tab, setTab] = useState<SettingsTab>("account");
   const [aiKeys, setAiKeys] = useState<AiKeys>(() => loadAiKeys());
@@ -646,6 +665,11 @@ function SettingsDialog({
               <GitHubSettingsSection
                 previewMode={previewMode}
                 mapNodes={githubMapNodes}
+                mapStatuses={githubMapStatuses}
+                settingsEpoch={githubSettingsEpoch}
+                onSettingsChanged={onGithubSettingsChanged}
+                onPushWorkspace={onPushWorkspace}
+                onPullMapped={onPullMapped}
               />
             </>
           )}
