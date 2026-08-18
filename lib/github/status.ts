@@ -13,8 +13,14 @@ import type {
   GithubSyncMap,
   GithubTreeIndex,
 } from "@/lib/github/types";
-import { listSameNamedDocuments } from "@/lib/workspace/tree";
+import { folderPathLabel, listSameNamedDocuments } from "@/lib/workspace/tree";
 import type { WorkspaceNode } from "@/lib/workspace/types";
+
+const EMPTY_COPY_SIGNALS = {
+  workspaceTwins: [] as GithubMapStatus["workspaceTwins"],
+  unimportedGithubPaths: [] as string[],
+  pathCollisions: [] as GithubMapStatus["pathCollisions"],
+};
 
 export function prefixExists(
   path: string,
@@ -48,17 +54,24 @@ export function assessGithubBinding(
     health?: GithubMapStatus["health"];
     detail?: string;
     workspaceTwins?: GithubMapStatus["workspaceTwins"];
+    unimportedGithubPaths?: string[];
+    pathCollisions?: GithubMapStatus["pathCollisions"];
   }
 ): GithubMapStatus {
   const stale = extra?.stale ?? false;
-  const workspaceTwins = extra?.workspaceTwins ?? [];
+  const copySignals = {
+    workspaceTwins: extra?.workspaceTwins ?? EMPTY_COPY_SIGNALS.workspaceTwins,
+    unimportedGithubPaths:
+      extra?.unimportedGithubPaths ?? EMPTY_COPY_SIGNALS.unimportedGithubPaths,
+    pathCollisions: extra?.pathCollisions ?? EMPTY_COPY_SIGNALS.pathCollisions,
+  };
   if (extra?.health) {
     return {
       ...binding,
       health: extra.health,
       candidates: [],
       stale,
-      workspaceTwins,
+      ...copySignals,
       detail: extra.detail,
     };
   }
@@ -68,7 +81,7 @@ export function assessGithubBinding(
       health: "unchecked",
       candidates: [],
       stale,
-      workspaceTwins,
+      ...copySignals,
     };
   }
 
@@ -85,7 +98,7 @@ export function assessGithubBinding(
     health: present ? "ok" : "missing",
     candidates,
     stale,
-    workspaceTwins,
+    ...copySignals,
     detail: present
       ? undefined
       : candidates.length > 0
@@ -98,13 +111,59 @@ export function attachWorkspaceTwins(
   statuses: GithubMapStatus[],
   nodes: WorkspaceNode[]
 ): GithubMapStatus[] {
+  return attachGithubCopySignals(statuses, nodes);
+}
+
+/**
+ * Same-name BlogIDE twins, duplicate GitHub path maps, and GitHub extras that
+ * look like a moved file (never imported as a new essay).
+ */
+export function attachGithubCopySignals(
+  statuses: GithubMapStatus[],
+  nodes: WorkspaceNode[],
+  lookalikesByNode?: Map<string, string[]>
+): GithubMapStatus[] {
+  const collisions = collidingMappedDocuments(statuses, nodes);
   return statuses.map((status) => ({
     ...status,
     workspaceTwins:
       status.kind === "document"
         ? listSameNamedDocuments(nodes, status.nodeId)
         : [],
+    unimportedGithubPaths: lookalikesByNode?.get(status.nodeId) ?? [],
+    pathCollisions: collisions.get(status.nodeId) ?? [],
   }));
+}
+
+/** Two or more live BlogIDE documents mapped to the same repo path. */
+export function collidingMappedDocuments(
+  statuses: GithubMapStatus[],
+  nodes: WorkspaceNode[]
+): Map<string, Array<{ nodeId: string; label: string }>> {
+  const groups = new Map<string, GithubMapStatus[]>();
+  for (const status of statuses) {
+    if (status.kind !== "document" || status.stale) continue;
+    const key = `${status.repo}#${status.branch}#${status.path}`;
+    const list = groups.get(key) ?? [];
+    list.push(status);
+    groups.set(key, list);
+  }
+  const out = new Map<string, Array<{ nodeId: string; label: string }>>();
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    for (const status of group) {
+      out.set(
+        status.nodeId,
+        group
+          .filter((other) => other.nodeId !== status.nodeId)
+          .map((other) => ({
+            nodeId: other.nodeId,
+            label: folderPathLabel(other.nodeId, nodes) || other.nodeId,
+          }))
+      );
+    }
+  }
+  return out;
 }
 
 /** GitHub blobs under a mapped folder that have no BlogIDE document. Never imported. */
@@ -132,6 +191,52 @@ export function unmappedBlobsUnderFolderMaps(
     }
   }
   return extras;
+}
+
+/**
+ * Extra GitHub markdown whose filename matches an existing mapped BlogIDE
+ * essay. Typical after `git mv` into another mapped folder. Never imported.
+ */
+export function githubUnimportedLookalikes(
+  bindings: GithubResolvedBinding[],
+  blobs: string[],
+  nodes: WorkspaceNode[]
+): Array<{
+  path: string;
+  repo: string;
+  branch: string;
+  matchesNodeId: string;
+  matchesLabel: string;
+}> {
+  const extras = unmappedBlobsUnderFolderMaps(bindings, blobs);
+  const docs = bindings.filter((binding) => binding.kind === "document");
+  const out: Array<{
+    path: string;
+    repo: string;
+    branch: string;
+    matchesNodeId: string;
+    matchesLabel: string;
+  }> = [];
+  const seen = new Set<string>();
+  for (const extra of extras) {
+    const extraBase = githubBasename(extra.path).toLowerCase();
+    if (!extraBase) continue;
+    for (const doc of docs) {
+      if (doc.repo !== extra.repo || doc.branch !== extra.branch) continue;
+      if (githubBasename(doc.path).toLowerCase() !== extraBase) continue;
+      const key = `${doc.nodeId}#${extra.path}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        path: extra.path,
+        repo: extra.repo,
+        branch: extra.branch,
+        matchesNodeId: doc.nodeId,
+        matchesLabel: folderPathLabel(doc.nodeId, nodes),
+      });
+    }
+  }
+  return out;
 }
 
 export function assessGithubBindings(
@@ -187,33 +292,53 @@ export function inspectPushFiles(
   return issues;
 }
 
+function copySignalSuffix(status: GithubMapStatus): string {
+  const twins =
+    status.workspaceTwins.length > 0
+      ? ` Another BlogIDE file: ${status.workspaceTwins.map((t) => t.label).join(", ")}.`
+      : "";
+  const collisions =
+    status.pathCollisions.length > 0
+      ? ` Same GitHub path also mapped from ${status.pathCollisions.map((t) => t.label).join(", ")}.`
+      : "";
+  const unimported =
+    status.unimportedGithubPaths.length > 0
+      ? ` GitHub also has ${status.unimportedGithubPaths.join(", ")}; BlogIDE did not add a second essay.`
+      : "";
+  return `${twins}${collisions}${unimported}`;
+}
+
 export function githubStatusTitle(status: GithubMapStatus): string {
   const repoPath = `${status.repo}/${status.path || "(repo root)"}`;
   if (status.stale) {
     return `GitHub mapping lost. ${repoPath}`;
   }
   if (status.health === "ok") {
-    const twins =
-      status.workspaceTwins.length > 0
-        ? ` Another BlogIDE file: ${status.workspaceTwins.map((t) => t.label).join(", ")}.`
-        : "";
-    return `GitHub: ${repoPath}.${twins}`;
+    return `GitHub: ${repoPath}.${copySignalSuffix(status)}`;
   }
   if (status.health === "missing") {
     const extra =
       status.candidates.length > 0
         ? ` Found ${status.candidates.join(", ")}.`
         : "";
-    const twins =
-      status.workspaceTwins.length > 0
-        ? ` Another BlogIDE copy: ${status.workspaceTwins.map((t) => t.label).join(", ")}.`
-        : "";
-    return `GitHub mapping broken: ${repoPath} is missing.${extra}${twins}`;
+    return `GitHub mapping broken: ${repoPath} is missing.${extra}${copySignalSuffix(status)}`;
   }
   if (status.health === "error") {
     return `GitHub: could not check ${repoPath}. ${status.detail ?? ""}`.trim();
   }
-  return `GitHub: ${repoPath} (not checked)`;
+  return `GitHub: ${repoPath} (not checked)${copySignalSuffix(status)}`;
+}
+
+export function unimportedGithubNoticePaths(
+  statuses: Iterable<GithubMapStatus>
+): string[] {
+  const paths = new Set<string>();
+  for (const status of statuses) {
+    for (const path of status.unimportedGithubPaths) {
+      paths.add(path);
+    }
+  }
+  return [...paths].sort();
 }
 
 export function remapGithubMaps(

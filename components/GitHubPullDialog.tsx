@@ -19,7 +19,12 @@ export type GithubPullApply = {
 type Props = {
   open: boolean;
   files: GithubPullFile[];
-  unmapped?: Array<{ repo: string; branch: string; path: string }>;
+  unmapped?: Array<{
+    repo: string;
+    branch: string;
+    path: string;
+    looksLike?: string;
+  }>;
   busy?: boolean;
   error?: string | null;
   onClose: () => void;
@@ -252,7 +257,11 @@ function GitHubPullForm({
                   {unmapped.length === 1 ? " isn't" : " aren't"} in BlogIDE
                   ({unmapped
                     .slice(0, 4)
-                    .map((row) => row.path)
+                    .map((row) =>
+                      row.looksLike
+                        ? `${row.path} (looks like a move of ${row.looksLike})`
+                        : row.path
+                    )
                     .join(", ")}
                   {unmapped.length > 4 ? ", …" : ""}). Pull will not import
                   {unmapped.length === 1 ? " it" : " them"} as a new essay.

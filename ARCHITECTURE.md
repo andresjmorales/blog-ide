@@ -50,7 +50,10 @@ markdown.
   in Supabase. Pushes overwrite matching files and never delete extras.
   Pull is opt-in: the client fetches the mapped file (or a same-name candidate
   if the path moved), shows a diff, and only then writes the editor copy.
-  Mapping badges in Files reflect whether the GitHub path still exists.
+  Pull never creates a workspace node. Mapping badges in Files reflect whether
+  the GitHub path still exists; same-name Files entries and GitHub extras
+  under a mapped folder are called out so a `git mv` is not mistaken for a
+  second BlogIDE essay.
   Not required onboarding and not overflow media storage.
 - Anthropic / OpenAI are called with the user’s own key via the proxy above.
 - Stripe only if a shared hosted deploy opts into paid storage tiers

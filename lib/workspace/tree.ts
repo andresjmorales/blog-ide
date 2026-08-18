@@ -242,30 +242,45 @@ export function documentFileKey(name: string): string {
 }
 
 /**
- * Other live documents that share this file name (Trash excluded).
+ * Live documents that share a file name (Trash excluded), keyed by node id.
  * Used to spot a second BlogIDE copy after a git mv / import, without
  * creating anything from GitHub.
  */
+export function sameNamedDocumentTwins(
+  nodes: WorkspaceNode[]
+): Map<string, Array<{ nodeId: string; label: string }>> {
+  const trash = getTrashNode(nodes);
+  const groups = new Map<string, WorkspaceNode[]>();
+  for (const node of nodes) {
+    if (node.kind !== "document") continue;
+    if (isInTrash(node.id, nodes, trash?.id)) continue;
+    const key = documentFileKey(node.name);
+    if (!key) continue;
+    const list = groups.get(key) ?? [];
+    list.push(node);
+    groups.set(key, list);
+  }
+  const out = new Map<string, Array<{ nodeId: string; label: string }>>();
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    for (const node of group) {
+      out.set(
+        node.id,
+        group
+          .filter((other) => other.id !== node.id)
+          .map((other) => ({
+            nodeId: other.id,
+            label: folderPathLabel(other.id, nodes),
+          }))
+      );
+    }
+  }
+  return out;
+}
+
 export function listSameNamedDocuments(
   nodes: WorkspaceNode[],
   nodeId: string
 ): Array<{ nodeId: string; label: string }> {
-  const byId = new Map(nodes.map((n) => [n.id, n]));
-  const self = byId.get(nodeId);
-  if (!self || self.kind !== "document") return [];
-  const key = documentFileKey(self.name);
-  if (!key) return [];
-  const trash = getTrashNode(nodes);
-  return nodes
-    .filter(
-      (node) =>
-        node.id !== nodeId &&
-        node.kind === "document" &&
-        documentFileKey(node.name) === key &&
-        !isInTrash(node.id, nodes, trash?.id)
-    )
-    .map((node) => ({
-      nodeId: node.id,
-      label: folderPathLabel(node.id, nodes),
-    }));
+  return sameNamedDocumentTwins(nodes).get(nodeId) ?? [];
 }

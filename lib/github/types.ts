@@ -39,6 +39,13 @@ export type GithubMapStatus = GithubResolvedBinding & {
   stale: boolean;
   /** Other BlogIDE documents with the same filename (not created from GitHub). */
   workspaceTwins: Array<{ nodeId: string; label: string }>;
+  /**
+   * GitHub markdown under a mapped folder that looks like this file moved
+   * (`git mv`). Listed so the UI can say BlogIDE did not import a second essay.
+   */
+  unimportedGithubPaths: string[];
+  /** Other BlogIDE documents mapped to this same GitHub path. */
+  pathCollisions: Array<{ nodeId: string; label: string }>;
   detail?: string;
 };
 

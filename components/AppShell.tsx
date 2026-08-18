@@ -321,7 +321,7 @@ function AppShellContent({
   const [pullOpen, setPullOpen] = useState(false);
   const [pullFiles, setPullFiles] = useState<GithubPullFile[]>([]);
   const [pullUnmapped, setPullUnmapped] = useState<
-    Array<{ repo: string; branch: string; path: string }>
+    Array<{ repo: string; branch: string; path: string; looksLike?: string }>
   >([]);
   const [pullBusy, setPullBusy] = useState(false);
   const [pullError, setPullError] = useState<string | null>(null);

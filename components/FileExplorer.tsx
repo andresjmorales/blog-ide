@@ -18,11 +18,12 @@ import {
   getTrashNode,
   isInTrash,
   isSystemFolder,
+  sameNamedDocumentTwins,
   systemFolderDisplayName,
 } from "@/lib/workspace/tree";
 import type { WorkspaceNode } from "@/lib/workspace/types";
 import type { GithubMapStatus } from "@/lib/github/types";
-import { githubStatusTitle } from "@/lib/github/status";
+import { githubStatusTitle, unimportedGithubNoticePaths } from "@/lib/github/status";
 
 type Props = {
   nodes: WorkspaceNode[];
@@ -168,6 +169,10 @@ export function FileExplorer({
   );
   const trashChildren = trashId ? childrenOf(nodes, trashId) : [];
   const ambiguousTitles = ambiguousDisplayTitles(nodes, trashId, docTitles);
+  const nameTwins = sameNamedDocumentTwins(nodes);
+  const unimportedGithub = unimportedGithubNoticePaths(
+    githubByNode?.values() ?? []
+  );
 
   function openMenu(e: MouseEvent, node: WorkspaceNode) {
     e.preventDefault();
@@ -427,6 +432,7 @@ export function FileExplorer({
             trashId={trashId}
             docTitles={docTitles}
             ambiguousTitles={ambiguousTitles}
+            nameTwins={nameTwins}
             githubByNode={githubByNode}
             onOpen={onOpen}
             onNewDocument={onNewDocument}
@@ -438,6 +444,15 @@ export function FileExplorer({
           />
         ))}
       </ul>
+
+      {unimportedGithub.length > 0 && (
+        <p className="mt-3 px-2 text-[11px] leading-snug text-muted">
+          GitHub has extra markdown under a mapped folder (
+          {unimportedGithub.slice(0, 3).join(", ")}
+          {unimportedGithub.length > 3 ? ", …" : ""}). BlogIDE did not import
+          {unimportedGithub.length === 1 ? " a second essay" : " extra essays"}.
+        </p>
+      )}
 
       {trash && (
         <div className="mt-4 border-t border-border pt-3">
@@ -470,6 +485,7 @@ export function FileExplorer({
                     trashId={trashId}
                     docTitles={docTitles}
                     ambiguousTitles={ambiguousTitles}
+                    nameTwins={nameTwins}
                     githubByNode={githubByNode}
                     onOpen={onOpen}
                     onNewDocument={onNewDocument}
@@ -605,6 +621,7 @@ function TreeNode({
   trashId,
   docTitles,
   ambiguousTitles,
+  nameTwins,
   githubByNode,
   onOpen,
   onNewDocument,
@@ -621,6 +638,7 @@ function TreeNode({
   trashId: string | null;
   docTitles?: Map<string, string>;
   ambiguousTitles: Set<string>;
+  nameTwins: Map<string, Array<{ nodeId: string; label: string }>>;
   githubByNode?: Map<string, GithubMapStatus>;
   onOpen: (nodeId: string) => void;
   onNewDocument: (parentId: string | null) => void;
@@ -639,6 +657,7 @@ function TreeNode({
   const label = explorerLabel(node, nodes, docTitles, ambiguousTitles);
   const stem = fileStem(node);
   const tip = label !== stem ? `${label} (${node.name})` : node.name;
+  const twins = nameTwins.get(node.id) ?? [];
 
   if (node.kind === "folder") {
     const expanded = !collapsedIds.has(node.id);
@@ -718,6 +737,7 @@ function TreeNode({
                 trashId={trashId}
                 docTitles={docTitles}
                 ambiguousTitles={ambiguousTitles}
+                nameTwins={nameTwins}
                 githubByNode={githubByNode}
                 onOpen={onOpen}
                 onNewDocument={onNewDocument}
@@ -798,6 +818,9 @@ function TreeNode({
           <ColorDot color={node.color} />
           <span className="truncate">{label}</span>
           <GithubMappingIcon status={githubByNode?.get(node.id)} />
+          {twins.length > 0 && (
+            <SameNameCopyChip twins={twins} />
+          )}
           {node.pinned && (
             <span className="ml-0.5 inline-flex shrink-0 text-muted" title="Pinned">
               <PinIcon />
@@ -857,6 +880,25 @@ function RowKebab({
     >
       <KebabIcon />
     </button>
+  );
+}
+
+function SameNameCopyChip({
+  twins,
+}: {
+  twins: Array<{ nodeId: string; label: string }>;
+}) {
+  const labels = twins.map((twin) => twin.label);
+  const shown = labels[0] ?? "another file";
+  const extra = labels.length > 1 ? ` (+${labels.length - 1})` : "";
+  return (
+    <span
+      className="explorer-same-name-chip"
+      title={`Same file name as ${labels.join(", ")}. BlogIDE did not create this from GitHub.`}
+    >
+      also {shown}
+      {extra}
+    </span>
   );
 }
 

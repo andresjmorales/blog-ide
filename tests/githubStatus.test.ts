@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 import { decodeGithubFileContent } from "@/lib/github/client";
 import {
   assessGithubBinding,
+  attachGithubCopySignals,
   attachWorkspaceTwins,
+  collidingMappedDocuments,
   findBasenameCandidates,
+  githubUnimportedLookalikes,
   inspectPushFiles,
   prefixExists,
   remapGithubMaps,
+  unimportedGithubNoticePaths,
   unmappedBlobsUnderFolderMaps,
 } from "@/lib/github/status";
 import type { GithubResolvedBinding, GithubTreeIndex } from "@/lib/github/types";
@@ -204,5 +208,141 @@ describe("GitHub mapping health", () => {
       { nodeId: "doc-2b", label: "published/two.md" },
     ]);
     expect(withTwins.nodeId).toBe("doc-2");
+  });
+
+  it("treats a git-moved file under another mapped folder as unimported, not a BlogIDE copy", () => {
+    const drafts = {
+      id: "drafts",
+      user_id: "u",
+      parent_id: null,
+      kind: "folder" as const,
+      name: "drafts",
+      position: 0,
+      url: null,
+      pinned: false,
+      system_key: null,
+      color: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+    const published = { ...drafts, id: "published", name: "published", position: 1 };
+    const original = {
+      ...drafts,
+      id: "doc-2",
+      kind: "document" as const,
+      name: "two.md",
+      parent_id: "drafts",
+      position: 0,
+    };
+    const bindings: GithubResolvedBinding[] = [
+      {
+        nodeId: "drafts",
+        kind: "folder",
+        repo: "me/site",
+        branch: "main",
+        path: "drafts",
+        source: "direct",
+        mapNodeId: "drafts",
+      },
+      {
+        nodeId: "doc-2",
+        kind: "document",
+        repo: "me/site",
+        branch: "main",
+        path: "drafts/two.md",
+        source: "inherited",
+        mapNodeId: "drafts",
+      },
+      {
+        nodeId: "published",
+        kind: "folder",
+        repo: "me/site",
+        branch: "main",
+        path: "published",
+        source: "direct",
+        mapNodeId: "published",
+      },
+    ];
+    const looks = githubUnimportedLookalikes(
+      bindings,
+      ["published/two.md"],
+      [drafts, published, original]
+    );
+    expect(looks).toEqual([
+      {
+        path: "published/two.md",
+        repo: "me/site",
+        branch: "main",
+        matchesNodeId: "doc-2",
+        matchesLabel: "drafts/two.md",
+      },
+    ]);
+    const status = assessGithubBinding(
+      binding({
+        nodeId: "doc-2",
+        kind: "document",
+        path: "drafts/two.md",
+      }),
+      index
+    );
+    const [annotated] = attachGithubCopySignals(
+      [status],
+      [drafts, published, original],
+      new Map([["doc-2", ["published/two.md"]]])
+    );
+    expect(annotated.unimportedGithubPaths).toEqual(["published/two.md"]);
+    expect(annotated.workspaceTwins).toEqual([]);
+    expect(unimportedGithubNoticePaths([annotated])).toEqual([
+      "published/two.md",
+    ]);
+  });
+
+  it("flags two BlogIDE documents mapped to the same GitHub path", () => {
+    const drafts = {
+      id: "drafts",
+      user_id: "u",
+      parent_id: null,
+      kind: "folder" as const,
+      name: "drafts",
+      position: 0,
+      url: null,
+      pinned: false,
+      system_key: null,
+      color: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+    const published = { ...drafts, id: "published", name: "published", position: 1 };
+    const a = {
+      ...drafts,
+      id: "doc-a",
+      kind: "document" as const,
+      name: "two.md",
+      parent_id: "drafts",
+    };
+    const b = {
+      ...a,
+      id: "doc-b",
+      parent_id: "published",
+    };
+    const statuses = [
+      assessGithubBinding(
+        binding({ nodeId: "doc-a", kind: "document", path: "published/two.md" }),
+        index
+      ),
+      assessGithubBinding(
+        binding({ nodeId: "doc-b", kind: "document", path: "published/two.md" }),
+        index
+      ),
+    ];
+    const collisions = collidingMappedDocuments(statuses, [
+      drafts,
+      published,
+      a,
+      b,
+    ]);
+    expect(collisions.get("doc-a")).toEqual([
+      { nodeId: "doc-b", label: "published/two.md" },
+    ]);
   });
 });

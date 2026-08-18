@@ -11,6 +11,7 @@ import {
   listInboxChannels,
   listSameNamedDocuments,
   pickDefaultOpenDocument,
+  sameNamedDocumentTwins,
   systemFolderDisplayName,
   uniqueSiblingName,
 } from "@/lib/workspace/tree";
@@ -283,6 +284,9 @@ describe("listSameNamedDocuments", () => {
     const found = listSameNamedDocuments(all, original.id);
     expect(found).toEqual([
       { nodeId: twin.id, label: "published/two.md" },
+    ]);
+    expect(sameNamedDocumentTwins(all).get(twin.id)).toEqual([
+      { nodeId: original.id, label: "drafts/two.md" },
     ]);
   });
 });

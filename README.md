@@ -37,8 +37,10 @@ by design.
   confirm before the editor is replaced. Mapped items show a GitHub badge
   (green if the path exists, orange with a slash if it was moved or deleted).
   If you `git mv` a mapped file outside BlogIDE, push warns instead of
-  silently recreating the old path (which would duplicate it). Supabase stays
-  the source of truth.
+  silently recreating the old path (which would duplicate it). Refreshing
+  BlogIDE never imports a second essay from GitHub; if two Files entries
+  share a name, they already existed in the workspace (or are a sync
+  conflict copy). Supabase stays the source of truth.
 - **Find / replace** — magnifying glass / Ctrl+F with soft highlights (Enter
   steps matches); sticky find-in-selection; searches footnote bodies; scrolls
   the active match into view;   regex and headings-only scope; Ω special

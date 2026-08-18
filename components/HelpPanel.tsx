@@ -74,7 +74,9 @@ export function HelpPanel({ open, onClose }: Props) {
             path, pull with a diff, or push a backup (token stays on this
             device). Mapped items show a small GitHub icon: green if the path
             is still there, orange with a slash if git moved or deleted it.
-            Click a
+            Two essays with the same file name get an “also …” chip so a
+            workspace copy is obvious; GitHub extras under a mapped folder
+            are listed and never imported as a new essay. Click a
             link (or Ctrl+K) for the link menu with Open Graph preview, Open,
             Pin, and Library. The{" "}
             <strong>Library</strong> panel (right dock) holds

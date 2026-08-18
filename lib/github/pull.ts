@@ -15,6 +15,7 @@ import { getLocalDoc } from "@/lib/db/indexed";
 import { saveLocal, syncDocument } from "@/lib/sync/engine";
 import {
   findBasenameCandidates,
+  githubUnimportedLookalikes,
   unmappedBlobsUnderFolderMaps,
 } from "@/lib/github/status";
 import type {
@@ -22,6 +23,7 @@ import type {
   GithubResolvedBinding,
 } from "@/lib/github/types";
 import type { WorkspaceNode } from "@/lib/workspace/types";
+import { fetchRemoteDocument } from "@/lib/workspace/api";
 
 export type GithubPullFile = {
   nodeId: string;
@@ -44,7 +46,13 @@ export type GithubPullPlan = {
    * Markdown files under a mapped GitHub folder that have no BlogIDE document.
    * Pull never imports these (that would create a duplicate essay).
    */
-  unmapped: Array<{ repo: string; branch: string; path: string }>;
+  unmapped: Array<{
+    repo: string;
+    branch: string;
+    path: string;
+    /** BlogIDE essay this extra GitHub file looks like a move of. */
+    looksLike?: string;
+  }>;
 };
 
 function normalizeNewlines(text: string): string {
@@ -91,10 +99,25 @@ export async function prepareGithubPull(input: {
         branch: first.branch,
       });
       blobs = index.blobs;
+      const extras = unmappedBlobsUnderFolderMaps(bindings, index.blobs).filter(
+        (row) => row.repo === first.repo && row.branch === first.branch
+      );
+      const looks = githubUnimportedLookalikes(
+        bindings.filter(
+          (binding) =>
+            binding.repo === first.repo && binding.branch === first.branch
+        ),
+        index.blobs,
+        input.nodes
+      );
+      const looksByPath = new Map(
+        looks.map((row) => [row.path, row.matchesLabel])
+      );
       unmapped.push(
-        ...unmappedBlobsUnderFolderMaps(bindings, index.blobs).filter(
-          (row) => row.repo === first.repo && row.branch === first.branch
-        )
+        ...extras.map((row) => ({
+          ...row,
+          looksLike: looksByPath.get(row.path),
+        }))
       );
     } catch (error) {
       throw new Error(githubErrorCopy(error));
@@ -148,6 +171,17 @@ export async function prepareGithubPull(input: {
   return { files, unmapped };
 }
 
+export function githubPullBaseVersion(
+  localBaseVersion: number | undefined,
+  remoteVersion: number | undefined
+): number {
+  const local = Number(localBaseVersion);
+  const remote = Number(remoteVersion);
+  const knownLocal = Number.isFinite(local) && local > 0 ? local : 0;
+  const knownRemote = Number.isFinite(remote) && remote > 0 ? remote : 0;
+  return Math.max(knownLocal, knownRemote, 1);
+}
+
 export async function applyGithubPullToDocument(input: {
   nodeId: string;
   markdown: string;
@@ -167,7 +201,17 @@ export async function applyGithubPullToDocument(input: {
     input.applyMarkdown(input.markdown);
     return;
   }
+  const remote = await fetchRemoteDocument(input.nodeId);
+  if (!remote) {
+    throw new Error(
+      "That essay is gone. Pull will not create a new BlogIDE file from GitHub."
+    );
+  }
   const local = await getLocalDoc(input.nodeId);
-  await saveLocal(input.nodeId, input.markdown, local?.baseVersion ?? 1);
+  await saveLocal(
+    input.nodeId,
+    input.markdown,
+    githubPullBaseVersion(local?.baseVersion, Number(remote.version))
+  );
   await syncDocument(input.nodeId);
 }

@@ -6,7 +6,7 @@ import {
   resolveGithubBindings,
   staleGithubMaps,
 } from "@/lib/github/files";
-import { assessGithubBinding, attachWorkspaceTwins, treeIndexKey } from "@/lib/github/status";
+import { assessGithubBinding, attachGithubCopySignals, githubUnimportedLookalikes, treeIndexKey } from "@/lib/github/status";
 import type {
   GithubMapStatus,
   GithubRemoteSettings,
@@ -39,11 +39,13 @@ export async function loadGithubMapStatuses(input: {
     candidates: [],
     stale: true,
     workspaceTwins: [],
+    unimportedGithubPaths: [],
+    pathCollisions: [],
     detail: "Mapped item is missing or in Trash",
   }));
 
   if (!input.token) {
-    return attachWorkspaceTwins(
+    return attachGithubCopySignals(
       [
         ...bindings.map((binding) => assessGithubBinding(binding, null)),
         ...staleStatuses,
@@ -86,5 +88,26 @@ export async function loadGithubMapStatuses(input: {
     return assessGithubBinding(binding, index ?? null);
   });
 
-  return attachWorkspaceTwins([...live, ...staleStatuses], input.nodes);
+  const lookalikesByNode = new Map<string, string[]>();
+  for (const [key, index] of indexes) {
+    if (!index || index instanceof Error) continue;
+    const group = bindings.filter(
+      (binding) => treeIndexKey(binding.repo, binding.branch) === key
+    );
+    for (const row of githubUnimportedLookalikes(
+      group,
+      index.blobs,
+      input.nodes
+    )) {
+      const list = lookalikesByNode.get(row.matchesNodeId) ?? [];
+      list.push(row.path);
+      lookalikesByNode.set(row.matchesNodeId, list);
+    }
+  }
+
+  return attachGithubCopySignals(
+    [...live, ...staleStatuses],
+    input.nodes,
+    lookalikesByNode
+  );
 }
