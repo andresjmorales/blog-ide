@@ -6,7 +6,7 @@ import {
   resolveGithubBindings,
   staleGithubMaps,
 } from "@/lib/github/files";
-import { assessGithubBinding, treeIndexKey } from "@/lib/github/status";
+import { assessGithubBinding, attachWorkspaceTwins, treeIndexKey } from "@/lib/github/status";
 import type {
   GithubMapStatus,
   GithubRemoteSettings,
@@ -38,16 +38,18 @@ export async function loadGithubMapStatuses(input: {
     health: "missing",
     candidates: [],
     stale: true,
+    workspaceTwins: [],
     detail: "Mapped item is missing or in Trash",
   }));
 
   if (!input.token) {
-    return [
-      ...bindings.map((binding) =>
-        assessGithubBinding(binding, null)
-      ),
-      ...staleStatuses,
-    ];
+    return attachWorkspaceTwins(
+      [
+        ...bindings.map((binding) => assessGithubBinding(binding, null)),
+        ...staleStatuses,
+      ],
+      input.nodes
+    );
   }
 
   const keys = [
@@ -84,5 +86,5 @@ export async function loadGithubMapStatuses(input: {
     return assessGithubBinding(binding, index ?? null);
   });
 
-  return [...live, ...staleStatuses];
+  return attachWorkspaceTwins([...live, ...staleStatuses], input.nodes);
 }

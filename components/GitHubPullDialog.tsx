@@ -19,6 +19,7 @@ export type GithubPullApply = {
 type Props = {
   open: boolean;
   files: GithubPullFile[];
+  unmapped?: Array<{ repo: string; branch: string; path: string }>;
   busy?: boolean;
   error?: string | null;
   onClose: () => void;
@@ -44,6 +45,7 @@ function initialPullState(files: GithubPullFile[]) {
 export function GitHubPullDialog({
   open,
   files,
+  unmapped = [],
   busy = false,
   error = null,
   onClose,
@@ -64,6 +66,7 @@ export function GitHubPullDialog({
     <GitHubPullForm
       key={files.map((file) => `${file.nodeId}:${file.pullPath}`).join("|")}
       files={files}
+      unmapped={unmapped}
       busy={busy}
       error={error}
       onClose={onClose}
@@ -74,6 +77,7 @@ export function GitHubPullDialog({
 
 function GitHubPullForm({
   files,
+  unmapped = [],
   busy,
   error,
   onClose,
@@ -131,8 +135,8 @@ function GitHubPullForm({
           <div>
             <h2 id="github-pull-title">Pull from GitHub</h2>
             <p className="mt-1 text-xs text-muted">
-              Review the remote file, then replace the editor copy. Nothing is
-              overwritten until you confirm.
+              Review the remote file, then replace this essay. Pull never
+              creates a new BlogIDE document from GitHub.
             </p>
           </div>
           <button type="button" onClick={onClose} disabled={busy}>
@@ -199,6 +203,15 @@ function GitHubPullForm({
                                   ? " · not on GitHub"
                                   : " · differs"}
                           </span>
+                          {file.workspaceTwins.length > 0 && (
+                            <span className="mt-0.5 block text-amber-800 dark:text-amber-300">
+                              Another BlogIDE file already uses this name:{" "}
+                              {file.workspaceTwins
+                                .map((twin) => twin.label)
+                                .join(", ")}
+                              . Pull updates this mapped essay only.
+                            </span>
+                          )}
                         </button>
                       </label>
                       {file.candidates.length > 0 && (
@@ -231,6 +244,20 @@ function GitHubPullForm({
                   );
                 })}
               </ul>
+
+              {unmapped.length > 0 && (
+                <p className="settings-help mb-3">
+                  GitHub also has {unmapped.length} markdown file
+                  {unmapped.length === 1 ? "" : "s"} under a mapped folder that
+                  {unmapped.length === 1 ? " isn't" : " aren't"} in BlogIDE
+                  ({unmapped
+                    .slice(0, 4)
+                    .map((row) => row.path)
+                    .join(", ")}
+                  {unmapped.length > 4 ? ", …" : ""}). Pull will not import
+                  {unmapped.length === 1 ? " it" : " them"} as a new essay.
+                </p>
+              )}
 
               {active && (
                 <div>

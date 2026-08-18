@@ -320,6 +320,9 @@ function AppShellContent({
   const [githubEpoch, setGithubEpoch] = useState(0);
   const [pullOpen, setPullOpen] = useState(false);
   const [pullFiles, setPullFiles] = useState<GithubPullFile[]>([]);
+  const [pullUnmapped, setPullUnmapped] = useState<
+    Array<{ repo: string; branch: string; path: string }>
+  >([]);
   const [pullBusy, setPullBusy] = useState(false);
   const [pullError, setPullError] = useState<string | null>(null);
   const [pushWarnOpen, setPushWarnOpen] = useState(false);
@@ -1131,14 +1134,21 @@ function AppShellContent({
         Promise.resolve(nodesRef.current),
         collectGithubDocumentBodies(nodesRef.current),
       ]);
-      const files = await prepareGithubPull({
+      const plan = await prepareGithubPull({
         nodes: tree,
         settings,
         token,
         localBodies: bodies,
         scope,
       });
-      setPullFiles(files);
+      const known = new Set(tree.map((node) => node.id));
+      if (plan.files.some((file) => !known.has(file.nodeId))) {
+        throw new Error(
+          "Pull refused to touch an unknown essay. BlogIDE never creates files from GitHub."
+        );
+      }
+      setPullFiles(plan.files);
+      setPullUnmapped(plan.unmapped);
       setPullOpen(true);
     } catch (error) {
       await dialog.confirm({
@@ -1177,6 +1187,7 @@ function AppShellContent({
           nodeId: file.nodeId,
           markdown: file.markdown,
           isOpen: file.nodeId === activeNodeId,
+          nodes: nodesRef.current,
           applyMarkdown: applyMarkdownRef.current,
         });
       }
@@ -1874,6 +1885,7 @@ function AppShellContent({
           <GitHubPullDialog
             open={pullOpen}
             files={pullFiles}
+            unmapped={pullUnmapped}
             busy={pullBusy}
             error={pullError}
             onClose={() => {

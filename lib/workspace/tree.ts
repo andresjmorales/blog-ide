@@ -233,3 +233,39 @@ export function folderPathLabel(
   }
   return parts.join("/") || "Workspace root";
 }
+
+/** Normalize a document filename for same-name comparisons (`Essay` → `essay.md`). */
+export function documentFileKey(name: string): string {
+  const base = name.trim().toLowerCase();
+  if (!base) return "";
+  return base.endsWith(".md") ? base : `${base}.md`;
+}
+
+/**
+ * Other live documents that share this file name (Trash excluded).
+ * Used to spot a second BlogIDE copy after a git mv / import, without
+ * creating anything from GitHub.
+ */
+export function listSameNamedDocuments(
+  nodes: WorkspaceNode[],
+  nodeId: string
+): Array<{ nodeId: string; label: string }> {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const self = byId.get(nodeId);
+  if (!self || self.kind !== "document") return [];
+  const key = documentFileKey(self.name);
+  if (!key) return [];
+  const trash = getTrashNode(nodes);
+  return nodes
+    .filter(
+      (node) =>
+        node.id !== nodeId &&
+        node.kind === "document" &&
+        documentFileKey(node.name) === key &&
+        !isInTrash(node.id, nodes, trash?.id)
+    )
+    .map((node) => ({
+      nodeId: node.id,
+      label: folderPathLabel(node.id, nodes),
+    }));
+}

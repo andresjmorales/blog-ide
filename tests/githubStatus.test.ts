@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import { decodeGithubFileContent } from "@/lib/github/client";
 import {
   assessGithubBinding,
+  attachWorkspaceTwins,
   findBasenameCandidates,
   inspectPushFiles,
   prefixExists,
   remapGithubMaps,
+  unmappedBlobsUnderFolderMaps,
 } from "@/lib/github/status";
 import type { GithubResolvedBinding, GithubTreeIndex } from "@/lib/github/types";
 
@@ -116,5 +118,91 @@ describe("GitHub mapping health", () => {
   it("decodes GitHub base64 file payloads", () => {
     const encoded = btoa("# Hello\n");
     expect(decodeGithubFileContent(`${encoded}\n`, "base64")).toBe("# Hello\n");
+  });
+
+  it("does not treat extra GitHub files as BlogIDE documents to import", () => {
+    const extras = unmappedBlobsUnderFolderMaps(
+      [
+        {
+          nodeId: "drafts-folder",
+          kind: "folder",
+          repo: "me/site",
+          branch: "main",
+          path: "drafts",
+          source: "direct",
+          mapNodeId: "drafts-folder",
+        },
+        {
+          nodeId: "doc-2",
+          kind: "document",
+          repo: "me/site",
+          branch: "main",
+          path: "drafts/two.md",
+          source: "inherited",
+          mapNodeId: "drafts-folder",
+        },
+        {
+          nodeId: "published-folder",
+          kind: "folder",
+          repo: "me/site",
+          branch: "main",
+          path: "published",
+          source: "direct",
+          mapNodeId: "published-folder",
+        },
+      ],
+      ["drafts/two.md", "drafts/notes.md", "published/two.md"]
+    );
+    expect(extras.map((row) => row.path).sort()).toEqual([
+      "drafts/notes.md",
+      "published/two.md",
+    ]);
+  });
+
+  it("attaches a BlogIDE same-name twin without inventing a node id", () => {
+    const drafts = {
+      id: "drafts",
+      user_id: "u",
+      parent_id: null,
+      kind: "folder" as const,
+      name: "drafts",
+      position: 0,
+      url: null,
+      pinned: false,
+      system_key: null,
+      color: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+    const published = { ...drafts, id: "published", name: "published", position: 1 };
+    const original = {
+      ...drafts,
+      id: "doc-2",
+      kind: "document" as const,
+      name: "two.md",
+      parent_id: "drafts",
+      position: 0,
+    };
+    const twin = {
+      ...original,
+      id: "doc-2b",
+      parent_id: "published",
+    };
+    const status = assessGithubBinding(
+      binding({
+        nodeId: "doc-2",
+        kind: "document",
+        path: "drafts/two.md",
+      }),
+      index
+    );
+    const [withTwins] = attachWorkspaceTwins(
+      [status],
+      [drafts, published, original, twin]
+    );
+    expect(withTwins.workspaceTwins).toEqual([
+      { nodeId: "doc-2b", label: "published/two.md" },
+    ]);
+    expect(withTwins.nodeId).toBe("doc-2");
   });
 });

@@ -9,6 +9,7 @@ import {
   isInTrash,
   isScratchpad,
   listInboxChannels,
+  listSameNamedDocuments,
   pickDefaultOpenDocument,
   systemFolderDisplayName,
   uniqueSiblingName,
@@ -267,5 +268,21 @@ describe("getNotesChannel / systemFolderDisplayName", () => {
   it("displays the system inbox folder as Notes", () => {
     const inbox = node({ kind: "folder", name: "Inbox", system_key: "inbox" });
     expect(systemFolderDisplayName(inbox)).toBe("Notes");
+  });
+});
+
+describe("listSameNamedDocuments", () => {
+  it("finds a live twin in another folder and ignores Trash", () => {
+    const drafts = node({ kind: "folder", name: "drafts" });
+    const published = node({ kind: "folder", name: "published" });
+    const original = node({ name: "two.md", parent_id: drafts.id });
+    const twin = node({ name: "two.md", parent_id: published.id });
+    const trash = node({ kind: "folder", name: "Trash", system_key: "trash" });
+    const trashed = node({ name: "two.md", parent_id: trash.id });
+    const all = [drafts, published, original, twin, trash, trashed];
+    const found = listSameNamedDocuments(all, original.id);
+    expect(found).toEqual([
+      { nodeId: twin.id, label: "published/two.md" },
+    ]);
   });
 });

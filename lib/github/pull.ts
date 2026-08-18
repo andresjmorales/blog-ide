@@ -7,10 +7,16 @@ import {
   documentBindingsInScope,
   resolveGithubBindings,
 } from "@/lib/github/files";
-import { folderPathLabel } from "@/lib/workspace/tree";
+import {
+  folderPathLabel,
+  listSameNamedDocuments,
+} from "@/lib/workspace/tree";
 import { getLocalDoc } from "@/lib/db/indexed";
 import { saveLocal, syncDocument } from "@/lib/sync/engine";
-import { findBasenameCandidates } from "@/lib/github/status";
+import {
+  findBasenameCandidates,
+  unmappedBlobsUnderFolderMaps,
+} from "@/lib/github/status";
 import type {
   GithubRemoteSettings,
   GithubResolvedBinding,
@@ -29,6 +35,16 @@ export type GithubPullFile = {
   remotes: Record<string, string | null>;
   candidates: string[];
   identical: boolean;
+  workspaceTwins: Array<{ nodeId: string; label: string }>;
+};
+
+export type GithubPullPlan = {
+  files: GithubPullFile[];
+  /**
+   * Markdown files under a mapped GitHub folder that have no BlogIDE document.
+   * Pull never imports these (that would create a duplicate essay).
+   */
+  unmapped: Array<{ repo: string; branch: string; path: string }>;
 };
 
 function normalizeNewlines(text: string): string {
@@ -41,7 +57,7 @@ export async function prepareGithubPull(input: {
   token: string;
   localBodies: Map<string, string>;
   scope: "workspace" | { nodeId: string };
-}): Promise<GithubPullFile[]> {
+}): Promise<GithubPullPlan> {
   const bindings = resolveGithubBindings({
     nodes: input.nodes,
     maps: input.settings.maps,
@@ -64,6 +80,7 @@ export async function prepareGithubPull(input: {
   }
 
   const files: GithubPullFile[] = [];
+  const unmapped: GithubPullPlan["unmapped"] = [];
   for (const group of byRepo.values()) {
     const first = group[0];
     let blobs: string[] = [];
@@ -74,6 +91,11 @@ export async function prepareGithubPull(input: {
         branch: first.branch,
       });
       blobs = index.blobs;
+      unmapped.push(
+        ...unmappedBlobsUnderFolderMaps(bindings, index.blobs).filter(
+          (row) => row.repo === first.repo && row.branch === first.branch
+        )
+      );
     } catch (error) {
       throw new Error(githubErrorCopy(error));
     }
@@ -118,19 +140,29 @@ export async function prepareGithubPull(input: {
         remotes,
         candidates,
         identical,
+        workspaceTwins: listSameNamedDocuments(input.nodes, binding.nodeId),
       });
     }
   }
 
-  return files;
+  return { files, unmapped };
 }
 
 export async function applyGithubPullToDocument(input: {
   nodeId: string;
   markdown: string;
   isOpen: boolean;
+  nodes: WorkspaceNode[];
   applyMarkdown?: (markdown: string) => void;
 }): Promise<void> {
+  const exists = input.nodes.some(
+    (node) => node.id === input.nodeId && node.kind === "document"
+  );
+  if (!exists) {
+    throw new Error(
+      "That essay is gone. Pull will not create a new BlogIDE file from GitHub."
+    );
+  }
   if (input.isOpen && input.applyMarkdown) {
     input.applyMarkdown(input.markdown);
     return;

@@ -13,6 +13,8 @@ import type {
   GithubSyncMap,
   GithubTreeIndex,
 } from "@/lib/github/types";
+import { listSameNamedDocuments } from "@/lib/workspace/tree";
+import type { WorkspaceNode } from "@/lib/workspace/types";
 
 export function prefixExists(
   path: string,
@@ -41,15 +43,22 @@ export function findBasenameCandidates(
 export function assessGithubBinding(
   binding: GithubResolvedBinding,
   index: GithubTreeIndex | null,
-  extra?: { stale?: boolean; health?: GithubMapStatus["health"]; detail?: string }
+  extra?: {
+    stale?: boolean;
+    health?: GithubMapStatus["health"];
+    detail?: string;
+    workspaceTwins?: GithubMapStatus["workspaceTwins"];
+  }
 ): GithubMapStatus {
   const stale = extra?.stale ?? false;
+  const workspaceTwins = extra?.workspaceTwins ?? [];
   if (extra?.health) {
     return {
       ...binding,
       health: extra.health,
       candidates: [],
       stale,
+      workspaceTwins,
       detail: extra.detail,
     };
   }
@@ -59,6 +68,7 @@ export function assessGithubBinding(
       health: "unchecked",
       candidates: [],
       stale,
+      workspaceTwins,
     };
   }
 
@@ -75,12 +85,53 @@ export function assessGithubBinding(
     health: present ? "ok" : "missing",
     candidates,
     stale,
+    workspaceTwins,
     detail: present
       ? undefined
       : candidates.length > 0
         ? `Mapped path is missing; found ${candidates.join(", ")}`
         : "Mapped path is missing on GitHub",
   };
+}
+
+export function attachWorkspaceTwins(
+  statuses: GithubMapStatus[],
+  nodes: WorkspaceNode[]
+): GithubMapStatus[] {
+  return statuses.map((status) => ({
+    ...status,
+    workspaceTwins:
+      status.kind === "document"
+        ? listSameNamedDocuments(nodes, status.nodeId)
+        : [],
+  }));
+}
+
+/** GitHub blobs under a mapped folder that have no BlogIDE document. Never imported. */
+export function unmappedBlobsUnderFolderMaps(
+  bindings: GithubResolvedBinding[],
+  blobs: string[]
+): Array<{ repo: string; branch: string; path: string }> {
+  const folders = bindings.filter((b) => b.kind === "folder" && b.source === "direct");
+  const mappedFiles = new Set(
+    bindings.filter((b) => b.kind === "document").map((b) => `${b.repo}#${b.branch}#${b.path}`)
+  );
+  const extras: Array<{ repo: string; branch: string; path: string }> = [];
+  const seen = new Set<string>();
+  for (const folder of folders) {
+    const prefix = normalizeGithubPath(folder.path);
+    for (const blob of blobs) {
+      const under =
+        !prefix || blob === prefix || blob.startsWith(`${prefix}/`);
+      if (!under) continue;
+      if (!blob.toLowerCase().endsWith(".md")) continue;
+      const key = `${folder.repo}#${folder.branch}#${blob}`;
+      if (mappedFiles.has(key) || seen.has(key)) continue;
+      seen.add(key);
+      extras.push({ repo: folder.repo, branch: folder.branch, path: blob });
+    }
+  }
+  return extras;
 }
 
 export function assessGithubBindings(
@@ -142,14 +193,22 @@ export function githubStatusTitle(status: GithubMapStatus): string {
     return `GitHub mapping lost. ${repoPath}`;
   }
   if (status.health === "ok") {
-    return `GitHub: ${repoPath}`;
+    const twins =
+      status.workspaceTwins.length > 0
+        ? ` Another BlogIDE file: ${status.workspaceTwins.map((t) => t.label).join(", ")}.`
+        : "";
+    return `GitHub: ${repoPath}.${twins}`;
   }
   if (status.health === "missing") {
     const extra =
       status.candidates.length > 0
         ? ` Found ${status.candidates.join(", ")}.`
         : "";
-    return `GitHub mapping broken: ${repoPath} is missing.${extra}`;
+    const twins =
+      status.workspaceTwins.length > 0
+        ? ` Another BlogIDE copy: ${status.workspaceTwins.map((t) => t.label).join(", ")}.`
+        : "";
+    return `GitHub mapping broken: ${repoPath} is missing.${extra}${twins}`;
   }
   if (status.health === "error") {
     return `GitHub: could not check ${repoPath}. ${status.detail ?? ""}`.trim();

@@ -87,6 +87,39 @@ function displayName(
   return fileStem(node);
 }
 
+function ambiguousDisplayTitles(
+  nodes: WorkspaceNode[],
+  trashId: string | null,
+  docTitles?: Map<string, string>
+): Set<string> {
+  const counts = new Map<string, number>();
+  for (const node of nodes) {
+    if (node.kind !== "document") continue;
+    if (isInTrash(node.id, nodes, trashId)) continue;
+    const key = displayName(node, docTitles).trim().toLowerCase();
+    if (!key) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const ambiguous = new Set<string>();
+  for (const [key, count] of counts) {
+    if (count > 1) ambiguous.add(key);
+  }
+  return ambiguous;
+}
+
+function explorerLabel(
+  node: WorkspaceNode,
+  nodes: WorkspaceNode[],
+  docTitles: Map<string, string> | undefined,
+  ambiguous: Set<string>
+): string {
+  const label = displayName(node, docTitles);
+  if (node.kind !== "document" || !ambiguous.has(label.trim().toLowerCase())) {
+    return label;
+  }
+  return `${label} · ${folderPathLabel(node.id, nodes)}`;
+}
+
 export function FileExplorer({
   nodes,
   activeNodeId,
@@ -134,6 +167,7 @@ export function FileExplorer({
       !isInTrash(n.id, nodes, trashId)
   );
   const trashChildren = trashId ? childrenOf(nodes, trashId) : [];
+  const ambiguousTitles = ambiguousDisplayTitles(nodes, trashId, docTitles);
 
   function openMenu(e: MouseEvent, node: WorkspaceNode) {
     e.preventDefault();
@@ -392,6 +426,7 @@ export function FileExplorer({
             activeNodeId={activeNodeId}
             trashId={trashId}
             docTitles={docTitles}
+            ambiguousTitles={ambiguousTitles}
             githubByNode={githubByNode}
             onOpen={onOpen}
             onNewDocument={onNewDocument}
@@ -434,6 +469,7 @@ export function FileExplorer({
                     activeNodeId={activeNodeId}
                     trashId={trashId}
                     docTitles={docTitles}
+                    ambiguousTitles={ambiguousTitles}
                     githubByNode={githubByNode}
                     onOpen={onOpen}
                     onNewDocument={onNewDocument}
@@ -568,6 +604,7 @@ function TreeNode({
   activeNodeId,
   trashId,
   docTitles,
+  ambiguousTitles,
   githubByNode,
   onOpen,
   onNewDocument,
@@ -583,6 +620,7 @@ function TreeNode({
   activeNodeId: string | null;
   trashId: string | null;
   docTitles?: Map<string, string>;
+  ambiguousTitles: Set<string>;
   githubByNode?: Map<string, GithubMapStatus>;
   onOpen: (nodeId: string) => void;
   onNewDocument: (parentId: string | null) => void;
@@ -598,7 +636,7 @@ function TreeNode({
   );
 
   const paddingLeft = 8 + depth * 12;
-  const label = displayName(node, docTitles);
+  const label = explorerLabel(node, nodes, docTitles, ambiguousTitles);
   const stem = fileStem(node);
   const tip = label !== stem ? `${label} (${node.name})` : node.name;
 
@@ -679,6 +717,7 @@ function TreeNode({
                 activeNodeId={activeNodeId}
                 trashId={trashId}
                 docTitles={docTitles}
+                ambiguousTitles={ambiguousTitles}
                 githubByNode={githubByNode}
                 onOpen={onOpen}
                 onNewDocument={onNewDocument}

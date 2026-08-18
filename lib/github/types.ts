@@ -37,6 +37,8 @@ export type GithubMapStatus = GithubResolvedBinding & {
   candidates: string[];
   /** Mapped node is missing from the workspace or in Trash. */
   stale: boolean;
+  /** Other BlogIDE documents with the same filename (not created from GitHub). */
+  workspaceTwins: Array<{ nodeId: string; label: string }>;
   detail?: string;
 };
 
