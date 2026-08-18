@@ -21,6 +21,7 @@ export type ContextMenuItem =
         label: string;
         /** Optional CSS color for a swatch dot. */
         swatch?: string | null;
+        disabled?: boolean;
         onSelect: () => void;
       }>;
     }
@@ -135,8 +136,10 @@ export function ExplorerContextMenu({ x, y, items, onClose }: Props) {
                         key={sub.id}
                         type="button"
                         role="menuitem"
-                        className="flex w-full items-center gap-2 truncate px-3 py-1.5 text-left hover:bg-panel"
+                        disabled={sub.disabled}
+                        className="flex w-full items-center gap-2 truncate px-3 py-1.5 text-left hover:bg-panel disabled:opacity-40"
                         onClick={() => {
+                          if (sub.disabled) return;
                           sub.onSelect();
                           onClose();
                         }}

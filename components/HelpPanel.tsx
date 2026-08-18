@@ -70,9 +70,10 @@ export function HelpPanel({ open, onClose }: Props) {
             for the same actions. New document can also Import from .md / .txt /
             .docx (Word needs Pandoc on the server). Nest folders (e.g.
             essays/Veganism/). Pop out any document to keep a scratchpad
-            floating. Right-click a folder or essay to map it to a GitHub
-            path, pull with a diff, or push a backup (token stays on this
-            device). Mapped items show a small GitHub icon: green if the path
+            floating. Right-click a folder or essay and use GitHub → Map,
+            Pull, or Push (token stays on this device).
+            The open essay can also be mapped under Essay settings → GitHub.
+            Mapped items show a small GitHub icon: green if the path
             is still there, orange with a slash if git moved or deleted it.
             Two essays with the same file name get an “also …” chip so a
             workspace copy is obvious; GitHub extras under a mapped folder

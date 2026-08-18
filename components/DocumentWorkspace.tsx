@@ -69,7 +69,7 @@ import {
   parsePublication,
   writePublication,
 } from "@/lib/markdown/publication";
-import { EssaySettingsPanel } from "@/components/EssaySettingsPanel";
+import { EssaySettingsPanel, type EssayTab } from "@/components/EssaySettingsPanel";
 import { EssayTitleBlock } from "@/components/EssayTitleBlock";
 import { MarkdownSplitView } from "@/components/MarkdownSplitView";
 import { convertMarkdownFootnoteLinks } from "@/lib/import/footnotePaste";
@@ -97,6 +97,8 @@ import {
   exportMarkdownAsDocx,
 } from "@/lib/pandoc/client";
 import { pushWorkspaceToGithubWithStatus } from "@/lib/github/push";
+import { githubActionMenuItems } from "@/lib/github/menu";
+import type { GithubMapStatus } from "@/lib/github/types";
 import { openPopOut } from "@/lib/pins/popOutStore";
 import {
   formatConflictTimestamp,
@@ -196,6 +198,9 @@ type Props = {
     fileName: string
   ) => Promise<string | void>;
   githubMapped?: boolean;
+  githubStatus?: GithubMapStatus;
+  githubSettingsEpoch?: number;
+  onGithubSettingsChanged?: () => void;
   onPullFromGithub?: () => void;
   onPushToGithub?: () => void;
   /** Pull current essay markdown when the AI sidebar sends / cleans. */
@@ -225,6 +230,9 @@ export function DocumentWorkspace({
   onRequestTreeRefresh,
   onRenameDocument,
   githubMapped = false,
+  githubStatus,
+  githubSettingsEpoch = 0,
+  onGithubSettingsChanged,
   onPullFromGithub,
   onPushToGithub,
   registerGetMarkdownForAi,
@@ -262,6 +270,7 @@ export function DocumentWorkspace({
   >(null);
   const [lossyDiffOpen, setLossyDiffOpen] = useState(false);
   const [essaySettingsOpen, setEssaySettingsOpen] = useState(false);
+  const [essaySettingsTab, setEssaySettingsTab] = useState<EssayTab>("title");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [cleanupOpen, setCleanupOpen] = useState(false);
   const [cleanupTab, setCleanupTab] = useState<CleanupTab>("import");
@@ -1429,6 +1438,11 @@ export function DocumentWorkspace({
     setCleanupOpen(true);
   }
 
+  function openEssaySettings(tab: EssayTab = "title") {
+    setEssaySettingsTab(tab);
+    setEssaySettingsOpen(true);
+  }
+
   function viewRawMarkdown() {
     // Full-pane source only when the Editor setting allows it (and on narrow
     // viewports). Otherwise always open split.
@@ -1546,21 +1560,24 @@ export function DocumentWorkspace({
     },
     ...(persistEnabled && nodeId
       ? [
-          ...(githubMapped && onPullFromGithub
-            ? [
-                {
-                  id: "pull-github",
-                  label: "Pull from GitHub…",
-                  onSelect: () => onPullFromGithub(),
-                },
-              ]
-            : []),
           {
-            id: "push-github",
-            label: "Push to GitHub",
-            onSelect: () => {
-              void pushCurrentToGithub();
-            },
+            kind: "submenu" as const,
+            id: "github",
+            label: "GitHub",
+            items: githubActionMenuItems({
+              mapped: githubMapped,
+              includePull: Boolean(onPullFromGithub),
+              includePush: true,
+            }).map((item) => ({
+              id: item.id,
+              label: item.label,
+              disabled: item.disabled,
+              onSelect: () => {
+                if (item.id === "map-github") openEssaySettings("github");
+                else if (item.id === "pull-github") onPullFromGithub?.();
+                else void pushCurrentToGithub();
+              },
+            })),
           },
         ]
       : []),
@@ -1577,7 +1594,7 @@ export function DocumentWorkspace({
     {
       id: "essay-settings",
       label: "Essay settings",
-      onSelect: () => setEssaySettingsOpen(true),
+      onSelect: () => openEssaySettings("title"),
     },
   ];
 
@@ -1690,6 +1707,13 @@ export function DocumentWorkspace({
         spellcheckOverride={spellcheckOverride}
         onSpellcheckOverrideChange={setSpellcheckOverride}
         canEditTitle={canRenameDocument}
+        initialTab={essaySettingsTab}
+        nodeId={persistEnabled ? nodeId : null}
+        documentName={documentName}
+        previewMode={previewMode}
+        githubStatus={githubStatus}
+        githubSettingsEpoch={githubSettingsEpoch}
+        onGithubSettingsChanged={onGithubSettingsChanged}
       />
       <VersionHistoryPanel
         open={historyOpen}
@@ -1855,6 +1879,13 @@ export function DocumentWorkspace({
         spellcheckOverride={spellcheckOverride}
         onSpellcheckOverrideChange={setSpellcheckOverride}
         canEditTitle={canRenameDocument}
+        initialTab={essaySettingsTab}
+        nodeId={persistEnabled ? nodeId : null}
+        documentName={documentName}
+        previewMode={previewMode}
+        githubStatus={githubStatus}
+        githubSettingsEpoch={githubSettingsEpoch}
+        onGithubSettingsChanged={onGithubSettingsChanged}
       />
       <VersionHistoryPanel
         open={historyOpen}
