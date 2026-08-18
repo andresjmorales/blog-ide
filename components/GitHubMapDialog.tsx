@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import { GitHubMapFields } from "@/components/GitHubMapFields";
 import type { GithubSyncMap } from "@/lib/github/types";
 
 type FolderOption = {
@@ -119,34 +120,17 @@ function GitHubMapForm({
               ))}
             </select>
           </label>
-          <label className="settings-row settings-row-stack">
-            <span>Repo (optional override)</span>
-            <input
-              className="settings-text-input"
-              value={repo}
-              onChange={(e) => setRepo(e.target.value)}
-              placeholder={defaultRepo || "owner/repo"}
-            />
-          </label>
-          <label className="settings-row settings-row-stack">
-            <span>Branch (optional)</span>
-            <input
-              className="settings-text-input"
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              placeholder={defaultBranch || "main"}
-            />
-          </label>
-          <label className="settings-row settings-row-stack">
-            <span>Path</span>
-            <input
-              className="settings-text-input"
-              value={path}
-              onChange={(e) => setPath(e.target.value)}
-              placeholder={pathHint}
-            />
-          </label>
-          <p className="settings-help">{pathHint}</p>
+          <GitHubMapFields
+            repo={repo}
+            branch={branch}
+            path={path}
+            defaultRepo={defaultRepo}
+            defaultBranch={defaultBranch}
+            pathHint={pathHint}
+            onRepoChange={setRepo}
+            onBranchChange={setBranch}
+            onPathChange={setPath}
+          />
           <button
             type="button"
             className="rounded border border-border px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-40"

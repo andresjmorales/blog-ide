@@ -79,10 +79,11 @@ export function GitHubSettingsSection({
       <p className="settings-help">
         One-way by default: BlogIDE overwrites matching files and leaves extras
         in the repo. Pull is explicit — you will see a diff and confirm before
-        anything in the editor is replaced.         If you move a mapped file in git,
+        anything in the editor is replaced. If you move a mapped file in git,
         BlogIDE will not follow it automatically; the mapping badge turns orange
         so you can remap or pull from the new path. Refreshing Files never
-        creates a second essay from GitHub. The personal access token
+        creates a second essay from GitHub. The open essay can also be mapped
+        under Essay settings → GitHub. The personal access token
         is stored only in this browser (Contents: Read and write).
       </p>
       {previewMode ? (

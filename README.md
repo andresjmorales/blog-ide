@@ -32,7 +32,8 @@ by design.
   spaces and keeps paragraph breaks), and punctuation normalize (Chicago/MLA
   dashes, smart quotes) for messy pastes
 - **GitHub backup** — optional push (device-local PAT). Map a folder to a
-  repo path or a document to `README.md`; matching files are overwritten,
+  repo path or a document to `README.md` from Files → GitHub, or map the open
+  essay under Essay settings → GitHub. Matching files are overwritten,
   extras in the repo are left alone. Pull is explicit: you review a diff and
   confirm before the editor is replaced. Mapped items show a GitHub badge
   (green if the path exists, orange with a slash if it was moved or deleted).

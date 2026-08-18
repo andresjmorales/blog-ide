@@ -1740,6 +1740,15 @@ function AppShellContent({
                 githubMapped={Boolean(
                   activeNodeId && githubByNode.has(activeNodeId)
                 )}
+                githubStatus={
+                  activeNodeId
+                    ? githubByNode.get(activeNodeId)
+                    : undefined
+                }
+                githubSettingsEpoch={githubEpoch}
+                onGithubSettingsChanged={() =>
+                  setGithubEpoch((value) => value + 1)
+                }
                 onPullFromGithub={
                   previewMode || !activeNodeId
                     ? undefined

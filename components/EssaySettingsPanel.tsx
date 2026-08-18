@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
+import { GitHubEssayMapSection } from "@/components/GitHubEssayMapSection";
+import type { GithubMapStatus } from "@/lib/github/types";
 import {
   HARPER_LANGUAGE_OPTIONS,
   isHarperSupportedLang,
@@ -22,13 +24,21 @@ type Props = {
   spellcheckOverride: SpellcheckOverride;
   onSpellcheckOverrideChange: (override: SpellcheckOverride) => void;
   canEditTitle?: boolean;
+  initialTab?: EssayTab;
+  nodeId?: string | null;
+  documentName?: string | null;
+  previewMode?: boolean;
+  githubStatus?: GithubMapStatus;
+  githubSettingsEpoch?: number;
+  onGithubSettingsChanged?: () => void;
 };
 
-type EssayTab = "title" | "writing";
+export type EssayTab = "title" | "writing" | "github";
 
 const TABS: { id: EssayTab; label: string }[] = [
   { id: "title", label: "Title" },
   { id: "writing", label: "Writing check" },
+  { id: "github", label: "GitHub" },
 ];
 
 export function EssaySettingsPanel({
@@ -41,6 +51,13 @@ export function EssaySettingsPanel({
   spellcheckOverride,
   onSpellcheckOverrideChange,
   canEditTitle = true,
+  initialTab = "title",
+  nodeId = null,
+  documentName = null,
+  previewMode = false,
+  githubStatus,
+  githubSettingsEpoch = 0,
+  onGithubSettingsChanged,
 }: Props) {
   useEffect(() => {
     if (!open) return;
@@ -56,7 +73,7 @@ export function EssaySettingsPanel({
   // Remount when opened so the draft resets from `title` without an effect.
   return (
     <EssaySettingsDialog
-      key={title}
+      key={`${title}:${initialTab}`}
       title={title}
       onClose={onClose}
       onTitleChange={onTitleChange}
@@ -65,6 +82,13 @@ export function EssaySettingsPanel({
       spellcheckOverride={spellcheckOverride}
       onSpellcheckOverrideChange={onSpellcheckOverrideChange}
       canEditTitle={canEditTitle}
+      initialTab={initialTab}
+      nodeId={nodeId}
+      documentName={documentName}
+      previewMode={previewMode}
+      githubStatus={githubStatus}
+      githubSettingsEpoch={githubSettingsEpoch}
+      onGithubSettingsChanged={onGithubSettingsChanged}
     />
   );
 }
@@ -78,6 +102,13 @@ function EssaySettingsDialog({
   spellcheckOverride,
   onSpellcheckOverrideChange,
   canEditTitle,
+  initialTab,
+  nodeId,
+  documentName,
+  previewMode,
+  githubStatus,
+  githubSettingsEpoch,
+  onGithubSettingsChanged,
 }: {
   title: string;
   onClose: () => void;
@@ -87,10 +118,20 @@ function EssaySettingsDialog({
   spellcheckOverride: SpellcheckOverride;
   onSpellcheckOverrideChange: (override: SpellcheckOverride) => void;
   canEditTitle: boolean;
+  initialTab: EssayTab;
+  nodeId: string | null;
+  documentName: string | null;
+  previewMode: boolean;
+  githubStatus?: GithubMapStatus;
+  githubSettingsEpoch: number;
+  onGithubSettingsChanged?: () => void;
 }) {
   const { prefs } = useEditorPrefs();
   const [draftTitle, setDraftTitle] = useState(title);
-  const [tab, setTab] = useState<EssayTab>("title");
+  const [tab, setTab] = useState<EssayTab>(initialTab);
+  const visibleTabs = nodeId
+    ? TABS
+    : TABS.filter((item) => item.id !== "github");
 
   const defaultLangs = prefs.spellcheckLanguages;
   const essayLangs =
@@ -161,7 +202,7 @@ function EssaySettingsDialog({
           role="tablist"
           aria-label="Essay settings"
         >
-          {TABS.map((item) => (
+          {visibleTabs.map((item) => (
             <button
               key={item.id}
               type="button"
@@ -294,6 +335,19 @@ function EssaySettingsDialog({
                   </p>
                 </>
               )}
+            </section>
+          )}
+
+          {tab === "github" && nodeId && (
+            <section className="settings-section">
+              <GitHubEssayMapSection
+                nodeId={nodeId}
+                documentName={documentName}
+                previewMode={previewMode}
+                status={githubStatus}
+                settingsEpoch={githubSettingsEpoch}
+                onSettingsChanged={onGithubSettingsChanged}
+              />
             </section>
           )}
         </div>

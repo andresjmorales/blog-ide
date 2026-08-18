@@ -122,6 +122,10 @@ that setting is on, narrow viewports (≤767px) may open markdown-only instead
 of split. Toggle split ↔ rich text with **Ctrl+\\** (Cmd+\\ on Mac), or use
 the **Rich text** chrome button while split/source is open.
 
+On a phone, split still opens: the markdown pane keeps its saved width (default
+480px), so the live preview is a sliver. That is expected. **Rich text** returns
+to the full editor in one tap.
+
 ### Split preview fidelity
 
 The right pane is a **read-only** TipTap surface (not a second editor).

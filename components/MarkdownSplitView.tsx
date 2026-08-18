@@ -89,7 +89,9 @@ function unpackPreviewMeta(
 
 /**
  * Markdown-canonical split: editable source | debounced read-only TipTap preview.
- * Preview never writes back into the buffer.
+ * Preview never writes back into the buffer. On narrow screens the source pane
+ * keeps its saved width, so the preview is a sliver; Rich text returns to
+ * the full editor.
  */
 export function MarkdownSplitView({
   sourceText,

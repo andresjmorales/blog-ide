@@ -129,8 +129,9 @@ export function EditorSettingsPanel({ open, onClose }: Props) {
                 <h3>Views</h3>
                 <p className="settings-help">
                   “View raw markdown” opens a split (editable source beside a
-                  live preview). Full-pane markdown-only is an advanced escape
-                  hatch.
+                  live preview). On a phone the preview is a sliver; Rich text
+                  returns to the full editor. Full-pane markdown-only is an
+                  advanced escape hatch.
                 </p>
                 <label className="settings-row">
                   <span>Allow markdown-only mode</span>

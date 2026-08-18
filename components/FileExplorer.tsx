@@ -6,6 +6,7 @@ import {
   type ContextMenuItem,
 } from "@/components/ExplorerContextMenu";
 import { GithubMark, TreeCaret } from "@/components/icons";
+import { githubActionMenuItems } from "@/lib/github/menu";
 import { NODE_COLOR_PALETTE } from "@/lib/workspace/nodeColors";
 import {
   classifyConflict,
@@ -236,31 +237,30 @@ export function FileExplorer({
     if (
       (node.kind === "folder" || node.kind === "document") &&
       !inTrash &&
-      (onMapToGithub || onPushToGithub)
+      (onMapToGithub || onPushToGithub || onPullFromGithub)
     ) {
-      items.push({ kind: "separator", id: "sep-github" });
-      if (onMapToGithub) {
+      const githubItems = githubActionMenuItems({
+        mapped: Boolean(githubByNode?.has(node.id)),
+        includeMap: Boolean(onMapToGithub),
+        includePull: Boolean(onPullFromGithub),
+        includePush: Boolean(onPushToGithub),
+      });
+      if (githubItems.length > 0) {
+        items.push({ kind: "separator", id: "sep-github" });
         items.push({
-          kind: "action",
-          id: "map-github",
-          label: "Map to GitHub…",
-          onSelect: () => onMapToGithub(node.id),
-        });
-      }
-      if (onPullFromGithub && githubByNode?.has(node.id)) {
-        items.push({
-          kind: "action",
-          id: "pull-github",
-          label: "Pull from GitHub…",
-          onSelect: () => onPullFromGithub(node.id),
-        });
-      }
-      if (onPushToGithub) {
-        items.push({
-          kind: "action",
-          id: "push-github",
-          label: "Push to GitHub",
-          onSelect: () => onPushToGithub(node.id),
+          kind: "submenu",
+          id: "github",
+          label: "GitHub",
+          items: githubItems.map((item) => ({
+            id: item.id,
+            label: item.label,
+            disabled: item.disabled,
+            onSelect: () => {
+              if (item.id === "map-github") onMapToGithub?.(node.id);
+              else if (item.id === "pull-github") onPullFromGithub?.(node.id);
+              else onPushToGithub?.(node.id);
+            },
+          })),
         });
       }
     }
