@@ -3,8 +3,13 @@ import {
   updateUploadStatus,
 } from "@/lib/assets/uploadStatus";
 import { getLocalDoc } from "@/lib/db/indexed";
-import { githubErrorCopy, pushFilesToGithub } from "@/lib/github/client";
+import {
+  githubErrorCopy,
+  fetchGithubTreeIndex,
+  pushFilesToGithub,
+} from "@/lib/github/client";
 import { buildGithubPushPlans } from "@/lib/github/files";
+import { inspectPushFiles, type GithubPushIssue } from "@/lib/github/status";
 import { loadGithubSettings } from "@/lib/github/settings";
 import { loadGithubToken } from "@/lib/github/token";
 import type { GithubPushResult } from "@/lib/github/types";
@@ -18,7 +23,7 @@ export type GithubPushProgress = {
   fileCount?: number;
 };
 
-async function collectBodies(
+export async function collectGithubDocumentBodies(
   nodes: WorkspaceNode[]
 ): Promise<Map<string, string>> {
   const remote = await listAllDocumentBodies();
@@ -54,7 +59,7 @@ export async function pushWorkspaceToGithub(input: {
     loadGithubSettings(),
     listWorkspaceNodes(),
   ]);
-  const bodies = await collectBodies(nodes);
+  const bodies = await collectGithubDocumentBodies(nodes);
   const plans = buildGithubPushPlans({
     nodes,
     bodies,
@@ -98,6 +103,53 @@ export async function pushWorkspaceToGithub(input: {
     }.`,
   });
   return results;
+}
+
+export type GithubPushInspection = {
+  issues: GithubPushIssue[];
+};
+
+/** Flag mapped files that disappeared from GitHub but still exist under another name/path. */
+export async function inspectGithubPush(input: {
+  scope: "workspace" | { nodeId: string };
+}): Promise<GithubPushInspection> {
+  const token = loadGithubToken();
+  if (!token) {
+    throw new Error(
+      "Add a GitHub personal access token in Settings. It stays on this device."
+    );
+  }
+  const [settings, nodes] = await Promise.all([
+    loadGithubSettings(),
+    listWorkspaceNodes(),
+  ]);
+  const bodies = await collectGithubDocumentBodies(nodes);
+  const plans = buildGithubPushPlans({
+    nodes,
+    bodies,
+    defaultRepo: settings.repo,
+    defaultBranch: settings.branch,
+    defaultPath: settings.path,
+    maps: settings.maps,
+    scope: input.scope,
+  });
+
+  const issues: GithubPushIssue[] = [];
+  for (const plan of plans) {
+    try {
+      const index = await fetchGithubTreeIndex({
+        token,
+        repo: plan.repo,
+        branch: plan.branch,
+      });
+      issues.push(
+        ...inspectPushFiles(plan.files, plan.repo, plan.branch, index)
+      );
+    } catch (error) {
+      throw new Error(githubErrorCopy(error));
+    }
+  }
+  return { issues };
 }
 
 /** Push with the shared upload-status toast. */

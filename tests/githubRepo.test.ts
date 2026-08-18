@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   ensureMarkdownFileName,
   formatGithubRepo,
+  githubBasename,
   joinGithubPath,
+  normalizeGithubPath,
   parseGithubRepo,
   sanitizeGithubFileName,
 } from "@/lib/github/repo";
@@ -37,6 +39,12 @@ describe("joinGithubPath / file names", () => {
     );
     expect(joinGithubPath("/content/", "../x.md")).toBe("x.md");
     expect(joinGithubPath("", "README.md")).toBe("README.md");
+  });
+
+  it("normalizes paths and basenames", () => {
+    expect(normalizeGithubPath("/drafts/foo.md/")).toBe("drafts/foo.md");
+    expect(githubBasename("drafts/foo.md")).toBe("foo.md");
+    expect(githubBasename("/published/foo.md")).toBe("foo.md");
   });
 
   it("sanitizes names and ensures a .md suffix", () => {

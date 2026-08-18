@@ -1,14 +1,19 @@
 /**
  * Map workspace documents onto GitHub repo paths.
- * Trash is always excluded. One-way: we never delete extra files in the repo.
+ * Trash is always excluded. Push never deletes extra files in the repo.
  */
 
 import {
   ensureMarkdownFileName,
   joinGithubPath,
+  normalizeGithubPath,
   sanitizeGithubFileName,
 } from "@/lib/github/repo";
-import type { GithubFile, GithubSyncMap } from "@/lib/github/types";
+import type {
+  GithubFile,
+  GithubResolvedBinding,
+  GithubSyncMap,
+} from "@/lib/github/types";
 import {
   collectSubtreeIds,
   folderPathLabel,
@@ -24,9 +29,15 @@ function relativePathUnder(
 ): string | null {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const node = byId.get(nodeId);
-  if (!node || node.kind !== "document") return null;
+  if (!node) return null;
+  if (nodeId === rootId) return "";
+  if (node.kind !== "document" && node.kind !== "folder") return null;
 
-  const segments: string[] = [ensureMarkdownFileName(node.name)];
+  const segments: string[] = [
+    node.kind === "document"
+      ? ensureMarkdownFileName(node.name)
+      : sanitizeGithubFileName(node.name),
+  ];
   let walk = node.parent_id;
   while (walk && walk !== rootId) {
     const parent = byId.get(walk);
@@ -34,7 +45,7 @@ function relativePathUnder(
     segments.unshift(sanitizeGithubFileName(parent.name));
     walk = parent.parent_id;
   }
-  if (walk !== rootId && rootId !== nodeId) return null;
+  if (walk !== rootId) return null;
   return segments.join("/");
 }
 
@@ -98,7 +109,7 @@ export function buildGithubPushPlans(
       current = { repo, branch, files: [] };
       buckets.set(key, current);
     }
-    current.files.push({ path, content: bodies.get(nodeId) ?? "" });
+    current.files.push({ path, content: bodies.get(nodeId) ?? "", nodeId });
   }
 
   const consider = (node: WorkspaceNode) => {
@@ -210,4 +221,134 @@ export function listGithubMapNodes(
       kind: node.kind as "folder" | "document",
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function resolveRepoBranch(
+  mapped: GithubSyncMap | undefined,
+  defaultRepo: string,
+  defaultBranch: string
+): { repo: string; branch: string } {
+  return {
+    repo: (mapped?.repo || defaultRepo).trim(),
+    branch: (mapped?.branch || defaultBranch).trim() || "main",
+  };
+}
+
+function findAncestorFolderMap(
+  nodeId: string,
+  nodes: WorkspaceNode[],
+  mapByNode: Map<string, GithubSyncMap>
+): { mapped: GithubSyncMap; ancestorId: string } | null {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  let ancestorId = byId.get(nodeId)?.parent_id ?? null;
+  while (ancestorId) {
+    const mapped = mapByNode.get(ancestorId);
+    const ancestor = byId.get(ancestorId);
+    if (mapped && ancestor?.kind === "folder") {
+      return { mapped, ancestorId };
+    }
+    ancestorId = ancestor?.parent_id ?? null;
+  }
+  return null;
+}
+
+/**
+ * Direct maps plus documents/folders that inherit a folder map.
+ * Unmapped items that would still push under the default workspace prefix
+ * are omitted — those are not shown as GitHub-linked in the explorer.
+ */
+export function resolveGithubBindings(input: {
+  nodes: WorkspaceNode[];
+  maps: GithubSyncMap[];
+  defaultRepo: string;
+  defaultBranch: string;
+}): GithubResolvedBinding[] {
+  const { nodes, maps } = input;
+  const defaultRepo = input.defaultRepo.trim();
+  const defaultBranch = input.defaultBranch.trim() || "main";
+  const trash = getTrashNode(nodes);
+  const trashIds = new Set(trash ? collectSubtreeIds(trash.id, nodes) : []);
+  const mapByNode = new Map(maps.map((m) => [m.nodeId, m]));
+  const out: GithubResolvedBinding[] = [];
+
+  for (const node of nodes) {
+    if (node.kind !== "folder" && node.kind !== "document") continue;
+    if (trashIds.has(node.id) || node.system_key === "trash") continue;
+
+    const mapped = mapByNode.get(node.id);
+    if (mapped) {
+      const { repo, branch } = resolveRepoBranch(
+        mapped,
+        defaultRepo,
+        defaultBranch
+      );
+      if (!repo) continue;
+      const path = normalizeGithubPath(mapped.path);
+      if (!path && node.kind === "document") continue;
+      out.push({
+        nodeId: node.id,
+        kind: node.kind,
+        repo,
+        branch,
+        path,
+        source: "direct",
+        mapNodeId: node.id,
+      });
+      continue;
+    }
+
+    const ancestor = findAncestorFolderMap(node.id, nodes, mapByNode);
+    if (!ancestor) continue;
+    const rel = relativePathUnder(node.id, ancestor.ancestorId, nodes);
+    if (rel == null) continue;
+    const { repo, branch } = resolveRepoBranch(
+      ancestor.mapped,
+      defaultRepo,
+      defaultBranch
+    );
+    if (!repo) continue;
+    out.push({
+      nodeId: node.id,
+      kind: node.kind,
+      repo,
+      branch,
+      path: joinGithubPath(ancestor.mapped.path, rel),
+      source: "inherited",
+      mapNodeId: ancestor.ancestorId,
+    });
+  }
+
+  return out;
+}
+
+export function staleGithubMaps(
+  nodes: WorkspaceNode[],
+  maps: GithubSyncMap[]
+): GithubSyncMap[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const trash = getTrashNode(nodes);
+  return maps.filter((map) => {
+    const node = byId.get(map.nodeId);
+    if (!node) return true;
+    if (node.system_key === "trash") return true;
+    if (trash && isInTrash(node.id, nodes, trash.id)) return true;
+    return node.kind !== "folder" && node.kind !== "document";
+  });
+}
+
+export function documentBindingsInScope(
+  bindings: GithubResolvedBinding[],
+  nodes: WorkspaceNode[],
+  scope: "workspace" | { nodeId: string }
+): GithubResolvedBinding[] {
+  const docs = bindings.filter((b) => b.kind === "document");
+  if (scope === "workspace") return docs;
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const root = byId.get(scope.nodeId);
+  if (!root) return [];
+  if (root.kind === "document") {
+    return docs.filter((b) => b.nodeId === root.id);
+  }
+  const ids = new Set(collectSubtreeIds(root.id, nodes));
+  return docs.filter((b) => ids.has(b.nodeId));
 }

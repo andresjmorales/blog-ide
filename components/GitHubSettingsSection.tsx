@@ -13,8 +13,10 @@ import {
   maskGithubToken,
   saveGithubToken,
 } from "@/lib/github/token";
-import type { GithubRemoteSettings, GithubSyncMap } from "@/lib/github/types";
+import type { GithubMapStatus, GithubRemoteSettings, GithubSyncMap } from "@/lib/github/types";
 import { GitHubMapDialog } from "@/components/GitHubMapDialog";
+import { GithubMark } from "@/components/icons";
+import { githubStatusTitle } from "@/lib/github/status";
 
 export type GithubMapNode = {
   id: string;
@@ -25,11 +27,21 @@ export type GithubMapNode = {
 type Props = {
   previewMode?: boolean;
   mapNodes?: GithubMapNode[];
+  mapStatuses?: GithubMapStatus[];
+  settingsEpoch?: number;
+  onSettingsChanged?: () => void;
+  onPushWorkspace?: () => void;
+  onPullMapped?: () => void;
 };
 
 export function GitHubSettingsSection({
   previewMode = false,
   mapNodes = [],
+  mapStatuses = [],
+  settingsEpoch = 0,
+  onSettingsChanged,
+  onPushWorkspace,
+  onPullMapped,
 }: Props) {
   const [tokenDraft, setTokenDraft] = useState("");
   const [savedToken, setSavedToken] = useState(() => loadGithubToken());
@@ -52,22 +64,25 @@ export function GitHubSettingsSection({
         .catch(() => {});
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [previewMode]);
+  }, [previewMode, settingsEpoch]);
 
   async function persistSettings(next: GithubRemoteSettings) {
     setSettings(next);
     if (previewMode) return;
     await saveGithubSettings(next);
+    onSettingsChanged?.();
   }
 
   return (
     <section className="settings-section">
       <h3>GitHub backup</h3>
       <p className="settings-help">
-        One-way push from BlogIDE to a repo you control. Supabase stays the
-        source of truth: matching files are overwritten; extra files in the repo
-        are left alone. The personal access token is stored only in this
-        browser (Contents: Read and write).
+        One-way by default: BlogIDE overwrites matching files and leaves extras
+        in the repo. Pull is explicit — you will see a diff and confirm before
+        anything in the editor is replaced. If you move a mapped file in git,
+        BlogIDE will not follow it automatically; the mapping badge turns orange
+        so you can remap or pull from the new path. The personal access token
+        is stored only in this browser (Contents: Read and write).
       </p>
       {previewMode ? (
         <p className="settings-help">Sign in to configure GitHub backup.</p>
@@ -209,11 +224,31 @@ export function GitHubSettingsSection({
                 const label =
                   mapNodes.find((n) => n.id === map.nodeId)?.label ??
                   map.nodeId.slice(0, 8);
+                const status = mapStatuses.find((s) => s.nodeId === map.nodeId);
+                const broken =
+                  status &&
+                  (status.health === "missing" ||
+                    status.health === "error" ||
+                    status.stale);
                 return (
                   <li
                     key={map.nodeId}
                     className="flex flex-wrap items-center gap-2"
                   >
+                    {status && (
+                      <span
+                        className={
+                          status.health === "ok"
+                            ? "explorer-github-ok"
+                            : broken
+                              ? "explorer-github-missing"
+                              : "explorer-github-unchecked"
+                        }
+                        title={githubStatusTitle(status)}
+                      >
+                        <GithubMark size={12} struck={Boolean(broken)} />
+                      </span>
+                    )}
                     <span className="font-medium">{label}</span>
                     <span className="text-muted">
                       → {map.repo || settings.repo || "default repo"} /{" "}
@@ -264,30 +299,47 @@ export function GitHubSettingsSection({
               className="rounded border border-accent px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/10 disabled:opacity-40"
               disabled={busy}
               onClick={() => {
-                void (async () => {
-                  setBusy(true);
-                  setStatus(null);
-                  try {
-                    await persistSettings(settings);
-                    const results = await pushWorkspaceToGithubWithStatus({
-                      scope: "workspace",
-                    });
-                    const files = results.reduce((n, r) => n + r.fileCount, 0);
-                    setStatus(
-                      `Pushed ${files} file${files === 1 ? "" : "s"} to GitHub.`
-                    );
-                  } catch (err) {
-                    setStatus(
-                      err instanceof Error ? err.message : "Push failed."
-                    );
-                  } finally {
-                    setBusy(false);
+                void persistSettings(settings).then(() => {
+                  if (onPushWorkspace) {
+                    onPushWorkspace();
+                    return;
                   }
-                })();
+                  void (async () => {
+                    setBusy(true);
+                    setStatus(null);
+                    try {
+                      const results = await pushWorkspaceToGithubWithStatus({
+                        scope: "workspace",
+                      });
+                      const files = results.reduce((n, r) => n + r.fileCount, 0);
+                      setStatus(
+                        `Pushed ${files} file${files === 1 ? "" : "s"} to GitHub.`
+                      );
+                    } catch (err) {
+                      setStatus(
+                        err instanceof Error ? err.message : "Push failed."
+                      );
+                    } finally {
+                      setBusy(false);
+                    }
+                  })();
+                });
               }}
             >
               {busy ? "Pushing…" : "Push workspace"}
             </button>
+            {onPullMapped && (
+              <button
+                type="button"
+                className="rounded border border-border px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-40"
+                disabled={busy || settings.maps.length === 0}
+                onClick={() => {
+                  void persistSettings(settings).then(() => onPullMapped());
+                }}
+              >
+                Pull mapped files…
+              </button>
+            )}
           </div>
           {status && <p className="mt-2 text-xs text-muted">{status}</p>}
         </>

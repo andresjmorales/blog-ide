@@ -1,6 +1,6 @@
 /**
- * One-way GitHub backup maps. Supabase stays source of truth: a push
- * overwrites matching files in the repo and never deletes extras.
+ * GitHub backup maps. Supabase stays source of truth. A push overwrites
+ * matching files and never deletes extras. Pull is explicit and confirmed.
  */
 
 export type GithubSyncMap = {
@@ -17,6 +17,33 @@ export type GithubSyncMap = {
    * Document: exact file path (e.g. `README.md`).
    */
   path: string;
+};
+
+export type GithubMapHealth = "ok" | "missing" | "unchecked" | "error";
+
+export type GithubResolvedBinding = {
+  nodeId: string;
+  kind: "folder" | "document";
+  repo: string;
+  branch: string;
+  path: string;
+  source: "direct" | "inherited";
+  mapNodeId: string;
+};
+
+export type GithubMapStatus = GithubResolvedBinding & {
+  health: GithubMapHealth;
+  /** Same filename at another repo path (likely `git mv`). */
+  candidates: string[];
+  /** Mapped node is missing from the workspace or in Trash. */
+  stale: boolean;
+  detail?: string;
+};
+
+export type GithubTreeIndex = {
+  blobs: string[];
+  trees: string[];
+  truncated: boolean;
 };
 
 export type GithubRemoteSettings = {
@@ -38,6 +65,7 @@ export type GithubFile = {
   /** Path inside the repo, posix, no leading slash. */
   path: string;
   content: string;
+  nodeId?: string;
 };
 
 export type GithubPushResult = {

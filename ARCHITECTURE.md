@@ -45,9 +45,12 @@ markdown.
 
 ### Optional external services
 
-- GitHub is a one-way backup/export target (browser PAT, Git Data API).
+- GitHub is a backup/export target (browser PAT, Git Data API).
   Folder and document maps live in `user_settings`; the token is never stored
   in Supabase. Pushes overwrite matching files and never delete extras.
+  Pull is opt-in: the client fetches the mapped file (or a same-name candidate
+  if the path moved), shows a diff, and only then writes the editor copy.
+  Mapping badges in Files reflect whether the GitHub path still exists.
   Not required onboarding and not overflow media storage.
 - Anthropic / OpenAI are called with the user’s own key via the proxy above.
 - Stripe only if a shared hosted deploy opts into paid storage tiers

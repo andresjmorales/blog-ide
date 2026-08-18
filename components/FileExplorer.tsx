@@ -5,7 +5,7 @@ import {
   ExplorerContextMenu,
   type ContextMenuItem,
 } from "@/components/ExplorerContextMenu";
-import { TreeCaret } from "@/components/icons";
+import { GithubMark, TreeCaret } from "@/components/icons";
 import { NODE_COLOR_PALETTE } from "@/lib/workspace/nodeColors";
 import {
   classifyConflict,
@@ -21,6 +21,8 @@ import {
   systemFolderDisplayName,
 } from "@/lib/workspace/tree";
 import type { WorkspaceNode } from "@/lib/workspace/types";
+import type { GithubMapStatus } from "@/lib/github/types";
+import { githubStatusTitle } from "@/lib/github/status";
 
 type Props = {
   nodes: WorkspaceNode[];
@@ -43,6 +45,8 @@ type Props = {
   onExportAll?: () => void;
   onMapToGithub?: (nodeId: string) => void;
   onPushToGithub?: (nodeId: string) => void;
+  onPullFromGithub?: (nodeId: string) => void;
+  githubByNode?: Map<string, GithubMapStatus>;
   loading?: boolean;
   error?: string | null;
 };
@@ -102,6 +106,8 @@ export function FileExplorer({
   onExportAll,
   onMapToGithub,
   onPushToGithub,
+  onPullFromGithub,
+  githubByNode,
   loading,
   error,
 }: Props) {
@@ -200,6 +206,14 @@ export function FileExplorer({
           id: "map-github",
           label: "Map to GitHub…",
           onSelect: () => onMapToGithub(node.id),
+        });
+      }
+      if (onPullFromGithub && githubByNode?.has(node.id)) {
+        items.push({
+          kind: "action",
+          id: "pull-github",
+          label: "Pull from GitHub…",
+          onSelect: () => onPullFromGithub(node.id),
         });
       }
       if (onPushToGithub) {
@@ -378,6 +392,7 @@ export function FileExplorer({
             activeNodeId={activeNodeId}
             trashId={trashId}
             docTitles={docTitles}
+            githubByNode={githubByNode}
             onOpen={onOpen}
             onNewDocument={onNewDocument}
             onNewFolder={onNewFolder}
@@ -419,6 +434,7 @@ export function FileExplorer({
                     activeNodeId={activeNodeId}
                     trashId={trashId}
                     docTitles={docTitles}
+                    githubByNode={githubByNode}
                     onOpen={onOpen}
                     onNewDocument={onNewDocument}
                     onNewFolder={onNewFolder}
@@ -552,6 +568,7 @@ function TreeNode({
   activeNodeId,
   trashId,
   docTitles,
+  githubByNode,
   onOpen,
   onNewDocument,
   onNewFolder,
@@ -566,6 +583,7 @@ function TreeNode({
   activeNodeId: string | null;
   trashId: string | null;
   docTitles?: Map<string, string>;
+  githubByNode?: Map<string, GithubMapStatus>;
   onOpen: (nodeId: string) => void;
   onNewDocument: (parentId: string | null) => void;
   onNewFolder: (parentId: string | null) => void;
@@ -603,6 +621,7 @@ function TreeNode({
             <TreeCaret expanded={expanded} />
             <ColorDot color={node.color} />
             <span className="truncate">{label}/</span>
+            <GithubMappingIcon status={githubByNode?.get(node.id)} />
             {node.pinned && (
               <span className="ml-0.5 inline-flex shrink-0 text-muted" title="Pinned">
                 <PinIcon />
@@ -660,6 +679,7 @@ function TreeNode({
                 activeNodeId={activeNodeId}
                 trashId={trashId}
                 docTitles={docTitles}
+                githubByNode={githubByNode}
                 onOpen={onOpen}
                 onNewDocument={onNewDocument}
                 onNewFolder={onNewFolder}
@@ -738,6 +758,7 @@ function TreeNode({
         >
           <ColorDot color={node.color} />
           <span className="truncate">{label}</span>
+          <GithubMappingIcon status={githubByNode?.get(node.id)} />
           {node.pinned && (
             <span className="ml-0.5 inline-flex shrink-0 text-muted" title="Pinned">
               <PinIcon />
@@ -797,5 +818,30 @@ function RowKebab({
     >
       <KebabIcon />
     </button>
+  );
+}
+
+function GithubMappingIcon({
+  status,
+}: {
+  status?: GithubMapStatus;
+}) {
+  if (!status) return null;
+  const broken =
+    status.health === "missing" || status.health === "error" || status.stale;
+  const healthClass =
+    status.health === "ok"
+      ? "explorer-github-ok"
+      : broken
+        ? "explorer-github-missing"
+        : "explorer-github-unchecked";
+  return (
+    <span
+      className={`explorer-github-icon ${healthClass}`}
+      title={githubStatusTitle(status)}
+      aria-label={githubStatusTitle(status)}
+    >
+      <GithubMark size={12} struck={broken} />
+    </span>
   );
 }

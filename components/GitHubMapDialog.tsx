@@ -98,8 +98,10 @@ function GitHubMapForm({
         </div>
         <section className="settings-section">
           <p className="settings-help">
-            One-way: BlogIDE overwrites matching files in the repo. Other files
-            are left alone. The token stays on this device.
+            One-way by default: BlogIDE overwrites matching files in the repo.
+            Extra files are left alone. If you moved a mapped file in git, pull
+            or remap before pushing — otherwise the old path is recreated.
+            The token stays on this device.
           </p>
           <label className="settings-row settings-row-stack">
             <span>Folder or document</span>

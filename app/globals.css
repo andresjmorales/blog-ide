@@ -2297,6 +2297,21 @@ html.app-shell-lock body {
   color: var(--accent);
   background: var(--background);
 }
+
+.explorer-github-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-left: 0.15rem;
+}
+.explorer-github-ok {
+  color: var(--accent);
+}
+.explorer-github-missing {
+  color: #c47a12;
+}
+.explorer-github-unchecked {
+  color: var(--muted);
+}
 @media (hover: none) {
   .explorer-folder-actions {
     opacity: 1;

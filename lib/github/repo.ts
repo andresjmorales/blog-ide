@@ -49,3 +49,13 @@ export function ensureMarkdownFileName(name: string): string {
   const safe = sanitizeGithubFileName(name);
   return safe.toLowerCase().endsWith(".md") ? safe : `${safe}.md`;
 }
+
+/** Repo-relative path without a leading or trailing slash. */
+export function normalizeGithubPath(path: string): string {
+  return path.replace(/^\/+|\/+$/g, "");
+}
+
+export function githubBasename(path: string): string {
+  const parts = normalizeGithubPath(path).split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? "";
+}

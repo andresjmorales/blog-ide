@@ -80,12 +80,29 @@ import { pickEssayImportFile } from "@/lib/export/document";
 import { downloadWorkspaceZip } from "@/lib/export/workspaceZip";
 import { importPandocFile } from "@/lib/pandoc/client";
 import { listGithubMapNodes } from "@/lib/github/files";
-import { pushWorkspaceToGithubWithStatus } from "@/lib/github/push";
+import {
+  collectGithubDocumentBodies,
+  inspectGithubPush,
+  pushWorkspaceToGithubWithStatus,
+} from "@/lib/github/push";
+import { loadGithubMapStatuses } from "@/lib/github/health";
+import {
+  applyGithubPullToDocument,
+  prepareGithubPull,
+  type GithubPullFile,
+} from "@/lib/github/pull";
+import { remapGithubMaps, type GithubPushIssue } from "@/lib/github/status";
 import {
   loadGithubSettings,
   saveGithubSettings,
 } from "@/lib/github/settings";
-import type { GithubSyncMap } from "@/lib/github/types";
+import { loadGithubToken } from "@/lib/github/token";
+import type { GithubMapStatus, GithubSyncMap } from "@/lib/github/types";
+import { GitHubPullDialog, type GithubPullApply } from "@/components/GitHubPullDialog";
+import {
+  GitHubPushWarningDialog,
+  type GithubPushRemap,
+} from "@/components/GitHubPushWarningDialog";
 import {
   documentIdsInSubtree,
   getInboxNode,
@@ -299,6 +316,18 @@ function AppShellContent({
     defaultRepo: string;
     defaultBranch: string;
   } | null>(null);
+  const [githubStatuses, setGithubStatuses] = useState<GithubMapStatus[]>([]);
+  const [githubEpoch, setGithubEpoch] = useState(0);
+  const [pullOpen, setPullOpen] = useState(false);
+  const [pullFiles, setPullFiles] = useState<GithubPullFile[]>([]);
+  const [pullBusy, setPullBusy] = useState(false);
+  const [pullError, setPullError] = useState<string | null>(null);
+  const [pushWarnOpen, setPushWarnOpen] = useState(false);
+  const [pushIssues, setPushIssues] = useState<GithubPushIssue[]>([]);
+  const [pushScope, setPushScope] = useState<"workspace" | { nodeId: string }>(
+    "workspace"
+  );
+  const [pushBusy, setPushBusy] = useState(false);
   const [deletedFootnotes, setDeletedFootnotes] = useState<DeletedFootnote[]>(
     []
   );
@@ -307,6 +336,13 @@ function AppShellContent({
 
   const [nodes, setNodes] = useState<WorkspaceNode[]>([]);
   const githubMapNodes = useMemo(() => listGithubMapNodes(nodes), [nodes]);
+  const githubByNode = useMemo(() => {
+    const map = new Map<string, GithubMapStatus>();
+    for (const status of githubStatuses) {
+      if (!status.stale) map.set(status.nodeId, status);
+    }
+    return map;
+  }, [githubStatuses]);
   const [docTitles, setDocTitles] = useState<Map<string, string>>(
     () => new Map()
   );
@@ -358,6 +394,29 @@ function AppShellContent({
   useEffect(() => {
     nodesRef.current = nodes;
   }, [nodes]);
+
+  const refreshGithubStatuses = useCallback(async () => {
+    if (previewMode) return;
+    try {
+      const settings = await loadGithubSettings();
+      const statuses = await loadGithubMapStatuses({
+        nodes: nodesRef.current,
+        settings,
+        token: loadGithubToken() || null,
+      });
+      setGithubStatuses(statuses);
+    } catch {
+      // Mapping badges are advisory; a failed check shouldn't block the editor.
+    }
+  }, [previewMode]);
+
+  useEffect(() => {
+    if (previewMode) return;
+    const timer = window.setTimeout(() => {
+      void refreshGithubStatuses();
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [previewMode, nodes, githubEpoch, refreshGithubStatuses]);
 
   const update = useCallback((patch: Partial<EditorPrefs>, persist = true) => {
     setPrefs((p) => {
@@ -962,6 +1021,7 @@ function AppShellContent({
         ...settings,
         maps: [...settings.maps.filter((m) => m.nodeId !== map.nodeId), map],
       });
+      setGithubEpoch((value) => value + 1);
     } catch (error) {
       await dialog.confirm({
         title: "Could not save mapping",
@@ -973,22 +1033,34 @@ function AppShellContent({
     }
   }
 
-  async function handlePushToGithub(nodeId: string) {
+  async function actuallyPush(scope: "workspace" | { nodeId: string }) {
+    const results = await pushWorkspaceToGithubWithStatus({ scope });
+    const files = results.reduce((n, r) => n + r.fileCount, 0);
+    await dialog.confirm({
+      title: "Pushed to GitHub",
+      message: `Wrote ${files} file${
+        files === 1 ? "" : "s"
+      }. Matching paths were overwritten; extra files in the repo were left alone.`,
+      confirmLabel: "OK",
+      cancelLabel: "Close",
+    });
+    setGithubEpoch((value) => value + 1);
+  }
+
+  async function handlePushToGithub(
+    scope: "workspace" | { nodeId: string }
+  ) {
     if (previewMode) return;
     await flushDocumentRef.current();
     try {
-      const results = await pushWorkspaceToGithubWithStatus({
-        scope: { nodeId },
-      });
-      const files = results.reduce((n, r) => n + r.fileCount, 0);
-      await dialog.confirm({
-        title: "Pushed to GitHub",
-        message: `Wrote ${files} file${
-          files === 1 ? "" : "s"
-        }. Matching paths were overwritten; extra files in the repo were left alone.`,
-        confirmLabel: "OK",
-        cancelLabel: "Close",
-      });
+      const { issues } = await inspectGithubPush({ scope });
+      if (issues.length > 0) {
+        setPushScope(scope);
+        setPushIssues(issues);
+        setPushWarnOpen(true);
+        return;
+      }
+      await actuallyPush(scope);
     } catch (error) {
       await dialog.confirm({
         title: "GitHub push failed",
@@ -997,6 +1069,126 @@ function AppShellContent({
         confirmLabel: "OK",
         cancelLabel: "Close",
       });
+    }
+  }
+
+  async function handlePushAnyway() {
+    setPushBusy(true);
+    try {
+      setPushWarnOpen(false);
+      await actuallyPush(pushScope);
+    } catch (error) {
+      await dialog.confirm({
+        title: "GitHub push failed",
+        message:
+          error instanceof Error ? error.message : "Could not push to GitHub.",
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
+  async function handleRemapAndPush(updates: GithubPushRemap[]) {
+    setPushBusy(true);
+    try {
+      const settings = await loadGithubSettings();
+      await saveGithubSettings({
+        ...settings,
+        maps: remapGithubMaps(settings.maps, updates),
+      });
+      setPushWarnOpen(false);
+      await actuallyPush(pushScope);
+    } catch (error) {
+      await dialog.confirm({
+        title: "GitHub push failed",
+        message:
+          error instanceof Error ? error.message : "Could not push to GitHub.",
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
+  async function handlePullFromGithub(
+    scope: "workspace" | { nodeId: string }
+  ) {
+    if (previewMode) return;
+    await flushDocumentRef.current();
+    setPullError(null);
+    try {
+      const token = loadGithubToken();
+      if (!token) {
+        throw new Error(
+          "Add a GitHub personal access token in Settings. It stays on this device."
+        );
+      }
+      const [settings, tree, bodies] = await Promise.all([
+        loadGithubSettings(),
+        Promise.resolve(nodesRef.current),
+        collectGithubDocumentBodies(nodesRef.current),
+      ]);
+      const files = await prepareGithubPull({
+        nodes: tree,
+        settings,
+        token,
+        localBodies: bodies,
+        scope,
+      });
+      setPullFiles(files);
+      setPullOpen(true);
+    } catch (error) {
+      await dialog.confirm({
+        title: "GitHub pull failed",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Could not read from GitHub.",
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
+    }
+  }
+
+  async function handleApplyGithubPull(result: GithubPullApply) {
+    setPullBusy(true);
+    setPullError(null);
+    try {
+      const mappingUpdates = result.files
+        .filter((file) => file.updateMapping)
+        .map((file) => ({
+          nodeId: file.nodeId,
+          path: file.pullPath,
+          repo: file.repo,
+          branch: file.branch,
+        }));
+      if (mappingUpdates.length > 0) {
+        const settings = await loadGithubSettings();
+        await saveGithubSettings({
+          ...settings,
+          maps: remapGithubMaps(settings.maps, mappingUpdates),
+        });
+      }
+      for (const file of result.files) {
+        await applyGithubPullToDocument({
+          nodeId: file.nodeId,
+          markdown: file.markdown,
+          isOpen: file.nodeId === activeNodeId,
+          applyMarkdown: applyMarkdownRef.current,
+        });
+      }
+      setPullOpen(false);
+      setGithubEpoch((value) => value + 1);
+      refreshDocTitles(nodesRef.current);
+    } catch (error) {
+      setPullError(
+        error instanceof Error ? error.message : "Could not apply GitHub file."
+      );
+    } finally {
+      setPullBusy(false);
     }
   }
 
@@ -1273,7 +1465,13 @@ function AppShellContent({
       onReviewConflict={handleReviewConflict}
       onExportAll={previewMode ? undefined : () => void exportAll()}
       onMapToGithub={previewMode ? undefined : (id) => void handleMapToGithub(id)}
-      onPushToGithub={previewMode ? undefined : (id) => void handlePushToGithub(id)}
+      onPushToGithub={
+        previewMode ? undefined : (id) => void handlePushToGithub({ nodeId: id })
+      }
+      onPullFromGithub={
+        previewMode ? undefined : (id) => void handlePullFromGithub({ nodeId: id })
+      }
+      githubByNode={githubByNode}
       loading={treeLoading}
       // Hard boot failures use WorkspaceConnectionDialog instead of a red blurb.
       error={
@@ -1528,6 +1726,15 @@ function AppShellContent({
                 key={`${previewMode ? "preview" : activeNodeId}-${documentReloadKey}`}
                 nodeId={previewMode ? null : activeNodeId}
                 documentName={activeNode?.name ?? null}
+                githubMapped={Boolean(
+                  activeNodeId && githubByNode.has(activeNodeId)
+                )}
+                onPullFromGithub={
+                  previewMode || !activeNodeId
+                    ? undefined
+                    : () =>
+                        void handlePullFromGithub({ nodeId: activeNodeId })
+                }
                 conflict={activeConflict}
                 onReviewConflict={
                   activeConflict?.resolvable && activeNodeId
@@ -1556,6 +1763,11 @@ function AppShellContent({
                 registerFlushDocument={(flush) => {
                   flushDocumentRef.current = flush;
                 }}
+                onPushToGithub={
+                  previewMode || !activeNodeId
+                    ? undefined
+                    : () => void handlePushToGithub({ nodeId: activeNodeId })
+                }
                 shellDock={
                   !previewMode &&
                   !isMobile &&
@@ -1616,6 +1828,19 @@ function AppShellContent({
             onDisplayNameChange={setAccountName}
             onAvatarUrlChange={setAccountAvatarUrl}
             githubMapNodes={githubMapNodes}
+            githubMapStatuses={githubStatuses}
+            githubSettingsEpoch={githubEpoch}
+            onGithubSettingsChanged={() => setGithubEpoch((value) => value + 1)}
+            onPushWorkspace={
+              previewMode
+                ? undefined
+                : () => void handlePushToGithub("workspace")
+            }
+            onPullMapped={
+              previewMode
+                ? undefined
+                : () => void handlePullFromGithub("workspace")
+            }
           />
           <EditorSettingsPanel
             open={editorSettingsOpen}
@@ -1644,6 +1869,32 @@ function AppShellContent({
             defaultBranch={githubMapInitial?.defaultBranch ?? "main"}
             onSave={(map) => {
               void handleSaveGithubMap(map);
+            }}
+          />
+          <GitHubPullDialog
+            open={pullOpen}
+            files={pullFiles}
+            busy={pullBusy}
+            error={pullError}
+            onClose={() => {
+              if (!pullBusy) setPullOpen(false);
+            }}
+            onApply={(result) => {
+              void handleApplyGithubPull(result);
+            }}
+          />
+          <GitHubPushWarningDialog
+            open={pushWarnOpen}
+            issues={pushIssues}
+            busy={pushBusy}
+            onClose={() => {
+              if (!pushBusy) setPushWarnOpen(false);
+            }}
+            onPushAnyway={() => {
+              void handlePushAnyway();
+            }}
+            onRemapAndPush={(updates) => {
+              void handleRemapAndPush(updates);
             }}
           />
           <UploadStatusBar />
