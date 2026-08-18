@@ -1833,7 +1833,7 @@ export function DocumentWorkspace({
   return (
     <>
       <DocumentEditor
-        key={`${nodeId ?? "preview"}-${prefs.markdownTypingShortcuts}-${prefs.smartQuotes}`}
+        key={`${nodeId ?? "preview"}-${prefs.markdownTypingShortcuts}-${prefs.typography}`}
         markdown={body}
         onChange={(md) => {
           const current = docRef.current;

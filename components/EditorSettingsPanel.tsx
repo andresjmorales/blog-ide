@@ -124,16 +124,18 @@ export function EditorSettingsPanel({ open, onClose }: Props) {
                   </select>
                 </label>
                 <p className="settings-help">
-                  Straight quotes become curly while you type. Cleanup →
-                  Punctuation is a separate pass on a selection.
+                  While typing: curly quotes, em dashes from --, ellipsis,
+                  arrows, and a few symbols. Backspace or Ctrl+Z right after a
+                  replacement restores what you typed. Cleanup → Punctuation is
+                  a separate pass on a selection.
                 </p>
                 <label className="settings-row">
-                  <span>Smart quotes</span>
+                  <span>Typography</span>
                   <input
                     type="checkbox"
-                    checked={prefs.smartQuotes}
+                    checked={prefs.typography}
                     onChange={(event) =>
-                      updatePrefs({ smartQuotes: event.target.checked })
+                      updatePrefs({ typography: event.target.checked })
                     }
                   />
                 </label>

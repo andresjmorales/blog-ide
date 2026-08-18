@@ -5,17 +5,22 @@
 
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "@tiptap/markdown";
+import Typography from "@tiptap/extension-typography";
 import type { AnyExtension } from "@tiptap/core";
 import { BlogideLink } from "@/lib/editor/blogideLink";
 import { StrictOrderedList } from "@/lib/editor/orderedList";
 import { LinkShortcut } from "@/lib/editor/linkShortcut";
 import { SmartQuotes } from "@/lib/editor/smartQuotes";
+import { UndoReplace, DEFAULT_TYPOGRAPHY_LOCK_MS } from "@/lib/editor/undoReplace";
 import { FindHighlight } from "@/lib/editor/findHighlight";
 
 export function createFootnoteExtensions(options: {
+  typography?: boolean;
+  /** @deprecated Use `typography`. */
   smartQuotes?: boolean;
+  typographyLockAfterMs?: number;
 } = {}): AnyExtension[] {
-  const smartQuotes = options.smartQuotes !== false;
+  const typographyOn = options.typography ?? options.smartQuotes ?? true;
   return [
     StarterKit.configure({
       heading: false,
@@ -27,7 +32,20 @@ export function createFootnoteExtensions(options: {
     BlogideLink,
     StrictOrderedList,
     LinkShortcut,
-    SmartQuotes.configure({ enabled: smartQuotes }),
+    UndoReplace.configure({
+      lockAfterMs: options.typographyLockAfterMs ?? DEFAULT_TYPOGRAPHY_LOCK_MS,
+    }),
+    SmartQuotes.configure({ enabled: typographyOn }),
+    ...(typographyOn
+      ? [
+          Typography.configure({
+            openDoubleQuote: false,
+            closeDoubleQuote: false,
+            openSingleQuote: false,
+            closeSingleQuote: false,
+          }),
+        ]
+      : []),
     Markdown,
     FindHighlight,
   ];

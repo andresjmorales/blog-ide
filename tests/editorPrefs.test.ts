@@ -9,12 +9,17 @@ describe("editor prefs defaults", () => {
       DEFAULT_EDITOR_PREFS.markdownSplitWidth
     );
     expect(merged.markdownTypingShortcuts).toBe("conservative");
+    expect(merged.typography).toBe(true);
     expect(merged.smartQuotes).toBe(true);
     expect(merged.leftWidth).toBe(300);
   });
 
-  it("keeps an explicit smartQuotes: false", () => {
-    expect(mergePrefs({ smartQuotes: false }).smartQuotes).toBe(false);
+  it("maps an older smartQuotes: false blob onto typography", () => {
+    expect(mergePrefs({ smartQuotes: false }).typography).toBe(false);
+  });
+
+  it("keeps an explicit typography: false", () => {
+    expect(mergePrefs({ typography: false }).typography).toBe(false);
   });
 
   it("keeps an explicit allowMarkdownOnly: true", () => {

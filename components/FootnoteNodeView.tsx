@@ -149,7 +149,7 @@ export function FootnoteNodeView({
   const noteEditor = useEditor(
     {
       extensions: createFootnoteExtensions({
-        smartQuotes: prefs.smartQuotes,
+        typography: prefs.typography,
       }),
       content,
       contentType: "markdown",
@@ -177,7 +177,7 @@ export function FootnoteNodeView({
         },
       },
     },
-    [prefs.smartQuotes]
+    [prefs.typography]
   );
 
   useEffect(() => {

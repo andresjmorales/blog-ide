@@ -53,8 +53,13 @@ export type EditorPrefs = {
    */
   markdownTypingShortcuts?: MarkdownTypingShortcuts;
   /**
-   * Curly quotes while typing in rich text (`"` / `'` → “ ” / ‘ ’).
-   * Independent of Cleanup → Punctuation. Default on.
+   * TipTap Typography while typing: curly quotes, `--` → em dash, `...` →
+   * ellipsis, arrows, and a few symbols. Independent of Cleanup punctuation.
+   * Default on. Immediate Backspace / Ctrl+Z restores the original characters.
+   */
+  typography?: boolean;
+  /**
+   * @deprecated Use `typography`. Still read when merging older saved prefs.
    */
   smartQuotes?: boolean;
   /** Width (px) of the editable markdown pane in split view. */
@@ -84,6 +89,7 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   spellcheckLanguages: ["en-US"],
   dashStyle: "chicago",
   markdownTypingShortcuts: "conservative",
+  typography: true,
   smartQuotes: true,
   markdownSplitWidth: 480,
   allowMarkdownOnly: false,
@@ -102,12 +108,18 @@ export function loadLocalPrefs(): EditorPrefs {
 
 export function mergePrefs(partial: EditorPrefs = {}): Required<EditorPrefs> {
   const merged = { ...DEFAULT_EDITOR_PREFS, ...partial };
+  const typography =
+    partial.typography ??
+    partial.smartQuotes ??
+    DEFAULT_EDITOR_PREFS.typography;
   const panelLayout = panelLayoutFromLegacy({
     ...merged,
     panelLayout: partial.panelLayout ?? merged.panelLayout,
   });
   return {
     ...merged,
+    typography,
+    smartQuotes: typography,
     panelLayout,
     leftWidth: panelLayout.sizes.left,
     rightWidth: panelLayout.sizes.right,

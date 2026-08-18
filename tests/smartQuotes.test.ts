@@ -5,12 +5,12 @@ import { createFootnoteExtensions } from "@/lib/editor/footnoteSchema";
 import { parseBody, serializeBody } from "@/lib/markdown/pipeline";
 import { curlyQuoteFor, LDQ, LSQ, RDQ, RSQ } from "@/lib/editor/smartQuotes";
 
-function makeEditor(body = "", smartQuotes = true): Editor {
+function makeEditor(body = "", typography = true): Editor {
   const element = document.createElement("div");
   document.body.appendChild(element);
   return new Editor({
     element,
-    extensions: createExtensions({ smartQuotes }),
+    extensions: createExtensions({ typography }),
     content: parseBody(body),
   });
 }
@@ -120,7 +120,7 @@ describe("SmartQuotes input rules", () => {
     document.body.appendChild(element);
     const note = new Editor({
       element,
-      extensions: createFootnoteExtensions({ smartQuotes: false }),
+      extensions: createFootnoteExtensions({ typography: false }),
       content: "",
       contentType: "markdown",
     });

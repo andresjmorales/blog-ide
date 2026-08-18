@@ -6,11 +6,13 @@ import Blockquote from "@tiptap/extension-blockquote";
 import HorizontalRule from "@tiptap/extension-horizontal-rule";
 import { Markdown } from "@tiptap/markdown";
 import { TableKit } from "@tiptap/extension-table";
+import Typography from "@tiptap/extension-typography";
 import { Extension, type AnyExtension, type JSONContent } from "@tiptap/core";
 import { FootnoteRef } from "@/lib/editor/footnote";
 import { FootnoteDeletionTracker } from "@/lib/editor/footnoteDeletion";
 import { LinkShortcut } from "@/lib/editor/linkShortcut";
 import { SmartQuotes } from "@/lib/editor/smartQuotes";
+import { UndoReplace, DEFAULT_TYPOGRAPHY_LOCK_MS } from "@/lib/editor/undoReplace";
 import { BlogideLink } from "@/lib/editor/blogideLink";
 import {
   ImageCaptionMarkdown,
@@ -32,8 +34,15 @@ export type CreateExtensionsOptions = {
    * disable bold/italic/strike/blockquote/HR auto-wrap. `full`: stock TipTap.
    */
   markdownTypingShortcuts?: MarkdownTypingShortcuts;
-  /** As-you-type curly quotes. Default true. Cleanup punctuation is separate. */
+  /**
+   * TipTap Typography + Docs-style smart quotes. Default true.
+   * Cleanup punctuation is a separate pass.
+   */
+  typography?: boolean;
+  /** @deprecated Use `typography`. */
   smartQuotes?: boolean;
+  /** How long a substitution stays revertible. Tests may shorten this. */
+  typographyLockAfterMs?: number;
 };
 
 /**
@@ -87,7 +96,7 @@ export function createExtensions(
 ): AnyExtension[] {
   const typing = options.markdownTypingShortcuts ?? "conservative";
   const conservative = typing === "conservative";
-  const smartQuotes = options.smartQuotes !== false;
+  const typographyOn = options.typography ?? options.smartQuotes ?? true;
 
   return [
     StarterKit.configure({
@@ -134,7 +143,21 @@ export function createExtensions(
     FootnoteRef,
     FootnoteDeletionTracker,
     LinkShortcut,
-    SmartQuotes.configure({ enabled: smartQuotes }),
+    UndoReplace.configure({
+      lockAfterMs: options.typographyLockAfterMs ?? DEFAULT_TYPOGRAPHY_LOCK_MS,
+    }),
+    SmartQuotes.configure({ enabled: typographyOn }),
+    ...(typographyOn
+      ? [
+          Typography.configure({
+            // Our SmartQuotes rules are Docs-style; skip the package's quotes.
+            openDoubleQuote: false,
+            closeDoubleQuote: false,
+            openSingleQuote: false,
+            closeSingleQuote: false,
+          }),
+        ]
+      : []),
     FindHighlight,
     Markdown,
     preserveAsLiteralText("def"),
