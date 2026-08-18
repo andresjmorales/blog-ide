@@ -165,6 +165,7 @@ export function DocumentEditor({
   const railEnabled = prefs.sidenotes;
   const spellcheckOn = spellcheckEnabled ?? prefs.spellcheckEnabled;
   const markdownTypingShortcuts = prefs.markdownTypingShortcuts;
+  const smartQuotes = prefs.smartQuotes;
   const effectiveLanguages =
     spellcheckLanguages.length > 0
       ? spellcheckLanguages
@@ -184,7 +185,7 @@ export function DocumentEditor({
     {
       // Placeholder is UI-only; it stays out of the shared markdown schema.
       extensions: [
-        ...createExtensions({ markdownTypingShortcuts }).map(
+        ...createExtensions({ markdownTypingShortcuts, smartQuotes }).map(
           withEditorNodeViews
         ),
         Placeholder.configure({
@@ -227,7 +228,7 @@ export function DocumentEditor({
         }, 160);
       },
     },
-    [markdownTypingShortcuts]
+    [markdownTypingShortcuts, smartQuotes]
   );
 
   function openFind() {

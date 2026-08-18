@@ -52,6 +52,11 @@ export type EditorPrefs = {
    * `full`: also bold/italic/strike/blockquote/HR from markdown punctuation.
    */
   markdownTypingShortcuts?: MarkdownTypingShortcuts;
+  /**
+   * Curly quotes while typing in rich text (`"` / `'` → “ ” / ‘ ’).
+   * Independent of Cleanup → Punctuation. Default on.
+   */
+  smartQuotes?: boolean;
   /** Width (px) of the editable markdown pane in split view. */
   markdownSplitWidth?: number;
   /**
@@ -79,6 +84,7 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   spellcheckLanguages: ["en-US"],
   dashStyle: "chicago",
   markdownTypingShortcuts: "conservative",
+  smartQuotes: true,
   markdownSplitWidth: 480,
   allowMarkdownOnly: false,
 };

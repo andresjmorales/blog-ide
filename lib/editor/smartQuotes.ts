@@ -67,7 +67,12 @@ function typedQuoteRule(straight: '"' | "'"): InputRule {
 export const SmartQuotes = Extension.create({
   name: "smartQuotes",
 
+  addOptions() {
+    return { enabled: true };
+  },
+
   addInputRules() {
+    if (!this.options.enabled) return [];
     return [
       typedQuoteRule('"'),
       typedQuoteRule("'"),

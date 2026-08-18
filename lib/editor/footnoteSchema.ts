@@ -12,7 +12,10 @@ import { LinkShortcut } from "@/lib/editor/linkShortcut";
 import { SmartQuotes } from "@/lib/editor/smartQuotes";
 import { FindHighlight } from "@/lib/editor/findHighlight";
 
-export function createFootnoteExtensions(): AnyExtension[] {
+export function createFootnoteExtensions(options: {
+  smartQuotes?: boolean;
+} = {}): AnyExtension[] {
+  const smartQuotes = options.smartQuotes !== false;
   return [
     StarterKit.configure({
       heading: false,
@@ -24,7 +27,7 @@ export function createFootnoteExtensions(): AnyExtension[] {
     BlogideLink,
     StrictOrderedList,
     LinkShortcut,
-    SmartQuotes,
+    SmartQuotes.configure({ enabled: smartQuotes }),
     Markdown,
     FindHighlight,
   ];

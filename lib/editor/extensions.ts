@@ -32,6 +32,8 @@ export type CreateExtensionsOptions = {
    * disable bold/italic/strike/blockquote/HR auto-wrap. `full`: stock TipTap.
    */
   markdownTypingShortcuts?: MarkdownTypingShortcuts;
+  /** As-you-type curly quotes. Default true. Cleanup punctuation is separate. */
+  smartQuotes?: boolean;
 };
 
 /**
@@ -85,6 +87,7 @@ export function createExtensions(
 ): AnyExtension[] {
   const typing = options.markdownTypingShortcuts ?? "conservative";
   const conservative = typing === "conservative";
+  const smartQuotes = options.smartQuotes !== false;
 
   return [
     StarterKit.configure({
@@ -131,7 +134,7 @@ export function createExtensions(
     FootnoteRef,
     FootnoteDeletionTracker,
     LinkShortcut,
-    SmartQuotes,
+    SmartQuotes.configure({ enabled: smartQuotes }),
     FindHighlight,
     Markdown,
     preserveAsLiteralText("def"),

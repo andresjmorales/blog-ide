@@ -5,12 +5,12 @@ import { createFootnoteExtensions } from "@/lib/editor/footnoteSchema";
 import { parseBody, serializeBody } from "@/lib/markdown/pipeline";
 import { curlyQuoteFor, LDQ, LSQ, RDQ, RSQ } from "@/lib/editor/smartQuotes";
 
-function makeEditor(body = ""): Editor {
+function makeEditor(body = "", smartQuotes = true): Editor {
   const element = document.createElement("div");
   document.body.appendChild(element);
   return new Editor({
     element,
-    extensions: createExtensions(),
+    extensions: createExtensions({ smartQuotes }),
     content: parseBody(body),
   });
 }
@@ -104,6 +104,29 @@ describe("SmartQuotes input rules", () => {
     try {
       typeText(note, `"Hi"`);
       expect(note.getText()).toContain(`${LDQ}Hi${RDQ}`);
+    } finally {
+      note.destroy();
+    }
+  });
+
+  it("leaves straight quotes when the setting is off", () => {
+    editor = makeEditor("", false);
+    typeText(editor, `"Hello"`);
+    expect(serializeBody(editor.getJSON())).toContain('"Hello"');
+  });
+
+  it("leaves straight quotes in footnotes when the setting is off", () => {
+    const element = document.createElement("div");
+    document.body.appendChild(element);
+    const note = new Editor({
+      element,
+      extensions: createFootnoteExtensions({ smartQuotes: false }),
+      content: "",
+      contentType: "markdown",
+    });
+    try {
+      typeText(note, `"Hi"`);
+      expect(note.getText()).toContain('"Hi"');
     } finally {
       note.destroy();
     }

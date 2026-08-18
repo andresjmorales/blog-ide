@@ -123,6 +123,20 @@ export function EditorSettingsPanel({ open, onClose }: Props) {
                     <option value="full">Full</option>
                   </select>
                 </label>
+                <p className="settings-help">
+                  Straight quotes become curly while you type. Cleanup →
+                  Punctuation is a separate pass on a selection.
+                </p>
+                <label className="settings-row">
+                  <span>Smart quotes</span>
+                  <input
+                    type="checkbox"
+                    checked={prefs.smartQuotes}
+                    onChange={(event) =>
+                      updatePrefs({ smartQuotes: event.target.checked })
+                    }
+                  />
+                </label>
               </section>
 
               <section className="settings-section">

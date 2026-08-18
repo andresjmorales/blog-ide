@@ -146,34 +146,39 @@ export function FootnoteNodeView({
     },
   });
 
-  const noteEditor = useEditor({
-    extensions: createFootnoteExtensions(),
-    content,
-    contentType: "markdown",
-    immediatelyRender: false,
-    editorProps: {
-      attributes: {
-        class: "footnote-card-editor outline-none",
-        "aria-label": `Footnote ${number} content`,
-        spellcheck: "false",
-        lang: spellLang,
-      },
-      handlePaste: (_view, event) => {
-        if (firstImageFile(event.clipboardData?.files)) {
-          event.preventDefault();
-          return true;
-        }
-        return false;
-      },
-      handleDrop: (_view, event) => {
-        if (firstImageFile(event.dataTransfer?.files)) {
-          event.preventDefault();
-          return true;
-        }
-        return false;
+  const noteEditor = useEditor(
+    {
+      extensions: createFootnoteExtensions({
+        smartQuotes: prefs.smartQuotes,
+      }),
+      content,
+      contentType: "markdown",
+      immediatelyRender: false,
+      editorProps: {
+        attributes: {
+          class: "footnote-card-editor outline-none",
+          "aria-label": `Footnote ${number} content`,
+          spellcheck: "false",
+          lang: spellLang,
+        },
+        handlePaste: (_view, event) => {
+          if (firstImageFile(event.clipboardData?.files)) {
+            event.preventDefault();
+            return true;
+          }
+          return false;
+        },
+        handleDrop: (_view, event) => {
+          if (firstImageFile(event.dataTransfer?.files)) {
+            event.preventDefault();
+            return true;
+          }
+          return false;
+        },
       },
     },
-  });
+    [prefs.smartQuotes]
+  );
 
   useEffect(() => {
     if (!noteEditor) return;

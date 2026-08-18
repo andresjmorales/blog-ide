@@ -132,6 +132,7 @@ export function MarkdownSplitView({
   const editor = useEditor({
     extensions: createExtensions({
       markdownTypingShortcuts: prefs.markdownTypingShortcuts,
+      smartQuotes: prefs.smartQuotes,
     }).map(withPreviewNodeViews),
     content: parseBody(meta.body),
     editable: false,
