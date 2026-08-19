@@ -14,6 +14,7 @@ import { CleanWhitespaceButton } from "@/components/CleanWhitespaceButton";
 import {
   BulletListIcon,
   OrderedListIcon,
+  MoreFormattingIcon,
 } from "@/components/icons";
 import { BoldIcon } from "@/components/tiptap-icons/bold-icon";
 import { ItalicIcon } from "@/components/tiptap-icons/italic-icon";
@@ -367,25 +368,5 @@ function FootnoteToolButton({
     >
       {children}
     </button>
-  );
-}
-
-function MoreFormattingIcon() {
-  return (
-    <svg
-      aria-hidden
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-    >
-      <path
-        d="M4 6.5 8 10.5 12 6.5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }

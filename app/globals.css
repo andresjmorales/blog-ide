@@ -1451,7 +1451,8 @@ html.app-shell-lock body {
 .footnote-card-toolbar .footnote-toolbar-overflow-btn svg {
   transition: transform 0.1s ease;
 }
-.footnote-card-toolbar .footnote-toolbar-overflow-btn button[aria-expanded="true"] svg {
+.footnote-card-toolbar .footnote-toolbar-overflow-btn button[aria-expanded="true"] svg,
+.footnote-card-toolbar .footnote-toolbar-overflow-btn button.is-active svg {
   transform: rotate(180deg);
 }
 

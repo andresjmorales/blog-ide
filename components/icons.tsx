@@ -68,6 +68,28 @@ export function PanelCaret({
   );
 }
 
+/** Downward V used to open leftover footnote formatting tools. */
+export function MoreFormattingIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width={TOOL_ICON}
+      height={TOOL_ICON}
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <path
+        d="M4 6.5 8 10.5 12 6.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** Blockquote: thin vertical bar + three short lines. */
 export function BlockquoteIcon({ className = "" }: { className?: string }) {
   return (

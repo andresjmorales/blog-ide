@@ -95,7 +95,9 @@ export function EditorOverflowMenu({
       <button
         ref={buttonRef}
         type="button"
-        className={buttonClassName}
+        className={[buttonClassName, open ? "is-active" : ""]
+          .filter(Boolean)
+          .join(" ")}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}
