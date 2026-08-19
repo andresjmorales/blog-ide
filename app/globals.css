@@ -1398,14 +1398,15 @@ html.app-shell-lock body {
 }
 .footnote-card-toolbar {
   align-items: center;
+  box-sizing: border-box;
   display: flex;
   flex-shrink: 0;
   flex-wrap: nowrap;
   gap: 0.3rem;
   margin-bottom: 0.35rem;
+  max-width: 100%;
   min-width: 0;
   overflow: hidden;
-  width: 100%;
 }
 .footnote-card-toolbar button {
   align-items: center;
@@ -1447,9 +1448,12 @@ html.app-shell-lock body {
 .footnote-toolbar-overflow-btn[hidden] {
   display: none;
 }
-.footnote-toolbar-overflow-btn .blogide-chrome-btn {
+.footnote-card-toolbar .footnote-toolbar-overflow-btn .blogide-chrome-btn {
+  box-sizing: border-box;
   height: 2rem;
   min-width: 2rem;
+  padding: 0;
+  width: 2rem;
 }
 
 .special-chars-panel {
@@ -1522,16 +1526,11 @@ html.app-shell-lock body {
 .footnote-pin .pinned-surface-body {
   min-height: 0;
   overflow: hidden;
-  padding: 0.45rem 0 0.55rem;
+  padding: 0.45rem 0.75rem 0.55rem;
 }
 .footnote-pin .footnote-card-toolbar {
   flex-shrink: 0;
   margin-bottom: 0.35rem;
-}
-.footnote-pin .footnote-card-toolbar,
-.footnote-pin .footnote-card-editor-shell {
-  margin-left: 0.75rem;
-  margin-right: 0.75rem;
 }
 .footnote-pin .footnote-card-editor-shell {
   display: flex;

@@ -201,7 +201,7 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
 
     function measure() {
       const overflowNode = row.querySelector<HTMLElement>("[data-fn-overflow]");
-      const overflowWidth = Math.max(overflowNode?.offsetWidth ?? 32, 32);
+      const overflowWidth = Math.max(overflowNode?.offsetWidth ?? 32, 36);
       const styles = window.getComputedStyle(row);
       const gap = Number.parseFloat(styles.columnGap || styles.gap || "4") || 4;
       if (row.clientWidth <= 0) return;
