@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { claimFloatZ } from "@/lib/pins/pinStore";
 
@@ -29,10 +29,20 @@ export type OverflowItem = OverflowAction | OverflowSeparator | OverflowSubmenu;
 type OverflowMenuProps = {
   items: OverflowItem[];
   menuClassName?: string;
+  /** Visible control. Defaults to the chrome ⋯ kebab. */
+  trigger?: ReactNode;
+  label?: string;
+  buttonClassName?: string;
 };
 
 /** Compact ⋯ menu for secondary editor actions (portaled so toolbar overflow cannot clip it). */
-export function EditorOverflowMenu({ items, menuClassName }: OverflowMenuProps) {
+export function EditorOverflowMenu({
+  items,
+  menuClassName,
+  trigger,
+  label = "More actions",
+  buttonClassName = "blogide-chrome-btn is-icon",
+}: OverflowMenuProps) {
   const [open, setOpen] = useState(false);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ top: number; right: number } | null>(
@@ -85,23 +95,26 @@ export function EditorOverflowMenu({ items, menuClassName }: OverflowMenuProps) 
       <button
         ref={buttonRef}
         type="button"
-        className="blogide-chrome-btn is-icon"
+        className={buttonClassName}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}
-        title="More actions"
+        title={label}
+        onMouseDown={(event) => event.preventDefault()}
         onClick={() => {
           setOpen((v) => !v);
           setOpenSubmenu(null);
         }}
       >
-        <span
-          aria-hidden
-          className="text-[0.95rem] font-bold leading-none tracking-widest"
-        >
-          ⋯
-        </span>
-        <span className="sr-only">More actions</span>
+        {trigger ?? (
+          <span
+            aria-hidden
+            className="text-[0.95rem] font-bold leading-none tracking-widest"
+          >
+            ⋯
+          </span>
+        )}
+        <span className="sr-only">{label}</span>
       </button>
       {open &&
         coords &&

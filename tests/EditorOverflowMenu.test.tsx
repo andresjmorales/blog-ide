@@ -58,4 +58,25 @@ describe("EditorOverflowMenu GitHub submenu", () => {
     expect(labels).toContain("Pull from GitHub…");
     expect(labels).toContain("Push to GitHub");
   });
+
+  it("can use a custom trigger and label", () => {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => {
+      root!.render(
+        <EditorOverflowMenu
+          label="More formatting"
+          trigger={<span>V</span>}
+          items={[{ id: "bold", label: "Bold", onSelect: () => {} }]}
+        />
+      );
+    });
+    const button = host.querySelector<HTMLButtonElement>(
+      'button[title="More formatting"]'
+    );
+    expect(button).toBeTruthy();
+    expect(button?.textContent).toContain("V");
+    expect(host.querySelector('button[title="More actions"]')).toBeNull();
+  });
 });

@@ -196,24 +196,23 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
   ];
 
   useLayoutEffect(() => {
-    const row = rowRef.current;
-    if (!row) return;
-
     function measure() {
-      const overflowNode = row.querySelector<HTMLElement>("[data-fn-overflow]");
+      const toolbar = rowRef.current;
+      if (!toolbar) return;
+      const overflowNode = toolbar.querySelector<HTMLElement>("[data-fn-overflow]");
       const overflowWidth = Math.max(overflowNode?.offsetWidth ?? 32, 36);
-      const styles = window.getComputedStyle(row);
+      const styles = window.getComputedStyle(toolbar);
       const gap = Number.parseFloat(styles.columnGap || styles.gap || "4") || 4;
-      if (row.clientWidth <= 0) return;
+      if (toolbar.clientWidth <= 0) return;
       const nodes = [
-        ...row.querySelectorAll<HTMLElement>("[data-fn-tool]"),
+        ...toolbar.querySelectorAll<HTMLElement>("[data-fn-tool]"),
       ];
       if (nodes.length === 0) return;
       if (!widthsRef.current || widthsRef.current.length !== nodes.length) {
         widthsRef.current = nodes.map((node) => node.offsetWidth);
       }
       const count = fitToolbarItems(
-        row.clientWidth,
+        toolbar.clientWidth,
         nodes.map((node, index) => ({
           kind: node.dataset.fnTool === "sep" ? "sep" : "item",
           width: widthsRef.current![index] ?? node.offsetWidth,
@@ -226,60 +225,62 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
 
     measure();
     const observer = new ResizeObserver(measure);
-    observer.observe(row);
+    if (rowRef.current) observer.observe(rowRef.current);
     return () => observer.disconnect();
   }, [state.canUndo, state.canRedo]);
 
   const shown = visibleCount ?? tools.length;
   const overflowed = tools.slice(shown).filter((tool) => tool.kind !== "sep");
-  const overflowItems: OverflowItem[] = overflowed.flatMap((tool) => {
-    if (tool.id === "case") {
-      return [
-        {
-          kind: "submenu" as const,
-          id: "case",
-          label: "Convert case",
-          items: CASE_MODES.map((option) => ({
-            id: option.mode,
-            label: option.label,
-            onSelect: () => applyConvertCase(editor, option.mode),
-          })),
-        },
-      ];
-    }
-    if (tool.id === "ws") {
-      return [
-        {
-          id: "ws",
-          label: "Clean whitespace",
-          disabled: editor.state.selection.empty,
-          onSelect: () => applyCleanWhitespace(editor),
-        },
-      ];
-    }
-    if (tool.id === "chars") {
-      return [
-        {
-          id: "chars",
-          label: "Special characters",
-          onSelect: () => {
-            const button = rowRef.current?.querySelector<HTMLButtonElement>(
-              "[data-fn-tool='chars'] button"
-            );
-            button?.click();
+  const overflowItems: OverflowItem[] = overflowed.flatMap(
+    (tool): OverflowItem[] => {
+      if (tool.id === "case") {
+        return [
+          {
+            kind: "submenu",
+            id: "case",
+            label: "Convert case",
+            items: CASE_MODES.map((option) => ({
+              id: option.mode,
+              label: option.label,
+              onSelect: () => applyConvertCase(editor, option.mode),
+            })),
           },
+        ];
+      }
+      if (tool.id === "ws") {
+        return [
+          {
+            id: "ws",
+            label: "Clean whitespace",
+            disabled: editor.state.selection.empty,
+            onSelect: () => applyCleanWhitespace(editor),
+          },
+        ];
+      }
+      if (tool.id === "chars") {
+        return [
+          {
+            id: "chars",
+            label: "Special characters",
+            onSelect: () => {
+              const button = rowRef.current?.querySelector<HTMLButtonElement>(
+                "[data-fn-tool='chars'] button"
+              );
+              button?.click();
+            },
+          },
+        ];
+      }
+      return [
+        {
+          id: tool.id,
+          label: tool.overflowLabel,
+          disabled: tool.disabled,
+          onSelect: () => tool.onClick?.(),
         },
       ];
     }
-    return [
-      {
-        id: tool.id,
-        label: tool.overflowLabel,
-        disabled: tool.disabled,
-        onSelect: () => tool.onClick?.(),
-      },
-    ];
-  });
+  );
 
   return (
     <span ref={rowRef} className="footnote-card-toolbar" role="toolbar">
@@ -331,6 +332,9 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
         <EditorOverflowMenu
           menuClassName="footnote-toolbar-overflow"
           items={overflowItems}
+          label="More formatting"
+          buttonClassName=""
+          trigger={<MoreFormattingIcon />}
         />
       </span>
     </span>
@@ -363,5 +367,25 @@ function FootnoteToolButton({
     >
       {children}
     </button>
+  );
+}
+
+function MoreFormattingIcon() {
+  return (
+    <svg
+      aria-hidden
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <path
+        d="M4 6.5 8 10.5 12 6.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

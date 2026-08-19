@@ -1448,12 +1448,11 @@ html.app-shell-lock body {
 .footnote-toolbar-overflow-btn[hidden] {
   display: none;
 }
-.footnote-card-toolbar .footnote-toolbar-overflow-btn .blogide-chrome-btn {
-  box-sizing: border-box;
-  height: 2rem;
-  min-width: 2rem;
-  padding: 0;
-  width: 2rem;
+.footnote-card-toolbar .footnote-toolbar-overflow-btn svg {
+  transition: transform 0.1s ease;
+}
+.footnote-card-toolbar .footnote-toolbar-overflow-btn button[aria-expanded="true"] svg {
+  transform: rotate(180deg);
 }
 
 .special-chars-panel {

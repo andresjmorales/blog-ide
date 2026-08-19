@@ -62,6 +62,7 @@ import {
   sliceFromPastedPlainText,
 } from "@/lib/editor/normalizePastedWhitespace";
 import { ImageInsertMenu } from "@/components/ImageInsertMenu";
+import { promptForLink } from "@/lib/editor/linkShortcut";
 import { TableControls } from "@/components/TableControls";
 import {
   firstImageFile,
@@ -396,8 +397,9 @@ export function DocumentEditor({
 
   useEffect(() => {
     if (!editor) return;
+    const current = editor;
     const shell =
-      editor.view.dom.closest(".flex.flex-col.h-full") ?? editor.view.dom;
+      current.view.dom.closest(".flex.flex-col.h-full") ?? current.view.dom;
     function onKeyDown(event: KeyboardEvent) {
       if (!isInsertFootnoteHotkey(event)) return;
       const target = event.target;
@@ -418,7 +420,7 @@ export function DocumentEditor({
       }
       event.preventDefault();
       event.stopPropagation();
-      editor.commands.insertFootnote();
+      current.commands.insertFootnote();
     }
     document.addEventListener("keydown", onKeyDown, true);
     return () => document.removeEventListener("keydown", onKeyDown, true);
