@@ -623,9 +623,10 @@ export function FootnoteNodeView({
   const editorBody = (
     <>
       {noteEditor && <FootnoteToolbar editor={noteEditor} />}
-      <div className="footnote-card-editor-shell">
-        <EditorContent editor={noteEditor} />
-      </div>
+      <EditorContent
+        editor={noteEditor}
+        className="footnote-card-editor-shell"
+      />
     </>
   );
 
