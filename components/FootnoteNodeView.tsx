@@ -66,6 +66,7 @@ import {
   placeFootnoteCard,
   shouldApplyExternalFootnoteContent,
   shouldCommitFootnoteAttrs,
+  shouldRepositionFootnoteCard,
   sizeAfterExpandedToggle,
 } from "@/lib/editor/footnoteCard";
 
@@ -107,7 +108,9 @@ export function FootnoteNodeView({
   );
   const stickyRef = useRef(sticky);
   const pinnedRef = useRef(pinned);
+  const openRef = useRef(open);
   const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragSuppressUntil = useRef(0);
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== "undefined"
       ? isDesktopFootnoteSurface(window.innerWidth)
@@ -120,6 +123,9 @@ export function FootnoteNodeView({
   useEffect(() => {
     pinnedRef.current = pinned;
   }, [pinned]);
+  useEffect(() => {
+    openRef.current = open;
+  }, [open]);
   useEffect(() => {
     function onResize() {
       setIsDesktop(isDesktopFootnoteSurface(window.innerWidth));
@@ -299,7 +305,7 @@ export function FootnoteNodeView({
       const snapshot = noteEditor.getMarkdown().trim();
       if (snapshot === contentRef.current) return;
       if (attrSyncTimer.current) window.clearTimeout(attrSyncTimer.current);
-      const delay = footnoteAttrSyncDelay(noteEditor.isFocused);
+      const delay = footnoteAttrSyncDelay(noteEditor.isFocused, snapshot);
       const commit = () => {
         attrSyncTimer.current = 0;
         const latest = noteEditor.getMarkdown().trim();
@@ -390,10 +396,21 @@ export function FootnoteNodeView({
         setSticky(true);
       }
       setCardZ(claimFloatZ());
+      const wasOpen = openRef.current || pinnedRef.current;
       setOpen(true);
-      const anchor =
-        options?.anchorEl ?? buttonRef.current;
-      if (anchor && typeof window !== "undefined" && isDesktop) {
+      openRef.current = true;
+      dragSuppressUntil.current = performance.now() + 280;
+      const anchor = options?.anchorEl ?? buttonRef.current;
+      if (
+        anchor &&
+        typeof window !== "undefined" &&
+        isDesktop &&
+        shouldRepositionFootnoteCard({
+          alreadyOpen: wasOpen,
+          pinned: pinnedRef.current,
+          userPlaced: cardPositions.has(footnoteId),
+        })
+      ) {
         const rect = anchor.getBoundingClientRect();
         const size = footnoteCardSize(expanded);
         const editorBounds =
@@ -713,6 +730,7 @@ export function FootnoteNodeView({
               setCardZ(claimFloatZ());
             }}
             onDragStart={pinCard}
+            canBeginDrag={() => performance.now() >= dragSuppressUntil.current}
             onMove={moveCard}
             onResize={resizeCard}
             onMouseEnter={cancelHoverClose}

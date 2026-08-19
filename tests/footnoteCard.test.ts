@@ -11,6 +11,7 @@ import {
   placeFootnoteCard,
   shouldApplyExternalFootnoteContent,
   shouldCommitFootnoteAttrs,
+  shouldRepositionFootnoteCard,
   sizeAfterExpandedToggle,
 } from "@/lib/editor/footnoteCard";
 
@@ -35,12 +36,49 @@ describe("footnote desktop chrome", () => {
     expect(isDesktopFootnoteSurface(767)).toBe(false);
     expect(isDesktopFootnoteSurface(768)).toBe(true);
   });
+
+  it("does not reposition an already open or user-placed card", () => {
+    expect(
+      shouldRepositionFootnoteCard({
+        alreadyOpen: true,
+        pinned: false,
+        userPlaced: false,
+      })
+    ).toBe(false);
+    expect(
+      shouldRepositionFootnoteCard({
+        alreadyOpen: false,
+        pinned: true,
+        userPlaced: false,
+      })
+    ).toBe(false);
+    expect(
+      shouldRepositionFootnoteCard({
+        alreadyOpen: false,
+        pinned: false,
+        userPlaced: true,
+      })
+    ).toBe(false);
+    expect(
+      shouldRepositionFootnoteCard({
+        alreadyOpen: false,
+        pinned: false,
+        userPlaced: false,
+      })
+    ).toBe(true);
+  });
 });
 
 describe("footnote attr sync", () => {
   it("debounces while focused and flushes immediately when blurred", () => {
     expect(footnoteAttrSyncDelay(true)).toBe(FOOTNOTE_ATTR_SYNC_FOCUSED_MS);
     expect(footnoteAttrSyncDelay(false)).toBe(0);
+  });
+
+  it("flushes immediately when the nested editor contains a hyperlink", () => {
+    expect(
+      footnoteAttrSyncDelay(true, "See [source](https://example.com).")
+    ).toBe(0);
   });
 
   it("refuses to blank a populated note from an unfocused editor", () => {

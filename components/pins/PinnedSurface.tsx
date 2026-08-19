@@ -21,6 +21,8 @@ type Props = {
   onResize: (width: number, height: number) => void;
   /** Fires once when a titlebar gesture crosses the drag threshold. */
   onDragStart?: () => void;
+  /** When false, titlebar movement never starts a drag (e.g. just after open). */
+  canBeginDrag?: () => boolean;
   headerActions?: ReactNode;
   children: ReactNode;
   className?: string;
@@ -45,6 +47,7 @@ export function PinnedSurface({
   onMove,
   onResize,
   onDragStart,
+  canBeginDrag,
   headerActions,
   children,
   className,
@@ -107,13 +110,14 @@ export function PinnedSurface({
         ) {
           return;
         }
+        if (canBeginDrag && !canBeginDrag()) return;
         drag.dragging = true;
         event.preventDefault();
         onDragStart?.();
       }
       onMove(event.clientX - drag.offsetX, event.clientY - drag.offsetY);
     },
-    [onDragStart, onMove]
+    [canBeginDrag, onDragStart, onMove]
   );
 
   const endDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {

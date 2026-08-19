@@ -90,6 +90,48 @@ describe("PinnedSurface titlebar drag", () => {
     expect(onMove).toHaveBeenCalled();
   });
 
+  it("does not start a drag while canBeginDrag returns false", () => {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const onMove = vi.fn();
+    const onDragStart = vi.fn();
+
+    act(() => {
+      root!.render(
+        <PinnedSurface
+          title="Footnote 1"
+          left={100}
+          top={80}
+          width={360}
+          height={280}
+          zIndex={40}
+          onClose={() => {}}
+          onRaise={() => {}}
+          onMove={onMove}
+          onResize={() => {}}
+          onDragStart={onDragStart}
+          canBeginDrag={() => false}
+        >
+          <p>body</p>
+        </PinnedSurface>
+      );
+    });
+
+    const titlebar = document.querySelector(
+      ".pinned-surface-titlebar"
+    ) as HTMLElement | null;
+    act(() => {
+      dispatchPointer(titlebar!, "pointerdown", { clientX: 120, clientY: 90 });
+      dispatchPointer(titlebar!, "pointermove", {
+        clientX: 120,
+        clientY: 90 + SURFACE_DRAG_THRESHOLD_PX + 8,
+      });
+    });
+    expect(onDragStart).not.toHaveBeenCalled();
+    expect(onMove).not.toHaveBeenCalled();
+  });
+
   it("forwards data-footnote-id onto the floating root", () => {
     host = document.createElement("div");
     document.body.appendChild(host);

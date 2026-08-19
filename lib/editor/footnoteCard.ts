@@ -63,8 +63,27 @@ export function normalizeFootnoteMarkdown(value: string): string {
   return value.trim();
 }
 
-export function footnoteAttrSyncDelay(isFocused: boolean): number {
-  return isFocused ? FOOTNOTE_ATTR_SYNC_FOCUSED_MS : 0;
+/** Do not move an already-open (or user-placed) card onto the superscript. */
+export function shouldRepositionFootnoteCard(options: {
+  alreadyOpen: boolean;
+  pinned: boolean;
+  userPlaced: boolean;
+}): boolean {
+  if (options.alreadyOpen) return false;
+  if (options.pinned || options.userPlaced) return false;
+  return true;
+}
+
+export function footnoteAttrSyncDelay(
+  isFocused: boolean,
+  markdown = ""
+): number {
+  if (!isFocused) return 0;
+  // Link edits often happen while the nested editor is still focused
+  // (toolbar mousedown preventDefault). Flush those so the sidenote rail
+  // does not lag until a later click.
+  if (/\[[^\]]*]\([^)]*\)/.test(markdown)) return 0;
+  return FOOTNOTE_ATTR_SYNC_FOCUSED_MS;
 }
 
 /**
