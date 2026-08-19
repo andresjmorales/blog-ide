@@ -122,6 +122,8 @@ On every push to `main`, CI can apply new files under [`supabase/migrations/`](.
 
 Without those secrets the migrate job skips (tests still run). First-time projects should still run [`supabase/schema.sql`](./supabase/schema.sql) once (or let the migration history catch up via `db push`).
 
+The migrate job only runs on pushes to `main` (not on pull requests). `Unauthorized` from `supabase link` is Supabase rejecting `SUPABASE_ACCESS_TOKEN`, not a GitHub Actions permission. Use a personal access token from [Account → Access Tokens](https://supabase.com/dashboard/account/tokens) (`sbp_…`), not the project's `anon` / `service_role` keys, and keep the three values as **repository** secrets (Settings → Secrets and variables → Actions). Environment secrets under Preview / Production are unused unless the workflow sets `environment:`. CI pins the Supabase CLI so a `latest` release cannot break migrate.
+
 ### 3. Run
 
 ```bash

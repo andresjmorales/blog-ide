@@ -56,13 +56,19 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Pin the CLI. `version: latest` picked up 2.115.0 on 2026-08-18 and
+      # `supabase link` started failing with Unauthorized against a token that
+      # had been working on 2.114.0. Passing GITHUB_TOKEN avoids unauthenticated
+      # GitHub API rate limits when the action resolves the release asset.
       - uses: supabase/setup-cli@v1
         if: steps.secrets.outputs.configured == 'true'
         with:
-          version: latest
+          version: 2.114.0
+          github-token: ${{ github.token }}
 
       - name: Link project and push migrations
         if: steps.secrets.outputs.configured == 'true'
         run: |
+          supabase --version
           supabase link --project-ref "$SUPABASE_PROJECT_ID"
-          supabase db push
+          supabase db push --yes
