@@ -306,9 +306,10 @@ describe("moveFootnoteRef", () => {
     const snapshot = editor.getJSON();
     expect(editor.commands.moveFootnoteRef(note.pos, codePos!)).toBe(false);
     expect(editor.getJSON()).toEqual(snapshot);
-    expect(planMoveFootnoteRef(editor.state.doc, note.pos, codePos!).reason).toBe(
-      "invalid"
-    );
+    expect(planMoveFootnoteRef(editor.state.doc, note.pos, codePos!)).toEqual({
+      ok: false,
+      reason: "invalid",
+    });
   });
 
   it("can move a note into a heading or the start of a paragraph", () => {
@@ -388,7 +389,10 @@ describe("moveFootnoteRef", () => {
 
   it("rejects a move from a position that is not a footnote", () => {
     editor = makeEditor(THREE_NOTES);
-    expect(planMoveFootnoteRef(editor.state.doc, 2, 8).reason).toBe("missing");
+    expect(planMoveFootnoteRef(editor.state.doc, 2, 8)).toEqual({
+      ok: false,
+      reason: "missing",
+    });
     expect(applyMoveFootnoteRef(editor.state, 2, 8)).toBe(false);
   });
 
