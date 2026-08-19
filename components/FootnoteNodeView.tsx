@@ -15,33 +15,18 @@ import {
   useEditorState,
   type NodeViewProps,
 } from "@tiptap/react";
-import type { Editor } from "@tiptap/core";
 import {
   openLinkEditor,
-  promptForLink,
 } from "@/lib/editor/linkShortcut";
-import {
-  BulletListIcon,
-  OrderedListIcon,
-  PinIcon,
-} from "@/components/icons";
-import { BoldIcon } from "@/components/tiptap-icons/bold-icon";
-import { ItalicIcon } from "@/components/tiptap-icons/italic-icon";
-import { StrikeIcon } from "@/components/tiptap-icons/strike-icon";
-import { Code2Icon } from "@/components/tiptap-icons/code2-icon";
-import { CodeBlockIcon } from "@/components/tiptap-icons/code-block-icon";
-import { LinkIcon } from "@/components/tiptap-icons/link-icon";
-import { BlockquoteIcon } from "@/components/tiptap-icons/blockquote-icon";
+import { PinIcon } from "@/components/icons";
 import {
   clearFindHighlights,
   scrollMatchIntoView,
   setFindHighlights,
 } from "@/lib/editor/findHighlight";
 import { findInEditor } from "@/lib/editor/findReplaceInEditor";
-import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
-import { ConvertCaseMenu } from "@/components/ConvertCaseMenu";
-import { CleanWhitespaceButton } from "@/components/CleanWhitespaceButton";
 import { FootnoteSidenote } from "@/components/FootnoteSidenote";
+import { FootnoteToolbar } from "@/components/FootnoteToolbar";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { useEssaySpellcheck } from "@/components/EssaySpellcheckContext";
 import { claimFloatZ } from "@/lib/pins/pinStore";
@@ -51,6 +36,7 @@ import {
   setFootnoteFindSession,
   subscribeFootnoteFindSession,
 } from "@/lib/editor/footnoteFindBridge";
+import { consumeFootnoteEditorOpen } from "@/lib/editor/footnoteOpen";
 import { createFootnoteExtensions } from "@/lib/editor/footnoteSchema";
 import { firstImageFile } from "@/lib/editor/insertEssayImage";
 import { PinnedSurface } from "@/components/pins/PinnedSurface";
@@ -60,14 +46,13 @@ import {
   FOOTNOTE_CARD_MIN_WIDTH,
   FOOTNOTE_CARD_WIDTH,
   footnoteAttrSyncDelay,
-  footnoteCardSize,
   isDesktopFootnoteSurface,
   isFootnoteOutsidePointerTarget,
   placeFootnoteCard,
   shouldApplyExternalFootnoteContent,
   shouldCommitFootnoteAttrs,
+  shouldFollowFootnoteRef,
   shouldRepositionFootnoteCard,
-  sizeAfterExpandedToggle,
 } from "@/lib/editor/footnoteCard";
 
 // ProseMirror may recreate an atom NodeView when its selection changes.
@@ -76,7 +61,7 @@ import {
 // previews are intentionally not persisted across remounts.
 const stickyFootnoteIds = new Set<string>();
 const pinnedFootnoteIds = new Set<string>();
-const expandedFootnoteIds = new Set<string>();
+const autoOpenedFootnoteIds = new Set<string>();
 const cardPositions = new Map<
   string,
   { left: number; top: number; width?: number; height?: number }
@@ -92,19 +77,22 @@ export function FootnoteNodeView({
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const sidenoteRef = useRef<HTMLSpanElement | null>(null);
   const footnoteId = String(node.attrs.id ?? "");
-  const [open, setOpen] = useState(
-    () =>
+  const [open, setOpen] = useState(() => {
+    if (consumeFootnoteEditorOpen(footnoteId)) {
+      stickyFootnoteIds.add(footnoteId);
+      autoOpenedFootnoteIds.add(footnoteId);
+      return true;
+    }
+    return (
       stickyFootnoteIds.has(footnoteId) || pinnedFootnoteIds.has(footnoteId)
-  );
+    );
+  });
   /** Click (or pin/drag) keeps the card open; hover alone does not. */
   const [sticky, setSticky] = useState(() =>
     stickyFootnoteIds.has(footnoteId)
   );
   const [pinned, setPinned] = useState(() =>
     pinnedFootnoteIds.has(footnoteId)
-  );
-  const [expanded, setExpanded] = useState(() =>
-    expandedFootnoteIds.has(footnoteId)
   );
   const stickyRef = useRef(sticky);
   const pinnedRef = useRef(pinned);
@@ -149,10 +137,12 @@ export function FootnoteNodeView({
     width?: number;
     height?: number;
   }>(() => cardPositions.get(footnoteId) ?? {});
-  const [cardZ, setCardZ] = useState(40);
+  const [cardZ, setCardZ] = useState(() =>
+    autoOpenedFootnoteIds.has(footnoteId) ? claimFloatZ() : 40
+  );
   const content = String(node.attrs.content ?? "");
-  // Only user drags are sticky; auto-placement should follow the ref on scroll.
-  const hasDraggedPosition = cardPositions.has(footnoteId);
+  // Pin or drag freezes placement; auto-placement follows the ref until then.
+  const hasUserPlacedPosition = cardPositions.has(footnoteId);
   const { prefs } = useEditorPrefs();
   const essaySpell = useEssaySpellcheck();
   // Footnote cards stay on browser-off; Harper currently covers the essay body.
@@ -211,6 +201,17 @@ export function FootnoteNodeView({
     if (!noteEditor) return;
     applyEditorDomLang(noteEditor.view.dom as HTMLElement, spellLang);
   }, [noteEditor, spellLang]);
+
+  useEffect(() => {
+    if (!autoOpenedFootnoteIds.has(footnoteId) || !noteEditor || !cardOpen) {
+      return;
+    }
+    autoOpenedFootnoteIds.delete(footnoteId);
+    dragSuppressUntil.current = performance.now() + 280;
+    requestAnimationFrame(() => {
+      noteEditor.commands.focus("end");
+    });
+  }, [noteEditor, cardOpen, footnoteId]);
 
   // Highlight inside the note while this footnote is the active find target.
   useEffect(() => {
@@ -352,11 +353,9 @@ export function FootnoteNodeView({
     }
     stickyFootnoteIds.delete(footnoteId);
     pinnedFootnoteIds.delete(footnoteId);
-    expandedFootnoteIds.delete(footnoteId);
     cardPositions.delete(footnoteId);
     setSticky(false);
     setPinned(false);
-    setExpanded(false);
     setCardPosition({});
     setOpen(false);
   }, [commitContent, footnoteId]);
@@ -412,7 +411,10 @@ export function FootnoteNodeView({
         })
       ) {
         const rect = anchor.getBoundingClientRect();
-        const size = footnoteCardSize(expanded);
+        const size = {
+          width: FOOTNOTE_CARD_WIDTH,
+          height: FOOTNOTE_CARD_HEIGHT,
+        };
         const editorBounds =
           buttonRef.current?.closest("main")?.getBoundingClientRect();
         const placed = placeFootnoteCard({
@@ -445,15 +447,14 @@ export function FootnoteNodeView({
         });
       }
     },
-    [cancelHoverClose, expanded, footnoteId, isDesktop, noteEditor]
+    [cancelHoverClose, footnoteId, isDesktop, noteEditor]
   );
 
   /** Freeze the floating card at its current viewport spot (pin or drag). */
   const freezeCardPosition = useCallback(() => {
     setCardPosition((current) => {
-      const defaults = footnoteCardSize(expanded);
-      const width = current.width ?? defaults.width;
-      const height = current.height ?? defaults.height;
+      const width = current.width ?? FOOTNOTE_CARD_WIDTH;
+      const height = current.height ?? FOOTNOTE_CARD_HEIGHT;
       if (
         typeof current.left === "number" &&
         typeof current.top === "number"
@@ -485,54 +486,23 @@ export function FootnoteNodeView({
       cardPositions.set(footnoteId, next);
       return next;
     });
-  }, [expanded, footnoteId]);
+  }, [footnoteId]);
 
   const togglePinned = useCallback(() => {
     setPinned((currentlyPinned) => {
       const next = !currentlyPinned;
       if (next) {
         pinnedFootnoteIds.add(footnoteId);
+        stickyFootnoteIds.add(footnoteId);
+        setSticky(true);
         // Snapshot now so scroll handlers stop tracking the superscript.
         freezeCardPosition();
       } else {
         pinnedFootnoteIds.delete(footnoteId);
-        // Resume follow-the-ref placement after unpin without flashing to 0,0.
-        cardPositions.delete(footnoteId);
+        // Stay where it is. Unpin only means the next click in the essay closes it.
       }
       return next;
     });
-  }, [footnoteId, freezeCardPosition]);
-
-  const toggleExpanded = useCallback(() => {
-    setExpanded((currentlyExpanded) => {
-      const next = !currentlyExpanded;
-      if (next) {
-        expandedFootnoteIds.add(footnoteId);
-      } else {
-        expandedFootnoteIds.delete(footnoteId);
-      }
-      setCardPosition((current) => {
-        const sized = sizeAfterExpandedToggle(next, current);
-        const merged = { ...current, ...sized };
-        const stored = cardPositions.get(footnoteId);
-        if (stored && typeof current.left === "number" && typeof current.top === "number") {
-          cardPositions.set(footnoteId, {
-            left: current.left,
-            top: current.top,
-            width: sized.width,
-            height: sized.height,
-          });
-        }
-        return merged;
-      });
-      return next;
-    });
-  }, [footnoteId]);
-
-  const pinCard = useCallback(() => {
-    pinnedFootnoteIds.add(footnoteId);
-    setPinned(true);
-    freezeCardPosition();
   }, [footnoteId, freezeCardPosition]);
 
   useEffect(() => {
@@ -542,13 +512,18 @@ export function FootnoteNodeView({
         if (window.innerWidth < 768) {
           return {};
         }
-        // Dragged or pinned cards stay put — do not track the ref on scroll.
-        if (hasDraggedPosition || pinnedRef.current) return current;
+        if (
+          !shouldFollowFootnoteRef({
+            pinned: pinnedRef.current,
+            userPlaced: hasUserPlacedPosition,
+          })
+        ) {
+          return current;
+        }
         const rect = buttonRef.current?.getBoundingClientRect();
         if (!rect) return current;
-        const defaults = footnoteCardSize(expanded);
-        const cardWidth = current.width ?? defaults.width;
-        const cardHeight = current.height ?? defaults.height;
+        const cardWidth = current.width ?? FOOTNOTE_CARD_WIDTH;
+        const cardHeight = current.height ?? FOOTNOTE_CARD_HEIGHT;
         const editorBounds =
           buttonRef.current?.closest("main")?.getBoundingClientRect();
         const placed = placeFootnoteCard({
@@ -571,7 +546,7 @@ export function FootnoteNodeView({
       window.removeEventListener("resize", positionCard);
       window.removeEventListener("scroll", positionCard, true);
     };
-  }, [cardOpen, expanded, hasDraggedPosition, pinned]);
+  }, [cardOpen, hasUserPlacedPosition, pinned]);
 
   useEffect(() => {
     if (!cardOpen) return;
@@ -616,18 +591,17 @@ export function FootnoteNodeView({
   const moveCard = useCallback(
     (left: number, top: number) => {
       setCardPosition((current) => {
-        const defaults = footnoteCardSize(expanded);
         const next = {
           left,
           top,
-          width: current.width ?? defaults.width,
-          height: current.height ?? defaults.height,
+          width: current.width ?? FOOTNOTE_CARD_WIDTH,
+          height: current.height ?? FOOTNOTE_CARD_HEIGHT,
         };
         cardPositions.set(footnoteId, next);
         return next;
       });
     },
-    [expanded, footnoteId]
+    [footnoteId]
   );
 
   const resizeCard = useCallback(
@@ -648,19 +622,10 @@ export function FootnoteNodeView({
 
   const editorBody = (
     <>
-      {noteEditor && (
-        <FootnoteToolbar
-          editor={noteEditor}
-          expanded={expanded}
-          onToggleExpanded={toggleExpanded}
-        />
-      )}
-      <EditorContent editor={noteEditor} />
-      <span className="footnote-card-hint">
-        {expanded
-          ? "Full formatting except headings and images. Nested footnotes are not supported."
-          : "Bold, italic, and links. Expand for lists, quotes, code, and more."}
-      </span>
+      {noteEditor && <FootnoteToolbar editor={noteEditor} />}
+      <div className="footnote-card-editor-shell">
+        <EditorContent editor={noteEditor} />
+      </div>
     </>
   );
 
@@ -718,7 +683,7 @@ export function FootnoteNodeView({
             width={cardPosition.width ?? FOOTNOTE_CARD_WIDTH}
             height={cardPosition.height ?? FOOTNOTE_CARD_HEIGHT}
             zIndex={cardZ}
-            className={pinned ? "footnote-pin is-pinned" : "footnote-pin"}
+            className="footnote-pin"
             closeLabel="Close footnote"
             minWidth={FOOTNOTE_CARD_MIN_WIDTH}
             minHeight={FOOTNOTE_CARD_MIN_HEIGHT}
@@ -729,7 +694,7 @@ export function FootnoteNodeView({
               setSticky(true);
               setCardZ(claimFloatZ());
             }}
-            onDragStart={pinCard}
+            onDragStart={freezeCardPosition}
             canBeginDrag={() => performance.now() >= dragSuppressUntil.current}
             onMove={moveCard}
             onResize={resizeCard}
@@ -755,9 +720,7 @@ export function FootnoteNodeView({
         ) : (
           createPortal(
             <span
-              className={`footnote-card ${pinned ? "is-pinned" : ""} ${
-                expanded ? "is-expanded" : ""
-              }`}
+              className="footnote-card"
               data-footnote-id={footnoteId}
               contentEditable={false}
               style={{
@@ -795,169 +758,5 @@ export function FootnoteNodeView({
           )
         ))}
     </NodeViewWrapper>
-  );
-}
-
-function FootnoteToolbar({
-  editor,
-  expanded,
-  onToggleExpanded,
-}: {
-  editor: Editor;
-  expanded: boolean;
-  onToggleExpanded: () => void;
-}) {
-  const state = useEditorState({
-    editor,
-    selector: ({ editor }) => ({
-      bold: editor.isActive("bold"),
-      italic: editor.isActive("italic"),
-      strike: editor.isActive("strike"),
-      code: editor.isActive("code"),
-      link: editor.isActive("link"),
-      blockquote: editor.isActive("blockquote"),
-      bulletList: editor.isActive("bulletList"),
-      orderedList: editor.isActive("orderedList"),
-      codeBlock: editor.isActive("codeBlock"),
-    }),
-  });
-
-  return (
-    <span
-      className={`footnote-card-toolbar ${expanded ? "is-expanded" : ""}`}
-    >
-      <FootnoteToolButton
-        title="Bold (Ctrl+B)"
-        active={state.bold}
-        onClick={() => editor.chain().focus().toggleBold().run()}
-      >
-        <BoldIcon className="blogide-tool-icon" />
-      </FootnoteToolButton>
-      <FootnoteToolButton
-        title="Italic (Ctrl+I)"
-        active={state.italic}
-        onClick={() => editor.chain().focus().toggleItalic().run()}
-      >
-        <ItalicIcon className="blogide-tool-icon" />
-      </FootnoteToolButton>
-      <FootnoteToolButton
-        title="Add or edit link (Ctrl+K)"
-        active={state.link}
-        onClick={() => {
-          void promptForLink(editor);
-        }}
-      >
-        <LinkIcon className="blogide-tool-icon" />
-      </FootnoteToolButton>
-
-      {expanded && (
-        <>
-          <FootnoteToolButton
-            title="Strikethrough"
-            active={state.strike}
-            onClick={() => editor.chain().focus().toggleStrike().run()}
-          >
-            <StrikeIcon className="blogide-tool-icon" />
-          </FootnoteToolButton>
-          <FootnoteToolButton
-            title="Inline code"
-            active={state.code}
-            onClick={() => editor.chain().focus().toggleCode().run()}
-          >
-            <Code2Icon className="blogide-tool-icon" />
-          </FootnoteToolButton>
-          <span className="footnote-toolbar-sep" aria-hidden />
-          <FootnoteToolButton
-            title="Blockquote"
-            active={state.blockquote}
-            onClick={() => editor.chain().focus().toggleBlockquote().run()}
-          >
-            <BlockquoteIcon className="blogide-tool-icon" />
-          </FootnoteToolButton>
-          <FootnoteToolButton
-            title="Bullet list"
-            active={state.bulletList}
-            onClick={() => editor.chain().focus().toggleBulletList().run()}
-          >
-            <BulletListIcon className="blogide-tool-icon" />
-          </FootnoteToolButton>
-          <FootnoteToolButton
-            title="Ordered list"
-            active={state.orderedList}
-            onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          >
-            <OrderedListIcon className="blogide-tool-icon" />
-          </FootnoteToolButton>
-          <FootnoteToolButton
-            title="Code block"
-            active={state.codeBlock}
-            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-          >
-            <CodeBlockIcon className="blogide-tool-icon" />
-          </FootnoteToolButton>
-          <ConvertCaseMenu editor={editor} />
-          <CleanWhitespaceButton editor={editor} />
-          <SpecialCharsMenu editor={editor} />
-        </>
-      )}
-
-      <FootnoteToolButton
-        title={
-          expanded
-            ? "Collapse formatting toolbar"
-            : "Expand formatting toolbar"
-        }
-        active={expanded}
-        onClick={onToggleExpanded}
-      >
-        <ExpandIcon expanded={expanded} />
-      </FootnoteToolButton>
-    </span>
-  );
-}
-
-function ExpandIcon({ expanded }: { expanded: boolean }) {
-  return (
-    <svg
-      aria-hidden
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      className={expanded ? "rotate-180" : ""}
-    >
-      <path
-        d="M4 6.5 8 10.5 12 6.5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function FootnoteToolButton({
-  title,
-  active = false,
-  onClick,
-  children,
-}: {
-  title: string;
-  active?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-pressed={active}
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={onClick}
-      className={active ? "is-active" : ""}
-    >
-      {children}
-    </button>
   );
 }

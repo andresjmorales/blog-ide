@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { claimFloatZ } from "@/lib/pins/pinStore";
 
@@ -26,12 +26,23 @@ export type OverflowSubmenu = {
 
 export type OverflowItem = OverflowAction | OverflowSeparator | OverflowSubmenu;
 
-type Props = {
+type OverflowMenuProps = {
   items: OverflowItem[];
+  menuClassName?: string;
+  /** Visible control. Defaults to the chrome ⋯ kebab. */
+  trigger?: ReactNode;
+  label?: string;
+  buttonClassName?: string;
 };
 
 /** Compact ⋯ menu for secondary editor actions (portaled so toolbar overflow cannot clip it). */
-export function EditorOverflowMenu({ items }: Props) {
+export function EditorOverflowMenu({
+  items,
+  menuClassName,
+  trigger,
+  label = "More actions",
+  buttonClassName = "blogide-chrome-btn is-icon",
+}: OverflowMenuProps) {
   const [open, setOpen] = useState(false);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ top: number; right: number } | null>(
@@ -84,23 +95,28 @@ export function EditorOverflowMenu({ items }: Props) {
       <button
         ref={buttonRef}
         type="button"
-        className="blogide-chrome-btn is-icon"
+        className={[buttonClassName, open ? "is-active" : ""]
+          .filter(Boolean)
+          .join(" ")}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}
-        title="More actions"
+        title={label}
+        onMouseDown={(event) => event.preventDefault()}
         onClick={() => {
           setOpen((v) => !v);
           setOpenSubmenu(null);
         }}
       >
-        <span
-          aria-hidden
-          className="text-[0.95rem] font-bold leading-none tracking-widest"
-        >
-          ⋯
-        </span>
-        <span className="sr-only">More actions</span>
+        {trigger ?? (
+          <span
+            aria-hidden
+            className="text-[0.95rem] font-bold leading-none tracking-widest"
+          >
+            ⋯
+          </span>
+        )}
+        <span className="sr-only">{label}</span>
       </button>
       {open &&
         coords &&
@@ -109,7 +125,12 @@ export function EditorOverflowMenu({ items }: Props) {
             ref={menuRef}
             id={menuId}
             role="menu"
-            className="fixed min-w-[11rem] rounded-md border border-border bg-background py-1 text-sm shadow-md"
+            className={[
+              "fixed min-w-[11rem] rounded-md border border-border bg-background py-1 text-sm shadow-md",
+              menuClassName,
+            ]
+              .filter(Boolean)
+              .join(" ")}
             style={{ top: coords.top, right: coords.right, zIndex }}
           >
             {items.map((item) => {

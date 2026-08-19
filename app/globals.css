@@ -1336,13 +1336,6 @@ html.app-shell-lock body {
   /* z-index set inline via claimFloatZ() so footnotes stack above pins */
   z-index: 40;
 }
-.footnote-card.is-pinned {
-  border-color: var(--accent);
-  box-shadow: 0 16px 44px rgb(0 0 0 / 24%);
-}
-.footnote-card.is-expanded {
-  width: min(28rem, calc(100vw - 2rem));
-}
 .footnote-card-heading {
   align-items: center;
   background: color-mix(in oklab, var(--panel) 85%, var(--background));
@@ -1373,14 +1366,9 @@ html.app-shell-lock body {
   min-width: 0;
 }
 .footnote-card .footnote-card-toolbar,
-.footnote-card .footnote-card-editor,
-.footnote-card .footnote-card-hint,
-.footnote-card .ProseMirror {
+.footnote-card .footnote-card-editor-shell {
   margin-left: 0.75rem;
   margin-right: 0.75rem;
-}
-.footnote-card .footnote-card-hint {
-  display: block;
 }
 .footnote-card-actions,
 .footnote-card-toolbar {
@@ -1409,7 +1397,16 @@ html.app-shell-lock body {
   color: var(--accent);
 }
 .footnote-card-toolbar {
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
   margin-bottom: 0.35rem;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 .footnote-card-toolbar button {
   align-items: center;
@@ -1429,10 +1426,34 @@ html.app-shell-lock body {
   color: var(--accent);
 }
 .footnote-toolbar-sep {
+  align-self: center;
   background: var(--border);
+  flex-shrink: 0;
   height: 1rem;
   margin: 0 0.15rem;
   width: 1px;
+}
+.footnote-toolbar-slot {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.footnote-toolbar-sep.is-overflowed,
+.footnote-toolbar-slot.is-overflowed {
+  display: none;
+}
+.footnote-toolbar-overflow-btn {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.footnote-toolbar-overflow-btn[hidden] {
+  display: none;
+}
+.footnote-card-toolbar .footnote-toolbar-overflow-btn svg {
+  transition: transform 0.1s ease;
+}
+.footnote-card-toolbar .footnote-toolbar-overflow-btn button[aria-expanded="true"] svg,
+.footnote-card-toolbar .footnote-toolbar-overflow-btn button.is-active svg {
+  transform: rotate(180deg);
 }
 
 .special-chars-panel {
@@ -1444,9 +1465,6 @@ html.app-shell-lock body {
   border-radius: 5px;
   min-height: 4rem;
   padding: 0.5rem 0.6rem;
-}
-.footnote-card.is-expanded .footnote-card-editor {
-  min-height: 7rem;
 }
 .footnote-card-editor p {
   margin: 0 0 0.45em;
@@ -1505,32 +1523,26 @@ html.app-shell-lock body {
 .footnote-card-editor img {
   max-width: 100%;
 }
-.footnote-card-hint {
-  color: var(--muted);
-  font-size: 0.68rem;
-  margin-top: 0.45rem;
-}
-.footnote-pin.is-pinned {
-  border-color: var(--accent);
-}
 .footnote-pin .pinned-surface-body {
-  padding: 0.45rem 0 0.65rem;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0.45rem 0.75rem 0.55rem;
 }
-.footnote-pin .footnote-card-toolbar,
-.footnote-pin .footnote-card-editor,
-.footnote-pin .footnote-card-hint,
-.footnote-pin .ProseMirror {
-  margin-left: 0.75rem;
-  margin-right: 0.75rem;
+.footnote-pin .footnote-card-toolbar {
+  flex-shrink: 0;
+  margin-bottom: 0.35rem;
+}
+.footnote-pin .footnote-card-editor-shell {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 .footnote-pin .footnote-card-editor {
-  flex: 1;
-  min-height: 4rem;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
-}
-.footnote-pin .footnote-card-hint {
-  display: block;
-  margin-bottom: 0.35rem;
 }
 .footnote-sidenote {
   display: none;
@@ -2404,6 +2416,12 @@ html.app-shell-lock body {
 .pinned-surface-close:hover {
   border-color: var(--border);
   color: var(--foreground);
+}
+.pinned-surface-btn[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 18%);
+  color: var(--accent);
 }
 .pinned-surface-close {
   font-size: 1rem;

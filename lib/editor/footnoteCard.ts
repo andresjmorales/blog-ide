@@ -20,7 +20,7 @@ const PLACE_GAP = 8;
 
 /** Portals that belong to the open footnote but live outside its DOM subtree. */
 export const FOOTNOTE_OUTSIDE_CLICK_IGNORE =
-  ".special-chars-panel, .convert-case-menu, .blogide-find-replace, .link-edit-card, .harper-lint-card";
+  ".special-chars-panel, .convert-case-menu, .blogide-find-replace, .link-edit-card, .harper-lint-card, .footnote-toolbar-overflow";
 
 export function isDesktopFootnoteSurface(
   viewportWidth: number,
@@ -72,6 +72,14 @@ export function shouldRepositionFootnoteCard(options: {
   if (options.alreadyOpen) return false;
   if (options.pinned || options.userPlaced) return false;
   return true;
+}
+
+/** Follow the superscript only until the user pins, drags, or otherwise places it. */
+export function shouldFollowFootnoteRef(options: {
+  pinned: boolean;
+  userPlaced: boolean;
+}): boolean {
+  return !options.pinned && !options.userPlaced;
 }
 
 export function footnoteAttrSyncDelay(

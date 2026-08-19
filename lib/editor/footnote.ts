@@ -1,5 +1,6 @@
 import { Node, mergeAttributes, type JSONContent } from "@tiptap/core";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
+import { queueFootnoteEditorOpen } from "@/lib/editor/footnoteOpen";
 
 export type OrphanFootnote = {
   label: string;
@@ -124,11 +125,14 @@ export const FootnoteRef = Node.create({
     return {
       insertFootnote:
         (content = "") =>
-        ({ commands }) =>
-          commands.insertContent({
+        ({ commands }) => {
+          const id = createFootnoteId();
+          queueFootnoteEditorOpen(id);
+          return commands.insertContent({
             type: this.name,
-            attrs: { id: createFootnoteId(), content },
-          }),
+            attrs: { id, content },
+          });
+        },
 
       restoreDeletedFootnote:
         (id: string) =>

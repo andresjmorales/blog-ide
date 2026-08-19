@@ -52,14 +52,15 @@ export function HelpPanel({ open, onClose }: Props) {
         <section className="settings-section">
           <h3>Footnotes</h3>
           <p className="settings-help">
-            Insert a footnote from the toolbar (or Ctrl+Shift+F). Hover to
-            preview; click to keep the editor open. Pin or drag to keep a note
-            on screen while you write. The sidenote rail lists every note; keep
-            it Linked to scroll with the essay, or Free to browse notes on their
-            own. Deleted notes for the current essay stay in a collapsed section
-            at the bottom of the rail so you can restore or dismiss them. Pin a
-            footnote card to freeze it on screen while you scroll. Document and
-            link pins keep their layout if you reload the tab.
+            Insert a footnote from the toolbar (or Ctrl+Shift+F). The editor
+            opens right away. Hover a number to preview; click to keep it open.
+            Pin keeps the note open when you click back into the essay. Unpin
+            leaves it where it is until you click the essay again. The sidenote
+            rail lists every note; keep it Linked to scroll with the essay, or
+            Free to browse notes on their own. Deleted notes for the current
+            essay stay in a collapsed section at the bottom of the rail so you
+            can restore or dismiss them. Document and link pins keep their
+            layout if you reload the tab.
           </p>
         </section>
 
