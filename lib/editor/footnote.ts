@@ -1,6 +1,7 @@
 import { Node, mergeAttributes, type JSONContent } from "@tiptap/core";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 import { queueFootnoteEditorOpen } from "@/lib/editor/footnoteOpen";
+import { applyMoveFootnoteRef } from "@/lib/editor/moveFootnoteRef";
 
 export type OrphanFootnote = {
   label: string;
@@ -15,6 +16,8 @@ declare module "@tiptap/core" {
       insertFootnote: (content?: string) => ReturnType;
       restoreDeletedFootnote: (id: string) => ReturnType;
       dismissDeletedFootnote: (id: string) => ReturnType;
+      /** Move the footnote atom at `from` to insert position `to`. */
+      moveFootnoteRef: (from: number, to: number) => ReturnType;
     };
   }
 }
@@ -178,6 +181,11 @@ export const FootnoteRef = Node.create({
           }
           return true;
         },
+
+      moveFootnoteRef:
+        (from, to) =>
+        ({ state, dispatch }) =>
+          applyMoveFootnoteRef(state, from, to, dispatch),
     };
   },
 

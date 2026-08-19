@@ -54,13 +54,16 @@ export function HelpPanel({ open, onClose }: Props) {
           <p className="settings-help">
             Insert a footnote from the toolbar (or Ctrl+Shift+F). The editor
             opens right away. Hover a number to preview; click to keep it open.
-            Pin keeps the note open when you click back into the essay. Unpin
-            leaves it where it is until you click the essay again. The sidenote
-            rail lists every note; keep it Linked to scroll with the essay, or
-            Free to browse notes on their own. Deleted notes for the current
-            essay stay in a collapsed section at the bottom of the rail so you
-            can restore or dismiss them. Document and link pins keep their
-            layout if you reload the tab.
+            Drag the green number to move that note to another spot in the
+            essay. The numbers (and any open footnote editors) update to match
+            the new order; the note text stays with its mark. Pin keeps the
+            note open when you click back into the essay. Unpin leaves it where
+            it is until you click the essay again. The sidenote rail lists
+            every note; keep it Linked to scroll with the essay, or Free to
+            browse notes on their own. Deleted notes for the current essay stay
+            in a collapsed section at the bottom of the rail so you can restore
+            or dismiss them. Document and link pins keep their layout if you
+            reload the tab.
           </p>
         </section>
 
