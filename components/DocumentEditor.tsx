@@ -18,7 +18,7 @@ import {
   BlockMathNodeView,
   InlineMathNodeView,
 } from "@/components/MathNodeView";
-import { promptForLink } from "@/lib/editor/linkShortcut";
+import { isFindReplaceHotkey, isInsertFootnoteHotkey } from "@/lib/editor/findHotkey";
 import {
   BulletListIcon,
   OrderedListIcon,
@@ -364,16 +364,7 @@ export function DocumentEditor({
     const shell =
       editor.view.dom.closest(".flex.flex-col.h-full") ?? editor.view.dom;
     function onKeyDown(event: KeyboardEvent) {
-      const mod = event.metaKey || event.ctrlKey;
-      if (!mod || event.altKey) return;
-      if (
-        event.key !== "f" &&
-        event.key !== "F" &&
-        event.key !== "h" &&
-        event.key !== "H"
-      ) {
-        return;
-      }
+      if (!isFindReplaceHotkey(event)) return;
       const target = event.target;
       // Allow Find from the essay, find bar, or loose focus (after Escape).
       // Do not steal Ctrl+F from unrelated chrome inputs (AI, explorer, etc.).
@@ -399,6 +390,36 @@ export function DocumentEditor({
     }
     // Capture on document so Ctrl+F still works after Escape unmounts the
     // find input and leaves focus outside the editor shell.
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor) return;
+    const shell =
+      editor.view.dom.closest(".flex.flex-col.h-full") ?? editor.view.dom;
+    function onKeyDown(event: KeyboardEvent) {
+      if (!isInsertFootnoteHotkey(event)) return;
+      const target = event.target;
+      if (target instanceof Node) {
+        const inShell = shell.contains(target);
+        const inFootnote =
+          target instanceof Element &&
+          Boolean(target.closest(".footnote-pin, .footnote-card"));
+        const looseFocus =
+          target === document.body ||
+          target === document.documentElement ||
+          !(target instanceof HTMLElement) ||
+          (!target.closest(
+            "input, textarea, select, [contenteditable='true']"
+          ) &&
+            !target.isContentEditable);
+        if (!inShell && !inFootnote && !looseFocus) return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      editor.commands.insertFootnote();
+    }
     document.addEventListener("keydown", onKeyDown, true);
     return () => document.removeEventListener("keydown", onKeyDown, true);
   }, [editor]);

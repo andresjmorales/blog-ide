@@ -11,6 +11,7 @@ import {
   placeFootnoteCard,
   shouldApplyExternalFootnoteContent,
   shouldCommitFootnoteAttrs,
+  shouldFollowFootnoteRef,
   shouldRepositionFootnoteCard,
   sizeAfterExpandedToggle,
 } from "@/lib/editor/footnoteCard";
@@ -65,6 +66,18 @@ describe("footnote desktop chrome", () => {
         pinned: false,
         userPlaced: false,
       })
+    ).toBe(true);
+  });
+
+  it("does not follow the superscript after pin, drag, or unpin-in-place", () => {
+    expect(
+      shouldFollowFootnoteRef({ pinned: true, userPlaced: false })
+    ).toBe(false);
+    expect(
+      shouldFollowFootnoteRef({ pinned: false, userPlaced: true })
+    ).toBe(false);
+    expect(
+      shouldFollowFootnoteRef({ pinned: false, userPlaced: false })
     ).toBe(true);
   });
 });
@@ -149,6 +162,11 @@ describe("footnote outside pointer", () => {
     convert.className = "convert-case-menu";
     document.body.append(convert);
     expect(isFootnoteOutsidePointerTarget(convert, "fn-1")).toBe(false);
+
+    const overflow = document.createElement("div");
+    overflow.className = "footnote-toolbar-overflow";
+    document.body.append(overflow);
+    expect(isFootnoteOutsidePointerTarget(overflow, "fn-1")).toBe(false);
 
     const surface = document.createElement("div");
     surface.setAttribute("data-footnote-id", "fn-1");
