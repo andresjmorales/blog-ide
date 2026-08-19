@@ -239,6 +239,7 @@ export function SidenoteRail({
             <div
               key={note.id || `n-${note.number}`}
               data-rail-id={note.id}
+              data-footnote-id={note.id}
               className="sidenote-rail-item"
             >
               <FootnoteSidenote

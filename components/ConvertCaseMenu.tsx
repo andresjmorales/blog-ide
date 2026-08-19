@@ -88,7 +88,7 @@ export function ConvertCaseMenu({ editor }: { editor: Editor }) {
             ref={menuRef}
             role="menu"
             aria-label="Convert case"
-            className="fixed min-w-[10.5rem] rounded-lg border border-border bg-background py-1 shadow-lg"
+            className="convert-case-menu fixed min-w-[10.5rem] rounded-lg border border-border bg-background py-1 shadow-lg"
             style={{ top: coords.top, left: coords.left, zIndex }}
           >
             {OPTIONS.map((option) => (
