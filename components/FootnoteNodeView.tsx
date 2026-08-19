@@ -54,6 +54,12 @@ import {
   shouldFollowFootnoteRef,
   shouldRepositionFootnoteCard,
 } from "@/lib/editor/footnoteCard";
+import { shouldStartPointerDrag } from "@/lib/pins/surfacePointer";
+import {
+  caretCoordsAtPos,
+  footnoteDropPosFromCoords,
+  isNoOpFootnoteMove,
+} from "@/lib/editor/moveFootnoteRef";
 
 // ProseMirror may recreate an atom NodeView when its selection changes.
 // Keep click-/pin-sticky card visibility keyed by the node's stable ID so a
@@ -99,6 +105,19 @@ export function FootnoteNodeView({
   const openRef = useRef(open);
   const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragSuppressUntil = useRef(0);
+  const refDrag = useRef<{
+    pointerId: number;
+    originX: number;
+    originY: number;
+    dragging: boolean;
+  } | null>(null);
+  const skipClickAfterDrag = useRef(false);
+  const [refDragGhost, setRefDragGhost] = useState<{
+    x: number;
+    y: number;
+    caret: { left: number; top: number; height: number } | null;
+    allowed: boolean;
+  } | null>(null);
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== "undefined"
       ? isDesktopFootnoteSurface(window.innerWidth)
@@ -585,8 +604,109 @@ export function FootnoteNodeView({
   useEffect(() => {
     return () => {
       if (hoverCloseTimer.current) clearTimeout(hoverCloseTimer.current);
+      document.body.classList.remove(
+        "is-dragging-footnote-ref",
+        "is-footnote-drop-blocked"
+      );
     };
   }, []);
+
+  const endRefDrag = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      const drag = refDrag.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const wasDragging = drag.dragging;
+      refDrag.current = null;
+      document.body.classList.remove(
+        "is-dragging-footnote-ref",
+        "is-footnote-drop-blocked"
+      );
+      setRefDragGhost(null);
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        /* already released */
+      }
+      if (!wasDragging) return;
+      event.preventDefault();
+      const from = getPos();
+      if (typeof from !== "number") return;
+      const dropPos = footnoteDropPosFromCoords(
+        outerEditor.view,
+        event.clientX,
+        event.clientY
+      );
+      if (dropPos == null) return;
+      if (isNoOpFootnoteMove(from, node.nodeSize, dropPos)) return;
+      commitContent();
+      outerEditor.commands.moveFootnoteRef(from, dropPos);
+    },
+    [commitContent, getPos, node.nodeSize, outerEditor]
+  );
+
+  const beginRefDrag = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      if (event.button !== 0) return;
+      refDrag.current = {
+        pointerId: event.pointerId,
+        originX: event.clientX,
+        originY: event.clientY,
+        dragging: false,
+      };
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        /* jsdom / already captured */
+      }
+    },
+    []
+  );
+
+  const onRefDragMove = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      const drag = refDrag.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      if (!drag.dragging) {
+        if (
+          !shouldStartPointerDrag(
+            { x: drag.originX, y: drag.originY },
+            { x: event.clientX, y: event.clientY }
+          )
+        ) {
+          return;
+        }
+        drag.dragging = true;
+        skipClickAfterDrag.current = true;
+        document.body.classList.add("is-dragging-footnote-ref");
+        event.preventDefault();
+      }
+      const from = getPos();
+      const dropPos =
+        typeof from === "number"
+          ? footnoteDropPosFromCoords(
+              outerEditor.view,
+              event.clientX,
+              event.clientY
+            )
+          : null;
+      const allowed =
+        typeof from === "number" &&
+        dropPos != null &&
+        !isNoOpFootnoteMove(from, node.nodeSize, dropPos);
+      document.body.classList.toggle("is-footnote-drop-blocked", !allowed);
+      setRefDragGhost({
+        x: event.clientX,
+        y: event.clientY,
+        caret:
+          allowed && dropPos != null
+            ? caretCoordsAtPos(outerEditor.view, dropPos)
+            : null,
+        allowed,
+      });
+    },
+    [getPos, node.nodeSize, outerEditor]
+  );
 
   const moveCard = useCallback(
     (left: number, top: number) => {
@@ -638,23 +758,34 @@ export function FootnoteNodeView({
       <button
         ref={buttonRef}
         type="button"
-        className="footnote-ref"
-        aria-label={`Edit footnote ${number}`}
+        className={`footnote-ref${refDragGhost ? " is-dragging" : ""}`}
+        aria-label={`Edit footnote ${number}. Drag to move.`}
         aria-expanded={cardOpen}
+        aria-grabbed={refDragGhost ? true : undefined}
         draggable={false}
-        onPointerDown={(event) => {
-          // Keep ProseMirror from treating the click as an atom-node drag.
-          event.stopPropagation();
-        }}
+        onPointerDown={beginRefDrag}
+        onPointerMove={onRefDragMove}
+        onPointerUp={endRefDrag}
+        onPointerCancel={endRefDrag}
         onMouseEnter={() => {
+          if (refDrag.current?.dragging) return;
           if (prefs.footnoteOpenOnHover) {
             openCard({ focusEditor: false, sticky: false });
           }
         }}
         onMouseLeave={() => {
+          if (refDrag.current?.dragging) return;
           if (prefs.footnoteOpenOnHover) scheduleHoverClose();
         }}
-        onClick={() => openCard({ sticky: true })}
+        onClick={(event) => {
+          if (skipClickAfterDrag.current) {
+            skipClickAfterDrag.current = false;
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+          openCard({ sticky: true });
+        }}
         contentEditable={false}
       >
         {number}
@@ -757,6 +888,35 @@ export function FootnoteNodeView({
             document.body
           )
         ))}
+
+      {refDragGhost &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <>
+            <span
+              className="footnote-ref footnote-ref-ghost"
+              aria-hidden
+              style={{
+                left: refDragGhost.x,
+                top: refDragGhost.y,
+              }}
+            >
+              {number}
+            </span>
+            {refDragGhost.caret && (
+              <span
+                className="footnote-drop-caret"
+                aria-hidden
+                style={{
+                  left: refDragGhost.caret.left,
+                  top: refDragGhost.caret.top,
+                  height: refDragGhost.caret.height,
+                }}
+              />
+            )}
+          </>,
+          document.body
+        )}
     </NodeViewWrapper>
   );
 }

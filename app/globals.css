@@ -1303,12 +1303,14 @@ html.app-shell-lock body {
 }
 .footnote-ref {
   color: var(--accent);
-  cursor: pointer;
+  cursor: grab;
   font-size: 0.7em;
   font-weight: 700;
   line-height: 1;
   margin: 0 0.08em;
   padding: 0.12em 0.22em;
+  touch-action: none;
+  user-select: none;
   vertical-align: super;
 }
 .footnote-ref:hover,
@@ -1317,6 +1319,32 @@ html.app-shell-lock body {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-radius: 3px;
   outline: none;
+}
+.footnote-ref.is-dragging {
+  opacity: 0.35;
+}
+.footnote-ref-ghost {
+  cursor: grabbing;
+  opacity: 0.92;
+  pointer-events: none;
+  position: fixed;
+  transform: translate(-30%, -90%);
+  z-index: 80;
+}
+.footnote-drop-caret {
+  background: var(--accent);
+  border-radius: 1px;
+  pointer-events: none;
+  position: fixed;
+  width: 2px;
+  z-index: 80;
+}
+body.is-dragging-footnote-ref {
+  cursor: grabbing;
+  user-select: none;
+}
+body.is-dragging-footnote-ref.is-footnote-drop-blocked {
+  cursor: not-allowed;
 }
 .footnote-card {
   background: var(--background);
