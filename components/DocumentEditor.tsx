@@ -99,7 +99,17 @@ function withEditorNodeViews(extension: AnyExtension): AnyExtension {
   if (extension.name === "footnoteRef") {
     return extension.extend({
       addNodeView() {
-        return ReactNodeViewRenderer(FootnoteNodeView);
+        return ReactNodeViewRenderer(FootnoteNodeView, {
+          stopEvent: ({ event }) => {
+            const target = event.target;
+            if (!(target instanceof Element)) return false;
+            return Boolean(
+              target.closest(
+                ".footnote-ref, .footnote-sidenote, .footnote-sidenote-number, .footnote-sidenote-body"
+              )
+            );
+          },
+        });
       },
     });
   }

@@ -39,6 +39,9 @@ export function FootnoteSidenote({
       ref={rootRef}
       className="footnote-sidenote"
       contentEditable={false}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+      }}
       onWheel={(event) => {
         const el = event.currentTarget;
         if (el.scrollHeight > el.clientHeight + 1) {

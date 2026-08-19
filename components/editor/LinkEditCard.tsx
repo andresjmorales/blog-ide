@@ -331,6 +331,7 @@ export function LinkEditCard({
           ? { zIndex: card.zIndex }
           : { left: card.left, top: card.top, zIndex: card.zIndex }
       }
+      onPointerDown={(event) => event.stopPropagation()}
       onMouseDown={(event) => event.stopPropagation()}
     >
       <div className="link-edit-row">

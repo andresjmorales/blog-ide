@@ -54,6 +54,21 @@ import {
 import { createFootnoteExtensions } from "@/lib/editor/footnoteSchema";
 import { firstImageFile } from "@/lib/editor/insertEssayImage";
 import { PinnedSurface } from "@/components/pins/PinnedSurface";
+import {
+  FOOTNOTE_CARD_HEIGHT,
+  FOOTNOTE_CARD_MIN_HEIGHT,
+  FOOTNOTE_CARD_MIN_WIDTH,
+  FOOTNOTE_CARD_WIDTH,
+  footnoteAttrSyncDelay,
+  footnoteCardSize,
+  isDesktopFootnoteSurface,
+  isFootnoteOutsidePointerTarget,
+  placeFootnoteCard,
+  shouldApplyExternalFootnoteContent,
+  shouldCommitFootnoteAttrs,
+  shouldRepositionFootnoteCard,
+  sizeAfterExpandedToggle,
+} from "@/lib/editor/footnoteCard";
 
 // ProseMirror may recreate an atom NodeView when its selection changes.
 // Keep click-/pin-sticky card visibility keyed by the node's stable ID so a
@@ -93,12 +108,14 @@ export function FootnoteNodeView({
   );
   const stickyRef = useRef(sticky);
   const pinnedRef = useRef(pinned);
+  const openRef = useRef(open);
   const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dragRef = useRef<{
-    pointerId: number;
-    offsetX: number;
-    offsetY: number;
-  } | null>(null);
+  const dragSuppressUntil = useRef(0);
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== "undefined"
+      ? isDesktopFootnoteSurface(window.innerWidth)
+      : true
+  );
 
   useEffect(() => {
     stickyRef.current = sticky;
@@ -106,6 +123,16 @@ export function FootnoteNodeView({
   useEffect(() => {
     pinnedRef.current = pinned;
   }, [pinned]);
+  useEffect(() => {
+    openRef.current = open;
+  }, [open]);
+  useEffect(() => {
+    function onResize() {
+      setIsDesktop(isDesktopFootnoteSurface(window.innerWidth));
+    }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const findSession = useSyncExternalStore(
     subscribeFootnoteFindSession,
@@ -244,7 +271,16 @@ export function FootnoteNodeView({
   }, [noteEditor, cardOpen]);
 
   useEffect(() => {
-    if (!noteEditor || noteEditor.getMarkdown() === content) return;
+    if (!noteEditor) return;
+    if (
+      !shouldApplyExternalFootnoteContent({
+        incoming: content,
+        editorMarkdown: noteEditor.getMarkdown(),
+        isFocused: noteEditor.isFocused,
+      })
+    ) {
+      return;
+    }
     noteEditor.commands.setContent(content, {
       contentType: "markdown",
       emitUpdate: false,
@@ -269,18 +305,26 @@ export function FootnoteNodeView({
       const snapshot = noteEditor.getMarkdown().trim();
       if (snapshot === contentRef.current) return;
       if (attrSyncTimer.current) window.clearTimeout(attrSyncTimer.current);
-      attrSyncTimer.current = window.setTimeout(() => {
+      const delay = footnoteAttrSyncDelay(noteEditor.isFocused, snapshot);
+      const commit = () => {
         attrSyncTimer.current = 0;
-        // Re-read at commit time — do not trust the scheduling-time snapshot.
-        // Otherwise a stale empty `next` from mount can wipe real content after
-        // setContent has already loaded the footnote body.
         const latest = noteEditor.getMarkdown().trim();
-        if (latest === contentRef.current) return;
-        // Refuse to blank a non-empty note from an unfocused editor (mount /
-        // setContent races). Intentional clears still work while focused.
-        if (!latest && contentRef.current && !noteEditor.isFocused) return;
+        if (
+          !shouldCommitFootnoteAttrs({
+            next: latest,
+            current: contentRef.current,
+            isFocused: noteEditor.isFocused,
+          })
+        ) {
+          return;
+        }
         updateAttributes({ content: latest });
-      }, 200);
+      };
+      if (delay === 0) {
+        commit();
+        return;
+      }
+      attrSyncTimer.current = window.setTimeout(commit, delay);
     };
     noteEditor.on("update", sync);
     return () => {
@@ -352,19 +396,40 @@ export function FootnoteNodeView({
         setSticky(true);
       }
       setCardZ(claimFloatZ());
+      const wasOpen = openRef.current || pinnedRef.current;
       setOpen(true);
-      // Scroll after open so the card stays mounted; place near sidenote first
-      // when the superscript is off-screen (avoids a "ghost" first click).
-      if (options?.anchorEl) {
-        const rect = options.anchorEl.getBoundingClientRect();
-        const cardWidth = Math.min(352, window.innerWidth - 24);
-        setCardPosition({
-          left: Math.max(
-            12,
-            Math.min(window.innerWidth - cardWidth - 12, rect.left - cardWidth - 12)
-          ),
-          top: Math.max(12, Math.min(window.innerHeight - 240, rect.top)),
+      openRef.current = true;
+      dragSuppressUntil.current = performance.now() + 280;
+      const anchor = options?.anchorEl ?? buttonRef.current;
+      if (
+        anchor &&
+        typeof window !== "undefined" &&
+        isDesktop &&
+        shouldRepositionFootnoteCard({
+          alreadyOpen: wasOpen,
+          pinned: pinnedRef.current,
+          userPlaced: cardPositions.has(footnoteId),
+        })
+      ) {
+        const rect = anchor.getBoundingClientRect();
+        const size = footnoteCardSize(expanded);
+        const editorBounds =
+          buttonRef.current?.closest("main")?.getBoundingClientRect();
+        const placed = placeFootnoteCard({
+          refRect: rect,
+          sidenoteRect: sidenoteRef.current?.getBoundingClientRect() ?? null,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+          editorLeft: editorBounds?.left,
+          editorRight: editorBounds?.right,
+          cardWidth: size.width,
+          cardHeight: size.height,
         });
+        setCardPosition((current) => ({
+          ...placed,
+          width: current.width ?? size.width,
+          height: current.height ?? size.height,
+        }));
       }
       if (options?.scrollToAnchor) {
         requestAnimationFrame(() => {
@@ -375,17 +440,20 @@ export function FootnoteNodeView({
         });
       }
       if (options?.focusEditor !== false) {
-        requestAnimationFrame(() => noteEditor?.commands.focus("end"));
+        requestAnimationFrame(() => {
+          if (!noteEditor?.isFocused) noteEditor?.commands.focus("end");
+        });
       }
     },
-    [cancelHoverClose, footnoteId, noteEditor]
+    [cancelHoverClose, expanded, footnoteId, isDesktop, noteEditor]
   );
 
   /** Freeze the floating card at its current viewport spot (pin or drag). */
   const freezeCardPosition = useCallback(() => {
     setCardPosition((current) => {
-      const width = current.width ?? (expanded ? 448 : 360);
-      const height = current.height ?? (expanded ? 320 : 280);
+      const defaults = footnoteCardSize(expanded);
+      const width = current.width ?? defaults.width;
+      const height = current.height ?? defaults.height;
       if (
         typeof current.left === "number" &&
         typeof current.top === "number"
@@ -401,12 +469,19 @@ export function FootnoteNodeView({
       }
       const rect = buttonRef.current?.getBoundingClientRect();
       if (!rect) return { ...current, width, height };
-      const next = {
-        left: Math.max(8, Math.min(window.innerWidth - width, rect.left)),
-        top: Math.max(8, Math.min(window.innerHeight - 120, rect.bottom + 8)),
-        width,
-        height,
-      };
+      const editorBounds =
+        buttonRef.current?.closest("main")?.getBoundingClientRect();
+      const placed = placeFootnoteCard({
+        refRect: rect,
+        sidenoteRect: sidenoteRef.current?.getBoundingClientRect() ?? null,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        editorLeft: editorBounds?.left,
+        editorRight: editorBounds?.right,
+        cardWidth: width,
+        cardHeight: height,
+      });
+      const next = { ...placed, width, height };
       cardPositions.set(footnoteId, next);
       return next;
     });
@@ -421,9 +496,8 @@ export function FootnoteNodeView({
         freezeCardPosition();
       } else {
         pinnedFootnoteIds.delete(footnoteId);
-        // Resume follow-the-ref placement after unpin.
+        // Resume follow-the-ref placement after unpin without flashing to 0,0.
         cardPositions.delete(footnoteId);
-        setCardPosition({});
       }
       return next;
     });
@@ -437,6 +511,20 @@ export function FootnoteNodeView({
       } else {
         expandedFootnoteIds.delete(footnoteId);
       }
+      setCardPosition((current) => {
+        const sized = sizeAfterExpandedToggle(next, current);
+        const merged = { ...current, ...sized };
+        const stored = cardPositions.get(footnoteId);
+        if (stored && typeof current.left === "number" && typeof current.top === "number") {
+          cardPositions.set(footnoteId, {
+            left: current.left,
+            top: current.top,
+            width: sized.width,
+            height: sized.height,
+          });
+        }
+        return merged;
+      });
       return next;
     });
   }, [footnoteId]);
@@ -450,60 +538,30 @@ export function FootnoteNodeView({
   useEffect(() => {
     if (!cardOpen) return;
     function positionCard() {
-      if (window.innerWidth < 768) {
-        setCardPosition({});
-        return;
-      }
-      // Dragged or pinned cards stay put — do not track the ref on scroll.
-      if (hasDraggedPosition || pinnedRef.current) return;
-      const rect = buttonRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const cardWidth = Math.min(
-        expanded ? 448 : 352,
-        window.innerWidth - 24
-      );
-      const cardHeight = expanded ? 320 : 240;
-      const editorBounds =
-        buttonRef.current?.closest("main")?.getBoundingClientRect() ?? {
-          left: 0,
-          right: window.innerWidth,
-        };
-      const minimumLeft = Math.max(12, editorBounds.left + 12);
-      const maximumLeft = Math.min(
-        window.innerWidth - cardWidth - 12,
-        editorBounds.right - cardWidth - 12
-      );
-      const minimumTop = 12;
-      const maximumTop = Math.max(
-        minimumTop,
-        window.innerHeight - cardHeight - 12
-      );
-      const offscreen = rect.bottom < 0 || rect.top > window.innerHeight;
-      const sidenoteRect = sidenoteRef.current?.getBoundingClientRect();
-      // Prefer the visible sticky sidenote while the superscript is off-screen.
-      if (offscreen && sidenoteRect && sidenoteRect.bottom > 0) {
-        setCardPosition({
-          left: Math.max(
-            minimumLeft,
-            Math.min(maximumLeft, sidenoteRect.left - cardWidth - 12)
-          ),
-          top: Math.min(
-            maximumTop,
-            Math.max(minimumTop, sidenoteRect.top)
-          ),
+      setCardPosition((current) => {
+        if (window.innerWidth < 768) {
+          return {};
+        }
+        // Dragged or pinned cards stay put — do not track the ref on scroll.
+        if (hasDraggedPosition || pinnedRef.current) return current;
+        const rect = buttonRef.current?.getBoundingClientRect();
+        if (!rect) return current;
+        const defaults = footnoteCardSize(expanded);
+        const cardWidth = current.width ?? defaults.width;
+        const cardHeight = current.height ?? defaults.height;
+        const editorBounds =
+          buttonRef.current?.closest("main")?.getBoundingClientRect();
+        const placed = placeFootnoteCard({
+          refRect: rect,
+          sidenoteRect: sidenoteRef.current?.getBoundingClientRect() ?? null,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+          editorLeft: editorBounds?.left,
+          editorRight: editorBounds?.right,
+          cardWidth,
+          cardHeight,
         });
-        return;
-      }
-      const preferredTop = rect.bottom + 8;
-      const top = offscreen
-        ? Math.min(maximumTop, Math.max(minimumTop, window.innerHeight * 0.2))
-        : Math.min(maximumTop, Math.max(minimumTop, preferredTop));
-      setCardPosition({
-        left: Math.max(
-          minimumLeft,
-          Math.min(maximumLeft, rect.left + rect.width / 2 - cardWidth / 2)
-        ),
-        top,
+        return { ...placed, width: cardWidth, height: cardHeight };
       });
     }
     positionCard();
@@ -536,18 +594,7 @@ export function FootnoteNodeView({
     // (important when opening from a sticky sidenote while the ref is off-screen).
     if (!cardOpen || pinned || isFindTarget) return;
     function closeOnOutsidePointer(event: PointerEvent) {
-      if (!(event.target instanceof Element)) {
-        commitAndClose();
-        return;
-      }
-      // Portaled special-chars panel is outside the card DOM but belongs to it.
-      if (event.target.closest(".special-chars-panel")) return;
-      // Find UI should not dismiss a find-opened footnote mid-search.
-      if (event.target.closest(".blogide-find-replace")) return;
-      const targetFootnote = event.target
-        .closest("[data-footnote-id]")
-        ?.getAttribute("data-footnote-id");
-      if (targetFootnote !== footnoteId) {
+      if (isFootnoteOutsidePointerTarget(event.target, footnoteId)) {
         commitAndClose();
       }
     }
@@ -566,66 +613,56 @@ export function FootnoteNodeView({
     };
   }, []);
 
-  const beginDrag = useCallback(
-    (event: React.PointerEvent<HTMLElement>) => {
-      if (window.innerWidth < 768) return;
-      if (event.button !== 0) return;
-      // Pin / Done stay clickable — only the bar itself drags.
-      const target = event.target as HTMLElement;
-      if (target.closest("button, a, input, textarea, select")) return;
-      const card = event.currentTarget.closest(
-        ".footnote-card"
-      ) as HTMLElement | null;
-      const rect = card?.getBoundingClientRect();
-      if (!rect) return;
-      event.preventDefault();
-      event.stopPropagation();
-      // Dragging implies the user wants the card to stay put.
-      pinCard();
-      setCardZ(claimFloatZ());
-      event.currentTarget.setPointerCapture(event.pointerId);
-      dragRef.current = {
-        pointerId: event.pointerId,
-        offsetX: event.clientX - rect.left,
-        offsetY: event.clientY - rect.top,
-      };
-    },
-    [pinCard]
-  );
-
-  const onDragMove = useCallback(
-    (event: React.PointerEvent<HTMLElement>) => {
-      const drag = dragRef.current;
-      if (!drag || drag.pointerId !== event.pointerId) return;
-      const width = Math.min(
-        expanded ? 448 : 352,
-        window.innerWidth - 24
-      );
-      const next = {
-        left: Math.max(
-          8,
-          Math.min(
-            window.innerWidth - width - 8,
-            event.clientX - drag.offsetX
-          )
-        ),
-        top: Math.max(
-          8,
-          Math.min(window.innerHeight - 120, event.clientY - drag.offsetY)
-        ),
-      };
-      cardPositions.set(footnoteId, next);
-      setCardPosition(next);
+  const moveCard = useCallback(
+    (left: number, top: number) => {
+      setCardPosition((current) => {
+        const defaults = footnoteCardSize(expanded);
+        const next = {
+          left,
+          top,
+          width: current.width ?? defaults.width,
+          height: current.height ?? defaults.height,
+        };
+        cardPositions.set(footnoteId, next);
+        return next;
+      });
     },
     [expanded, footnoteId]
   );
 
-  const endDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
-    if (dragRef.current?.pointerId === event.pointerId) {
-      dragRef.current = null;
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  }, []);
+  const resizeCard = useCallback(
+    (width: number, height: number) => {
+      setCardPosition((current) => {
+        const next = {
+          left: current.left ?? 72,
+          top: current.top ?? 72,
+          width,
+          height,
+        };
+        cardPositions.set(footnoteId, next);
+        return next;
+      });
+    },
+    [footnoteId]
+  );
+
+  const editorBody = (
+    <>
+      {noteEditor && (
+        <FootnoteToolbar
+          editor={noteEditor}
+          expanded={expanded}
+          onToggleExpanded={toggleExpanded}
+        />
+      )}
+      <EditorContent editor={noteEditor} />
+      <span className="footnote-card-hint">
+        {expanded
+          ? "Full formatting except headings and images. Nested footnotes are not supported."
+          : "Bold, italic, and links. Expand for lists, quotes, code, and more."}
+      </span>
+    </>
+  );
 
   return (
     <NodeViewWrapper
@@ -639,6 +676,11 @@ export function FootnoteNodeView({
         className="footnote-ref"
         aria-label={`Edit footnote ${number}`}
         aria-expanded={cardOpen}
+        draggable={false}
+        onPointerDown={(event) => {
+          // Keep ProseMirror from treating the click as an atom-node drag.
+          event.stopPropagation();
+        }}
         onMouseEnter={() => {
           if (prefs.footnoteOpenOnHover) {
             openCard({ focusEditor: false, sticky: false });
@@ -668,138 +710,89 @@ export function FootnoteNodeView({
 
       {cardOpen &&
         typeof document !== "undefined" &&
-        (pinned && window.innerWidth >= 768 ? (
+        (isDesktop ? (
           <PinnedSurface
             title={`Footnote ${number}`}
             left={cardPosition.left ?? 72}
             top={cardPosition.top ?? 72}
-            width={cardPosition.width ?? 360}
-            height={cardPosition.height ?? 280}
+            width={cardPosition.width ?? FOOTNOTE_CARD_WIDTH}
+            height={cardPosition.height ?? FOOTNOTE_CARD_HEIGHT}
             zIndex={cardZ}
-            className="footnote-pin"
+            className={pinned ? "footnote-pin is-pinned" : "footnote-pin"}
             closeLabel="Close footnote"
-            minWidth={280}
-            minHeight={200}
+            minWidth={FOOTNOTE_CARD_MIN_WIDTH}
+            minHeight={FOOTNOTE_CARD_MIN_HEIGHT}
+            dataAttributes={{ "data-footnote-id": footnoteId }}
             onClose={commitAndClose}
-            onRaise={() => setCardZ(claimFloatZ())}
-            onMove={(left, top) => {
-              const next = {
-                left,
-                top,
-                width: cardPosition.width ?? 360,
-                height: cardPosition.height ?? 280,
-              };
-              cardPositions.set(footnoteId, next);
-              setCardPosition(next);
+            onRaise={() => {
+              stickyFootnoteIds.add(footnoteId);
+              setSticky(true);
+              setCardZ(claimFloatZ());
             }}
-            onResize={(width, height) => {
-              const next = {
-                left: cardPosition.left ?? 72,
-                top: cardPosition.top ?? 72,
-                width,
-                height,
-              };
-              cardPositions.set(footnoteId, next);
-              setCardPosition(next);
-            }}
+            onDragStart={pinCard}
+            canBeginDrag={() => performance.now() >= dragSuppressUntil.current}
+            onMove={moveCard}
+            onResize={resizeCard}
             onMouseEnter={cancelHoverClose}
+            onMouseLeave={() => {
+              if (prefs.footnoteOpenOnHover) scheduleHoverClose();
+            }}
             headerActions={
               <button
                 type="button"
                 className="pinned-surface-btn"
                 onClick={togglePinned}
                 aria-pressed={pinned}
-                title="Unpin footnote"
-                aria-label="Unpin footnote"
+                title={pinned ? "Unpin footnote" : "Pin footnote"}
+                aria-label={pinned ? "Unpin footnote" : "Pin footnote"}
               >
                 <PinIcon />
               </button>
             }
           >
-            {noteEditor && (
-              <FootnoteToolbar
-                editor={noteEditor}
-                expanded={expanded}
-                onToggleExpanded={toggleExpanded}
-              />
-            )}
-            <EditorContent editor={noteEditor} />
-            <span className="footnote-card-hint">
-              {expanded
-                ? "Full formatting except headings and images. Nested footnotes are not supported."
-                : "Bold, italic, and links. Expand for lists, quotes, code, and more."}
-            </span>
+            {editorBody}
           </PinnedSurface>
         ) : (
-        createPortal(
-          <span
-            className={`footnote-card ${pinned ? "is-pinned" : ""} ${
-              expanded ? "is-expanded" : ""
-            }`}
-            data-footnote-id={footnoteId}
-            contentEditable={false}
-            style={{
-              left: cardPosition.left,
-              top: cardPosition.top,
-              zIndex: cardZ,
-            }}
-            onMouseEnter={cancelHoverClose}
-            onMouseLeave={() => {
-              if (prefs.footnoteOpenOnHover) scheduleHoverClose();
-            }}
-            onPointerDown={() => {
-              // Interacting with the card counts as engaging it.
-              stickyFootnoteIds.add(footnoteId);
-              setSticky(true);
-              setCardZ(claimFloatZ());
-            }}
-          >
+          createPortal(
             <span
-              className="footnote-card-heading"
-              title="Drag to move"
-              onPointerDown={beginDrag}
-              onPointerMove={onDragMove}
-              onPointerUp={endDrag}
-              onPointerCancel={endDrag}
+              className={`footnote-card ${pinned ? "is-pinned" : ""} ${
+                expanded ? "is-expanded" : ""
+              }`}
+              data-footnote-id={footnoteId}
+              contentEditable={false}
+              style={{
+                left: cardPosition.left,
+                top: cardPosition.top,
+                zIndex: cardZ,
+              }}
+              onMouseEnter={cancelHoverClose}
+              onMouseLeave={() => {
+                if (prefs.footnoteOpenOnHover) scheduleHoverClose();
+              }}
+              onPointerDown={() => {
+                stickyFootnoteIds.add(footnoteId);
+                setSticky(true);
+                setCardZ(claimFloatZ());
+              }}
             >
-              <span className="footnote-card-title">
-                <span>Footnote {number}</span>
+              <span className="footnote-card-heading">
+                <span className="footnote-card-title">
+                  <span>Footnote {number}</span>
+                </span>
+                <span className="footnote-card-actions">
+                  <button
+                    type="button"
+                    onClick={commitAndClose}
+                    aria-label="Close footnote editor"
+                  >
+                    Done
+                  </button>
+                </span>
               </span>
-              <span className="footnote-card-actions">
-                <button
-                  type="button"
-                  onClick={togglePinned}
-                  aria-pressed={pinned}
-                  title={pinned ? "Unpin footnote" : "Pin footnote"}
-                  aria-label={pinned ? "Unpin footnote" : "Pin footnote"}
-                >
-                  <PinIcon />
-                </button>
-                <button
-                  type="button"
-                  onClick={commitAndClose}
-                  aria-label="Close footnote editor"
-                >
-                  Done
-                </button>
-              </span>
-            </span>
-            {noteEditor && (
-              <FootnoteToolbar
-                editor={noteEditor}
-                expanded={expanded}
-                onToggleExpanded={toggleExpanded}
-              />
-            )}
-            <EditorContent editor={noteEditor} />
-            <span className="footnote-card-hint">
-              {expanded
-                ? "Full formatting except headings and images. Nested footnotes are not supported."
-                : "Bold, italic, and links. Expand for lists, quotes, code, and more."}
-            </span>
-          </span>,
-          document.body
-        )
+              {editorBody}
+            </span>,
+            document.body
+          )
         ))}
     </NodeViewWrapper>
   );

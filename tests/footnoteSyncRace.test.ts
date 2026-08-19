@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { shouldCommitFootnoteAttrs } from "@/lib/editor/footnoteCard";
 
 /**
  * Regression for: first Substack footnote (often link-heavy) went empty after
@@ -55,8 +56,15 @@ describe("footnote nested-editor sync race", () => {
       attrSyncTimer = window.setTimeout(() => {
         attrSyncTimer = 0;
         const latest = markdown.trim();
-        if (latest === contentRef.current) return;
-        if (!latest && contentRef.current) return; // unfocused blank guard
+        if (
+          !shouldCommitFootnoteAttrs({
+            next: latest,
+            current: contentRef.current,
+            isFocused: false,
+          })
+        ) {
+          return;
+        }
         writes.push(latest);
         contentRef.current = latest;
       }, 200) as unknown as number;

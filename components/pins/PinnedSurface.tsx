@@ -6,6 +6,7 @@ import {
   POP_OUT_MIN_HEIGHT,
   POP_OUT_MIN_WIDTH,
 } from "@/lib/pins/popOutStore";
+import { shouldStartPointerDrag } from "@/lib/pins/surfacePointer";
 
 type Props = {
   title: string;
@@ -18,6 +19,10 @@ type Props = {
   onRaise: () => void;
   onMove: (left: number, top: number) => void;
   onResize: (width: number, height: number) => void;
+  /** Fires once when a titlebar gesture crosses the drag threshold. */
+  onDragStart?: () => void;
+  /** When false, titlebar movement never starts a drag (e.g. just after open). */
+  canBeginDrag?: () => boolean;
   headerActions?: ReactNode;
   children: ReactNode;
   className?: string;
@@ -26,6 +31,8 @@ type Props = {
   minHeight?: number;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  /** Extra data-* attributes on the floating root (e.g. data-footnote-id). */
+  dataAttributes?: Record<string, string>;
 };
 
 export function PinnedSurface({
@@ -39,6 +46,8 @@ export function PinnedSurface({
   onRaise,
   onMove,
   onResize,
+  onDragStart,
+  canBeginDrag,
   headerActions,
   children,
   className,
@@ -47,11 +56,15 @@ export function PinnedSurface({
   minHeight = POP_OUT_MIN_HEIGHT,
   onMouseEnter,
   onMouseLeave,
+  dataAttributes,
 }: Props) {
   const dragRef = useRef<{
     pointerId: number;
+    originX: number;
+    originY: number;
     offsetX: number;
     offsetY: number;
+    dragging: boolean;
   } | null>(null);
   const resizeRef = useRef<{
     pointerId: number;
@@ -66,14 +79,20 @@ export function PinnedSurface({
       if (event.button !== 0) return;
       const target = event.target as HTMLElement;
       if (target.closest("button, a, input, textarea, select")) return;
-      event.preventDefault();
       onRaise();
-      event.currentTarget.setPointerCapture(event.pointerId);
       dragRef.current = {
         pointerId: event.pointerId,
+        originX: event.clientX,
+        originY: event.clientY,
         offsetX: event.clientX - left,
         offsetY: event.clientY - top,
+        dragging: false,
       };
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        /* jsdom / already captured */
+      }
     },
     [left, onRaise, top]
   );
@@ -82,9 +101,23 @@ export function PinnedSurface({
     (event: React.PointerEvent<HTMLElement>) => {
       const drag = dragRef.current;
       if (!drag || drag.pointerId !== event.pointerId) return;
+      if (!drag.dragging) {
+        if (
+          !shouldStartPointerDrag(
+            { x: drag.originX, y: drag.originY },
+            { x: event.clientX, y: event.clientY }
+          )
+        ) {
+          return;
+        }
+        if (canBeginDrag && !canBeginDrag()) return;
+        drag.dragging = true;
+        event.preventDefault();
+        onDragStart?.();
+      }
       onMove(event.clientX - drag.offsetX, event.clientY - drag.offsetY);
     },
-    [onMove]
+    [canBeginDrag, onDragStart, onMove]
   );
 
   const endDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
@@ -104,7 +137,6 @@ export function PinnedSurface({
       event.preventDefault();
       event.stopPropagation();
       onRaise();
-      event.currentTarget.setPointerCapture(event.pointerId);
       resizeRef.current = {
         pointerId: event.pointerId,
         startX: event.clientX,
@@ -112,6 +144,11 @@ export function PinnedSurface({
         startW: width,
         startH: height,
       };
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        /* jsdom / already captured */
+      }
     },
     [height, onRaise, width]
   );
@@ -153,6 +190,7 @@ export function PinnedSurface({
       onMouseLeave={onMouseLeave}
       role="dialog"
       aria-label={title}
+      {...dataAttributes}
     >
       <header
         className="pinned-surface-titlebar"

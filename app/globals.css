@@ -1510,6 +1510,9 @@ html.app-shell-lock body {
   font-size: 0.68rem;
   margin-top: 0.45rem;
 }
+.footnote-pin.is-pinned {
+  border-color: var(--accent);
+}
 .footnote-pin .pinned-surface-body {
   padding: 0.45rem 0 0.65rem;
 }
