@@ -1714,7 +1714,8 @@ body.is-dragging-footnote-ref.is-footnote-drop-blocked {
 /* Title + tabs stay put; body scrolls (Windows-style properties dialog). */
 .settings-panel.is-anchored {
   gap: 0;
-  min-height: min(22rem, calc(100dvh - 2rem));
+  height: min(34rem, calc(100dvh - 2rem));
+  max-height: min(34rem, calc(100dvh - 2rem));
   overflow: hidden;
   padding: 0;
 }
@@ -1759,18 +1760,79 @@ body.is-dragging-footnote-ref.is-footnote-drop-blocked {
   padding: 1rem 1.25rem 1.35rem;
 }
 .settings-section h3 {
+  align-items: center;
+  display: flex;
   font-size: 0.72rem;
   font-weight: 650;
+  gap: 0.3rem;
   letter-spacing: 0.06em;
   margin-bottom: 0.45rem;
   text-transform: uppercase;
   color: var(--muted);
+}
+.settings-section-subhead {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.72rem;
+  font-weight: 650;
+  gap: 0.3rem;
+  letter-spacing: 0.06em;
+  margin: 1.25rem 0 0.45rem;
+  text-transform: uppercase;
 }
 .settings-help {
   color: var(--muted);
   font-size: 0.8rem;
   line-height: 1.45;
   margin-bottom: 0.65rem;
+}
+.settings-label {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.settings-info {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.settings-info-btn {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted);
+  cursor: help;
+  display: inline-flex;
+  height: 1.1rem;
+  justify-content: center;
+  padding: 0;
+  width: 1.1rem;
+}
+.settings-info-btn:hover,
+.settings-info-btn:focus-visible {
+  color: var(--accent);
+  outline: none;
+}
+.settings-info-tip {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 16%);
+  color: var(--foreground);
+  font-size: 0.75rem;
+  font-weight: 400;
+  left: 0;
+  letter-spacing: 0;
+  line-height: 1.45;
+  max-width: min(16.5rem, calc(100vw - 1rem));
+  padding: 0.5rem 0.65rem;
+  position: fixed;
+  text-transform: none;
+  white-space: normal;
+  width: max-content;
+  z-index: 80;
 }
 .settings-row {
   align-items: center;

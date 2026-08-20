@@ -24,7 +24,7 @@ export default function ConnectionDialogPreviewPage() {
     <div className="relative min-h-dvh bg-background text-foreground">
       {/* Fake editor chrome behind the overlay */}
       <header className="flex h-11 items-center justify-between border-b border-border px-3 text-xs text-muted">
-        <span>Panels · Preferences</span>
+        <span>Panels</span>
         <span className="font-semibold text-foreground">BlogIDE</span>
         <span>Synced · menu</span>
       </header>

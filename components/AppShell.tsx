@@ -17,8 +17,7 @@ import {
   type EditorPrefs,
 } from "@/lib/settings";
 import { DocumentWorkspace } from "@/components/DocumentWorkspace";
-import { SettingsPanel } from "@/components/SettingsPanel";
-import { EditorSettingsPanel } from "@/components/EditorSettingsPanel";
+import { SettingsPanel, type SettingsTab } from "@/components/SettingsPanel";
 import { WorkspaceConnectionDialog } from "@/components/WorkspaceConnectionDialog";
 import { HelpPanel } from "@/components/HelpPanel";
 import {
@@ -40,6 +39,7 @@ import {
 import { LibraryPanel } from "@/components/LibraryPanel";
 import { DockRegion } from "@/components/panels/DockRegion";
 import { PanelsMenu } from "@/components/panels/PanelsMenu";
+import { FullscreenButton } from "@/components/FullscreenButton";
 import {
   PersistentPanel,
   usePanelTargets,
@@ -295,7 +295,7 @@ function AppShellContent({
   const dragging = useRef<"left" | "right" | "shell" | null>(null);
   const prefsRef = useRef(storedPrefs);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [editorSettingsOpen, setEditorSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("account");
   const [helpOpen, setHelpOpen] = useState(false);
   // Mobile drawers are session-local and default closed: phones open to a
   // clean editor, and toggling them never rewrites the synced desktop layout.
@@ -1505,7 +1505,10 @@ function AppShellContent({
       onApplySelection={(markdown, selection) =>
         applySelectionForAiRef.current(markdown, selection)
       }
-      onOpenSettings={() => setSettingsOpen(true)}
+      onOpenSettings={() => {
+        setSettingsTab("integrations");
+        setSettingsOpen(true);
+      }}
     />
   );
 
@@ -1556,6 +1559,7 @@ function AppShellContent({
         >
           <header className="relative flex h-11 shrink-0 items-center justify-between border-b border-border px-3">
             <div className="z-10 flex items-center gap-2">
+              <FullscreenButton />
               {isMobile ? (
                 <button
                   onClick={() => setMobileLeftOpen((v) => !v)}
@@ -1570,15 +1574,6 @@ function AppShellContent({
                   onToggle={(id) => applyLayout(togglePanel(panelLayout, id))}
                 />
               )}
-              <button
-                type="button"
-                onClick={() => setEditorSettingsOpen(true)}
-                title="Preferences"
-                aria-label="Preferences"
-                className="blogide-chrome-btn"
-              >
-                Preferences
-              </button>
               {isMobile && !previewMode && (
                 <ShellButton
                   nodes={nodes}
@@ -1627,7 +1622,10 @@ function AppShellContent({
                 email={previewMode ? "" : userEmail}
                 avatarUrl={accountAvatarUrl}
                 previewMode={previewMode}
-                onAccountSettings={() => setSettingsOpen(true)}
+                onAccountSettings={() => {
+                  setSettingsTab("account");
+                  setSettingsOpen(true);
+                }}
                 onHelp={() => setHelpOpen(true)}
                 onSignOut={() => void signOut()}
               />
@@ -1841,6 +1839,7 @@ function AppShellContent({
           <SettingsPanel
             open={settingsOpen}
             onClose={() => setSettingsOpen(false)}
+            initialTab={settingsTab}
             email={previewMode ? "" : userEmail}
             displayName={resolvedName}
             avatarUrl={accountAvatarUrl}
@@ -1861,10 +1860,6 @@ function AppShellContent({
                 ? undefined
                 : () => void handlePullFromGithub("workspace")
             }
-          />
-          <EditorSettingsPanel
-            open={editorSettingsOpen}
-            onClose={() => setEditorSettingsOpen(false)}
           />
           <WorkspaceConnectionDialog
             open={connectionBlocked}

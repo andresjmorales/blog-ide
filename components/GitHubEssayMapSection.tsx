@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { GitHubMapFields } from "@/components/GitHubMapFields";
 import { GithubMark } from "@/components/icons";
+import { SettingsInfo } from "@/components/SettingsInfo";
 import { ensureMarkdownFileName } from "@/lib/github/repo";
 import {
   loadGithubSettings,
@@ -98,18 +99,17 @@ export function GitHubEssayMapSection({
     return (
       <p className="settings-help">
         Sign in to map this essay to a GitHub file. The personal access token
-        stays on this device under Account settings.
+        stays on this device under Settings → Integrations.
       </p>
     );
   }
 
   return (
     <>
-      <p className="settings-help">
-        Map this essay to a file in your backup repo. Push overwrites that path
-        and leaves extra files alone. Pull shows a diff before replacing the
-        editor. Token and default repo live in Account settings.
-      </p>
+      <h3>
+        Mapping
+        <SettingsInfo text="Map this essay to a file in your backup repo. Push overwrites that path and leaves extra files alone. Pull shows a diff before replacing the editor. Token and default repo live in Settings → Integrations." />
+      </h3>
       {status && (
         <p
           className={
@@ -134,7 +134,7 @@ export function GitHubEssayMapSection({
       )}
       {!settings?.repo && (
         <p className="settings-help">
-          Set a default repo in Account settings if you leave Repo blank below.
+          Set a default repo in Settings → Integrations if you leave Repo blank below.
         </p>
       )}
       <GitHubMapFields

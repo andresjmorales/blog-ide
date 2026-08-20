@@ -72,6 +72,7 @@ import {
 } from "@/lib/markdown/publication";
 import { EssaySettingsPanel, type EssayTab } from "@/components/EssaySettingsPanel";
 import { EssayTitleBlock } from "@/components/EssayTitleBlock";
+import { KebabIcon } from "@/components/icons";
 import { MarkdownSplitView } from "@/components/MarkdownSplitView";
 import { convertMarkdownFootnoteLinks } from "@/lib/import/footnotePaste";
 import { getActiveProvider, loadAiKeys } from "@/lib/ai/keys";
@@ -737,6 +738,53 @@ export function DocumentWorkspace({
     registerApplySelectionForAi?.(applySelectionForAi);
   }, [registerApplySelectionForAi, applySelectionForAi]);
 
+  const runAiImportCleanup = useCallback(async () => {
+    const full = isMarkdownCanonical(mode)
+      ? sourceText
+      : packDocument(frontmatter, subtitle, author, publication, body);
+    const provider = getActiveProvider(loadAiKeys());
+    if (!provider) {
+      await dialog.confirm({
+        title: "Add an API key",
+        message: "Save an Anthropic or OpenAI key under Settings → Integrations to clean imports with AI.",
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
+      return;
+    }
+    try {
+      const reply = await chatCompletion({
+        messages: [
+          {
+            role: "user",
+            content: `Clean up this pasted essay for BlogIDE:\n\n${full}`,
+          },
+        ],
+        system: IMPORT_CLEANUP_SYSTEM,
+        provider,
+      });
+      applyMarkdown(unwrapMarkdownReply(reply.trim()));
+    } catch (error) {
+      await dialog.confirm({
+        title: "AI cleanup failed",
+        message:
+          error instanceof Error ? error.message : "Could not clean import.",
+        confirmLabel: "OK",
+        cancelLabel: "Dismiss",
+      });
+    }
+  }, [
+    mode,
+    sourceText,
+    frontmatter,
+    subtitle,
+    author,
+    publication,
+    body,
+    applyMarkdown,
+    dialog,
+  ]);
+
   const convertFootnoteLinks = useCallback(async () => {
     const full = isMarkdownCanonical(mode)
       ? sourceText
@@ -747,44 +795,23 @@ export function DocumentWorkspace({
       return;
     }
 
-    const keys = loadAiKeys();
-    const provider = getActiveProvider(keys);
-    if (keys.importAssist && provider) {
+    const provider = getActiveProvider(loadAiKeys());
+    if (provider) {
       const ok = await dialog.confirm({
-        title: "AI import assist?",
+        title: "Clean with AI?",
         message:
           "No simple footnote links were found. Run AI cleanup for footnotes, headings, and quote-like indentation?",
         confirmLabel: "Clean with AI",
       });
       if (!ok) return;
-      try {
-        const reply = await chatCompletion({
-          messages: [
-            {
-              role: "user",
-              content: `Clean up this pasted essay for BlogIDE:\n\n${full}`,
-            },
-          ],
-          system: IMPORT_CLEANUP_SYSTEM,
-          provider,
-        });
-        applyMarkdown(unwrapMarkdownReply(reply.trim()));
-      } catch (error) {
-        await dialog.confirm({
-          title: "AI cleanup failed",
-          message:
-            error instanceof Error ? error.message : "Could not clean import.",
-          confirmLabel: "OK",
-          cancelLabel: "Dismiss",
-        });
-      }
+      await runAiImportCleanup();
       return;
     }
 
     await dialog.confirm({
       title: "Nothing to convert",
       message:
-        "No Substack-style footnote links or split note blocks matched. Re-paste from Substack, or enable AI import assist in Settings.",
+        "No Substack-style footnote links or split note blocks matched. Re-paste from Substack, or add an API key and use Cleanup → Import → Clean with AI.",
       confirmLabel: "OK",
       cancelLabel: "Close",
     });
@@ -798,6 +825,7 @@ export function DocumentWorkspace({
     body,
     applyMarkdown,
     dialog,
+    runAiImportCleanup,
   ]);
 
   // External rename (Files panel) → update frontmatter title.
@@ -1679,7 +1707,10 @@ export function DocumentWorkspace({
           Pop out
         </button>
       )}
-      <EditorOverflowMenu items={overflowItems} />
+      <EditorOverflowMenu
+        items={overflowItems}
+        trigger={<KebabIcon />}
+      />
     </>
   );
 
@@ -1741,6 +1772,7 @@ export function DocumentWorkspace({
         initialTab={cleanupTab}
         getMarkdown={currentMarkdown}
         onFixFootnotes={() => void convertFootnoteLinks()}
+        onAiCleanup={() => void runAiImportCleanup()}
       />
     </>
   );
@@ -1913,6 +1945,7 @@ export function DocumentWorkspace({
         initialTab={cleanupTab}
         getMarkdown={currentMarkdown}
         onFixFootnotes={() => void convertFootnoteLinks()}
+        onAiCleanup={() => void runAiImportCleanup()}
       />
     </>
   );
