@@ -504,16 +504,6 @@ export function AiSidebar({
       disabled: true,
       onSelect: () => {},
     },
-    ...(keys.importAssist
-      ? [
-          {
-            id: "import-assist",
-            label: "Import assist on",
-            disabled: true,
-            onSelect: () => {},
-          },
-        ]
-      : []),
     {
       id: "clean",
       label: "Clean import",

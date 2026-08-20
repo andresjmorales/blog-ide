@@ -16,6 +16,7 @@ import {
 import type { GithubMapStatus, GithubRemoteSettings, GithubSyncMap } from "@/lib/github/types";
 import { GitHubMapDialog } from "@/components/GitHubMapDialog";
 import { GithubMark } from "@/components/icons";
+import { SettingsInfo } from "@/components/SettingsInfo";
 import { githubStatusTitle } from "@/lib/github/status";
 
 export type GithubMapNode = {
@@ -75,17 +76,10 @@ export function GitHubSettingsSection({
 
   return (
     <section className="settings-section">
-      <h3>GitHub backup</h3>
-      <p className="settings-help">
-        One-way by default: BlogIDE overwrites matching files and leaves extras
-        in the repo. Pull is explicit — you will see a diff and confirm before
-        anything in the editor is replaced. If you move a mapped file in git,
-        BlogIDE will not follow it automatically; the mapping badge turns orange
-        so you can remap or pull from the new path. Refreshing Files never
-        creates a second essay from GitHub. The open essay can also be mapped
-        under Essay settings → GitHub. The personal access token
-        is stored only in this browser (Contents: Read and write).
-      </p>
+      <h3>
+        GitHub backup
+        <SettingsInfo text="One-way by default: BlogIDE overwrites matching files and leaves extras in the repo. Pull is explicit: you will see a diff and confirm before anything in the editor is replaced. If you move a mapped file in git, BlogIDE will not follow it automatically; the mapping badge turns orange so you can remap or pull from the new path. Refreshing Files never creates a second essay from GitHub. The open essay can also be mapped under Essay settings → GitHub. The personal access token is stored only in this browser (Contents: Read and write)." />
+      </h3>
       {previewMode ? (
         <p className="settings-help">Sign in to configure GitHub backup.</p>
       ) : (
@@ -211,13 +205,10 @@ export function GitHubSettingsSection({
             Save repo settings
           </button>
 
-          <h4 className="mt-5 mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+          <h4 className="settings-section-subhead">
             Folder maps
+            <SettingsInfo text="Map a folder to a path in a site repo, or a document to a file such as README.md. Right-click in Files also works." />
           </h4>
-          <p className="settings-help mb-2">
-            Map a folder to a path in a site repo, or a document to a file such
-            as README.md. Right-click in Files also works.
-          </p>
           {settings.maps.length === 0 ? (
             <p className="settings-help">No folder maps yet.</p>
           ) : (

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { GitHubEssayMapSection } from "@/components/GitHubEssayMapSection";
+import { SettingsInfo, SettingsLabel } from "@/components/SettingsInfo";
 import type { GithubMapStatus } from "@/lib/github/types";
 import {
   HARPER_LANGUAGE_OPTIONS,
@@ -223,12 +224,10 @@ function EssaySettingsDialog({
         <div className="settings-panel-body" role="tabpanel">
           {tab === "title" && (
             <section className="settings-section">
-              <p className="settings-help">
-                Same as the Title field at the top of the essay. Changing it
-                renames the file in the Files panel.
-              </p>
-              <label className="settings-row settings-row-stack">
-                <span className="sr-only">Essay title</span>
+              <div className="settings-row settings-row-stack">
+                <SettingsLabel info="Same as the Title field at the top of the essay. Changing it renames the file in the Files panel.">
+                  Essay title
+                </SettingsLabel>
                 <input
                   type="text"
                   value={draftTitle}
@@ -244,14 +243,28 @@ function EssaySettingsDialog({
                   }}
                   className="settings-text-input"
                 />
-              </label>
+              </div>
             </section>
           )}
 
           {tab === "writing" && (
             <section className="settings-section">
-              <label className="settings-row">
-                <span>For this essay</span>
+              <div className="settings-row">
+                <SettingsLabel
+                  info={
+                    !effectiveEnabled
+                      ? spellcheckOverride === null && !prefs.spellcheckEnabled
+                        ? "Writing check is off for this essay (Settings default). Turn it on here or under Settings → Editor."
+                        : "Writing check is off for this essay."
+                      : `English dialect for Harper (on-device spelling + grammar). Selecting a dialect makes it primary.${
+                          inheritingLangs
+                            ? " Showing Settings defaults until you change them."
+                            : ""
+                        }`
+                  }
+                >
+                  For this essay
+                </SettingsLabel>
                 <select
                   value={spellcheckOverride ?? "inherit"}
                   onChange={(event) => {
@@ -268,24 +281,10 @@ function EssaySettingsDialog({
                   <option value="on">On</option>
                   <option value="off">Off</option>
                 </select>
-              </label>
+              </div>
 
-              {!effectiveEnabled ? (
-                <p className="settings-help">
-                  Writing check is off for this essay
-                  {spellcheckOverride === null && !prefs.spellcheckEnabled
-                    ? " (Preferences default). Turn it on here or under Preferences."
-                    : "."}
-                </p>
-              ) : (
+              {!effectiveEnabled ? null : (
                 <>
-                  <p className="settings-help">
-                    English dialect for Harper (on-device spelling + grammar).
-                    Selecting a dialect makes it primary.
-                    {inheritingLangs
-                      ? " Showing Preferences defaults until you change them."
-                      : ""}
-                  </p>
                   <div className="spellcheck-langs is-detailed">
                     {HARPER_LANGUAGE_OPTIONS.map((option) => {
                       const checked = essayLangs.includes(option.code);
@@ -323,15 +322,12 @@ function EssaySettingsDialog({
                   {!isHarperSupportedLang(primary) && (
                     <p className="settings-help">
                       Harper is English-only for now, so writing check stays
-                      idle until an English dialect is primary. A
-                      dictionary-based checker for other languages may come
-                      later.
+                      idle until an English dialect is primary.
                     </p>
                   )}
-                  <p className="settings-help">
-                    Red underlines are spelling/typos; blue are grammar and
-                    style. Click an underline for suggestions. Runs locally in
-                    your browser (WASM).
+                  <p className="flex items-center gap-1 text-xs text-muted">
+                    Underlines
+                    <SettingsInfo text="Red underlines are spelling/typos; blue are grammar and style. Click an underline for suggestions. Runs locally in your browser (WASM)." />
                   </p>
                 </>
               )}

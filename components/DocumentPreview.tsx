@@ -5,7 +5,7 @@ import { buildPublicationPreview } from "@/lib/preview/publicationHtml";
 
 /**
  * Inline publication preview (kept for possible future right-panel use).
- * Primary entry point today: ⋯ → Preview in new tab via openPublicationPreviewTab.
+ * Primary entry point today: essay menu → Preview in new tab via openPublicationPreviewTab.
  */
 export function DocumentPreview({ markdown }: { markdown: string }) {
   const { title, subtitle, author, bodyHtml } = useMemo(

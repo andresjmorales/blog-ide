@@ -85,9 +85,9 @@ export function HelpPanel({ open, onClose }: Props) {
             link (or Ctrl+K) for the link menu with Open Graph preview, Open,
             Pin, and Library. The{" "}
             <strong>Library</strong> panel (right dock) holds
-            research PDFs and bookmarks. Use ⋯ → Preview in new tab for
+            research PDFs and bookmarks. Use the essay menu → Preview in new tab for
             publication-style HTML. Copy → All text copies the markdown. Copy →
-            Substack / Medium (⋯ or Cleanup → Publish) turns GFM footnotes into
+            Substack / Medium (essay menu or Cleanup → Publish) turns GFM footnotes into
             numbered notes for that platform. Export Word when Pandoc is
             installed, or Push to GitHub. Edits save locally first, then sync
             online.
@@ -101,8 +101,8 @@ export function HelpPanel({ open, onClose }: Props) {
             a chat-style stream — open the <strong>Notes</strong> panel from the
             Panels menu. Channel files are managed from the Notes manager icon in
             that panel (new channel, open channel doc, rename, trash), not from
-            the Files tree. On phone, the header Notes button opens capture mode;
-            Shell can open by default (Settings → Account → Mobile). A pinned
+            the Files tree.             On phone, the header Notes button opens capture mode;
+            Shell can open by default (Settings → Editor). A pinned
             scratchpad.md is seeded for scraps; treat it like any other essay.
           </p>
         </section>
@@ -141,7 +141,7 @@ export function HelpPanel({ open, onClose }: Props) {
             </li>
             <li>
               fetch(bible) (Settings → Integrations, off by default): highlights
-              English scripture references; ⋯ → Open Bible opens the pinned
+              English scripture references; essay menu → Open Bible opens the pinned
               reader (Berean Standard Bible)
             </li>
             <li>

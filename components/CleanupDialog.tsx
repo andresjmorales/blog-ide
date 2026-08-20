@@ -19,6 +19,7 @@ import {
 import { copyDocumentForPaste } from "@/lib/export/document";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { BroomIcon, PinIcon } from "@/components/icons";
+import { getActiveProvider, loadAiKeys } from "@/lib/ai/keys";
 import { claimFloatZ } from "@/lib/pins/pinStore";
 
 const CLEANUP_PANEL_MAX_WIDTH_PX = 440;
@@ -44,6 +45,8 @@ type Props = {
   editor: Editor | null;
   initialTab?: CleanupTab;
   onFixFootnotes?: () => void | Promise<void>;
+  /** AI cleanup for messy paste; shown on Import when a key is saved. */
+  onAiCleanup?: () => void | Promise<void>;
   /** Full document markdown for the Publish tab. */
   getMarkdown: () => string;
 };
@@ -58,6 +61,7 @@ export function CleanupDialog({
   editor,
   initialTab = "import",
   onFixFootnotes,
+  onAiCleanup,
   getMarkdown,
 }: Props) {
   if (!open) return null;
@@ -69,6 +73,7 @@ export function CleanupDialog({
       editor={editor}
       initialTab={initialTab}
       onFixFootnotes={onFixFootnotes}
+      onAiCleanup={onAiCleanup}
       getMarkdown={getMarkdown}
     />
   );
@@ -79,12 +84,14 @@ function CleanupPanel({
   editor,
   initialTab,
   onFixFootnotes,
+  onAiCleanup,
   getMarkdown,
 }: {
   onClose: () => void;
   editor: Editor | null;
   initialTab: CleanupTab;
   onFixFootnotes?: () => void | Promise<void>;
+  onAiCleanup?: () => void | Promise<void>;
   getMarkdown: () => string;
 }) {
   const titleId = useId();
@@ -101,6 +108,19 @@ function CleanupPanel({
   } | null>(null);
 
   const [publishRunId, setPublishRunId] = useState(0);
+  const [aiReady, setAiReady] = useState(() =>
+    Boolean(getActiveProvider(loadAiKeys()))
+  );
+  const [aiBusy, setAiBusy] = useState(false);
+
+  useEffect(() => {
+    function refreshAi() {
+      setAiReady(Boolean(getActiveProvider(loadAiKeys())));
+    }
+    refreshAi();
+    window.addEventListener("blogide-ai-keys", refreshAi);
+    return () => window.removeEventListener("blogide-ai-keys", refreshAi);
+  }, []);
 
   useEffect(() => {
     if (pinned) return;
@@ -279,7 +299,7 @@ function CleanupPanel({
             <section>
               <p className="blogide-cleanup-hint">
                 Repair paste from Substack / Docs (footnote markers and split
-                notes). May offer AI cleanup if enabled in Settings.
+                notes).
               </p>
               <div className="blogide-cleanup-actions">
                 <ActionButton
@@ -290,6 +310,19 @@ function CleanupPanel({
                     void onFixFootnotes();
                   }}
                 />
+                {aiReady && onAiCleanup ? (
+                  <ActionButton
+                    label={aiBusy ? "Cleaning…" : "Clean with AI"}
+                    hint="Rewrite messy paste (footnotes, headings, quotes)"
+                    disabled={aiBusy}
+                    onClick={() => {
+                      setAiBusy(true);
+                      void Promise.resolve(onAiCleanup()).finally(() => {
+                        setAiBusy(false);
+                      });
+                    }}
+                  />
+                ) : null}
               </div>
             </section>
           )}
@@ -462,7 +495,7 @@ function PublishTab({
       await copyDocumentForPaste({ markdown, html });
       setCopyStatus(`Copied for ${spec?.label ?? target}.`);
     } catch {
-      setCopyStatus("Copy failed. Try ⋯ → Copy → All text for markdown.");
+      setCopyStatus("Copy failed. Try the essay menu → Copy → All text for markdown.");
     } finally {
       setCopyBusy(null);
     }
@@ -472,7 +505,7 @@ function PublishTab({
     <section>
       <p className="blogide-cleanup-hint">
         Copy a platform-specific HTML paste (GFM footnotes become numbered
-        notes for that site). ⋯ Copy → All text stays raw markdown.
+        notes for that site). Essay menu → Copy → All text stays raw markdown.
       </p>
       <div className="blogide-cleanup-actions mb-3">
         {PUBLISH_COPY_TARGETS.map((target) => (

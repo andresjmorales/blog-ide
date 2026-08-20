@@ -3,6 +3,11 @@
 import { useEffect, useState } from "react";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import {
+  EditorPrefsSection,
+  MarkdownPrefsSection,
+} from "@/components/EditorPrefsFields";
+import { SettingsInfo } from "@/components/SettingsInfo";
+import {
   loadAiKeys,
   maskKey,
   saveAiKeys,
@@ -44,9 +49,17 @@ type GithubSettingsProps = {
   onPullMapped?: () => void;
 };
 
+export type SettingsTab =
+  | "account"
+  | "editor"
+  | "markdown"
+  | "storage"
+  | "integrations";
+
 type Props = {
   open: boolean;
   onClose: () => void;
+  initialTab?: SettingsTab;
   email?: string;
   displayName?: string;
   avatarUrl?: string | null;
@@ -55,10 +68,10 @@ type Props = {
   onAvatarUrlChange?: (url: string | null) => void;
 } & GithubSettingsProps;
 
-type SettingsTab = "account" | "storage" | "integrations";
-
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: "account", label: "Account" },
+  { id: "editor", label: "Editor" },
+  { id: "markdown", label: "Markdown" },
   { id: "storage", label: "Storage" },
   { id: "integrations", label: "Integrations" },
 ];
@@ -66,6 +79,7 @@ const TABS: { id: SettingsTab; label: string }[] = [
 export function SettingsPanel({
   open,
   onClose,
+  initialTab = "account",
   email = "",
   displayName = "",
   avatarUrl = null,
@@ -93,8 +107,9 @@ export function SettingsPanel({
   // Remount so drafts reset from localStorage without syncing in an effect.
   return (
     <SettingsDialog
-      key={String(open)}
+      key={`${String(open)}:${initialTab}`}
       onClose={onClose}
+      initialTab={initialTab}
       email={email}
       displayName={displayName}
       avatarUrl={avatarUrl}
@@ -113,6 +128,7 @@ export function SettingsPanel({
 
 function SettingsDialog({
   onClose,
+  initialTab,
   email,
   displayName,
   avatarUrl,
@@ -127,6 +143,7 @@ function SettingsDialog({
   onPullMapped,
 }: {
   onClose: () => void;
+  initialTab: SettingsTab;
   email: string;
   displayName: string;
   avatarUrl: string | null;
@@ -135,7 +152,7 @@ function SettingsDialog({
   onAvatarUrlChange?: (url: string | null) => void;
 } & GithubSettingsProps) {
   const { prefs, updatePrefs } = useEditorPrefs();
-  const [tab, setTab] = useState<SettingsTab>("account");
+  const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [aiKeys, setAiKeys] = useState<AiKeys>(() => loadAiKeys());
   const [keyDraft, setKeyDraft] = useState("");
   const [keysSaved, setKeysSaved] = useState(false);
@@ -212,6 +229,14 @@ function SettingsDialog({
     setAiKeys(next);
     setKeyDraft("");
   }
+
+  const storageInfo = selfHost
+    ? "Combined usage for essay markdown and Storage (images + Library PDFs). The assets bucket is public-by-URL so published embeds work. Self-host: BlogIDE does not apply a small SaaS cap; your Supabase project is the real limit."
+    : `Combined usage for essay markdown and Storage (images + Library PDFs). The assets bucket is public-by-URL so published embeds work. Plan: ${HOSTED_PLANS[plan].label}${
+        plan === "pro"
+          ? ` (${formatQuotaMib(HOSTED_PLANS.pro.quotaBytes)})`
+          : ` (${formatQuotaMib(HOSTED_PLANS.free.quotaBytes)})`
+      }.`;
 
   return (
     <div className="settings-overlay" role="presentation">
@@ -399,48 +424,25 @@ function SettingsDialog({
                   )}
                 </section>
               )}
-
-              <section className="settings-section">
-                <h3>Mobile</h3>
-                <label className="settings-row">
-                  <span>Open Notes on phone</span>
-                  <input
-                    type="checkbox"
-                    checked={prefs.mobileOpenShell}
-                    onChange={(event) =>
-                      updatePrefs({ mobileOpenShell: event.target.checked })
-                    }
-                  />
-                </label>
-                <p className="settings-help">
-                  When on, phone-sized windows land on the Notes capture
-                  terminal first. Turn off to open the editor instead. You can
-                  still switch with Notes / Enter full app.
-                </p>
-              </section>
             </>
           )}
 
+          {tab === "editor" && <EditorPrefsSection />}
+
+          {tab === "markdown" && <MarkdownPrefsSection />}
+
           {tab === "storage" && (
             <section className="settings-section">
+              <h3>
+                Usage
+                <SettingsInfo text={storageInfo} />
+              </h3>
               {!signedIn ? (
                 <p className="settings-help">
                   Sign in with Supabase to see storage usage and free space.
                 </p>
               ) : (
                 <>
-                  <p className="settings-help mb-2">
-                    Combined usage for essay markdown and Storage (images +
-                    Library PDFs). The assets bucket is public-by-URL so
-                    published embeds work.
-                    {selfHost
-                      ? " Self-host: BlogIDE does not apply a small SaaS cap; your Supabase project is the real limit."
-                      : ` Plan: ${HOSTED_PLANS[plan].label}${
-                          plan === "pro"
-                            ? ` (${formatQuotaMib(HOSTED_PLANS.pro.quotaBytes)})`
-                            : ` (${formatQuotaMib(HOSTED_PLANS.free.quotaBytes)})`
-                        }.`}
-                  </p>
                   {quota ? (
                     <p className="mb-2 text-sm">
                       {selfHost ? (
@@ -574,14 +576,10 @@ function SettingsDialog({
           {tab === "integrations" && (
             <>
               <section className="settings-section">
-                <h3>AI API keys</h3>
-                <p className="settings-help">
-                  Bring your own Anthropic and/or OpenAI key. Keys are stored
-                  only in this browser and sent to the provider when you use the
-                  assistant, never saved to BlogIDE&apos;s database. Hosted
-                  BlogIDE keeps BYOK as the default so model usage stays on your
-                  API bill.
-                </p>
+                <h3>
+                  AI API keys
+                  <SettingsInfo text="Bring your own Anthropic and/or OpenAI key. Keys are stored only in this browser and sent to the provider when you use the assistant, never saved to BlogIDE's database. Hosted BlogIDE keeps BYOK as the default so model usage stays on your API bill. With a key saved, Cleanup → Import offers Clean with AI for messy Substack or Docs paste." />
+                </h3>
                 <label className="settings-row">
                   <span>Provider</span>
                   <select
@@ -629,26 +627,6 @@ function SettingsDialog({
                     </button>
                   )}
                 </label>
-                <label className="settings-row">
-                  <span>AI import assist</span>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(aiKeys.importAssist)}
-                    onChange={(e) => {
-                      const next = saveAiKeys({
-                        ...aiKeys,
-                        importAssist: e.target.checked,
-                      });
-                      setAiKeys(next);
-                    }}
-                  />
-                </label>
-                <p className="settings-help">
-                  When on, Clean import / Fix notes can ask the model to rewrite
-                  messy Substack or Docs paste (footnote links, headings,
-                  indented quotes). Deterministic paste conversion still runs
-                  either way.
-                </p>
                 <button
                   type="button"
                   className="rounded border border-border px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent"
@@ -674,22 +652,10 @@ function SettingsDialog({
               />
 
               <section className="settings-section">
-                <h3>fetch(bible)</h3>
-                <p className="settings-help">
-                  Optional scripture tools from{" "}
-                  <a
-                    href="https://fetch.bible/"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    fetch.bible
-                  </a>
-                  . Off by default. When on, English Bible references in the
-                  essay are highlighted and stay as plain text in markdown.
-                  Hover a highlight to preview the Berean Standard Bible; click
-                  it (or use ⋯ → Open Bible) for the chapter and verse reader.
-                  Publication preview also turns references into links.
-                </p>
+                <h3>
+                  fetch(bible)
+                  <SettingsInfo text="Optional scripture tools from fetch.bible. Off by default. When on, English Bible references in the essay are highlighted and stay as plain text in markdown. Hover a highlight to preview the Berean Standard Bible; click it (or use the essay menu → Open Bible) for the chapter and verse reader. Publication preview also turns references into links." />
+                </h3>
                 <label className="settings-row">
                   <span>Enable fetch(bible)</span>
                   <input

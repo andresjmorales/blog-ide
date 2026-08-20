@@ -30,7 +30,7 @@ by design.
   streaming replies, light model picker, smarter Apply (diff / patch), and
   import cleanup assist
 - **Export / import** — Copy all text copies markdown; Copy for Substack /
-  Medium (⋯ or Cleanup → Publish) pastes platform-specific footnote HTML;
+  Medium (essay menu or Cleanup → Publish) pastes platform-specific footnote HTML;
   download `.md`; optional Word `.docx` when Pandoc is installed
   (`PANDOC_PATH`); import markdown or `.docx` / `.odt` from the Files panel;
   Convert Case (Cc), Clean whitespace (joins Shift-Enter / PDF wraps to

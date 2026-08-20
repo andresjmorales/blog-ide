@@ -12,8 +12,6 @@ export type AiKeys = {
   openai?: string;
   /** Preferred provider when both are set. */
   preferred?: AiProvider;
-  /** Offer AI help when cleaning pasted Substack/Docs imports. */
-  importAssist?: boolean;
   /** Preferred Anthropic model id (see lib/ai/models.ts). */
   anthropicModel?: string;
   /** Preferred OpenAI model id (see lib/ai/models.ts). */

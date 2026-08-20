@@ -433,6 +433,86 @@ export function BookmarkCheckIcon({ className = "" }: { className?: string }) {
   );
 }
 
+/** Vertical three-dot kebab used for overflow / row menus. */
+export function KebabIcon({
+  className = "",
+  size = 14,
+}: {
+  className?: string;
+  size?: number;
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      aria-hidden
+      className={className}
+    >
+      <circle cx="8" cy="3.5" r="1.25" />
+      <circle cx="8" cy="8" r="1.25" />
+      <circle cx="8" cy="12.5" r="1.25" />
+    </svg>
+  );
+}
+
+/** Window-maximize corners for focus / fullscreen. */
+export function MaximizeIcon({
+  className = "",
+  size = 15,
+}: {
+  className?: string;
+  size?: number;
+}) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <path
+        d="M2.75 6.25V2.75H6.25M9.75 2.75h3.5v3.5M13.25 9.75v3.5H9.75M6.25 13.25H2.75V9.75"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Inward corners to leave fullscreen. */
+export function RestoreIcon({
+  className = "",
+  size = 15,
+}: {
+  className?: string;
+  size?: number;
+}) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <path
+        d="M6.25 2.75v3.5H2.75M9.75 2.75v3.5h3.5M9.75 13.25v-3.5h3.5M6.25 13.25v-3.5H2.75"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** Codicon-style gear for Editor settings (header, next to Panels). */
 export function GearIcon({
   className = "",
