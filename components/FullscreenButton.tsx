@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { MaximizeIcon, RestoreIcon } from "@/components/icons";
 import {
   isFullscreen,
@@ -8,14 +8,25 @@ import {
   toggleFullscreen,
 } from "@/lib/fullscreen";
 
+function subscribe(onStoreChange: () => void) {
+  return subscribeFullscreen(onStoreChange);
+}
+
+function getSnapshot() {
+  return isFullscreen();
+}
+
+function getServerSnapshot() {
+  return false;
+}
+
 /** Focus mode: enter or leave browser fullscreen (same idea as F11). */
 export function FullscreenButton() {
-  const [active, setActive] = useState(false);
-
-  useEffect(() => {
-    setActive(isFullscreen());
-    return subscribeFullscreen(() => setActive(isFullscreen()));
-  }, []);
+  const active = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot
+  );
 
   return (
     <button

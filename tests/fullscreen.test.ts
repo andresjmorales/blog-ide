@@ -1,34 +1,38 @@
 import { describe, expect, it, vi } from "vitest";
-import { isFullscreen, toggleFullscreen } from "@/lib/fullscreen";
+import {
+  isFullscreen,
+  toggleFullscreen,
+  type FullscreenDocument,
+} from "@/lib/fullscreen";
 
 describe("fullscreen helper", () => {
   it("reports the Fullscreen API element", () => {
-    const doc = {
+    const doc: FullscreenDocument = {
       fullscreenElement: null,
       webkitFullscreenElement: document.createElement("div"),
-    } as Document;
+      documentElement: {},
+    };
     expect(isFullscreen(doc)).toBe(true);
   });
 
   it("requests fullscreen on the document element", async () => {
     const requestFullscreen = vi.fn().mockResolvedValue(undefined);
-    const el = { requestFullscreen };
-    const doc = {
+    const doc: FullscreenDocument = {
       fullscreenElement: null,
-      documentElement: el,
+      documentElement: { requestFullscreen },
       exitFullscreen: vi.fn(),
-    } as unknown as Document;
+    };
     await toggleFullscreen(doc);
     expect(requestFullscreen).toHaveBeenCalledOnce();
   });
 
   it("exits when already fullscreen", async () => {
     const exitFullscreen = vi.fn().mockResolvedValue(undefined);
-    const doc = {
+    const doc: FullscreenDocument = {
       fullscreenElement: document.createElement("div"),
       documentElement: { requestFullscreen: vi.fn() },
       exitFullscreen,
-    } as unknown as Document;
+    };
     await toggleFullscreen(doc);
     expect(exitFullscreen).toHaveBeenCalledOnce();
   });

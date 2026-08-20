@@ -1,10 +1,16 @@
-type FullscreenDocument = Document & {
-  webkitFullscreenElement?: Element | null;
-  webkitExitFullscreen?: () => Promise<void> | void;
+export type FullscreenElement = {
+  requestFullscreen?: () => Promise<void> | void;
+  webkitRequestFullscreen?: () => Promise<void> | void;
 };
 
-type FullscreenElement = HTMLElement & {
-  webkitRequestFullscreen?: () => Promise<void> | void;
+export type FullscreenDocument = {
+  fullscreenElement?: Element | null;
+  webkitFullscreenElement?: Element | null;
+  exitFullscreen?: () => Promise<void> | void;
+  webkitExitFullscreen?: () => Promise<void> | void;
+  documentElement: FullscreenElement;
+  addEventListener?: (type: string, listener: () => void) => void;
+  removeEventListener?: (type: string, listener: () => void) => void;
 };
 
 export function isFullscreen(
@@ -24,7 +30,7 @@ export async function toggleFullscreen(
     await doc.webkitExitFullscreen?.();
     return;
   }
-  const el = doc.documentElement as FullscreenElement;
+  const el = doc.documentElement;
   if (el.requestFullscreen) {
     await el.requestFullscreen();
     return;
@@ -39,11 +45,11 @@ export function subscribeFullscreen(
   doc: FullscreenDocument = document
 ): () => void {
   for (const event of CHANGE_EVENTS) {
-    doc.addEventListener(event, onChange);
+    doc.addEventListener?.(event, onChange);
   }
   return () => {
     for (const event of CHANGE_EVENTS) {
-      doc.removeEventListener(event, onChange);
+      doc.removeEventListener?.(event, onChange);
     }
   };
 }
