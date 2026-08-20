@@ -62,6 +62,11 @@ export type EditorPrefs = {
    * @deprecated Use `typography`. Still read when merging older saved prefs.
    */
   smartQuotes?: boolean;
+  /**
+   * Opt-in fetch(bible): highlight English scripture references and open a
+   * pinned Berean Standard Bible reader. Off by default.
+   */
+  fetchBibleEnabled?: boolean;
   /** Width (px) of the editable markdown pane in split view. */
   markdownSplitWidth?: number;
   /**
@@ -91,6 +96,7 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   markdownTypingShortcuts: "conservative",
   typography: true,
   smartQuotes: true,
+  fetchBibleEnabled: false,
   markdownSplitWidth: 480,
   allowMarkdownOnly: false,
 };

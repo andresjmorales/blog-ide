@@ -20,6 +20,11 @@ by design.
   Preview, pre-publish link/image check, image compress + Storage upload with
   progress, clearer errors, alt text on the selected figure, broken-image
   cards, combined quota accounting, and zip export that bundles owned assets
+- **Optional fetch(bible)** — off until enabled under Settings → Integrations.
+  Highlights English scripture references in the essay (plain text in
+  markdown), hover-previews the Berean Standard Bible, and opens a pinned
+  [fetch.bible](https://fetch.bible/) reader with chapter/verse search.
+  Publication preview can also linkify references.
 - **Optional AI** — BYOK Anthropic / OpenAI keys (device-local), sidebar chat with
   canned actions (critique / tighten / title / expand), selection context,
   streaming replies, light model picker, smarter Apply (diff / patch), and

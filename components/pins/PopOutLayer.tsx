@@ -10,6 +10,7 @@ import {
 import { PopOutDocument } from "@/components/pins/PopOutDocument";
 import { LinkPinBody } from "@/components/pins/LinkPinBody";
 import { PdfPinViewer } from "@/components/pins/PdfPinViewer";
+import { BiblePinBody } from "@/components/pins/BiblePinBody";
 import { PinnedSurface } from "@/components/pins/PinnedSurface";
 import { AddToLibraryButton } from "@/components/library/AddToLibraryButton";
 import { PanelSlot } from "@/components/panels/PersistentPanel";
@@ -19,6 +20,7 @@ import {
   raisePin,
   subscribePinWindows,
   updatePin,
+  type BiblePin,
   type DocumentPin,
   type LinkPin,
   type PdfPin,
@@ -243,7 +245,29 @@ export function PopOutLayer({
             </PinnedSurface>
           );
         }
-        const pin = win as PdfPin;
+        if (win.kind === "pdf") {
+          const pin = win as PdfPin;
+          return (
+            <PinnedSurface
+              key={pin.id}
+              title={pin.title}
+              left={pin.left}
+              top={pin.top}
+              width={pin.width}
+              height={pin.height}
+              zIndex={pin.zIndex}
+              onClose={() => closePin(pin.id)}
+              onRaise={() => raisePin(pin.id)}
+              onMove={(left, top) => updatePin(pin.id, { left, top })}
+              onResize={(width, height) =>
+                updatePin(pin.id, { width, height })
+              }
+            >
+              <PdfPinViewer src={pin.src} title={pin.title} />
+            </PinnedSurface>
+          );
+        }
+        const pin = win as BiblePin;
         return (
           <PinnedSurface
             key={pin.id}
@@ -257,8 +281,9 @@ export function PopOutLayer({
             onRaise={() => raisePin(pin.id)}
             onMove={(left, top) => updatePin(pin.id, { left, top })}
             onResize={(width, height) => updatePin(pin.id, { width, height })}
+            className="bible-pin"
           >
-            <PdfPinViewer src={pin.src} title={pin.title} />
+            <BiblePinBody />
           </PinnedSurface>
         );
       })}

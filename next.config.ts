@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  transpilePackages: [
+    "@gracious.tech/fetch-client",
+    "@gracious.tech/bible-references",
+  ],
 };
 
 export default nextConfig;

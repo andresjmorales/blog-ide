@@ -140,6 +140,11 @@ export function HelpPanel({ open, onClose }: Props) {
               alt text). Offline inserts stay in the essay until you reconnect.
             </li>
             <li>
+              fetch(bible) (Settings → Integrations, off by default): highlights
+              English scripture references; ⋯ → Open Bible opens the pinned
+              reader (Berean Standard Bible)
+            </li>
+            <li>
               <kbd>Esc</kbd>: close floating footnote / dialogs
             </li>
           </ul>

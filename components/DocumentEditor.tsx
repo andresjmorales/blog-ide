@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   EditorContent,
   ReactNodeViewRenderer,
@@ -51,6 +51,7 @@ import { LinkEditCard } from "@/components/editor/LinkEditCard";
 import { EssaySpellcheckProvider } from "@/components/EssaySpellcheckContext";
 import { HarperLintCard } from "@/components/HarperLintCard";
 import { HarperHighlight } from "@/lib/editor/harper/HarperHighlight";
+import { BibleRefHighlight } from "@/lib/editor/bible/BibleRefHighlight";
 import { dialectFromLang } from "@/lib/editor/harper/dialect";
 import { applyEditorDomLang } from "@/lib/editor/domAttrs";
 import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
@@ -68,6 +69,13 @@ import {
   firstImageFile,
   insertEssayImageFromFile,
 } from "@/lib/editor/insertEssayImage";
+
+const BibleHoverCard = lazy(() =>
+  import("@/components/BibleHoverCard").then((mod) => ({
+    default: mod.BibleHoverCard,
+  }))
+);
+
 type Props = {
   /** Markdown body (frontmatter already stripped by the caller). */
   markdown: string;
@@ -207,6 +215,7 @@ export function DocumentEditor({
         }),
         // Editor-only: not part of the shared markdown schema / round-trip set.
         HarperHighlight,
+        BibleRefHighlight,
       ],
       content: parseBody(markdown),
       immediatelyRender: false,
@@ -299,7 +308,8 @@ export function DocumentEditor({
     applyEditorDomLang(editor.view.dom as HTMLElement, lang);
     editor.commands.setHarperDialect(harperDialect);
     editor.commands.setHarperEnabled(spellcheckOn && harperDialect != null);
-  }, [editor, spellcheckOn, lang, harperDialect]);
+    editor.commands.setBibleRefsEnabled(prefs.fetchBibleEnabled);
+  }, [editor, spellcheckOn, lang, harperDialect, prefs.fetchBibleEnabled]);
 
   // Paste / drop images into the essay (footnotes stay image-free via schema).
   useEffect(() => {
@@ -569,6 +579,11 @@ export function DocumentEditor({
             {shellDock}
             <LinkEditCard editor={editor} showPreviews />
             <HarperLintCard editor={editor} />
+            {prefs.fetchBibleEnabled ? (
+              <Suspense fallback={null}>
+                <BibleHoverCard editor={editor} />
+              </Suspense>
+            ) : null}
             {editor && (
               <CitationInsertDialog
                 editor={editor}

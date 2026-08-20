@@ -22,7 +22,7 @@ describe("inferPandocImportFormat", () => {
 });
 
 describe("pin layout persist", () => {
-  it("keeps document and link pins and drops pdf/shell/tool panels", () => {
+  it("keeps document, link, and bible pins and drops pdf/shell/tool panels", () => {
     const doc: PinWindow = {
       id: "doc:abc",
       kind: "document",
@@ -56,16 +56,31 @@ describe("pin layout persist", () => {
       height: 500,
       zIndex: 43,
     };
+    const bible: PinWindow = {
+      id: "bible:app",
+      kind: "bible",
+      title: "Bible",
+      left: 120,
+      top: 80,
+      width: 400,
+      height: 560,
+      zIndex: 44,
+    };
     expect(persistablePin(pdf)).toBeNull();
-    const serialized = serializePersistedPins([doc, link, pdf]);
-    expect(serialized.map((row) => row.kind)).toEqual(["document", "link"]);
+    const serialized = serializePersistedPins([doc, link, pdf, bible]);
+    expect(serialized.map((row) => row.kind)).toEqual([
+      "document",
+      "link",
+      "bible",
+    ]);
     const parsed = parsePersistedPins(serialized);
-    expect(parsed).toHaveLength(2);
+    expect(parsed).toHaveLength(3);
     expect(parsed[0]).toMatchObject({ kind: "document", nodeId: "abc" });
     expect(parsed[1]).toMatchObject({
       kind: "link",
       url: "https://example.com",
     });
+    expect(parsed[2]).toMatchObject({ kind: "bible", title: "Bible" });
   });
 
   it("ignores malformed storage JSON", () => {

@@ -1,9 +1,18 @@
 /**
- * Session pin/pop-out windows: documents, link cards, and PDFs.
+ * Session pin/pop-out windows: documents, link cards, PDFs, and the Bible reader.
  * Document helpers keep the Phase A0 API (`openPopOut`, etc.).
  */
 
-export type PinKind = "document" | "link" | "pdf" | "shell" | "toolPanel";
+import { navigateBibleApp, queueBibleSearch } from "@/lib/bible/bridge";
+import { BIBLE_PIN_ID } from "@/lib/bible/constants";
+
+export type PinKind =
+  | "document"
+  | "link"
+  | "pdf"
+  | "shell"
+  | "toolPanel"
+  | "bible";
 
 type Geometry = {
   left: number;
@@ -49,12 +58,18 @@ export type ToolPanelPin = PinBase & {
   panelId: "files" | "ai" | "library";
 };
 
+/** fetch(bible) web app reader. */
+export type BiblePin = PinBase & {
+  kind: "bible";
+};
+
 export type PinWindow =
   | DocumentPin
   | LinkPin
   | PdfPin
   | ShellPin
-  | ToolPanelPin;
+  | ToolPanelPin
+  | BiblePin;
 
 export const SHELL_PIN_ID = "shell:inbox";
 
@@ -104,6 +119,14 @@ export type PersistedPin =
       top: number;
       width: number;
       height: number;
+    }
+  | {
+      kind: "bible";
+      title: string;
+      left: number;
+      top: number;
+      width: number;
+      height: number;
     };
 
 export function persistablePin(window: PinWindow): PersistedPin | null {
@@ -126,6 +149,16 @@ export function persistablePin(window: PinWindow): PersistedPin | null {
       description: window.description,
       siteName: window.siteName,
       image: window.image,
+      left: window.left,
+      top: window.top,
+      width: window.width,
+      height: window.height,
+    };
+  }
+  if (window.kind === "bible") {
+    return {
+      kind: "bible",
+      title: window.title,
       left: window.left,
       top: window.top,
       width: window.width,
@@ -170,6 +203,15 @@ export function parsePersistedPins(raw: unknown): PersistedPin[] {
         width,
         height,
       });
+    } else if (rec.kind === "bible") {
+      out.push({
+        kind: "bible",
+        title: typeof rec.title === "string" ? rec.title : "Bible",
+        left,
+        top,
+        width,
+        height,
+      });
     }
   }
   return out;
@@ -202,6 +244,14 @@ function hydratePinLayout() {
           kind: "document",
           nodeId: rec.nodeId,
           title: rec.title || "Document",
+          ...geometry,
+          zIndex: claimFloatZ(),
+        });
+      } else if (rec.kind === "bible") {
+        restored.push({
+          id: BIBLE_PIN_ID,
+          kind: "bible",
+          title: rec.title || "Bible",
           ...geometry,
           zIndex: claimFloatZ(),
         });
@@ -424,6 +474,47 @@ export function openPdfPin(input: {
     },
   ];
   emit();
+}
+
+export function openBiblePin(input?: {
+  search?: string;
+  title?: string;
+}): void {
+  hydratePinLayout();
+  if (input?.search) {
+    queueBibleSearch(input.search);
+    navigateBibleApp(input.search);
+  }
+  const existing = windows.find((w) => w.id === BIBLE_PIN_ID);
+  const title = input?.title
+    ? `Bible · ${input.title}`
+    : existing?.title ?? "Bible";
+  if (existing) {
+    windows = windows.map((w) =>
+      w.id === BIBLE_PIN_ID ? { ...w, title } : w
+    );
+    raiseId(BIBLE_PIN_ID);
+    return;
+  }
+  windows = [
+    ...windows,
+    {
+      id: BIBLE_PIN_ID,
+      kind: "bible",
+      title,
+      ...defaultPlacement({ width: 400, height: 560 }),
+      zIndex: claimFloatZ(),
+    },
+  ];
+  emit();
+}
+
+export function closeBiblePin(): void {
+  closePin(BIBLE_PIN_ID);
+}
+
+export function isBiblePinOpen(): boolean {
+  return windows.some((w) => w.id === BIBLE_PIN_ID);
 }
 
 /** Floating Pushbullet / iMessage-style Notes Shell. */
