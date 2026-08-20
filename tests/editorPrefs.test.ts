@@ -11,6 +11,7 @@ describe("editor prefs defaults", () => {
     expect(merged.markdownTypingShortcuts).toBe("conservative");
     expect(merged.typography).toBe(true);
     expect(merged.smartQuotes).toBe(true);
+    expect(merged.fetchBibleEnabled).toBe(false);
     expect(merged.leftWidth).toBe(300);
   });
 
@@ -24,6 +25,13 @@ describe("editor prefs defaults", () => {
 
   it("keeps an explicit allowMarkdownOnly: true", () => {
     expect(mergePrefs({ allowMarkdownOnly: true }).allowMarkdownOnly).toBe(
+      true
+    );
+  });
+
+  it("keeps fetch(bible) off unless explicitly enabled", () => {
+    expect(mergePrefs({}).fetchBibleEnabled).toBe(false);
+    expect(mergePrefs({ fetchBibleEnabled: true }).fetchBibleEnabled).toBe(
       true
     );
   });

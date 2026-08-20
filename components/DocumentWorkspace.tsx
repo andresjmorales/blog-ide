@@ -15,6 +15,7 @@ import {
 } from "@/components/EditorOverflowMenu";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { openPublicationPreviewTab } from "@/lib/preview/publicationHtml";
+import { openBiblePin } from "@/lib/pins/pinStore";
 import {
   CleanupDialog,
   type CleanupTab,
@@ -1501,7 +1502,9 @@ export function DocumentWorkspace({
       label: "Preview in new tab",
       onSelect: () => {
         try {
-          openPublicationPreviewTab(currentMarkdown());
+          openPublicationPreviewTab(currentMarkdown(), {
+            fetchBible: prefs.fetchBibleEnabled,
+          });
         } catch (err) {
           void dialog.confirm({
             title: "Preview blocked",
@@ -1515,6 +1518,15 @@ export function DocumentWorkspace({
         }
       },
     },
+    ...(prefs.fetchBibleEnabled
+      ? [
+          {
+            id: "open-bible",
+            label: "Open Bible",
+            onSelect: () => openBiblePin(),
+          },
+        ]
+      : []),
     { kind: "separator", id: "sep-export" },
     {
       kind: "submenu",

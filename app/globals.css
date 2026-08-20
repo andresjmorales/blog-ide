@@ -764,6 +764,87 @@ body {
   background: color-mix(in oklab, #2563eb 10%, transparent);
 }
 
+/* fetch(bible) reference decorations (do not serialize to markdown). */
+.blogide-bible-ref {
+  background: color-mix(in oklab, #ca8a04 18%, transparent);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.blogide-bible-ref.is-active {
+  background: color-mix(in oklab, #ca8a04 32%, transparent);
+}
+
+.bible-ref-card {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgb(0 0 0 / 16%);
+  max-width: min(22rem, calc(100vw - 1rem));
+  padding: 0.65rem 0.75rem 0.55rem;
+  position: fixed;
+}
+.bible-ref-card-ref {
+  color: var(--foreground);
+  font-size: 0.8rem;
+  font-weight: 650;
+  margin: 0 0 0.4rem;
+}
+.bible-ref-card-ref span {
+  color: var(--muted);
+  font-weight: 500;
+}
+.bible-ref-card-status {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0 0 0.45rem;
+}
+.bible-ref-card-passage {
+  color: var(--foreground);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  margin: 0 0 0.55rem;
+  max-height: 12rem;
+  overflow: auto;
+}
+.bible-ref-card-passage .fb-chapter,
+.bible-ref-card-passage .fb-p {
+  margin: 0;
+}
+.bible-ref-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.bible-ref-card-actions button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.45rem;
+}
+.bible-ref-card-actions button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.bible-ref-card-actions button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.bible-pin .pinned-surface-body {
+  overflow: hidden;
+}
+.bible-pin-frame {
+  border: 0;
+  display: block;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+}
+
 .harper-lint-card {
   background: var(--background);
   border: 1px solid var(--border);

@@ -26,6 +26,7 @@ import {
 } from "@/lib/billing/plans";
 import { ProfilePhotoField } from "@/components/avatar/ProfilePhotoField";
 import { GitHubSettingsSection } from "@/components/GitHubSettingsSection";
+import { closeBiblePin } from "@/lib/pins/pinStore";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { GithubMapStatus } from "@/lib/github/types";
@@ -671,6 +672,37 @@ function SettingsDialog({
                 onPushWorkspace={onPushWorkspace}
                 onPullMapped={onPullMapped}
               />
+
+              <section className="settings-section">
+                <h3>fetch(bible)</h3>
+                <p className="settings-help">
+                  Optional scripture tools from{" "}
+                  <a
+                    href="https://fetch.bible/"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    fetch.bible
+                  </a>
+                  . Off by default. When on, English Bible references in the
+                  essay are highlighted and stay as plain text in markdown.
+                  Hover a highlight to preview the Berean Standard Bible; click
+                  it (or use ⋯ → Open Bible) for the chapter and verse reader.
+                  Publication preview also turns references into links.
+                </p>
+                <label className="settings-row">
+                  <span>Enable fetch(bible)</span>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(prefs.fetchBibleEnabled)}
+                    onChange={(event) => {
+                      const enabled = event.target.checked;
+                      updatePrefs({ fetchBibleEnabled: enabled });
+                      if (!enabled) closeBiblePin();
+                    }}
+                  />
+                </label>
+              </section>
             </>
           )}
         </div>

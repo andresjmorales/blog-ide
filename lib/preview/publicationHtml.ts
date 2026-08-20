@@ -7,6 +7,10 @@ import { parseTitle } from "@/lib/markdown/titleFrontmatter";
 import { parseSubtitle } from "@/lib/markdown/subtitle";
 import { parseAuthor } from "@/lib/markdown/author";
 import { renderLatexHtml } from "@/lib/editor/math";
+import {
+  FETCH_BIBLE_ENHANCER_SCRIPT,
+  FETCH_BIBLE_TRANSLATION_ID,
+} from "@/lib/bible/constants";
 
 const PREVIEW_EXTENSIONS = createExtensions();
 
@@ -317,7 +321,10 @@ export function enhancePublicationMath(html: string): string {
 }
 
 /** Full HTML document for opening Preview in a new browser tab. */
-export function buildPublicationDocument(markdown: string): string {
+export function buildPublicationDocument(
+  markdown: string,
+  options: { fetchBible?: boolean } = {}
+): string {
   const { title, subtitle, author, bodyHtml } = buildPublicationPreview(
     markdown
   );
@@ -327,6 +334,9 @@ export function buildPublicationDocument(markdown: string): string {
   const byline = author
     ? `<p class="document-preview-author">${escapeHtml(author)}</p>`
     : "";
+  const enhancer = options.fetchBible
+    ? `<script crossorigin src="${FETCH_BIBLE_ENHANCER_SCRIPT}" data-trans="${FETCH_BIBLE_TRANSLATION_ID}"></script>`
+    : "";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -334,6 +344,7 @@ export function buildPublicationDocument(markdown: string): string {
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${escapeHtml(title)} · Preview</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" />
+${enhancer}
 <style>
   /* Always light — publication reading, independent of OS theme. */
   :root {
@@ -534,8 +545,11 @@ export function buildPublicationDocument(markdown: string): string {
 </html>`;
 }
 
-export function openPublicationPreviewTab(markdown: string): void {
-  const html = buildPublicationDocument(markdown);
+export function openPublicationPreviewTab(
+  markdown: string,
+  options: { fetchBible?: boolean } = {}
+): void {
+  const html = buildPublicationDocument(markdown, options);
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   // Do not pass noopener/noreferrer as window features: Chromium and Firefox

@@ -56,6 +56,12 @@ markdown.
   second BlogIDE essay.
   Not required onboarding and not overflow media storage.
 - Anthropic / OpenAI are called with the user’s own key via the proxy above.
+- fetch(bible) is an opt-in Integrations feature (off by default). The editor
+  detects English references with `@gracious.tech/bible-references` and
+  decorations only (no markdown rewrite). Verse HTML comes from
+  `@gracious.tech/fetch-client` (Berean Standard Bible, `eng_bsb`). The pinned
+  reader is `https://app.fetch.bible`; publication Preview can load
+  `https://collection.fetch.bible/enhance.js`.
 - Stripe only if a shared hosted deploy opts into paid storage tiers
   ([docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md)).
 
@@ -121,6 +127,7 @@ app/                  Routes, metadata, API handlers, and global styles
 components/           App shell and interactive editor components
 components/tiptap-icons/  TipTap MIT toolbar SVG icons (icons only)
 lib/editor/           TipTap extensions and editor commands
+lib/bible/            Opt-in fetch(bible) detection, CDN client, app bridge
 lib/markdown/         Parse/serialize and frontmatter pipeline
 lib/db/               IndexedDB working copy
 lib/sync/             Autosave / Supabase sync engine
