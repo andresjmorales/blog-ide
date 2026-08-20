@@ -574,37 +574,6 @@ function SettingsDialog({
           {tab === "integrations" && (
             <>
               <section className="settings-section">
-                <h3>fetch(bible)</h3>
-                <p className="settings-help">
-                  Optional scripture tools from{" "}
-                  <a
-                    href="https://fetch.bible/"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    fetch.bible
-                  </a>
-                  . Off by default. When on, English Bible references in the
-                  essay are highlighted and stay as plain text in markdown.
-                  Hover a highlight to preview the Berean Standard Bible; click
-                  it (or use ⋯ → Open Bible) for the chapter and verse reader.
-                  Publication preview also turns references into links.
-                </p>
-                <label className="settings-row">
-                  <span>Enable fetch(bible)</span>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(prefs.fetchBibleEnabled)}
-                    onChange={(event) => {
-                      const enabled = event.target.checked;
-                      updatePrefs({ fetchBibleEnabled: enabled });
-                      if (!enabled) closeBiblePin();
-                    }}
-                  />
-                </label>
-              </section>
-
-              <section className="settings-section">
                 <h3>AI API keys</h3>
                 <p className="settings-help">
                   Bring your own Anthropic and/or OpenAI key. Keys are stored
@@ -703,6 +672,37 @@ function SettingsDialog({
                 onPushWorkspace={onPushWorkspace}
                 onPullMapped={onPullMapped}
               />
+
+              <section className="settings-section">
+                <h3>fetch(bible)</h3>
+                <p className="settings-help">
+                  Optional scripture tools from{" "}
+                  <a
+                    href="https://fetch.bible/"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    fetch.bible
+                  </a>
+                  . Off by default. When on, English Bible references in the
+                  essay are highlighted and stay as plain text in markdown.
+                  Hover a highlight to preview the Berean Standard Bible; click
+                  it (or use ⋯ → Open Bible) for the chapter and verse reader.
+                  Publication preview also turns references into links.
+                </p>
+                <label className="settings-row">
+                  <span>Enable fetch(bible)</span>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(prefs.fetchBibleEnabled)}
+                    onChange={(event) => {
+                      const enabled = event.target.checked;
+                      updatePrefs({ fetchBibleEnabled: enabled });
+                      if (!enabled) closeBiblePin();
+                    }}
+                  />
+                </label>
+              </section>
             </>
           )}
         </div>
