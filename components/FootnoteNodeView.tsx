@@ -580,13 +580,14 @@ export function FootnoteNodeView({
 
   useEffect(() => {
     if (!noteEditor || !cardOpen) return;
+    const historyEditor = noteEditor;
     function onKeyDown(event: KeyboardEvent) {
       const action = footnoteHistoryAction(event);
       if (!action) return;
       if (!isFootnoteHistoryTarget(event.target, footnoteId)) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      applyFootnoteHistoryKey(noteEditor, action);
+      applyFootnoteHistoryKey(historyEditor, action);
     }
     document.addEventListener("keydown", onKeyDown, true);
     return () => document.removeEventListener("keydown", onKeyDown, true);
