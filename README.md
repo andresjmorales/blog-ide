@@ -30,12 +30,16 @@ by design.
   streaming replies, light model picker, smarter Apply (diff / patch), and
   import cleanup assist
 - **Export / import** — Copy all text copies markdown; Copy for Substack /
-  Medium (essay menu or Cleanup → Publish) pastes platform-specific footnote HTML;
-  download `.md`; optional Word `.docx` when Pandoc is installed
-  (`PANDOC_PATH`); import markdown or `.docx` / `.odt` from the Files panel;
-  Convert Case (Cc), Clean whitespace (joins Shift-Enter / PDF wraps to
-  spaces and keeps paragraph breaks), and punctuation normalize (Chicago/MLA
-  dashes, smart quotes) for messy pastes
+  Medium / HTML pastes formatted HTML (readable plain text as fallback, not
+  markdown). Substack/Medium cannot recreate native footnotes from a paste;
+  Cleanup → Publish can copy `[1]` markers plus a helper script that runs
+  in the Substack editor. Download `.md` or `.html`; PDF (print) uses the
+  browser Save as PDF dialog; optional Word `.docx` and PDF via Pandoc
+  (`PANDOC_PATH`, plus a PDF engine such as `xelatex`). Import markdown or
+  `.docx` / `.odt` from the Files panel. Convert Case (Cc), Clean
+  whitespace (joins Shift-Enter / PDF wraps to spaces and keeps paragraph
+  breaks), and punctuation normalize (Chicago/MLA dashes, smart quotes)
+  for messy pastes
 - **GitHub backup** — optional push (device-local PAT). Map a folder to a
   repo path or a document to `README.md` from Files → GitHub, or map the open
   essay under Essay settings → GitHub. Matching files are overwritten,
@@ -53,10 +57,11 @@ by design.
   characters insert into the focused field (title, subtitle, metadata,
   find/replace)
 - **Cleanup** (broom) — pinnable tabbed panel: Import (fix footnotes), Text,
-  Punctuation, and Publish (copy for Substack/Medium + link/image check);
-  Clean whitespace joins Shift-Enter / PDF wraps to spaces and keeps blank
-  lines; paste collapses extra empty paragraphs; Convert Case is Cc on the
-  toolbar; Cite is separate; paste or drag-drop images into the essay
+  Punctuation, and Publish (copy for Substack/Medium/HTML, Substack native
+  footnote helper, link/image check); Clean whitespace joins Shift-Enter /
+  PDF wraps to spaces and keeps blank lines; paste collapses extra empty
+  paragraphs; Convert Case is Cc on the toolbar; Cite is separate; paste or
+  drag-drop images into the essay
 
 ## Stack
 
@@ -64,7 +69,9 @@ Next.js, TypeScript, Tailwind CSS, TipTap, Supabase, and IndexedDB. GitHub
 backup and model APIs are optional. See [ARCHITECTURE.md](./ARCHITECTURE.md)
 for boundaries, persistence, quota, and the repository map. Differences from
 GFM (frontmatter, captions, footnotes, math/tables) are summarized in
-[docs/MARKDOWN_SPEC.md](./docs/MARKDOWN_SPEC.md).
+[docs/MARKDOWN_SPEC.md](./docs/MARKDOWN_SPEC.md). Copying into Substack,
+Medium, HTML, and PDF is covered in
+[docs/PUBLISH_EXPORT.md](./docs/PUBLISH_EXPORT.md).
 
 ## Getting started
 
@@ -146,8 +153,11 @@ Optional: open **Account settings** to set a profile photo, display name, a
 GitHub backup repo (PAT stays on the device), or paste Anthropic / OpenAI keys
 for the AI sidebar (keys stay on the device; requests go through a thin proxy).
 
-Self-host Word export/import by installing Pandoc and setting `PANDOC_PATH`
-(for example `/usr/bin/pandoc`) in `.env.local`.
+Self-host Word export/import (and optional Pandoc PDF) by installing Pandoc
+and setting `PANDOC_PATH` (for example `/usr/bin/pandoc`) in `.env.local`.
+PDF also needs a PDF engine (`PANDOC_PDF_ENGINE=xelatex`, or WeasyPrint /
+Typst on PATH). Export → PDF (print) works without Pandoc. Details:
+[docs/PUBLISH_EXPORT.md](./docs/PUBLISH_EXPORT.md).
 
 ```bash
 npm test   # round-trip + footnote/import suites

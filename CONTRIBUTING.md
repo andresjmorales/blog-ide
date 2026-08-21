@@ -44,4 +44,6 @@ warning; it must never disappear silently.
 - Do not commit credentials, generated build output, or private writing.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for system boundaries and
-[SECURITY.md](./SECURITY.md) for vulnerability reporting.
+[SECURITY.md](./SECURITY.md) for vulnerability reporting. Publishing
+targets (Substack, Medium, HTML, PDF, Pandoc) are documented in
+[docs/PUBLISH_EXPORT.md](./docs/PUBLISH_EXPORT.md).

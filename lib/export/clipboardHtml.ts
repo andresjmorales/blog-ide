@@ -1,29 +1,57 @@
 /**
- * Platform-specific HTML for pasting into Substack, Medium, and later
- * targets. GFM footnotes become that platform's numbered notes.
- * Hover-tip chrome from the in-app preview is never included.
+ * Platform-specific HTML for pasting into Substack, Medium, and HTML
+ * targets. Native platform footnotes cannot be created by clipboard HTML:
+ * Substack only builds footnoteAnchor nodes via insertFootnote(), and
+ * Medium has no footnote schema at all.
+ *
+ * Hover-tip chrome from the in-app preview is never included. text/plain
+ * on the clipboard is a readable rendering of this HTML, never markdown
+ * source (Substack will otherwise paste the markdown).
  */
 
 import { buildPublicationPreview } from "@/lib/preview/publicationHtml";
+import { htmlToPlainText } from "@/lib/export/htmlPlain";
+import { SUBSTACK_NOTES_HEADING } from "@/lib/export/substackEditorHelper";
 
-export type PublishCopyTarget = "substack" | "medium";
+export type PublishCopyTarget =
+  | "substack"
+  | "substack-native"
+  | "medium"
+  | "html";
 
 export const PUBLISH_COPY_TARGETS: Array<{
-  id: PublishCopyTarget;
+  id: Exclude<PublishCopyTarget, "substack-native">;
   label: string;
   hint: string;
 }> = [
   {
     id: "substack",
     label: "Substack",
-    hint: "Numbered anchors and endnotes",
+    hint: "Formatted paste with static numbered notes",
   },
   {
     id: "medium",
     label: "Medium",
-    hint: "Superscripts and numbered endnotes",
+    hint: "Superscripts and a Notes list",
+  },
+  {
+    id: "html",
+    label: "HTML",
+    hint: "Publication HTML with linked endnotes",
   },
 ];
+
+export type PublishCopyResult = {
+  title: string;
+  html: string;
+  plain: string;
+};
+
+type PreparedBody = {
+  title: string;
+  doc: Document;
+  root: HTMLElement;
+};
 
 function escapeHtml(value: string): string {
   return value
@@ -32,12 +60,6 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
-
-type PreparedBody = {
-  title: string;
-  doc: Document;
-  root: HTMLElement;
-};
 
 function preparePublicationBody(markdown: string): PreparedBody | null {
   const preview = buildPublicationPreview(markdown);
@@ -57,47 +79,93 @@ function withTitle(title: string, body: string): string {
   return trimmed ? `<h1>${escapeHtml(trimmed)}</h1>\n${body}` : body;
 }
 
-function formatSubstack(doc: Document, root: HTMLElement): void {
-  root.querySelectorAll(".preview-fn").forEach((wrap) => {
-    const n = wrap.querySelector(".preview-fn-ref")?.getAttribute("data-fn");
-    if (!n) return;
-    const anchor = doc.createElement("a");
-    anchor.className = "footnote-anchor";
-    anchor.href = `#footnote-${n}`;
-    anchor.id = `footnote-anchor-${n}`;
-    anchor.textContent = n;
-    wrap.replaceWith(anchor);
-  });
-
-  const section = root.querySelector(".preview-footnotes");
-  if (!section) return;
-  const items = [...section.querySelectorAll(".preview-footnotes-item")];
-  const list = doc.createElement("div");
-  list.className = "footnotes";
-  for (const item of items) {
-    const id = item.id?.replace(/^fn-/, "") || "";
-    const body = item.querySelector(".preview-footnotes-body");
-    const block = doc.createElement("div");
-    block.className = "footnote";
-    block.id = `footnote-${id}`;
-    const back = doc.createElement("a");
-    back.href = `#footnote-anchor-${id}`;
-    back.className = "footnote-back";
-    back.textContent = id;
-    block.appendChild(back);
-    block.appendChild(doc.createTextNode(" "));
-    if (body) {
-      while (body.firstChild) block.appendChild(body.firstChild);
-    }
-    list.appendChild(block);
-  }
-  section.replaceWith(list);
+function footnoteNumber(wrap: Element): string | null {
+  return wrap.querySelector(".preview-fn-ref")?.getAttribute("data-fn") ?? null;
 }
 
-function formatMedium(doc: Document, root: HTMLElement): void {
+function collectNoteItems(root: HTMLElement): Array<{ id: string; body: Element | null }> {
+  const section = root.querySelector(".preview-footnotes");
+  if (!section) return [];
+  return [...section.querySelectorAll(".preview-footnotes-item")].map((item) => ({
+    id: item.id?.replace(/^fn-/, "") || "",
+    body: item.querySelector(".preview-footnotes-body"),
+  }));
+}
+
+function moveBody(target: Element, body: Element | null): void {
+  if (!body) return;
+  while (body.firstChild) target.appendChild(body.firstChild);
+}
+
+function replaceRefsWithSup(doc: Document, root: HTMLElement): void {
   root.querySelectorAll(".preview-fn").forEach((wrap) => {
-    const n = wrap.querySelector(".preview-fn-ref")?.getAttribute("data-fn");
+    const n = footnoteNumber(wrap);
     if (!n) return;
+    const sup = doc.createElement("sup");
+    sup.textContent = n;
+    wrap.replaceWith(sup);
+  });
+}
+
+function replaceRefsWithMarkers(doc: Document, root: HTMLElement): void {
+  root.querySelectorAll(".preview-fn").forEach((wrap) => {
+    const n = footnoteNumber(wrap);
+    if (!n) return;
+    wrap.replaceWith(doc.createTextNode(`[${n}]`));
+  });
+}
+
+function replaceEndnotesWithList(
+  doc: Document,
+  root: HTMLElement,
+  options: { heading: boolean }
+): void {
+  const items = collectNoteItems(root);
+  const section = root.querySelector(".preview-footnotes");
+  if (!section) return;
+  const frag = doc.createDocumentFragment();
+  if (options.heading && items.length) {
+    const heading = doc.createElement("p");
+    heading.textContent = SUBSTACK_NOTES_HEADING;
+    frag.appendChild(heading);
+  }
+  const list = doc.createElement("ol");
+  for (const item of items) {
+    const li = doc.createElement("li");
+    moveBody(li, item.body);
+    list.appendChild(li);
+  }
+  frag.appendChild(list);
+  section.replaceWith(frag);
+}
+
+/** Paste-safe: superscripts + Notes list. No hash links (Substack strips them). */
+function formatSubstack(doc: Document, root: HTMLElement): void {
+  replaceRefsWithSup(doc, root);
+  replaceEndnotesWithList(doc, root, { heading: true });
+}
+
+/**
+ * Markers the Substack editor helper can find, plus a Notes ordered list
+ * whose formatting survives paste into ProseMirror.
+ */
+function formatSubstackNative(doc: Document, root: HTMLElement): void {
+  replaceRefsWithMarkers(doc, root);
+  replaceEndnotesWithList(doc, root, { heading: true });
+}
+
+/** Medium has no footnote schema. Superscripts + Notes is the real format. */
+function formatMedium(doc: Document, root: HTMLElement): void {
+  replaceRefsWithSup(doc, root);
+  replaceEndnotesWithList(doc, root, { heading: true });
+}
+
+/** Linked endnotes for HTML files / CMSs that keep href + id. */
+function formatHtml(doc: Document, root: HTMLElement): void {
+  root.querySelectorAll(".preview-fn").forEach((wrap) => {
+    const n = footnoteNumber(wrap);
+    const ref = wrap.querySelector(".preview-fn-ref");
+    if (!n || !ref) return;
     const sup = doc.createElement("sup");
     const anchor = doc.createElement("a");
     anchor.href = `#fn-${n}`;
@@ -107,48 +175,60 @@ function formatMedium(doc: Document, root: HTMLElement): void {
     wrap.replaceWith(sup);
   });
 
+  const items = collectNoteItems(root);
   const section = root.querySelector(".preview-footnotes");
   if (!section) return;
-  const items = [...section.querySelectorAll(".preview-footnotes-item")];
+  const wrap = doc.createElement("section");
+  wrap.className = "footnotes";
+  const heading = doc.createElement("h2");
+  heading.textContent = "Notes";
+  wrap.appendChild(heading);
   const list = doc.createElement("ol");
-  list.className = "footnotes";
   for (const item of items) {
-    const id = item.id?.replace(/^fn-/, "") || "";
-    const body = item.querySelector(".preview-footnotes-body");
     const li = doc.createElement("li");
-    li.id = `fn-${id}`;
-    if (body) {
-      while (body.firstChild) li.appendChild(body.firstChild);
-    }
+    li.id = `fn-${item.id}`;
+    moveBody(li, item.body);
     const back = doc.createElement("a");
-    back.href = `#fnref-${id}`;
-    back.className = "footnote-back";
+    back.href = `#fnref-${item.id}`;
     back.textContent = "↩";
     li.appendChild(doc.createTextNode(" "));
     li.appendChild(back);
     list.appendChild(li);
   }
-  section.replaceWith(list);
+  wrap.appendChild(list);
+  section.replaceWith(wrap);
 }
 
 /**
- * HTML for a publish target. `text/plain` on the clipboard should stay the
- * source markdown; this HTML is the rich-paste payload.
+ * HTML for a publish target. `plain` is what should go in text/plain.
+ * Platform pastes omit the essay title (Substack/Medium have their own
+ * title field). HTML includes it.
  */
 export function htmlForPublishTarget(
   markdown: string,
   target: PublishCopyTarget
-): { title: string; html: string } {
+): PublishCopyResult {
   const preview = buildPublicationPreview(markdown);
   const prepared = preparePublicationBody(markdown);
   if (!prepared) {
-    return { title: preview.title, html: withTitle(preview.title, preview.bodyHtml) };
+    const html =
+      target === "html"
+        ? withTitle(preview.title, preview.bodyHtml)
+        : preview.bodyHtml;
+    return { title: preview.title, html, plain: htmlToPlainText(html) };
   }
   if (target === "medium") formatMedium(prepared.doc, prepared.root);
-  else formatSubstack(prepared.doc, prepared.root);
+  else if (target === "html") formatHtml(prepared.doc, prepared.root);
+  else if (target === "substack-native") {
+    formatSubstackNative(prepared.doc, prepared.root);
+  } else formatSubstack(prepared.doc, prepared.root);
+
+  const body = prepared.root.innerHTML;
+  const html = target === "html" ? withTitle(prepared.title, body) : body;
   return {
     title: prepared.title,
-    html: withTitle(prepared.title, prepared.root.innerHTML),
+    html,
+    plain: htmlToPlainText(html),
   };
 }
 
@@ -157,5 +237,6 @@ export function clipboardHtmlFromMarkdown(markdown: string): {
   title: string;
   html: string;
 } {
-  return htmlForPublishTarget(markdown, "substack");
+  const result = htmlForPublishTarget(markdown, "substack");
+  return { title: result.title, html: result.html };
 }

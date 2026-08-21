@@ -16,7 +16,11 @@ import {
   PUBLISH_COPY_TARGETS,
   type PublishCopyTarget,
 } from "@/lib/export/clipboardHtml";
-import { copyDocumentForPaste } from "@/lib/export/document";
+import { copyDocumentForPaste, copyMarkdownToClipboard } from "@/lib/export/document";
+import {
+  SUBSTACK_FOOTNOTE_HELPER,
+  substackFootnoteBookmarklet,
+} from "@/lib/export/substackEditorHelper";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { BroomIcon, PinIcon } from "@/components/icons";
 import { getActiveProvider, loadAiKeys } from "@/lib/ai/keys";
@@ -457,7 +461,7 @@ function PublishTab({
   const [report, setReport] = useState<PrePublishReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
-  const [copyBusy, setCopyBusy] = useState<PublishCopyTarget | null>(null);
+  const [copyBusy, setCopyBusy] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -486,16 +490,41 @@ function PublishTab({
   }, []);
 
   async function copyFor(target: PublishCopyTarget) {
-    const spec = PUBLISH_COPY_TARGETS.find((item) => item.id === target);
+    const spec =
+      PUBLISH_COPY_TARGETS.find((item) => item.id === target) ??
+      (target === "substack-native"
+        ? { label: "Substack (native notes)" }
+        : null);
     setCopyBusy(target);
     setCopyStatus(null);
     try {
       const markdown = getMarkdown();
-      const { html } = htmlForPublishTarget(markdown, target);
-      await copyDocumentForPaste({ markdown, html });
-      setCopyStatus(`Copied for ${spec?.label ?? target}.`);
+      const { html, plain } = htmlForPublishTarget(markdown, target);
+      await copyDocumentForPaste({ html, plain });
+      setCopyStatus(`Copied for ${spec?.label ?? target}. Paste into the other editor.`);
     } catch {
-      setCopyStatus("Copy failed. Try the essay menu → Copy → All text for markdown.");
+      setCopyStatus("Copy failed. Try the essay menu → Export → HTML.");
+    } finally {
+      setCopyBusy(null);
+    }
+  }
+
+  async function copyHelper(kind: "script" | "bookmarklet") {
+    setCopyBusy(kind);
+    setCopyStatus(null);
+    try {
+      const text =
+        kind === "bookmarklet"
+          ? substackFootnoteBookmarklet()
+          : SUBSTACK_FOOTNOTE_HELPER;
+      await copyMarkdownToClipboard(text);
+      setCopyStatus(
+        kind === "bookmarklet"
+          ? "Bookmarklet copied. Create a bookmark and paste this as the URL."
+          : "Helper copied. In the Substack editor, open the console (F12) and paste."
+      );
+    } catch {
+      setCopyStatus("Could not copy the helper.");
     } finally {
       setCopyBusy(null);
     }
@@ -504,8 +533,9 @@ function PublishTab({
   return (
     <section>
       <p className="blogide-cleanup-hint">
-        Copy a platform-specific HTML paste (GFM footnotes become numbered
-        notes for that site). Essay menu → Copy → All text stays raw markdown.
+        These copies put formatted HTML on the clipboard (readable text as the
+        fallback, not markdown). Substack and Medium will not turn pasted HTML
+        into native footnotes. Essay menu → Copy → All text stays raw markdown.
       </p>
       <div className="blogide-cleanup-actions mb-3">
         {PUBLISH_COPY_TARGETS.map((target) => (
@@ -519,6 +549,36 @@ function PublishTab({
             onClick={() => void copyFor(target.id)}
           />
         ))}
+      </div>
+      <p className="blogide-cleanup-hint">
+        Native Substack footnotes (the ones you click in their editor) only exist
+        if you paste markers, then run a helper in that tab. Playwright is not
+        required.
+      </p>
+      <ol className="blogide-cleanup-hint mb-2 list-decimal pl-4">
+        <li>Copy markers for Substack</li>
+        <li>Paste into your Substack draft</li>
+        <li>Paste the helper into that tab&apos;s browser console</li>
+      </ol>
+      <div className="blogide-cleanup-actions mb-3">
+        <ActionButton
+          label={copyBusy === "substack-native" ? "Copying…" : "Copy markers"}
+          hint="Body [1] markers plus a Notes list"
+          disabled={copyBusy != null}
+          onClick={() => void copyFor("substack-native")}
+        />
+        <ActionButton
+          label={copyBusy === "script" ? "Copying…" : "Copy helper script"}
+          hint="Run in the Substack editor console"
+          disabled={copyBusy != null}
+          onClick={() => void copyHelper("script")}
+        />
+        <ActionButton
+          label={copyBusy === "bookmarklet" ? "Copying…" : "Copy bookmarklet"}
+          hint="Optional: save as a bookmark URL"
+          disabled={copyBusy != null}
+          onClick={() => void copyHelper("bookmarklet")}
+        />
       </div>
       {copyStatus && (
         <p className="mb-3 text-xs text-muted" role="status">

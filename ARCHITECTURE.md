@@ -39,9 +39,12 @@ markdown.
   not stored server-side.
 - Optional hosted-instance routes (`/api/billing/*`) when a shared deploy
   enables storage tiers — see [docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md).
-- Optional Pandoc export/import (`/api/export/docx`, `/api/import/pandoc`)
-  when `PANDOC_PATH` points at a working binary. TipTap stays the editor;
-  markdown and clipboard HTML remain the happy path.
+- Optional Pandoc export/import (`/api/export/docx`, `/api/export/pdf`,
+  `/api/import/pandoc`) when `PANDOC_PATH` points at a working binary.
+  PDF also needs a PDF engine (`PANDOC_PDF_ENGINE` or xelatex / WeasyPrint /
+  Typst on PATH). TipTap stays the editor; markdown and clipboard HTML remain
+  the happy path. Platform paste cannot create Substack/Medium native
+  footnotes — see [docs/PUBLISH_EXPORT.md](./docs/PUBLISH_EXPORT.md).
 
 ### Optional external services
 

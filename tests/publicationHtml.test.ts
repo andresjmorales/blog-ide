@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildPublicationDocument,
   buildPublicationPreview,
   enhancePublicationCaptions,
   enhancePublicationFootnotes,
@@ -150,5 +151,23 @@ describe("buildPublicationPreview captions", () => {
     expect(bodyHtml).toContain("<strong>Credit:</strong>");
     expect(bodyHtml).toContain("<em>Artist</em>");
     expect(bodyHtml).toContain('<a href="https://example.com">source</a>');
+  });
+});
+
+describe("buildPublicationDocument", () => {
+  const md = "---\ntitle: Print sample\n---\n\nHello[^1].\n\n[^1]: A note.\n";
+
+  it("uses a Preview title by default and includes print CSS", () => {
+    const html = buildPublicationDocument(md);
+    expect(html).toContain("<title>Print sample · Preview</title>");
+    expect(html).toContain("@media print");
+    expect(html).toContain(".preview-fn-tip { display: none !important; }");
+    expect(html).not.toContain("window.print()");
+  });
+
+  it("auto-prints with a Save-as-PDF title", () => {
+    const html = buildPublicationDocument(md, { autoPrint: true, print: true });
+    expect(html).toContain("<title>Print sample</title>");
+    expect(html).toContain("window.print()");
   });
 });

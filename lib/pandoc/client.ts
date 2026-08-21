@@ -2,6 +2,7 @@
 
 export type PandocStatus = {
   available: boolean;
+  pdf: boolean;
 };
 
 let cached: PandocStatus | null = null;
@@ -12,13 +13,16 @@ export async function fetchPandocStatus(): Promise<PandocStatus> {
   if (inflight) return inflight;
   inflight = fetch("/api/pandoc/status")
     .then(async (res) => {
-      if (!res.ok) return { available: false };
-      const body = (await res.json()) as { available?: boolean };
-      const status = { available: Boolean(body.available) };
+      if (!res.ok) return { available: false, pdf: false };
+      const body = (await res.json()) as { available?: boolean; pdf?: boolean };
+      const status = {
+        available: Boolean(body.available),
+        pdf: Boolean(body.pdf),
+      };
       cached = status;
       return status;
     })
-    .catch(() => ({ available: false }))
+    .catch(() => ({ available: false, pdf: false }))
     .finally(() => {
       inflight = null;
     });
@@ -47,6 +51,36 @@ export async function exportMarkdownAsDocx(
   const blob = await res.blob();
   const safe = (title || "essay").replace(/[\\/:*?"<>|]+/g, "-");
   const name = safe.toLowerCase().endsWith(".docx") ? safe : `${safe}.docx`;
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = name;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function exportMarkdownAsPdf(
+  markdown: string,
+  title: string
+): Promise<void> {
+  const res = await fetch("/api/export/pdf", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ markdown, title }),
+  });
+  if (!res.ok) {
+    let message = `Export failed (${res.status})`;
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (body.error) message = body.error;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message);
+  }
+  const blob = await res.blob();
+  const safe = (title || "essay").replace(/[\\/:*?"<>|]+/g, "-");
+  const name = safe.toLowerCase().endsWith(".pdf") ? safe : `${safe}.pdf`;
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
