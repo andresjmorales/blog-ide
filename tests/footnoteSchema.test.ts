@@ -28,4 +28,24 @@ describe("footnote schema", () => {
     expect(editor.schema.nodes.heading).toBeUndefined();
     expect(editor.schema.nodes.footnoteRef).toBeUndefined();
   });
+
+  it("records undo history for nested note edits", () => {
+    const element = document.createElement("div");
+    document.body.appendChild(element);
+    editor = new Editor({
+      element,
+      extensions: createFootnoteExtensions({ typography: false }),
+      content: "A note",
+      contentType: "markdown",
+    });
+    expect(editor.can().undo()).toBe(false);
+    editor.commands.insertContent(" more");
+    expect(editor.getText()).toContain("more");
+    expect(editor.can().undo()).toBe(true);
+    expect(editor.commands.undo()).toBe(true);
+    expect(editor.getText()).not.toContain("more");
+    expect(editor.can().redo()).toBe(true);
+    expect(editor.commands.redo()).toBe(true);
+    expect(editor.getText()).toContain("more");
+  });
 });
