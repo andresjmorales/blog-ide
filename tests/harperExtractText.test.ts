@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  extractLintBlocks,
   extractLintText,
+  lintDocumentKey,
   mapSpanToRange,
 } from "@/lib/editor/harper/extractText";
 import { dialectFromLang, isHarperSupportedLang } from "@/lib/editor/harper/dialect";
@@ -79,6 +81,26 @@ describe("harper extractText", () => {
     expect(map.posAt(4)).toBe(5);
     expect(mapSpanToRange(map, 0, 5)).toEqual({ from: 1, to: 6 });
     expect(mapSpanToRange(map, 7, 12)).toEqual({ from: 10, to: 15 });
+  });
+
+  it("splits textblocks and ignores footnote atoms", () => {
+    const footnote: FakeNode = {
+      isText: false,
+      isBlock: false,
+      nodeSize: 1,
+      type: { name: "footnoteRef" },
+      descendants() {},
+    };
+    const blocks = extractLintBlocks(
+      doc([
+        paragraph([text("Hello", 1), { node: footnote, pos: 6 }]),
+        paragraph([text("world", 10)]),
+      ])
+    );
+    expect(blocks.map((block) => block.text)).toEqual(["Hello", "world"]);
+    expect(lintDocumentKey(blocks)).toBe("Hello\n\nworld");
+    expect(blocks[0]?.from).toBe(1);
+    expect(blocks[1]?.from).toBe(10);
   });
 });
 
