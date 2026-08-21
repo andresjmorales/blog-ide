@@ -14,7 +14,11 @@ import {
   type OverflowItem,
 } from "@/components/EditorOverflowMenu";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
-import { openPublicationPreviewTab } from "@/lib/preview/publicationHtml";
+import {
+  buildPublicationDocument,
+  openPublicationPreviewTab,
+  openPublicationPrintTab,
+} from "@/lib/preview/publicationHtml";
 import { openBiblePin } from "@/lib/pins/pinStore";
 import {
   CleanupDialog,
@@ -88,6 +92,7 @@ import { useAppDialog } from "@/components/AppDialog";
 import {
   copyDocumentForPaste,
   copyMarkdownToClipboard,
+  downloadHtmlDocument,
   downloadMarkdown,
 } from "@/lib/export/document";
 import {
@@ -97,6 +102,7 @@ import {
 } from "@/lib/export/clipboardHtml";
 import {
   exportMarkdownAsDocx,
+  exportMarkdownAsPdf,
 } from "@/lib/pandoc/client";
 import { pushWorkspaceToGithubWithStatus } from "@/lib/github/push";
 import { githubActionMenuItems } from "@/lib/github/menu";
@@ -1401,14 +1407,57 @@ export function DocumentWorkspace({
 
   async function copyForPublish(target: PublishCopyTarget) {
     const markdown = currentMarkdown();
-    const { html } = htmlForPublishTarget(markdown, target);
+    const { html, plain } = htmlForPublishTarget(markdown, target);
     try {
-      await copyDocumentForPaste({ markdown, html });
+      await copyDocumentForPaste({ html, plain });
     } catch {
       await dialog.confirm({
         title: "Copy failed",
         message:
-          "Could not write to the clipboard. Try downloading .md instead.",
+          "Could not write to the clipboard. Try downloading .md or HTML instead.",
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
+    }
+  }
+
+  async function exportHtmlFile() {
+    downloadHtmlDocument(
+      buildPublicationDocument(currentMarkdown(), {
+        fetchBible: prefs.fetchBibleEnabled,
+      }),
+      documentName ?? `${essayTitle}.html`
+    );
+  }
+
+  function exportPdfPrint() {
+    try {
+      openPublicationPrintTab(currentMarkdown(), {
+        fetchBible: prefs.fetchBibleEnabled,
+      });
+    } catch (err) {
+      void dialog.confirm({
+        title: "Print blocked",
+        message:
+          err instanceof Error
+            ? err.message
+            : "Could not open the print preview. Allow pop-ups, then try again.",
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
+    }
+  }
+
+  async function exportPdfPandoc() {
+    try {
+      await exportMarkdownAsPdf(currentMarkdown(), essayTitle);
+    } catch (error) {
+      await dialog.confirm({
+        title: "PDF export failed",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Could not convert this essay to PDF.",
         confirmLabel: "OK",
         cancelLabel: "Close",
       });
@@ -1590,10 +1639,31 @@ export function DocumentWorkspace({
           },
         },
         {
+          id: "export-html",
+          label: "HTML",
+          onSelect: () => {
+            exportHtmlFile();
+          },
+        },
+        {
+          id: "export-pdf-print",
+          label: "PDF (print)",
+          onSelect: () => {
+            exportPdfPrint();
+          },
+        },
+        {
           id: "export-docx",
           label: "Word (.docx)",
           onSelect: () => {
             void exportDocx();
+          },
+        },
+        {
+          id: "export-pdf-pandoc",
+          label: "PDF (Pandoc)",
+          onSelect: () => {
+            void exportPdfPandoc();
           },
         },
       ],

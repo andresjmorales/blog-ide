@@ -1,10 +1,25 @@
 /** Download the essay as a `.md` file. */
 export function downloadMarkdown(markdown: string, fileName: string): void {
-  const safe = (fileName || "essay.md").replace(/[\\/:*?"<>|]+/g, "-");
-  const name = safe.toLowerCase().endsWith(".md") ? safe : `${safe}.md`;
-  const blob = new Blob([markdown], {
-    type: "text/markdown;charset=utf-8",
-  });
+  triggerDownload(
+    new Blob([markdown], { type: "text/markdown;charset=utf-8" }),
+    withExt(fileName || "essay.md", ".md")
+  );
+}
+
+/** Download a standalone HTML document. */
+export function downloadHtmlDocument(html: string, fileName: string): void {
+  triggerDownload(
+    new Blob([html], { type: "text/html;charset=utf-8" }),
+    withExt(fileName || "essay.html", ".html")
+  );
+}
+
+function withExt(fileName: string, ext: string): string {
+  const safe = fileName.replace(/[\\/:*?"<>|]+/g, "-");
+  return safe.toLowerCase().endsWith(ext) ? safe : `${safe}${ext}`;
+}
+
+function triggerDownload(blob: Blob, name: string): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -18,36 +33,59 @@ export async function copyMarkdownToClipboard(markdown: string): Promise<void> {
   await navigator.clipboard.writeText(markdown);
 }
 
-/** Copy markdown + HTML for pasting into a rich editor (Substack / Medium / Docs). */
+/**
+ * Copy HTML + a readable plain-text fallback for pasting into a rich editor.
+ * Do not put markdown source in `plain` for publish targets.
+ */
 export async function copyDocumentForPaste(input: {
-  markdown: string;
   html: string;
-  title?: string;
+  plain: string;
 }): Promise<void> {
-  const title = input.title?.trim();
-  const html = title
-    ? `<h1>${escapeHtml(title)}</h1>\n${input.html}`
-    : input.html;
-
   if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
-    await navigator.clipboard.write([
-      new ClipboardItem({
-        "text/plain": new Blob([input.markdown], { type: "text/plain" }),
-        "text/html": new Blob([html], { type: "text/html" }),
-      }),
-    ]);
-    return;
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([input.plain], { type: "text/plain" }),
+          "text/html": new Blob([input.html], { type: "text/html" }),
+        }),
+      ]);
+      return;
+    } catch {
+      /* try contenteditable fallback */
+    }
   }
-
-  await navigator.clipboard.writeText(input.markdown);
+  if (copyViaContentEditable(input.html)) return;
+  await navigator.clipboard.writeText(input.plain);
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+function copyViaContentEditable(html: string): boolean {
+  if (typeof document === "undefined" || !document.body) return false;
+  const div = document.createElement("div");
+  div.setAttribute("contenteditable", "true");
+  div.innerHTML = html;
+  Object.assign(div.style, {
+    position: "fixed",
+    left: "0",
+    top: "0",
+    width: "1px",
+    height: "1px",
+    opacity: "0.01",
+  });
+  document.body.appendChild(div);
+  const range = document.createRange();
+  range.selectNodeContents(div);
+  const sel = window.getSelection();
+  sel?.removeAllRanges();
+  sel?.addRange(range);
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    ok = false;
+  }
+  sel?.removeAllRanges();
+  div.remove();
+  return ok;
 }
 
 /** Read a local `.md` / text file picked by the user. */

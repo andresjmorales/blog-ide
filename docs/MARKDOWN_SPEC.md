@@ -67,7 +67,9 @@ source still contains the `![…](…)` line so the URL can be fixed.
 
 Footnote bodies live in inline TipTap atoms and serialize to ordered GFM-style
 references plus definitions (`[^n]` / `[^n]: …`). Nested block content inside
-notes is supported where the shared extension set allows it.
+notes is supported where the shared extension set allows it. Pasting that
+markdown into Substack or Medium does **not** create native platform footnotes;
+see [PUBLISH_EXPORT.md](./PUBLISH_EXPORT.md).
 
 ## Lists
 

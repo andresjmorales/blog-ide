@@ -320,10 +320,18 @@ export function enhancePublicationMath(html: string): string {
   return doc.body.innerHTML;
 }
 
+export type PublicationDocumentOptions = {
+  fetchBible?: boolean;
+  /** Save-as-PDF friendly title (no "Preview" suffix) and print CSS emphasis. */
+  print?: boolean;
+  /** After load, open the browser print dialog. */
+  autoPrint?: boolean;
+};
+
 /** Full HTML document for opening Preview in a new browser tab. */
 export function buildPublicationDocument(
   markdown: string,
-  options: { fetchBible?: boolean } = {}
+  options: PublicationDocumentOptions = {}
 ): string {
   const { title, subtitle, author, bodyHtml } = buildPublicationPreview(
     markdown
@@ -337,12 +345,19 @@ export function buildPublicationDocument(
   const enhancer = options.fetchBible
     ? `<script crossorigin src="${FETCH_BIBLE_ENHANCER_SCRIPT}" data-trans="${FETCH_BIBLE_TRANSLATION_ID}"></script>`
     : "";
+  const pageTitle =
+    options.print || options.autoPrint
+      ? title
+      : `${title} · Preview`;
+  const autoPrintScript = options.autoPrint
+    ? `<script>window.addEventListener("load",function(){window.focus();setTimeout(function(){window.print();},250);});</script>`
+    : "";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${escapeHtml(title)} · Preview</title>
+<title>${escapeHtml(pageTitle)}</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" />
 ${enhancer}
 <style>
@@ -530,6 +545,12 @@ ${enhancer}
   .preview-footnotes-body blockquote {
     border-left: 2px solid var(--border); color: var(--muted); margin: 0.4em 0; padding-left: 0.65em;
   }
+  @media print {
+    .preview-fn-tip { display: none !important; }
+    .document-preview { padding: 0; }
+    a { color: inherit; }
+    .preview-fn-ref { color: inherit; }
+  }
 </style>
 </head>
 <body>
@@ -541,13 +562,14 @@ ${enhancer}
       <div>${bodyHtml}</div>
     </article>
   </div>
+  ${autoPrintScript}
 </body>
 </html>`;
 }
 
-export function openPublicationPreviewTab(
+function openPublicationDocumentTab(
   markdown: string,
-  options: { fetchBible?: boolean } = {}
+  options: PublicationDocumentOptions = {}
 ): void {
   const html = buildPublicationDocument(markdown, options);
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
@@ -561,4 +583,23 @@ export function openPublicationPreviewTab(
   }
   win.opener = null;
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export function openPublicationPreviewTab(
+  markdown: string,
+  options: { fetchBible?: boolean } = {}
+): void {
+  openPublicationDocumentTab(markdown, options);
+}
+
+/** Open the publication HTML and raise the browser print / Save as PDF dialog. */
+export function openPublicationPrintTab(
+  markdown: string,
+  options: { fetchBible?: boolean } = {}
+): void {
+  openPublicationDocumentTab(markdown, {
+    ...options,
+    print: true,
+    autoPrint: true,
+  });
 }

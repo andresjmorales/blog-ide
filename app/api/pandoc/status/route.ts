@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/supabase/requireUser";
-import { assertPandocAvailable } from "@/lib/pandoc/run";
+import { assertPandocAvailable, resolvePandocPdfEngine } from "@/lib/pandoc/run";
 
 export const runtime = "nodejs";
 
@@ -9,8 +9,9 @@ export async function GET() {
   if (denied) return denied;
   try {
     await assertPandocAvailable();
-    return NextResponse.json({ available: true });
+    const engine = await resolvePandocPdfEngine();
+    return NextResponse.json({ available: true, pdf: Boolean(engine) });
   } catch {
-    return NextResponse.json({ available: false });
+    return NextResponse.json({ available: false, pdf: false });
   }
 }

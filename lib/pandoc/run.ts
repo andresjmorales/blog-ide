@@ -5,8 +5,10 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import {
   getPandocPath,
+  getPandocPdfEnginePref,
   PANDOC_MARKDOWN_FROM,
   PANDOC_MARKDOWN_TO,
+  PANDOC_PDF_ENGINES,
 } from "@/lib/pandoc/config";
 
 const execFileAsync = promisify(execFile);
@@ -20,6 +22,15 @@ export class PandocUnavailableError extends Error {
       "Word export needs Pandoc on the server. Set PANDOC_PATH (for example /usr/bin/pandoc) and restart."
     );
     this.name = "PandocUnavailableError";
+  }
+}
+
+export class PandocPdfEngineError extends Error {
+  constructor() {
+    super(
+      "PDF via Pandoc needs a PDF engine (xelatex, pdflatex, weasyprint, or typst). Install one, set PANDOC_PDF_ENGINE, or use Export → PDF (print) to save from the browser."
+    );
+    this.name = "PandocPdfEngineError";
   }
 }
 
@@ -62,6 +73,70 @@ export async function markdownToDocx(markdown: string): Promise<Buffer> {
     if (error instanceof PandocUnavailableError) throw error;
     const message =
       error instanceof Error ? error.message : "Pandoc conversion failed.";
+    throw new Error(message.replace(dir, "…"));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+async function commandExists(cmd: string): Promise<boolean> {
+  try {
+    await execFileAsync(cmd, ["--version"], { timeout: 8_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function resolvePandocPdfEngine(): Promise<string | null> {
+  const preferred = getPandocPdfEnginePref();
+  if (preferred) {
+    if (await commandExists(preferred)) return preferred;
+    return null;
+  }
+  for (const engine of PANDOC_PDF_ENGINES) {
+    if (await commandExists(engine)) return engine;
+  }
+  return null;
+}
+
+export async function markdownToPdf(markdown: string): Promise<Buffer> {
+  const pandoc = await assertPandocAvailable();
+  const engine = await resolvePandocPdfEngine();
+  if (!engine) throw new PandocPdfEngineError();
+
+  const bytes = Buffer.byteLength(markdown, "utf8");
+  if (bytes > MAX_MARKDOWN_BYTES) {
+    throw new Error("Essay is too large to convert (2 MiB markdown limit).");
+  }
+
+  const dir = await mkdtemp(join(tmpdir(), "blogide-pandoc-pdf-"));
+  const input = join(dir, "essay.md");
+  const output = join(dir, "essay.pdf");
+  try {
+    await writeFile(input, markdown, "utf8");
+    await execFileAsync(
+      pandoc,
+      [
+        `--from=${PANDOC_MARKDOWN_FROM}`,
+        "--to=pdf",
+        `--pdf-engine=${engine}`,
+        "--wrap=none",
+        `--output=${output}`,
+        input,
+      ],
+      { timeout: 90_000, maxBuffer: 20 * 1024 * 1024 }
+    );
+    return await readFile(output);
+  } catch (error) {
+    if (
+      error instanceof PandocUnavailableError ||
+      error instanceof PandocPdfEngineError
+    ) {
+      throw error;
+    }
+    const message =
+      error instanceof Error ? error.message : "Pandoc PDF conversion failed.";
     throw new Error(message.replace(dir, "…"));
   } finally {
     await rm(dir, { recursive: true, force: true });
