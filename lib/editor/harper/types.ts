@@ -8,6 +8,16 @@ export type HarperIssue = {
   suggestions: string[];
 };
 
+/** A lint span stored relative to one textblock's plaintext. */
+export type CachedHarperSpan = {
+  start: number;
+  end: number;
+  kind: string;
+  message: string;
+  problem: string;
+  suggestions: string[];
+};
+
 export type HarperHighlightState = {
   issues: HarperIssue[];
   activeId: string | null;

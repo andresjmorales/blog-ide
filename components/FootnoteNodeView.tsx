@@ -37,6 +37,11 @@ import {
   subscribeFootnoteFindSession,
 } from "@/lib/editor/footnoteFindBridge";
 import { consumeFootnoteEditorOpen } from "@/lib/editor/footnoteOpen";
+import {
+  applyFootnoteHistoryKey,
+  footnoteHistoryAction,
+  isFootnoteHistoryTarget,
+} from "@/lib/editor/footnoteHistoryKeys";
 import { createFootnoteExtensions } from "@/lib/editor/footnoteSchema";
 import { firstImageFile } from "@/lib/editor/insertEssayImage";
 import { PinnedSurface } from "@/components/pins/PinnedSurface";
@@ -301,10 +306,16 @@ export function FootnoteNodeView({
     ) {
       return;
     }
-    noteEditor.commands.setContent(content, {
-      contentType: "markdown",
-      emitUpdate: false,
-    });
+    noteEditor.chain()
+      .command(({ tr }) => {
+        tr.setMeta("addToHistory", false);
+        return true;
+      })
+      .setContent(content, {
+        contentType: "markdown",
+        emitUpdate: false,
+      })
+      .run();
   }, [content, noteEditor]);
 
   // Push edits into the node attrs so the margin sidenote stays live — debounced
@@ -566,6 +577,21 @@ export function FootnoteNodeView({
       window.removeEventListener("scroll", positionCard, true);
     };
   }, [cardOpen, hasUserPlacedPosition, pinned]);
+
+  useEffect(() => {
+    if (!noteEditor || !cardOpen) return;
+    const historyEditor = noteEditor;
+    function onKeyDown(event: KeyboardEvent) {
+      const action = footnoteHistoryAction(event);
+      if (!action) return;
+      if (!isFootnoteHistoryTarget(event.target, footnoteId)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      applyFootnoteHistoryKey(historyEditor, action);
+    }
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [noteEditor, cardOpen, footnoteId]);
 
   useEffect(() => {
     if (!cardOpen) return;
