@@ -26,3 +26,39 @@ export function isInsertFootnoteHotkey(event: HotkeyEvent): boolean {
   if (!isModKey(event) || event.altKey || !event.shiftKey) return false;
   return event.key.toLowerCase() === "f";
 }
+
+/**
+ * Surfaces that own Ctrl/Cmd+F even though they are portaled outside the
+ * editor shell (floating footnote cards, the find bar itself).
+ */
+const FIND_HOTKEY_SURFACES =
+  ".blogide-find-replace, .footnote-pin, .footnote-card";
+
+/**
+ * Whether Ctrl/Cmd+F should open BlogIDE Find instead of the browser bar.
+ * Essay, find bar, and footnote cards yes; AI / explorer inputs no.
+ */
+export function isFindHotkeyTarget(
+  target: EventTarget | null,
+  shell: Node | null
+): boolean {
+  if (!(target instanceof Node)) return true;
+  if (shell?.contains(target)) return true;
+  if (
+    target instanceof Element &&
+    target.closest(FIND_HOTKEY_SURFACES)
+  ) {
+    return true;
+  }
+  if (
+    target === document.body ||
+    target === document.documentElement ||
+    !(target instanceof HTMLElement)
+  ) {
+    return true;
+  }
+  return (
+    !target.closest("input, textarea, select, [contenteditable='true']") &&
+    !target.isContentEditable
+  );
+}
