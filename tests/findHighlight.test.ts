@@ -38,6 +38,7 @@ describe("findHighlight", () => {
       expect(state?.matches[0]).toMatchObject({ from: 1, to: 6 });
       expect(state?.matches[1]).toMatchObject({ from: 13, to: 18 });
       expect(state?.activeIndex).toBe(0);
+      expect(state?.decorations.find().length).toBeGreaterThan(0);
     } finally {
       clearFindHighlights(editor);
       editor.destroy();
@@ -146,6 +147,7 @@ describe("findHighlight", () => {
       const state = findHighlightKey.getState(editor.state);
       expect(state?.matches).toHaveLength(1);
       expect(state?.matches[0].footnotePos).toBe(pos);
+      expect(state?.decorations.find().length).toBeGreaterThan(0);
     } finally {
       clearFindHighlights(editor);
       editor.destroy();

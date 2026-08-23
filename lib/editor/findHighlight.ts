@@ -10,6 +10,8 @@ export type FindHighlightState = {
   activeIndex: number;
   /** Soft highlight for find-in-selection bounds. */
   scopeRange: DocRange | null;
+  /** Mapped in place so edits do not tear down and rebuild highlight marks. */
+  decorations: DecorationSet;
 };
 
 export const findHighlightKey = new PluginKey<FindHighlightState>(
@@ -20,7 +22,10 @@ const EMPTY: FindHighlightState = {
   matches: [],
   activeIndex: 0,
   scopeRange: null,
+  decorations: DecorationSet.empty,
 };
+
+type FindHighlightFields = Omit<FindHighlightState, "decorations">;
 
 function rangesEqual(
   a: DocRange | null | undefined,
@@ -49,8 +54,8 @@ function matchesEqual(a: FindMatch[], b: FindMatch[]): boolean {
 }
 
 export function findHighlightStatesEqual(
-  a: FindHighlightState,
-  b: FindHighlightState
+  a: FindHighlightFields,
+  b: FindHighlightFields
 ): boolean {
   if (a === b) return true;
   return (
@@ -87,6 +92,76 @@ function mapFindMatch(match: FindMatch, tr: Transaction): FindMatch | null {
  * Keep highlights through edits (browser-style). FindReplacePanel re-scans
  * after updates and replaces mapped ranges when the query no longer matches.
  */
+function createFindDecorations(
+  doc: Transaction["doc"],
+  matches: FindMatch[],
+  activeIndex: number,
+  scopeRange: DocRange | null
+): DecorationSet {
+  const decos: ReturnType<typeof Decoration.inline>[] = [];
+  if (scopeRange && scopeRange.from < scopeRange.to) {
+    decos.push(
+      Decoration.inline(scopeRange.from, scopeRange.to, {
+        class: "blogide-find-scope",
+      })
+    );
+  }
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
+    const cls =
+      i === activeIndex ? "blogide-find-match is-current" : "blogide-find-match";
+    if (match.footnotePos != null) {
+      const node = doc.nodeAt(match.footnotePos);
+      if (!node || node.type.name !== "footnoteRef") {
+        continue;
+      }
+      decos.push(
+        Decoration.node(
+          match.footnotePos,
+          match.footnotePos + node.nodeSize,
+          { class: `${cls} is-footnote` }
+        )
+      );
+      continue;
+    }
+    if (match.from < match.to) {
+      decos.push(
+        Decoration.inline(match.from, match.to, {
+          class: cls,
+        })
+      );
+    }
+  }
+  if (decos.length === 0) {
+    return DecorationSet.empty;
+  }
+  return DecorationSet.create(doc, decos);
+}
+
+function restoreFootnoteDecorations(
+  doc: Transaction["doc"],
+  decorations: DecorationSet,
+  matches: FindMatch[],
+  activeIndex: number
+): DecorationSet {
+  let next = decorations;
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
+    if (match.footnotePos == null) continue;
+    const node = doc.nodeAt(match.footnotePos);
+    if (!node || node.type.name !== "footnoteRef") continue;
+    const from = match.footnotePos;
+    const to = from + node.nodeSize;
+    if (next.find(from, to).length > 0) continue;
+    const cls =
+      i === activeIndex
+        ? "blogide-find-match is-current is-footnote"
+        : "blogide-find-match is-footnote";
+    next = next.add(doc, [Decoration.node(from, to, { class: cls })]);
+  }
+  return next;
+}
+
 export function mapFindHighlightState(
   value: FindHighlightState,
   tr: Transaction
@@ -95,7 +170,8 @@ export function mapFindHighlightState(
     return value;
   }
 
-  let changed = false;
+  let decorations = value.decorations.map(tr.mapping, tr.doc);
+  let changed = !decorations.eq(value.decorations);
   const matches: FindMatch[] = [];
   for (const match of value.matches) {
     const mapped = mapFindMatch(match, tr);
@@ -122,17 +198,33 @@ export function mapFindHighlightState(
     }
   }
 
+  const activeIndex =
+    matches.length === 0
+      ? 0
+      : Math.min(value.activeIndex, matches.length - 1);
+
+  // setNodeMarkup (footnote attr sync) drops node decorations on that atom.
+  // Re-add only those so mapped inline hits are not torn down.
+  const restored = restoreFootnoteDecorations(
+    tr.doc,
+    decorations,
+    matches,
+    activeIndex
+  );
+  if (!restored.eq(decorations)) {
+    changed = true;
+    decorations = restored;
+  }
+
   if (!changed) {
     return value;
   }
 
   return {
     matches,
-    activeIndex:
-      matches.length === 0
-        ? 0
-        : Math.min(value.activeIndex, matches.length - 1),
+    activeIndex,
     scopeRange,
+    decorations,
   };
 }
 
@@ -168,52 +260,10 @@ export const FindHighlight = Extension.create({
         props: {
           decorations(state) {
             const pluginState = findHighlightKey.getState(state);
-            if (!pluginState) {
+            if (!pluginState || pluginState.decorations.find().length === 0) {
               return null;
             }
-            const decos: ReturnType<typeof Decoration.inline>[] = [];
-            if (
-              pluginState.scopeRange &&
-              pluginState.scopeRange.from < pluginState.scopeRange.to
-            ) {
-              decos.push(
-                Decoration.inline(
-                  pluginState.scopeRange.from,
-                  pluginState.scopeRange.to,
-                  { class: "blogide-find-scope" }
-                )
-              );
-            }
-            for (let i = 0; i < pluginState.matches.length; i++) {
-              const match = pluginState.matches[i];
-              const cls =
-                i === pluginState.activeIndex
-                  ? "blogide-find-match is-current"
-                  : "blogide-find-match";
-              if (match.footnotePos != null) {
-                const node = state.doc.nodeAt(match.footnotePos);
-                if (!node || node.type.name !== "footnoteRef") {
-                  continue;
-                }
-                decos.push(
-                  Decoration.node(
-                    match.footnotePos,
-                    match.footnotePos + node.nodeSize,
-                    { class: `${cls} is-footnote` }
-                  )
-                );
-                continue;
-              }
-              decos.push(
-                Decoration.inline(match.from, match.to, {
-                  class: cls,
-                })
-              );
-            }
-            if (decos.length === 0) {
-              return null;
-            }
-            return DecorationSet.create(state.doc, decos);
+            return pluginState.decorations;
           },
         },
       }),
@@ -228,15 +278,24 @@ export function setFindHighlights(
   activeIndex: number,
   scopeRange: DocRange | null = null
 ): boolean {
-  const next: FindHighlightState = {
+  const fields: FindHighlightFields = {
     matches,
     activeIndex: matches.length === 0 ? 0 : activeIndex,
     scopeRange,
   };
   const current = findHighlightKey.getState(editor.state);
-  if (current && findHighlightStatesEqual(current, next)) {
+  if (current && findHighlightStatesEqual(current, fields)) {
     return false;
   }
+  const next: FindHighlightState = {
+    ...fields,
+    decorations: createFindDecorations(
+      editor.state.doc,
+      fields.matches,
+      fields.activeIndex,
+      fields.scopeRange
+    ),
+  };
   const tr = editor.state.tr.setMeta(findHighlightKey, next);
   tr.setMeta("addToHistory", false);
   editor.view.dispatch(tr);
