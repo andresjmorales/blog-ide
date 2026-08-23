@@ -18,7 +18,11 @@ import {
   BlockMathNodeView,
   InlineMathNodeView,
 } from "@/components/MathNodeView";
-import { isFindReplaceHotkey, isInsertFootnoteHotkey } from "@/lib/editor/findHotkey";
+import {
+  isFindHotkeyTarget,
+  isFindReplaceHotkey,
+  isInsertFootnoteHotkey,
+} from "@/lib/editor/findHotkey";
 import {
   BulletListIcon,
   OrderedListIcon,
@@ -376,26 +380,8 @@ export function DocumentEditor({
       editor.view.dom.closest(".flex.flex-col.h-full") ?? editor.view.dom;
     function onKeyDown(event: KeyboardEvent) {
       if (!isFindReplaceHotkey(event)) return;
-      const target = event.target;
-      // Allow Find from the essay, find bar, or loose focus (after Escape).
-      // Do not steal Ctrl+F from unrelated chrome inputs (AI, explorer, etc.).
-      if (target instanceof Node) {
-        const inShell = shell.contains(target);
-        const inFind =
-          target instanceof Element &&
-          Boolean(target.closest(".blogide-find-replace"));
-        const looseFocus =
-          target === document.body ||
-          target === document.documentElement ||
-          !(target instanceof HTMLElement) ||
-          (!target.closest(
-            "input, textarea, select, [contenteditable='true']"
-          ) &&
-            !target.isContentEditable);
-        if (!inShell && !inFind && !looseFocus) {
-          return;
-        }
-      }
+      // Essay, find bar, and portaled footnote cards. Not AI / explorer inputs.
+      if (!isFindHotkeyTarget(event.target, shell)) return;
       event.preventDefault();
       openFindRef.current();
     }

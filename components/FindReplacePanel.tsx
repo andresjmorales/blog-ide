@@ -112,7 +112,12 @@ export function FindReplacePanel({
   const replaceInputRef = useRef<HTMLInputElement | null>(null);
   const activeFieldRef = useRef<"find" | "replace">("find");
   const seededRef = useRef(query.length > 0);
-  /** Skip one editor update after our own replace/highlight transactions. */
+  /**
+   * Skip the `update` emitted by our own replace transactions so we can
+   * re-scan with the adjusted sticky range. Highlight-only writes do not
+   * emit `update` in TipTap (doc-only), so they must not set this flag —
+   * that used to drop the next real keystroke and flicker decorations.
+   */
   const ignoreNextUpdateRef = useRef(false);
   const scanArgsRef = useRef({
     query,
@@ -216,7 +221,6 @@ export function FindReplacePanel({
     setMatches(result.matches);
     setError(result.error);
     setIndex(nextIndex);
-    ignoreNextUpdateRef.current = true;
     setFindHighlights(editor, result.matches, nextIndex, sticky);
     syncFootnoteFindSession(editor, result.matches, nextIndex, {
       query: nextQuery,
@@ -234,7 +238,6 @@ export function FindReplacePanel({
   useEffect(() => {
     const sticky = initialStickyRange;
     if (sticky) {
-      ignoreNextUpdateRef.current = true;
       setFindHighlights(editor, [], 0, sticky);
     }
     if (seededRef.current) {
@@ -308,7 +311,6 @@ export function FindReplacePanel({
       }
       const args = scanArgsRef.current;
       if (!args.query) {
-        ignoreNextUpdateRef.current = true;
         setFindHighlights(
           editor,
           [],
@@ -380,6 +382,7 @@ export function FindReplacePanel({
       regex,
       caseSensitive,
     });
+    ignoreNextUpdateRef.current = false;
     let nextSticky = stickyRange;
     if (
       nextSticky &&
@@ -406,6 +409,7 @@ export function FindReplacePanel({
       scope,
       scope === "selection" ? stickyRange : null
     );
+    ignoreNextUpdateRef.current = false;
     const nextSticky =
       scope === "selection" ? result.stickyRange : stickyRange;
     if (scope === "selection") {

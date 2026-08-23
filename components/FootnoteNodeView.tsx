@@ -8,6 +8,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
+import type { Editor } from "@tiptap/core";
 import {
   EditorContent,
   NodeViewWrapper,
@@ -238,42 +239,62 @@ export function FootnoteNodeView({
   }, [noteEditor, cardOpen, footnoteId]);
 
   // Highlight inside the note while this footnote is the active find target.
+  // Re-scan on local edits without scrolling — a session-object refresh used
+  // to re-apply decorations and yank the nested caret.
   useEffect(() => {
     if (!noteEditor) return;
     if (!cardOpen || !isFindTarget || !findSession) {
       clearFindHighlights(noteEditor);
       return;
     }
-    let matches;
-    try {
-      matches = findInEditor(
-        noteEditor,
-        {
-          query: findSession.query,
-          regex: findSession.regex,
-          caseSensitive: findSession.caseSensitive,
-        },
-        "document"
-      );
-    } catch {
-      clearFindHighlights(noteEditor);
-      return;
+    const editor: Editor = noteEditor;
+    const session = findSession;
+
+    function applyNoteHighlights(scroll: boolean) {
+      let matches;
+      try {
+        matches = findInEditor(
+          editor,
+          {
+            query: session.query,
+            regex: session.regex,
+            caseSensitive: session.caseSensitive,
+          },
+          "document"
+        );
+      } catch {
+        clearFindHighlights(editor);
+        return;
+      }
+      if (matches.length === 0) {
+        clearFindHighlights(editor);
+        return;
+      }
+      const activeIndex = Math.min(session.occurrence, matches.length - 1);
+      setFindHighlights(editor, matches, activeIndex);
+      const active = matches[activeIndex];
+      if (scroll && active) {
+        requestAnimationFrame(() => {
+          scrollMatchIntoView(editor, active);
+        });
+      }
     }
-    if (matches.length === 0) {
-      clearFindHighlights(noteEditor);
-      return;
+
+    applyNoteHighlights(true);
+    function onNoteUpdate({
+      transaction,
+    }: {
+      transaction?: { docChanged?: boolean };
+    }) {
+      if (transaction && !transaction.docChanged) {
+        return;
+      }
+      applyNoteHighlights(false);
     }
-    const activeIndex = Math.min(
-      findSession.occurrence,
-      matches.length - 1
-    );
-    setFindHighlights(noteEditor, matches, activeIndex);
-    const active = matches[activeIndex];
-    if (active) {
-      requestAnimationFrame(() => {
-        scrollMatchIntoView(noteEditor, active);
-      });
-    }
+    editor.on("update", onNoteUpdate);
+    return () => {
+      editor.off("update", onNoteUpdate);
+    };
   }, [noteEditor, cardOpen, isFindTarget, findSession]);
 
   useEffect(() => {

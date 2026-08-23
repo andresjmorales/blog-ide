@@ -37,9 +37,27 @@ function emit(): void {
   }
 }
 
+export function footnoteFindSessionsEqual(
+  a: FootnoteFindSession | null,
+  b: FootnoteFindSession | null
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.footnoteId === b.footnoteId &&
+    a.occurrence === b.occurrence &&
+    a.query === b.query &&
+    a.regex === b.regex &&
+    a.caseSensitive === b.caseSensitive
+  );
+}
+
 export function setFootnoteFindSession(
   next: FootnoteFindSession | null
 ): void {
+  if (footnoteFindSessionsEqual(session, next)) {
+    return;
+  }
   session = next;
   emit();
 }

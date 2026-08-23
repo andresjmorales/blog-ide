@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isFindHotkeyTarget,
   isFindReplaceHotkey,
   isInsertFootnoteHotkey,
 } from "@/lib/editor/findHotkey";
@@ -46,5 +47,34 @@ describe("find vs footnote hotkeys", () => {
       )
     ).toBe(false);
     expect(isFindReplaceHotkey(event({ key: "f" }))).toBe(false);
+  });
+
+  it("claims Ctrl+F from a portaled footnote card, not from chrome inputs", () => {
+    const shell = document.createElement("div");
+    const essay = document.createElement("div");
+    essay.contentEditable = "true";
+    shell.appendChild(essay);
+    document.body.appendChild(shell);
+
+    const card = document.createElement("div");
+    card.className = "footnote-pin";
+    const note = document.createElement("div");
+    note.contentEditable = "true";
+    card.appendChild(note);
+    document.body.appendChild(card);
+
+    const ai = document.createElement("textarea");
+    document.body.appendChild(ai);
+
+    try {
+      expect(isFindHotkeyTarget(essay, shell)).toBe(true);
+      expect(isFindHotkeyTarget(note, shell)).toBe(true);
+      expect(isFindHotkeyTarget(ai, shell)).toBe(false);
+      expect(isFindHotkeyTarget(document.body, shell)).toBe(true);
+    } finally {
+      shell.remove();
+      card.remove();
+      ai.remove();
+    }
   });
 });
