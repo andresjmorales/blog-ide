@@ -216,8 +216,15 @@ export function FindReplacePanel({
     setMatches(result.matches);
     setError(result.error);
     setIndex(nextIndex);
-    ignoreNextUpdateRef.current = true;
-    setFindHighlights(editor, result.matches, nextIndex, sticky);
+    const dispatched = setFindHighlights(
+      editor,
+      result.matches,
+      nextIndex,
+      sticky
+    );
+    if (dispatched) {
+      ignoreNextUpdateRef.current = true;
+    }
     syncFootnoteFindSession(editor, result.matches, nextIndex, {
       query: nextQuery,
       regex: nextRegex,
@@ -234,8 +241,9 @@ export function FindReplacePanel({
   useEffect(() => {
     const sticky = initialStickyRange;
     if (sticky) {
-      ignoreNextUpdateRef.current = true;
-      setFindHighlights(editor, [], 0, sticky);
+      if (setFindHighlights(editor, [], 0, sticky)) {
+        ignoreNextUpdateRef.current = true;
+      }
     }
     if (seededRef.current) {
       // Selection was a short token — search it immediately inside the scope.
@@ -299,22 +307,33 @@ export function FindReplacePanel({
   }, []);
 
   // Re-scan when the essay changes so highlights track the live query
-  // instead of mapped (often wrong) ranges.
+  // instead of mapped (often wrong) ranges. Selection-only and highlight
+  // transactions must not re-enter — they used to flicker decorations,
+  // remount footnote cards, and jump the caret.
   useEffect(() => {
-    function onEditorUpdate() {
+    function onEditorUpdate({
+      transaction,
+    }: {
+      transaction?: { docChanged?: boolean };
+    }) {
       if (ignoreNextUpdateRef.current) {
         ignoreNextUpdateRef.current = false;
         return;
       }
+      if (transaction && !transaction.docChanged) {
+        return;
+      }
       const args = scanArgsRef.current;
       if (!args.query) {
-        ignoreNextUpdateRef.current = true;
-        setFindHighlights(
+        const dispatched = setFindHighlights(
           editor,
           [],
           0,
           args.scope === "selection" ? args.stickyRange : null
         );
+        if (dispatched) {
+          ignoreNextUpdateRef.current = true;
+        }
         setMatches([]);
         setIndex(0);
         return;
