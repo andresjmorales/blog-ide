@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Editor } from "@tiptap/core";
 import { createExtensions } from "@/lib/editor/extensions";
 import { parseBody } from "@/lib/markdown/pipeline";
+import { findInEditor } from "@/lib/editor/findReplaceInEditor";
 import {
   clearFindHighlights,
   findHighlightKey,
@@ -80,6 +81,71 @@ describe("findHighlight", () => {
         )
       ).toBe(false);
       expect(transactions).toBe(0);
+    } finally {
+      clearFindHighlights(editor);
+      editor.destroy();
+    }
+  });
+
+  it("does not emit TipTap update for highlight-only writes", () => {
+    const editor = makeEditor("alpha beta alpha\n");
+    try {
+      setFindHighlights(
+        editor,
+        [
+          { from: 1, to: 6, text: "alpha" },
+          { from: 12, to: 17, text: "alpha" },
+        ],
+        0,
+        null
+      );
+      let updates = 0;
+      editor.on("update", () => {
+        updates += 1;
+      });
+      setFindHighlights(
+        editor,
+        [
+          { from: 1, to: 6, text: "alpha" },
+          { from: 12, to: 17, text: "alpha" },
+        ],
+        1,
+        null
+      );
+      expect(updates).toBe(0);
+      editor.commands.insertContentAt(6, "X");
+      expect(updates).toBe(1);
+    } finally {
+      clearFindHighlights(editor);
+      editor.destroy();
+    }
+  });
+
+  it("keeps footnote match decorations when the note attr is rewritten", () => {
+    const editor = makeEditor(
+      "See note[^1].\n\n[^1]: UniqueFootnoteToken here.\n"
+    );
+    try {
+      const matches = findInEditor(
+        editor,
+        { query: "UniqueFootnoteToken", regex: false, caseSensitive: true },
+        "document"
+      );
+      expect(matches).toHaveLength(1);
+      expect(matches[0].footnotePos).toEqual(expect.any(Number));
+      setFindHighlights(editor, matches, 0, null);
+      const pos = matches[0].footnotePos as number;
+      const node = editor.state.doc.nodeAt(pos);
+      expect(node?.type.name).toBe("footnoteRef");
+      editor.view.dispatch(
+        editor.state.tr.setNodeMarkup(pos, undefined, {
+          ...node?.attrs,
+          content: "UniqueFootnoteToken here plus extra.",
+        })
+      );
+      const state = findHighlightKey.getState(editor.state);
+      expect(state?.matches).toHaveLength(1);
+      expect(state?.matches[0].footnotePos).toBe(pos);
     } finally {
       clearFindHighlights(editor);
       editor.destroy();

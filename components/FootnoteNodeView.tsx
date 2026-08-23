@@ -294,16 +294,7 @@ export function FootnoteNodeView({
     return () => {
       editor.off("update", onNoteUpdate);
     };
-  }, [
-    noteEditor,
-    cardOpen,
-    isFindTarget,
-    findSession?.footnoteId,
-    findSession?.occurrence,
-    findSession?.query,
-    findSession?.regex,
-    findSession?.caseSensitive,
-  ]);
+  }, [noteEditor, cardOpen, isFindTarget, findSession]);
 
   useEffect(() => {
     if (!noteEditor || !cardOpen) return;

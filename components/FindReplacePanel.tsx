@@ -112,7 +112,12 @@ export function FindReplacePanel({
   const replaceInputRef = useRef<HTMLInputElement | null>(null);
   const activeFieldRef = useRef<"find" | "replace">("find");
   const seededRef = useRef(query.length > 0);
-  /** Skip one editor update after our own replace/highlight transactions. */
+  /**
+   * Skip the `update` emitted by our own replace transactions so we can
+   * re-scan with the adjusted sticky range. Highlight-only writes do not
+   * emit `update` in TipTap (doc-only), so they must not set this flag —
+   * that used to drop the next real keystroke and flicker decorations.
+   */
   const ignoreNextUpdateRef = useRef(false);
   const scanArgsRef = useRef({
     query,
@@ -216,15 +221,7 @@ export function FindReplacePanel({
     setMatches(result.matches);
     setError(result.error);
     setIndex(nextIndex);
-    const dispatched = setFindHighlights(
-      editor,
-      result.matches,
-      nextIndex,
-      sticky
-    );
-    if (dispatched) {
-      ignoreNextUpdateRef.current = true;
-    }
+    setFindHighlights(editor, result.matches, nextIndex, sticky);
     syncFootnoteFindSession(editor, result.matches, nextIndex, {
       query: nextQuery,
       regex: nextRegex,
@@ -241,9 +238,7 @@ export function FindReplacePanel({
   useEffect(() => {
     const sticky = initialStickyRange;
     if (sticky) {
-      if (setFindHighlights(editor, [], 0, sticky)) {
-        ignoreNextUpdateRef.current = true;
-      }
+      setFindHighlights(editor, [], 0, sticky);
     }
     if (seededRef.current) {
       // Selection was a short token — search it immediately inside the scope.
@@ -307,33 +302,21 @@ export function FindReplacePanel({
   }, []);
 
   // Re-scan when the essay changes so highlights track the live query
-  // instead of mapped (often wrong) ranges. Selection-only and highlight
-  // transactions must not re-enter — they used to flicker decorations,
-  // remount footnote cards, and jump the caret.
+  // instead of mapped (often wrong) ranges.
   useEffect(() => {
-    function onEditorUpdate({
-      transaction,
-    }: {
-      transaction?: { docChanged?: boolean };
-    }) {
+    function onEditorUpdate() {
       if (ignoreNextUpdateRef.current) {
         ignoreNextUpdateRef.current = false;
         return;
       }
-      if (transaction && !transaction.docChanged) {
-        return;
-      }
       const args = scanArgsRef.current;
       if (!args.query) {
-        const dispatched = setFindHighlights(
+        setFindHighlights(
           editor,
           [],
           0,
           args.scope === "selection" ? args.stickyRange : null
         );
-        if (dispatched) {
-          ignoreNextUpdateRef.current = true;
-        }
         setMatches([]);
         setIndex(0);
         return;
@@ -399,6 +382,7 @@ export function FindReplacePanel({
       regex,
       caseSensitive,
     });
+    ignoreNextUpdateRef.current = false;
     let nextSticky = stickyRange;
     if (
       nextSticky &&
@@ -425,6 +409,7 @@ export function FindReplacePanel({
       scope,
       scope === "selection" ? stickyRange : null
     );
+    ignoreNextUpdateRef.current = false;
     const nextSticky =
       scope === "selection" ? result.stickyRange : stickyRange;
     if (scope === "selection") {
