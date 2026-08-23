@@ -8,6 +8,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
+import type { Editor } from "@tiptap/core";
 import {
   EditorContent,
   NodeViewWrapper,
@@ -241,12 +242,12 @@ export function FootnoteNodeView({
   // Re-scan on local edits without scrolling — a session-object refresh used
   // to re-apply decorations and yank the nested caret.
   useEffect(() => {
-    const editor = noteEditor;
-    if (!editor) return;
+    if (!noteEditor) return;
     if (!cardOpen || !isFindTarget || !findSession) {
-      clearFindHighlights(editor);
+      clearFindHighlights(noteEditor);
       return;
     }
+    const editor: Editor = noteEditor;
     const session = findSession;
 
     function applyNoteHighlights(scroll: boolean) {

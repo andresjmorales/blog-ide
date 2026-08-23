@@ -171,7 +171,7 @@ export function mapFindHighlightState(
   }
 
   let decorations = value.decorations.map(tr.mapping, tr.doc);
-  let changed = !decorations.eq(value.decorations);
+  let changed = decorations !== value.decorations;
   const matches: FindMatch[] = [];
   for (const match of value.matches) {
     const mapped = mapFindMatch(match, tr);
@@ -211,7 +211,7 @@ export function mapFindHighlightState(
     matches,
     activeIndex
   );
-  if (!restored.eq(decorations)) {
+  if (restored !== decorations) {
     changed = true;
     decorations = restored;
   }
