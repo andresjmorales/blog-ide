@@ -6,6 +6,14 @@ import { Plugin } from "@tiptap/pm/state";
 const NUMERIC_ORDERED_ITEM_RE = /^(\s*)(\d+)([.)])\s+(.*)$/;
 const NUMERIC_PLAIN_LINE_RE = /^(\d+)([.)])\s+(.+)$/;
 const INDENTED_LINE_RE = /^\s/;
+/** `01.` / `007)` — leading zeros that CommonMark still treats as lists. */
+const ZERO_PADDED_MARKER_RE = /^0\d+$/;
+/**
+ * Start-of-line zero-padded ordered markers (`01. ` / `02) `). Indent of 0–3
+ * spaces can still start a CommonMark list; 4+ is an indented code block.
+ */
+const ZERO_PADDED_ORDERED_LINE_RE = /^( {0,3})(0\d+)([.)])([ \t]+)(.*)$/;
+const FENCE_LINE_RE = /^(?:```|~~~)/;
 
 type CollectedItem = {
   indent: number;
@@ -28,6 +36,8 @@ function collectNumericOrderedListItems(
 
     const indent = match[1] ?? "";
     const marker = match[2] ?? "1";
+    // Leave `01. Item` for the paragraph parser (see protectZeroPadded…).
+    if (ZERO_PADDED_MARKER_RE.test(marker)) break;
     const content = match[4] ?? "";
     const indentLevel = indent.length;
     const itemNumber = parseInt(marker, 10);
@@ -155,7 +165,35 @@ function buildNestedStructure(
   return result;
 }
 
-function parseNumericPlainTextOrderedListPaste(text: string) {
+/**
+ * Keep `01. Item` as editable paragraph text. CommonMark would otherwise fold
+ * the line into an ordered list, trap `01` in a CSS marker, and rewrite it as
+ * `1.` on serialize — the same trap the `1. ` input rule is designed to avoid.
+ * Skips fenced code so examples inside fences stay untouched.
+ */
+export function protectZeroPaddedOrderedMarkers(body: string): string {
+  let inFence = false;
+  return body
+    .split("\n")
+    .map((line) => {
+      if (FENCE_LINE_RE.test(line.trimStart())) {
+        inFence = !inFence;
+        return line;
+      }
+      if (inFence) return line;
+      const match = line.match(ZERO_PADDED_ORDERED_LINE_RE);
+      if (!match) return line;
+      const indent = match[1] ?? "";
+      const digits = match[2] ?? "";
+      const delimiter = match[3] ?? ".";
+      const space = match[4] ?? " ";
+      const rest = match[5] ?? "";
+      return `${indent}${digits}\\${delimiter}${space}${rest}`;
+    })
+    .join("\n");
+}
+
+export function parseNumericPlainTextOrderedListPaste(text: string) {
   const lines = text.split("\n").filter((l) => l.trim().length > 0);
   if (lines.length === 0) return null;
 
@@ -163,8 +201,11 @@ function parseNumericPlainTextOrderedListPaste(text: string) {
   for (const line of lines) {
     const match = line.trim().match(NUMERIC_PLAIN_LINE_RE);
     if (!match) return null;
+    const markerText = match[1] ?? "1";
+    // Zero-padded markers stay plain text so paste doesn't strip `01`/`02`.
+    if (ZERO_PADDED_MARKER_RE.test(markerText)) return null;
     parsed.push({
-      marker: parseInt(match[1] ?? "1", 10),
+      marker: parseInt(markerText, 10),
       content: match[3] ?? "",
     });
   }
