@@ -80,6 +80,12 @@ see [PUBLISH_EXPORT.md](./PUBLISH_EXPORT.md).
 - **Parse:** ordered-list markers must be numeric (`1.` / `2)`). TipTap’s
   stock alpha/roman markers (`a.` / `St.` / `i.`) are disabled so prose like
   “St. George…” is not rewritten into a numbered list.
+- **Zero-padded numbers:** lines like `01. Item` / `02. Item` (or `01)`) stay
+  plain paragraphs on parse, paste, and a cloud refresh. CommonMark would
+  otherwise turn them into a native ordered list, rewrite the first marker as
+  `1.`, and drop the typed digits into an uneditable CSS counter. Canonical
+  `1. 2. 3.` lists and unpadded `5. 6.` lists still parse as lists. Fenced
+  code is left alone.
 
 ## Hard breaks and paste whitespace
 

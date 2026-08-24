@@ -1,6 +1,7 @@
 import { MarkdownManager } from "@tiptap/markdown";
 import type { JSONContent } from "@tiptap/core";
 import { createExtensions } from "@/lib/editor/extensions";
+import { protectZeroPaddedOrderedMarkers } from "@/lib/editor/orderedList";
 import { preserveUnstableEmphasis } from "@/lib/editor/emphasisMarkdown";
 import { prepareImageCaptions } from "@/lib/editor/imageCaption";
 import { prepareMath } from "@/lib/editor/math";
@@ -168,7 +169,8 @@ export function parseBody(body: string): JSONContent {
   const prepared = prepareFootnotes(withoutTrailer);
   const withCaptions = prepareImageCaptions(prepared.markdown);
   const withMath = prepareMath(withCaptions);
-  const doc = getManager().parse(withMath);
+  const withProtectedLists = protectZeroPaddedOrderedMarkers(withMath);
+  const doc = getManager().parse(withProtectedLists);
   // An empty body parses to a doc with NO children. The editor renders that
   // as nothing at all: no paragraph to type in, no placeholder to show, and
   // clicking yields a gap cursor. Guarantee one empty paragraph.
