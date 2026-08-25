@@ -4,6 +4,7 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Editor } from "@tiptap/core";
 import type { FindMatch } from "@/lib/editor/findReplace";
 import type { DocRange } from "@/lib/editor/findReplaceInEditor";
+import { findEditorScroller } from "@/lib/editor/editorScroll";
 
 export type FindHighlightState = {
   matches: FindMatch[];
@@ -229,7 +230,6 @@ export function mapFindHighlightState(
 }
 
 const SCROLL_PAD_PX = 80;
-const EDITOR_SCROLL_SELECTOR = "[data-blogide-editor-scroll]";
 
 /**
  * Soft find highlights via decorations — does not move the selection or
@@ -304,32 +304,6 @@ export function setFindHighlights(
 
 export function clearFindHighlights(editor: Editor): void {
   setFindHighlights(editor, [], 0, null);
-}
-
-function findEditorScroller(editor: Editor): HTMLElement | null {
-  const rooted = editor.view.dom.closest(EDITOR_SCROLL_SELECTOR);
-  if (rooted instanceof HTMLElement) {
-    return rooted;
-  }
-  let root: Element | null = editor.view.dom.parentElement;
-  let fallback: HTMLElement | null = null;
-  while (root) {
-    if (root instanceof HTMLElement) {
-      const style = getComputedStyle(root);
-      if (
-        /(auto|scroll|overlay)/.test(
-          `${style.overflow}${style.overflowY}${style.overflowX}`
-        )
-      ) {
-        fallback = root;
-        if (root.scrollHeight > root.clientHeight + 1) {
-          return root;
-        }
-      }
-    }
-    root = root.parentElement;
-  }
-  return fallback;
 }
 
 /**

@@ -8,6 +8,7 @@ import {
   formatWordCount,
   type DocumentStats,
 } from "@/lib/editor/documentStats";
+import { scrollHeadingIntoView } from "@/lib/editor/editorScroll";
 
 export type OutlineHeading = {
   level: number;
@@ -94,13 +95,13 @@ function DocumentOutlineLive({
       : 1;
 
   function scrollTo(pos: number) {
-    editor.chain().focus().setTextSelection(pos + 1).run();
-    const dom = editor.view.nodeDOM(pos);
-    if (dom instanceof HTMLElement) {
-      dom.scrollIntoView({ behavior: "smooth", block: "start" });
-    } else {
-      editor.view.dispatch(editor.state.tr.scrollIntoView());
-    }
+    const inner = Math.min(pos + 1, editor.state.doc.content.size);
+    editor
+      .chain()
+      .setTextSelection(inner)
+      .focus(null, { scrollIntoView: false })
+      .run();
+    scrollHeadingIntoView(editor, pos);
   }
 
   return (
