@@ -66,7 +66,8 @@ describe("scrollTopForAlignedTarget", () => {
       scrollTopForAlignedTarget({
         ...PANE,
         scrollerScrollTop: 400,
-        targetViewportTop: 140,
+        // Heading sits 50px into the document, currently above the pane.
+        targetViewportTop: 100 + (50 - 400),
         targetHeight: 36,
       })
     ).toBe(0);
