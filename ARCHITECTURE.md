@@ -65,6 +65,11 @@ markdown.
   `@gracious.tech/fetch-client` (Berean Standard Bible, `eng_bsb`). The pinned
   reader is `https://app.fetch.bible`; publication Preview can load
   `https://collection.fetch.bible/enhance.js`.
+- Citations today are a local BibTeX paste dialog (`lib/citations/formatBibtex.ts`).
+  A Cite rail beside Outline / Footnotes, plus read-only Zotero Web API, is
+  designed in [docs/CITATIONS.md](./docs/CITATIONS.md) and is not shipped.
+  Zotero stays the library of record; BlogIDE does not mirror PDFs or
+  collections into Storage.
 - Stripe only if a shared hosted deploy opts into paid storage tiers
   ([docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md)).
 

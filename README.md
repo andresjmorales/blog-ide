@@ -60,8 +60,10 @@ by design.
   Punctuation, and Publish (copy for Substack/Medium/HTML, Substack native
   footnote helper, link/image check); Clean whitespace joins Shift-Enter /
   PDF wraps to spaces and keeps blank lines; paste collapses extra empty
-  paragraphs; Convert Case is Cc on the toolbar; Cite is separate; paste or
-  drag-drop images into the essay
+  paragraphs; Convert Case is Cc on the toolbar; Cite is separate (paste
+  BibTeX → Chicago/MLA footnote; Zotero rail is designed in
+  [docs/CITATIONS.md](./docs/CITATIONS.md)); paste or drag-drop images into
+  the essay
 
 ## Stack
 
@@ -71,7 +73,9 @@ for boundaries, persistence, quota, and the repository map. Differences from
 GFM (frontmatter, captions, footnotes, math/tables) are summarized in
 [docs/MARKDOWN_SPEC.md](./docs/MARKDOWN_SPEC.md). Copying into Substack,
 Medium, HTML, and PDF is covered in
-[docs/PUBLISH_EXPORT.md](./docs/PUBLISH_EXPORT.md).
+[docs/PUBLISH_EXPORT.md](./docs/PUBLISH_EXPORT.md). How BlogIDE sits next to
+Obsidian, Scrivener, Zettlr, and other writing apps is in
+[docs/LANDSCAPE.md](./docs/LANDSCAPE.md).
 
 ## Getting started
 

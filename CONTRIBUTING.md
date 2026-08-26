@@ -46,4 +46,6 @@ warning; it must never disappear silently.
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for system boundaries and
 [SECURITY.md](./SECURITY.md) for vulnerability reporting. Publishing
 targets (Substack, Medium, HTML, PDF, Pandoc) are documented in
-[docs/PUBLISH_EXPORT.md](./docs/PUBLISH_EXPORT.md).
+[docs/PUBLISH_EXPORT.md](./docs/PUBLISH_EXPORT.md). Product neighborhood
+and citation-integration design: [docs/LANDSCAPE.md](./docs/LANDSCAPE.md),
+[docs/CITATIONS.md](./docs/CITATIONS.md).
