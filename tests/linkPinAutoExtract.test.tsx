@@ -2,22 +2,23 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { LinkPinBody } from "@/components/pins/LinkPinBody";
+import { fetchReaderExtract } from "@/lib/preview/client";
 import {
   closePin,
   getPinWindows,
   openLinkPin,
 } from "@/lib/pins/pinStore";
 
-const fetchReaderExtract = vi.fn(async () => ({
-  url: "https://example.com/page",
-  title: "Example",
-  siteName: "Example",
-  text: "Readable extract body",
+vi.mock("@/lib/preview/client", () => ({
+  fetchReaderExtract: vi.fn(async () => ({
+    url: "https://example.com/page",
+    title: "Example",
+    siteName: "Example",
+    text: "Readable extract body",
+  })),
 }));
 
-vi.mock("@/lib/preview/client", () => ({
-  fetchReaderExtract: (...args: unknown[]) => fetchReaderExtract(...args),
-}));
+const mockFetchReaderExtract = vi.mocked(fetchReaderExtract);
 
 describe("link pin auto extract", () => {
   let root: Root | null = null;
@@ -35,7 +36,7 @@ describe("link pin auto extract", () => {
     for (const pin of getPinWindows()) {
       closePin(pin.id);
     }
-    fetchReaderExtract.mockClear();
+    mockFetchReaderExtract.mockClear();
   });
 
   it("stores autoExtract on Pin and read here", () => {
@@ -71,7 +72,7 @@ describe("link pin auto extract", () => {
       );
       await Promise.resolve();
     });
-    expect(fetchReaderExtract).toHaveBeenCalledWith(
+    expect(mockFetchReaderExtract).toHaveBeenCalledWith(
       "https://example.com/page"
     );
     expect(document.body.textContent).toContain("Readable extract body");
