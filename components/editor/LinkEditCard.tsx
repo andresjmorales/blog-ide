@@ -75,7 +75,7 @@ function placeNearRect(
 }
 
 /**
- * Docs-style link bubble: display text + URL + Clear / Copy / Apply.
+ * Docs-style link bubble: display text + URL + Apply / Clear.
  * Preview loads only after a URL is applied or pasted (not on empty Ctrl+K).
  * Opens on Ctrl+K / toolbar, or when clicking an existing link in the editor.
  *
@@ -226,40 +226,57 @@ export function LinkEditCard({
     }
   }, [card]);
 
-  const applyMeasuredPlacement = useCallback((active: Editor) => {
-    const el = cardRef.current;
-    if (!el || active.isDestroyed) return;
-    const rect = anchorRectForLink(active);
-    if (!rect) return;
-    const pos = placeLinkBubble(
-      rect,
-      el.offsetHeight,
-      undefined,
-      el.offsetWidth
-    );
-    setCard((current) => {
-      if (!current) return current;
-      if (
-        current.left === pos.left &&
-        current.top === pos.top &&
-        current.placeAbove === pos.placeAbove &&
-        current.mobileSheet === pos.mobileSheet
-      ) {
-        return current;
-      }
-      return {
-        ...current,
-        left: pos.left,
-        top: pos.top,
-        placeAbove: pos.placeAbove,
-        mobileSheet: pos.mobileSheet,
-      };
-    });
-  }, []);
+  const applyMeasuredPlacement = useCallback(
+    (active: Editor, options?: { preferCurrentSide?: boolean }) => {
+      const el = cardRef.current;
+      if (!el || active.isDestroyed) return;
+      const rect = anchorRectForLink(active);
+      if (!rect) return;
+      setCard((current) => {
+        if (!current) return current;
+        const pos = placeLinkBubble(
+          rect,
+          el.offsetHeight,
+          undefined,
+          el.offsetWidth,
+          options?.preferCurrentSide
+            ? { preferAbove: current.placeAbove }
+            : undefined
+        );
+        if (
+          current.left === pos.left &&
+          current.top === pos.top &&
+          current.placeAbove === pos.placeAbove &&
+          current.mobileSheet === pos.mobileSheet
+        ) {
+          return current;
+        }
+        return {
+          ...current,
+          left: pos.left,
+          top: pos.top,
+          placeAbove: pos.placeAbove,
+          mobileSheet: pos.mobileSheet,
+        };
+      });
+    },
+    []
+  );
 
+  const placementKey = card
+    ? `${card.href}|${String(card.allowPreview)}|${card.mobileSheet ? "m" : "d"}`
+    : "";
+
+  // placementKey is the open identity; omit `card` so left/top updates do not flip.
   useLayoutEffect(() => {
     if (!card || card.mobileSheet) return;
     applyMeasuredPlacement(card.activeEditor);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- card identity is placementKey
+  }, [placementKey, applyMeasuredPlacement]);
+
+  useLayoutEffect(() => {
+    if (!card || card.mobileSheet) return;
+    applyMeasuredPlacement(card.activeEditor, { preferCurrentSide: true });
   }, [card, preview, previewLoading, applyMeasuredPlacement]);
 
   useEffect(() => {
@@ -432,7 +449,7 @@ export function LinkEditCard({
           />
           <button
             type="button"
-            className="link-preview-copy-title"
+            className="link-edit-copy-btn"
             title="Copy text"
             aria-label="Copy text"
             onClick={() => void copyText()}
@@ -443,38 +460,46 @@ export function LinkEditCard({
       </div>
       <div className="link-edit-row">
         <span className="link-edit-field-label">URL</span>
-        <input
-          ref={inputRef}
-          type="url"
-          className="link-edit-input"
-          value={draft}
-          placeholder="Paste or type a link"
-          aria-label="Link URL"
-          onChange={(event) => setDraft(event.target.value)}
-          onPaste={(event) => {
-            const text = event.clipboardData.getData("text");
-            if (!text.trim()) return;
-            event.preventDefault();
-            setDraft(text.trim());
-            // Keep open with preview so the paste can be verified (Docs-style).
-            applyHref(text, { keepOpen: true });
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              // Confirm the URL only — never let Enter reach the document editor.
+        <div className="link-edit-field">
+          <input
+            ref={inputRef}
+            type="url"
+            className="link-edit-input"
+            value={draft}
+            placeholder="Paste or type a link"
+            aria-label="Link URL"
+            onChange={(event) => setDraft(event.target.value)}
+            onPaste={(event) => {
+              const text = event.clipboardData.getData("text");
+              if (!text.trim()) return;
               event.preventDefault();
-              event.stopPropagation();
-              applyHref(draft);
-            }
-          }}
-        />
+              setDraft(text.trim());
+              // Keep open with preview so the paste can be verified (Docs-style).
+              applyHref(text, { keepOpen: true });
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                // Confirm the URL only — never let Enter reach the document editor.
+                event.preventDefault();
+                event.stopPropagation();
+                applyHref(draft);
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="link-edit-copy-btn"
+            title="Copy URL"
+            aria-label="Copy URL"
+            onClick={() => void copyHref()}
+          >
+            <ClipboardIcon />
+          </button>
+        </div>
       </div>
       <div className="link-edit-actions">
         <button type="button" onClick={() => applyHref(draft)}>
           Apply
-        </button>
-        <button type="button" onClick={() => void copyHref()}>
-          Copy
         </button>
         <button type="button" onClick={clearLink}>
           Clear

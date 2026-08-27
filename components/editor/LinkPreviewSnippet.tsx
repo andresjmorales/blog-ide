@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { AddToLibraryButton } from "@/components/library/AddToLibraryButton";
-import { ClipboardIcon, ExternalLinkIcon } from "@/components/icons";
+import { ExternalLinkIcon } from "@/components/icons";
 import type { LinkPreview } from "@/lib/preview/openGraph";
 
 /**
- * Compact OG chrome for the link bubble: fixed thumbnail, clamped summary,
+ * Compact OG chrome for the link bubble: fixed thumbnail, one-line summary,
  * Open (new tab) and Pin and read here.
  *
  * Future: add a Cite button here once a Zotero API integration exists.
@@ -28,14 +28,11 @@ export function LinkPreviewSnippet({
   const image = preview?.image ?? null;
   const title = preview?.title || url;
   const showImage = Boolean(image) && failedSrc !== image;
-
-  async function copyTitle() {
-    try {
-      await navigator.clipboard.writeText(title);
-    } catch {
-      // ignore clipboard failures
-    }
-  }
+  const titleText = loading
+    ? "Loading preview…"
+    : error
+      ? error
+      : preview?.title || url;
 
   return (
     <div className="link-preview-snippet">
@@ -58,30 +55,17 @@ export function LinkPreviewSnippet({
           )}
         </div>
         <div className="link-preview-meta">
-          {loading && <p className="link-hover-meta">Loading preview…</p>}
-          {error && <p className="link-hover-error">{error}</p>}
-          {preview?.siteName && (
-            <p className="link-hover-site">{preview.siteName}</p>
-          )}
-          <div className="link-preview-title-row">
-            <p className="link-hover-title">
-              {preview?.title || (!loading ? url : "")}
-            </p>
-            {title ? (
-              <button
-                type="button"
-                className="link-preview-copy-title"
-                title="Copy title"
-                aria-label="Copy title"
-                onClick={() => void copyTitle()}
-              >
-                <ClipboardIcon />
-              </button>
-            ) : null}
-          </div>
-          {preview?.description ? (
-            <p className="link-hover-desc">{preview.description}</p>
-          ) : null}
+          <p className="link-hover-site">{preview?.siteName || "\u00a0"}</p>
+          <p
+            className={
+              error && !loading ? "link-hover-error" : "link-hover-title"
+            }
+          >
+            {titleText}
+          </p>
+          <p className="link-hover-desc">
+            {preview?.description || "\u00a0"}
+          </p>
         </div>
       </div>
       <div className="link-hover-actions">
