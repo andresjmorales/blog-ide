@@ -35,7 +35,7 @@ export type EditorPrefs = {
   /** Open the footnote editor card on superscript hover. */
   footnoteOpenOnHover?: boolean;
   /**
-   * Reserved: OG chrome on the link edit bubble (Open / Pin / Library).
+   * Reserved: OG chrome on the link edit bubble (Open / Pin and read here / Library).
    * Currently always on in DocumentEditor; pref kept for future toggle.
    */
   linkPreviews?: boolean;

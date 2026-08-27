@@ -5,19 +5,24 @@ import type { Editor } from "@tiptap/core";
 import { fetchLinkPreview } from "@/lib/preview/client";
 import type { LinkPreview } from "@/lib/preview/openGraph";
 import { openLinkPin } from "@/lib/pins/pinStore";
-import { AddToLibraryButton } from "@/components/library/AddToLibraryButton";
+import { LinkPreviewSnippet } from "@/components/editor/LinkPreviewSnippet";
+import {
+  LINK_BUBBLE_HEIGHT_PREVIEW_PX,
+  placeLinkBubble,
+} from "@/lib/editor/linkPlacement";
 
 type CardState = {
   url: string;
   left: number;
   top: number;
+  placeAbove: boolean;
   preview: LinkPreview | null;
   error: string | null;
   loading: boolean;
 };
 
 /**
- * Hovering a link in the editor (or sidenote rail) shows an OG preview with Pin / Open.
+ * Hovering a link in the editor (or sidenote rail) shows an OG preview with Pin and read here / Open.
  */
 export function LinkHoverCard({
   editor,
@@ -76,10 +81,12 @@ export function LinkHoverCard({
       window.clearTimeout(showTimer.current);
       const rect = anchor.getBoundingClientRect();
       showTimer.current = window.setTimeout(() => {
+        const pos = placeLinkBubble(rect, LINK_BUBBLE_HEIGHT_PREVIEW_PX);
         setCard({
           url: href,
-          left: Math.min(window.innerWidth - 320, Math.max(8, rect.left)),
-          top: Math.min(window.innerHeight - 160, rect.bottom + 8),
+          left: pos.left,
+          top: pos.top,
+          placeAbove: pos.placeAbove,
           preview: null,
           error: null,
           loading: true,
@@ -156,43 +163,23 @@ export function LinkHoverCard({
       onMouseEnter={cancelHide}
       onMouseLeave={scheduleHide}
     >
-      {card.loading && <p className="link-hover-meta">Loading preview…</p>}
-      {card.error && <p className="link-hover-error">{card.error}</p>}
-      {card.preview && (
-        <>
-          {card.preview.siteName && (
-            <p className="link-hover-site">{card.preview.siteName}</p>
-          )}
-          <p className="link-hover-title">{card.preview.title}</p>
-          {card.preview.description && (
-            <p className="link-hover-desc">{card.preview.description}</p>
-          )}
-        </>
-      )}
-      {!card.loading && !card.preview && !card.error && (
-        <p className="link-hover-title">{card.url}</p>
-      )}
-      <div className="link-hover-actions">
-        <a href={card.url} target="_blank" rel="noreferrer">
-          Open
-        </a>
-        <button
-          type="button"
-          onClick={() => {
-            openLinkPin({
-              url: card.url,
-              title,
-              description: card.preview?.description,
-              siteName: card.preview?.siteName,
-              image: card.preview?.image,
-            });
-            hide();
-          }}
-        >
-          Pin
-        </button>
-        <AddToLibraryButton url={card.url} title={title} variant="hover" />
-      </div>
+      <LinkPreviewSnippet
+        url={card.url}
+        preview={card.preview}
+        loading={card.loading}
+        error={card.error}
+        onPinAndRead={() => {
+          openLinkPin({
+            url: card.url,
+            title,
+            description: card.preview?.description,
+            siteName: card.preview?.siteName,
+            image: card.preview?.image,
+            autoExtract: true,
+          });
+          hide();
+        }}
+      />
     </div>
   );
 }

@@ -63,7 +63,7 @@ export function openLinkEditor(
 /**
  * Ctrl/Cmd+K and toolbar: open the link bubble. Named links and selected
  * prose focus the URL field; a naked pasted URL focuses display text.
- * Preview / Open / Pin / Library show when an http(s) href is present.
+ * Preview / Open / Pin and read here / Library show when an http(s) href is present.
  */
 export function promptForLink(editor: Editor): boolean {
   const href = editor.getAttributes("link").href as string | undefined;

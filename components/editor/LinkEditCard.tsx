@@ -13,8 +13,8 @@ import { fetchLinkPreview } from "@/lib/preview/client";
 import type { LinkPreview } from "@/lib/preview/openGraph";
 import { openLinkPin } from "@/lib/pins/pinStore";
 import { claimFloatZ } from "@/lib/pins/pinStore";
-import { AddToLibraryButton } from "@/components/library/AddToLibraryButton";
-import { LinkIcon } from "@/components/icons";
+import { LinkPreviewSnippet } from "@/components/editor/LinkPreviewSnippet";
+import { ClipboardIcon } from "@/components/icons";
 import {
   setLinkEditorOpener,
   type LinkEditorOpenOptions,
@@ -23,7 +23,11 @@ import {
   applyLinkHrefAndText,
   readLinkDisplayText,
 } from "@/lib/editor/linkFields";
-import { placeLinkBubble } from "@/lib/editor/linkPlacement";
+import {
+  LINK_BUBBLE_HEIGHT_COMPACT_PX,
+  LINK_BUBBLE_HEIGHT_PREVIEW_PX,
+  placeLinkBubble,
+} from "@/lib/editor/linkPlacement";
 
 type CardState = {
   activeEditor: Editor;
@@ -33,7 +37,7 @@ type CardState = {
   zIndex: number;
   /** When false, hide OG preview until the user pastes/applies a URL (Ctrl+K). */
   allowPreview: boolean;
-  /** Place above the link (CSS translateY -100%) vs below. */
+  /** True when the bubble sits above the link instead of below. */
   placeAbove: boolean;
   /** Full-width bottom sheet on narrow viewports. */
   mobileSheet: boolean;
@@ -154,7 +158,9 @@ export function LinkEditCard({
         showPreviews &&
         trimmedHref.startsWith("http") &&
         options.allowPreview !== false;
-      const estimatedHeight = allowPreview ? 290 : 150;
+      const estimatedHeight = allowPreview
+        ? LINK_BUBBLE_HEIGHT_PREVIEW_PX
+        : LINK_BUBBLE_HEIGHT_COMPACT_PX;
       const pos = placeNearRect(rect, estimatedHeight);
       const displayText = readLinkDisplayText(nextEditor);
       textDirtyRef.current = false;
@@ -162,7 +168,7 @@ export function LinkEditCard({
       setTextDraft(displayText);
       setPreview(null);
       setPreviewError(null);
-      setPreviewLoading(false);
+      setPreviewLoading(allowPreview);
       setCard({
         activeEditor: nextEditor,
         href,
@@ -219,6 +225,64 @@ export function LinkEditCard({
       textInputRef.current?.select();
     }
   }, [card]);
+
+  const applyMeasuredPlacement = useCallback((active: Editor) => {
+    const el = cardRef.current;
+    if (!el || active.isDestroyed) return;
+    const rect = anchorRectForLink(active);
+    if (!rect) return;
+    const pos = placeLinkBubble(
+      rect,
+      el.offsetHeight,
+      undefined,
+      el.offsetWidth
+    );
+    setCard((current) => {
+      if (!current) return current;
+      if (
+        current.left === pos.left &&
+        current.top === pos.top &&
+        current.placeAbove === pos.placeAbove &&
+        current.mobileSheet === pos.mobileSheet
+      ) {
+        return current;
+      }
+      return {
+        ...current,
+        left: pos.left,
+        top: pos.top,
+        placeAbove: pos.placeAbove,
+        mobileSheet: pos.mobileSheet,
+      };
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!card || card.mobileSheet) return;
+    applyMeasuredPlacement(card.activeEditor);
+  }, [card, preview, previewLoading, applyMeasuredPlacement]);
+
+  useEffect(() => {
+    if (!card || card.mobileSheet) return;
+    const active = card.activeEditor;
+    function reposition() {
+      applyMeasuredPlacement(active);
+    }
+    window.addEventListener("resize", reposition);
+    const scrollRoot = active.view.dom.closest(
+      "[data-blogide-editor-scroll]"
+    );
+    scrollRoot?.addEventListener("scroll", reposition, { passive: true });
+    document.addEventListener("scroll", reposition, {
+      capture: true,
+      passive: true,
+    });
+    return () => {
+      window.removeEventListener("resize", reposition);
+      scrollRoot?.removeEventListener("scroll", reposition);
+      document.removeEventListener("scroll", reposition, { capture: true });
+    };
+  }, [card, applyMeasuredPlacement]);
 
   useEffect(() => {
     if (!card) return;
@@ -304,6 +368,16 @@ export function LinkEditCard({
     }
   }
 
+  async function copyText() {
+    const value = textDraft.trim();
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      // ignore clipboard failures
+    }
+  }
+
   function clearLink() {
     const active = card?.activeEditor;
     if (!active || active.isDestroyed) return;
@@ -323,7 +397,7 @@ export function LinkEditCard({
   return createPortal(
     <div
       ref={cardRef}
-      className={`link-edit-card${card.placeAbove ? " is-above" : ""}${
+      className={`link-edit-card${
         card.mobileSheet ? " is-mobile-sheet" : ""
       }`}
       style={
@@ -335,28 +409,40 @@ export function LinkEditCard({
       onMouseDown={(event) => event.stopPropagation()}
     >
       <div className="link-edit-row">
-        <input
-          ref={textInputRef}
-          type="text"
-          className="link-edit-input"
-          value={textDraft}
-          placeholder="Text"
-          aria-label="Link text"
-          onChange={(event) => {
-            textDirtyRef.current = true;
-            setTextDraft(event.target.value);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              event.stopPropagation();
-              applyHref(draft);
-            }
-          }}
-        />
+        <span className="link-edit-field-label">Text</span>
+        <div className="link-edit-field">
+          <input
+            ref={textInputRef}
+            type="text"
+            className="link-edit-input"
+            value={textDraft}
+            placeholder="Text"
+            aria-label="Link text"
+            onChange={(event) => {
+              textDirtyRef.current = true;
+              setTextDraft(event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                event.stopPropagation();
+                applyHref(draft);
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="link-preview-copy-title"
+            title="Copy text"
+            aria-label="Copy text"
+            onClick={() => void copyText()}
+          >
+            <ClipboardIcon />
+          </button>
+        </div>
       </div>
       <div className="link-edit-row">
-        <LinkIcon className="link-edit-field-icon" />
+        <span className="link-edit-field-label">URL</span>
         <input
           ref={inputRef}
           type="url"
@@ -395,63 +481,25 @@ export function LinkEditCard({
         </button>
       </div>
 
-      {showPreviewChrome && (
+      {showPreviewChrome && hasHttpUrl && (
         <div className="link-edit-preview">
-          {previewLoading && (
-            <p className="link-hover-meta">Loading preview…</p>
-          )}
-          {previewError && <p className="link-hover-error">{previewError}</p>}
-          {preview && (
-            <>
-              {preview.image && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={preview.image}
-                  alt=""
-                  className="link-hover-image"
-                  loading="lazy"
-                  referrerPolicy="no-referrer"
-                />
-              )}
-              {preview.siteName && (
-                <p className="link-hover-site">{preview.siteName}</p>
-              )}
-              <p className="link-hover-title">{preview.title}</p>
-              {preview.description && (
-                <p className="link-hover-desc">{preview.description}</p>
-              )}
-            </>
-          )}
-          {!previewLoading && !preview && !previewError && resolvedUrl && (
-            <p className="link-hover-title">{resolvedUrl}</p>
-          )}
-          {hasHttpUrl && (
-            <div className="link-hover-actions">
-              <a href={resolvedUrl} target="_blank" rel="noreferrer">
-                Open
-              </a>
-              <button
-                type="button"
-                onClick={() => {
-                  openLinkPin({
-                    url: resolvedUrl,
-                    title,
-                    description: preview?.description,
-                    siteName: preview?.siteName,
-                    image: preview?.image,
-                  });
-                  close();
-                }}
-              >
-                Pin
-              </button>
-              <AddToLibraryButton
-                url={resolvedUrl}
-                title={title}
-                variant="hover"
-              />
-            </div>
-          )}
+          <LinkPreviewSnippet
+            url={resolvedUrl}
+            preview={preview}
+            loading={previewLoading}
+            error={previewError}
+            onPinAndRead={() => {
+              openLinkPin({
+                url: resolvedUrl,
+                title,
+                description: preview?.description,
+                siteName: preview?.siteName,
+                image: preview?.image,
+                autoExtract: true,
+              });
+              close();
+            }}
+          />
         </div>
       )}
     </div>,
