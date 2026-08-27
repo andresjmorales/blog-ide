@@ -31,7 +31,7 @@ export function FullscreenButton() {
   return (
     <button
       type="button"
-      className="blogide-chrome-btn is-icon"
+      className="blogide-chrome-btn is-icon blogide-fullscreen-btn"
       title={active ? "Exit full screen" : "Full screen"}
       aria-label={active ? "Exit full screen" : "Full screen"}
       aria-pressed={active}
