@@ -21,6 +21,7 @@ describe("EssaySettingsPanel", () => {
   function render(props: {
     nodeId?: string | null;
     initialTab?: "title" | "writing" | "github";
+    spellcheckOverride?: "on" | "off" | null;
   } = {}) {
     host = document.createElement("div");
     document.body.appendChild(host);
@@ -34,7 +35,11 @@ describe("EssaySettingsPanel", () => {
           onTitleChange={() => {}}
           documentLanguages={[]}
           onDocumentLanguagesChange={() => {}}
-          spellcheckOverride={null}
+          spellcheckOverride={
+            props.spellcheckOverride === undefined
+              ? null
+              : props.spellcheckOverride
+          }
           onSpellcheckOverrideChange={() => {}}
           previewMode
           nodeId={props.nodeId === undefined ? "doc-1" : props.nodeId}
@@ -67,5 +72,12 @@ describe("EssaySettingsPanel", () => {
       (tab) => tab.textContent
     );
     expect(tabs).toEqual(["Title", "Writing check"]);
+  });
+
+  it("points at Settings for issue types and the dictionary", () => {
+    render({ initialTab: "writing", spellcheckOverride: "on" });
+    expect(host!.textContent).toContain(
+      "Issue types and your dictionary are under Settings → Editor"
+    );
   });
 });

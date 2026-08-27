@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { normalizeHarperDictionary } from "@/lib/editor/harper/dictionary";
+import { normalizeHarperDisabledKinds } from "@/lib/editor/harper/kinds";
 import {
   DEFAULT_PANEL_LAYOUT,
   panelLayoutFromLegacy,
@@ -74,6 +76,16 @@ export type EditorPrefs = {
    * viewports may auto-open that mode. Default off: View raw markdown → split.
    */
   allowMarkdownOnly?: boolean;
+  /**
+   * Harper lint_kind values to skip (e.g. "Readability"). Empty = all kinds.
+   * Synced per-user with editor_prefs.
+   */
+  harperDisabledKinds?: string[];
+  /**
+   * Extra dictionary words for Harper (Add to dictionary). Synced per-user
+   * with editor_prefs and used across every essay.
+   */
+  harperDictionary?: string[];
 };
 
 export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
@@ -99,6 +111,8 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   fetchBibleEnabled: false,
   markdownSplitWidth: 480,
   allowMarkdownOnly: false,
+  harperDisabledKinds: [],
+  harperDictionary: [],
 };
 
 const LOCAL_KEY = "blogide.editorPrefs";
@@ -133,6 +147,12 @@ export function mergePrefs(partial: EditorPrefs = {}): Required<EditorPrefs> {
     leftOpen: panelLayout.visible.files,
     rightOpen: panelLayout.visible.ai,
     shellOpen: panelLayout.visible.shell,
+    harperDisabledKinds: normalizeHarperDisabledKinds(
+      partial.harperDisabledKinds ?? merged.harperDisabledKinds
+    ),
+    harperDictionary: normalizeHarperDictionary(
+      partial.harperDictionary ?? merged.harperDictionary
+    ),
   };
 }
 

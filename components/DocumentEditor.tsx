@@ -312,8 +312,18 @@ export function DocumentEditor({
     applyEditorDomLang(editor.view.dom as HTMLElement, lang);
     editor.commands.setHarperDialect(harperDialect);
     editor.commands.setHarperEnabled(spellcheckOn && harperDialect != null);
+    editor.commands.setHarperDisabledKinds(prefs.harperDisabledKinds);
+    editor.commands.setHarperDictionary(prefs.harperDictionary);
     editor.commands.setBibleRefsEnabled(prefs.fetchBibleEnabled);
-  }, [editor, spellcheckOn, lang, harperDialect, prefs.fetchBibleEnabled]);
+  }, [
+    editor,
+    spellcheckOn,
+    lang,
+    harperDialect,
+    prefs.fetchBibleEnabled,
+    prefs.harperDisabledKinds,
+    prefs.harperDictionary,
+  ]);
 
   // Paste / drop images into the essay (footnotes stay image-free via schema).
   useEffect(() => {

@@ -327,7 +327,11 @@ function EssaySettingsDialog({
                   )}
                   <p className="flex items-center gap-1 text-xs text-muted">
                     Underlines
-                    <SettingsInfo text="Red underlines are spelling/typos; blue are grammar and style. Click an underline for suggestions. Runs locally in your browser (WASM)." />
+                    <SettingsInfo text="Red underlines are spelling/typos; blue are grammar and style. Click an underline for suggestions, or add a spelling to your dictionary. Runs locally in your browser (WASM)." />
+                  </p>
+                  <p className="settings-help">
+                    Issue types and your dictionary are under Settings → Editor
+                    and apply to every essay.
                   </p>
                 </>
               )}

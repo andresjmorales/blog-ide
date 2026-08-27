@@ -1559,7 +1559,7 @@ function AppShellContent({
         >
           <header className="relative flex h-11 shrink-0 items-center justify-between border-b border-border px-3">
             <div className="z-10 flex items-center gap-2">
-              <FullscreenButton />
+              {!isMobile && <FullscreenButton />}
               {isMobile ? (
                 <button
                   onClick={() => setMobileLeftOpen((v) => !v)}

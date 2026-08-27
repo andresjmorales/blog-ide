@@ -9,7 +9,12 @@ import {
   mapSpanToRange,
   type LintBlock,
 } from "@/lib/editor/harper/extractText";
-import { getHarperLinter } from "@/lib/editor/harper/linter";
+import { dictionaryHasWord, wordKey } from "@/lib/editor/harper/dictionary";
+import { isHarperSpellingKind } from "@/lib/editor/harper/kinds";
+import {
+  getHarperLinter,
+  setDesiredHarperDictionary,
+} from "@/lib/editor/harper/linter";
 import {
   cacheGet,
   cacheSet,
@@ -17,6 +22,11 @@ import {
   mapHarperState,
   preserveActiveId,
 } from "@/lib/editor/harper/mapIssues";
+import {
+  fromHarperSuggestion,
+  keepHarperSuggestion,
+  suggestionRange,
+} from "@/lib/editor/harper/suggestions";
 import {
   EMPTY_HARPER_STATE,
   type CachedHarperSpan,
@@ -28,7 +38,6 @@ export const harperHighlightKey = new PluginKey<HarperHighlightState>(
   "blogideHarperHighlight"
 );
 
-const SPELLING_KINDS = new Set(["Spelling", "Typo"]);
 /** Pause after the last keystroke before talking to Harper. Squiggles stay. */
 const LINT_DEBOUNCE_MS = 400;
 
@@ -37,6 +46,8 @@ type HarperStorage = {
   dialect: Dialect | null;
   requestId: number;
   ignored: Set<string>;
+  disabledKinds: Set<string>;
+  dictionary: Set<string>;
   timer: ReturnType<typeof setTimeout> | null;
   blockCache: Map<string, CachedHarperSpan[]>;
 };
@@ -47,7 +58,9 @@ declare module "@tiptap/core" {
       setHarperEnabled: (enabled: boolean) => ReturnType;
       setHarperDialect: (dialect: Dialect | null) => ReturnType;
       setHarperActiveIssue: (id: string | null) => ReturnType;
-      applyHarperSuggestion: (id: string, replacement: string) => ReturnType;
+      setHarperDisabledKinds: (kinds: string[]) => ReturnType;
+      setHarperDictionary: (words: string[]) => ReturnType;
+      applyHarperSuggestion: (id: string, suggestionIndex: number) => ReturnType;
       ignoreHarperIssue: (id: string) => ReturnType;
       refreshHarperLint: () => ReturnType;
     };
@@ -62,9 +75,18 @@ function issueKey(issue: Pick<HarperIssue, "kind" | "problem" | "message">) {
 }
 
 function underlineClass(kind: string): string {
-  return SPELLING_KINDS.has(kind)
+  return isHarperSpellingKind(kind)
     ? "blogide-harper-lint is-spelling"
     : "blogide-harper-lint is-grammar";
+}
+
+function sameStringSet(left: Set<string>, right: Iterable<string>): boolean {
+  const next = right instanceof Set ? right : new Set(right);
+  if (left.size !== next.size) return false;
+  for (const item of left) {
+    if (!next.has(item)) return false;
+  }
+  return true;
 }
 
 function scheduleLint(editor: Editor) {
@@ -82,10 +104,25 @@ function scheduleLint(editor: Editor) {
   }, LINT_DEBOUNCE_MS);
 }
 
+function shouldKeepIssue(
+  issue: Pick<HarperIssue, "kind" | "problem" | "message">,
+  storage: Pick<HarperStorage, "ignored" | "disabledKinds" | "dictionary">
+): boolean {
+  if (storage.ignored.has(issueKey(issue))) return false;
+  if (storage.disabledKinds.has(issue.kind)) return false;
+  if (
+    isHarperSpellingKind(issue.kind) &&
+    dictionaryHasWord(storage.dictionary, issue.problem)
+  ) {
+    return false;
+  }
+  return true;
+}
+
 function spansToIssues(
   block: LintBlock,
   spans: CachedHarperSpan[],
-  ignored: Set<string>
+  storage: Pick<HarperStorage, "ignored" | "disabledKinds" | "dictionary">
 ): HarperIssue[] {
   const issues: HarperIssue[] = [];
   for (let i = 0; i < spans.length; i++) {
@@ -101,7 +138,7 @@ function spansToIssues(
       problem: span.problem,
       suggestions: span.suggestions,
     };
-    if (ignored.has(issueKey(issue))) continue;
+    if (!shouldKeepIssue(issue, storage)) continue;
     issues.push(issue);
   }
   return issues;
@@ -112,7 +149,10 @@ function lintToSpan(lint: {
   lint_kind: () => string;
   message: () => string;
   get_problem_text: () => string;
-  suggestions: () => Array<{ get_replacement_text: () => string }>;
+  suggestions: () => Array<{
+    kind?: (() => unknown) | unknown;
+    get_replacement_text: () => string;
+  }>;
 }): CachedHarperSpan {
   const span = lint.span();
   return {
@@ -123,8 +163,8 @@ function lintToSpan(lint: {
     problem: lint.get_problem_text(),
     suggestions: lint
       .suggestions()
-      .map((item) => item.get_replacement_text())
-      .filter((item) => item.length > 0)
+      .map(fromHarperSuggestion)
+      .filter(keepHarperSuggestion)
       .slice(0, 5),
   };
 }
@@ -190,7 +230,7 @@ async function runLint(editor: Editor) {
     if (!block.text.trim()) continue;
     const hit = cacheGet(storage.blockCache, block.text);
     if (hit) {
-      issues.push(...spansToIssues(block, hit, storage.ignored));
+      issues.push(...spansToIssues(block, hit, storage));
     } else {
       dirty.push(block);
     }
@@ -204,7 +244,7 @@ async function runLint(editor: Editor) {
       for (const block of dirty) {
         const spans = byBlock.get(block) ?? [];
         cacheSet(storage.blockCache, block.text, spans);
-        issues.push(...spansToIssues(block, spans, storage.ignored));
+        issues.push(...spansToIssues(block, spans, storage));
       }
     } catch (error) {
       console.warn("[harper] lint failed", error);
@@ -248,6 +288,8 @@ export const HarperHighlight = Extension.create({
       dialect: null,
       requestId: 0,
       ignored: new Set<string>(),
+      disabledKinds: new Set<string>(),
+      dictionary: new Set<string>(),
       timer: null,
       blockCache: new Map(),
     } satisfies HarperStorage;
@@ -289,13 +331,55 @@ export const HarperHighlight = Extension.create({
           setHarperState(editor, { ...current, activeId: id });
           return true;
         },
+      setHarperDisabledKinds:
+        (kinds: string[]) =>
+        ({ editor }) => {
+          const storage = editor.storage.harperHighlight;
+          if (sameStringSet(storage.disabledKinds, kinds)) return true;
+          storage.disabledKinds = new Set(kinds);
+          const current = getHarperState(editor);
+          const issues = current.issues.filter((issue) =>
+            shouldKeepIssue(issue, storage)
+          );
+          const activeId =
+            current.activeId && issues.some((issue) => issue.id === current.activeId)
+              ? current.activeId
+              : null;
+          setHarperState(editor, { issues, activeId });
+          scheduleLint(editor);
+          return true;
+        },
+      setHarperDictionary:
+        (words: string[]) =>
+        ({ editor }) => {
+          const storage = editor.storage.harperHighlight;
+          const next = new Set(words.map(wordKey).filter(Boolean));
+          if (sameStringSet(storage.dictionary, next)) return true;
+          storage.dictionary = next;
+          setDesiredHarperDictionary(words);
+          storage.blockCache.clear();
+          const current = getHarperState(editor);
+          const issues = current.issues.filter((issue) =>
+            shouldKeepIssue(issue, storage)
+          );
+          const activeId =
+            current.activeId && issues.some((issue) => issue.id === current.activeId)
+              ? current.activeId
+              : null;
+          setHarperState(editor, { issues, activeId });
+          scheduleLint(editor);
+          return true;
+        },
       applyHarperSuggestion:
-        (id: string, replacement: string) =>
+        (id: string, suggestionIndex: number) =>
         ({ editor, tr, dispatch }) => {
           const issue = getHarperState(editor).issues.find((item) => item.id === id);
           if (!issue) return false;
+          const suggestion = issue.suggestions[suggestionIndex];
+          if (!suggestion) return false;
           if (dispatch) {
-            tr.insertText(replacement, issue.from, issue.to);
+            const edit = suggestionRange(issue.from, issue.to, suggestion);
+            tr.insertText(edit.text, edit.from, edit.to);
             dispatch(tr);
             scheduleLint(editor);
           }
