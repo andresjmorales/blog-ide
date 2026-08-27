@@ -223,7 +223,7 @@ export function LinkIcon({ className = "" }: { className?: string }) {
   );
 }
 
-/** Clipboard for copying link titles / display text. */
+/** Standard clipboard (Lucide-style board + clip). */
 export function ClipboardIcon({ className = "" }: { className?: string }) {
   return (
     <svg
@@ -231,31 +231,23 @@ export function ClipboardIcon({ className = "" }: { className?: string }) {
       className={className}
       width={TOOL_ICON}
       height={TOOL_ICON}
-      viewBox="0 0 16 16"
+      viewBox="0 0 24 24"
       fill="none"
     >
       <rect
-        x="5"
-        y="3.5"
+        x="8"
+        y="2"
         width="8"
-        height="10"
-        rx="1.2"
+        height="4"
+        rx="1"
         stroke="currentColor"
-        strokeWidth="1.4"
+        strokeWidth="1.75"
       />
       <path
-        d="M5 5.5H4.2A1.2 1.2 0 0 1 3 4.3V3.2A1.2 1.2 0 0 1 4.2 2h5.6A1.2 1.2 0 0 1 11 3.2V3.5"
+        d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"
         stroke="currentColor"
-        strokeWidth="1.4"
-      />
-      <rect
-        x="7.25"
-        y="1.75"
-        width="3.5"
-        height="1.7"
-        rx="0.6"
-        stroke="currentColor"
-        strokeWidth="1.2"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
       />
     </svg>
   );

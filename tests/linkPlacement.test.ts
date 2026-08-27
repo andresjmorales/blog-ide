@@ -32,6 +32,17 @@ describe("placeLinkBubble", () => {
     expect(placeLinkBubble(rect, 200, viewport).placeAbove).toBe(false);
   });
 
+  it("keeps a preferred side when a late height change would otherwise flip", () => {
+    const rect = new DOMRect(40, 520, 120, 18);
+    const viewport = { width: 1024, height: 768 };
+    expect(placeLinkBubble(rect, 290, viewport).placeAbove).toBe(true);
+    expect(
+      placeLinkBubble(rect, 290, viewport, LINK_BUBBLE_WIDTH_PX, {
+        preferAbove: false,
+      }).placeAbove
+    ).toBe(false);
+  });
+
   it("clamps left so the card does not overflow the right edge", () => {
     const rect = new DOMRect(900, 80, 80, 16);
     const placed = placeLinkBubble(rect, 120, { width: 1024, height: 768 });
