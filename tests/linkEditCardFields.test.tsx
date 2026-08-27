@@ -71,6 +71,12 @@ describe("LinkEditCard text and URL fields", () => {
       )
     ).toEqual(["Text", "URL"]);
     expect(document.querySelector('button[aria-label="Copy text"]')).toBeTruthy();
+    expect(document.querySelector('button[aria-label="Copy URL"]')).toBeTruthy();
+    expect(
+      [...document.querySelectorAll(".link-edit-actions button")].map(
+        (el) => el.textContent
+      )
+    ).toEqual(["Apply", "Clear"]);
   });
 
   it("focuses the text field for a naked URL and lets it be edited", () => {

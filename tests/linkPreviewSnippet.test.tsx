@@ -70,7 +70,7 @@ describe("LinkPreviewSnippet", () => {
     );
     expect(document.querySelector('a[title="Open in new tab"]')).toBeTruthy();
     expect(document.body.textContent).toContain("Pin and read here");
-    expect(document.querySelector('button[aria-label="Copy title"]')).toBeTruthy();
+    expect(document.querySelector('button[aria-label="Copy title"]')).toBeNull();
   });
 
   it("pins and auto-opens the extract", () => {
