@@ -1,3 +1,10 @@
+export type HarperSuggestionKind = "replace" | "remove" | "insertAfter";
+
+export type HarperSuggestion = {
+  kind: HarperSuggestionKind;
+  text: string;
+};
+
 export type HarperIssue = {
   id: string;
   from: number;
@@ -5,7 +12,7 @@ export type HarperIssue = {
   kind: string;
   message: string;
   problem: string;
-  suggestions: string[];
+  suggestions: HarperSuggestion[];
 };
 
 /** A lint span stored relative to one textblock's plaintext. */
@@ -15,7 +22,7 @@ export type CachedHarperSpan = {
   kind: string;
   message: string;
   problem: string;
-  suggestions: string[];
+  suggestions: HarperSuggestion[];
 };
 
 export type HarperHighlightState = {

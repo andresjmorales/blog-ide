@@ -3,7 +3,17 @@
 import { useCallback, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
+import { useEditorPrefs } from "@/components/EditorPrefsContext";
+import { addHarperDictionaryWord } from "@/lib/editor/harper/dictionary";
+import {
+  harperKindLabel,
+  isHarperSpellingKind,
+} from "@/lib/editor/harper/kinds";
 import { getHarperState } from "@/lib/editor/harper/HarperHighlight";
+import {
+  suggestionLabel,
+  suggestionsKey,
+} from "@/lib/editor/harper/suggestions";
 import type { HarperIssue } from "@/lib/editor/harper/types";
 import { claimFloatZ } from "@/lib/pins/pinStore";
 
@@ -27,11 +37,12 @@ function sameCard(a: CardModel | null, b: CardModel | null): boolean {
     a.top === b.top &&
     a.zIndex === b.zIndex &&
     a.issue.message === b.issue.message &&
-    a.issue.suggestions.join("\0") === b.issue.suggestions.join("\0")
+    suggestionsKey(a.issue.suggestions) === suggestionsKey(b.issue.suggestions)
   );
 }
 
 export function HarperLintCard({ editor }: Props) {
+  const { prefs, updatePrefs } = useEditorPrefs();
   const cacheRef = useRef<CardModel | null>(null);
 
   const subscribe = useCallback(
@@ -89,6 +100,9 @@ export function HarperLintCard({ editor }: Props) {
 
   if (!card || !editor) return null;
 
+  const showDictionary =
+    isHarperSpellingKind(card.issue.kind) && Boolean(card.issue.problem.trim());
+
   return createPortal(
     <div
       className="harper-lint-card"
@@ -100,29 +114,45 @@ export function HarperLintCard({ editor }: Props) {
         zIndex: card.zIndex,
       }}
     >
-      <p className="harper-lint-card-kind">{card.issue.kind}</p>
+      <p className="harper-lint-card-kind">{harperKindLabel(card.issue.kind)}</p>
       <p className="harper-lint-card-message">{card.issue.message}</p>
       {card.issue.suggestions.length > 0 && (
         <ul className="harper-lint-card-suggestions">
-          {card.issue.suggestions.map((suggestion) => (
-            <li key={suggestion}>
+          {card.issue.suggestions.map((suggestion, index) => (
+            <li key={`${suggestion.kind}:${suggestion.text}:${index}`}>
               <button
                 type="button"
                 onClick={() => {
                   editor
                     .chain()
                     .focus()
-                    .applyHarperSuggestion(card.issue.id, suggestion)
+                    .applyHarperSuggestion(card.issue.id, index)
                     .run();
                 }}
               >
-                {suggestion}
+                {suggestionLabel(card.issue.problem, suggestion)}
               </button>
             </li>
           ))}
         </ul>
       )}
       <div className="harper-lint-card-actions">
+        {showDictionary && (
+          <button
+            type="button"
+            onClick={() => {
+              updatePrefs({
+                harperDictionary: addHarperDictionaryWord(
+                  prefs.harperDictionary,
+                  card.issue.problem
+                ),
+              });
+              editor.chain().ignoreHarperIssue(card.issue.id).run();
+            }}
+          >
+            Add to dictionary
+          </button>
+        )}
         <button
           type="button"
           onClick={() => {

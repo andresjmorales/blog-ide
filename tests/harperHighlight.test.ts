@@ -174,3 +174,134 @@ describe("harper extractLintBlocks (editor)", () => {
     }
   });
 });
+
+describe("harper apply suggestion", () => {
+  it("inserts after the span instead of replacing the word", () => {
+    const editor = makeEditor("However I think so.\n");
+    try {
+      const text = editor.state.doc.textBetween(
+        0,
+        editor.state.doc.content.size
+      );
+      const from = text.indexOf("However") + 1;
+      const to = from + "However".length;
+      seedHarper(editor, [
+        {
+          id: "however-comma",
+          from,
+          to,
+          kind: "Punctuation",
+          message: "Did you mean to insert a comma after However?",
+          problem: "However",
+          suggestions: [{ kind: "insertAfter", text: "," }],
+        },
+      ]);
+
+      expect(
+        editor.commands.applyHarperSuggestion("however-comma", 0)
+      ).toBe(true);
+      expect(editor.state.doc.textContent).toContain("However, I think so.");
+      expect(editor.state.doc.textContent).not.toMatch(/(^|\s), I think/);
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it("replaces the span for replace suggestions", () => {
+    const editor = makeEditor("seperate word\n");
+    try {
+      const text = editor.state.doc.textBetween(
+        0,
+        editor.state.doc.content.size
+      );
+      const from = text.indexOf("seperate") + 1;
+      const to = from + "seperate".length;
+      seedHarper(editor, [
+        {
+          ...issue(from, to, "seperate"),
+          id: "typo",
+          suggestions: [{ kind: "replace", text: "separate" }],
+        },
+      ]);
+
+      expect(editor.commands.applyHarperSuggestion("typo", 0)).toBe(true);
+      expect(editor.state.doc.textContent).toContain("separate word");
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it("removes the span for remove suggestions", () => {
+    const editor = makeEditor("very unique idea\n");
+    try {
+      const text = editor.state.doc.textBetween(
+        0,
+        editor.state.doc.content.size
+      );
+      const from = text.indexOf("very") + 1;
+      const to = from + "very".length;
+      seedHarper(editor, [
+        {
+          id: "remove-very",
+          from,
+          to,
+          kind: "Redundancy",
+          message: "This word may be unnecessary.",
+          problem: "very",
+          suggestions: [{ kind: "remove", text: "" }],
+        },
+      ]);
+
+      expect(editor.commands.applyHarperSuggestion("remove-very", 0)).toBe(
+        true
+      );
+      expect(editor.state.doc.textContent.replace(/\s+/g, " ").trim()).toBe(
+        "unique idea"
+      );
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it("hides issues whose kind was turned off", () => {
+    const editor = makeEditor("However I think so.\n");
+    try {
+      seedHarper(editor, [
+        issue(1, 8, "However", "Punctuation"),
+        {
+          id: "long",
+          from: 1,
+          to: 20,
+          kind: "Readability",
+          message: "This sentence is long.",
+          problem: "However I think so.",
+          suggestions: [],
+        },
+      ]);
+      editor.commands.setHarperDisabledKinds(["Readability"]);
+      const state = harperHighlightKey.getState(editor.state);
+      expect(state?.issues.map((item) => item.kind)).toEqual(["Punctuation"]);
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it("hides spelling already in the user dictionary", () => {
+    const editor = makeEditor("BlogIDE ships.\n");
+    try {
+      const text = editor.state.doc.textBetween(
+        0,
+        editor.state.doc.content.size
+      );
+      const from = text.indexOf("BlogIDE") + 1;
+      const to = from + "BlogIDE".length;
+      seedHarper(editor, [issue(from, to, "BlogIDE")]);
+      editor.commands.setHarperDictionary(["blogide"]);
+      const state = harperHighlightKey.getState(editor.state);
+      expect(state?.issues).toEqual([]);
+    } finally {
+      editor.destroy();
+    }
+  });
+});
+

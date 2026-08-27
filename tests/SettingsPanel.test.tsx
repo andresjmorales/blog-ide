@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
+import { EditorPrefsProvider } from "@/components/EditorPrefsContext";
 import { SettingsPanel } from "@/components/SettingsPanel";
+import { mergePrefs } from "@/lib/settings";
 
 describe("SettingsPanel", () => {
   let root: Root | null = null;
@@ -75,5 +77,33 @@ describe("SettingsPanel", () => {
     expect(
       host!.querySelectorAll('button[aria-label="More information"]').length
     ).toBeGreaterThan(0);
+  });
+
+  it("lets you turn off Harper issue types and edit the dictionary", () => {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => {
+      root!.render(
+        <EditorPrefsProvider
+          prefs={mergePrefs({ spellcheckEnabled: true })}
+          updatePrefs={() => {}}
+        >
+          <SettingsPanel
+            open
+            onClose={() => {}}
+            previewMode
+            initialTab="editor"
+          />
+        </EditorPrefsProvider>
+      );
+    });
+    expect(host!.textContent).toContain("Issue types");
+    expect(host!.textContent).toContain("Readability");
+    expect(host!.textContent).toContain("Long sentences and similar");
+    expect(host!.textContent).toContain("Dictionary");
+    expect(
+      host!.querySelector('input[aria-label="Add a word to the dictionary"]')
+    ).toBeTruthy();
   });
 });

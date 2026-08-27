@@ -1,9 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { SettingsLabel } from "@/components/SettingsInfo";
 import type { MarkdownTypingShortcuts } from "@/lib/settings";
 import { HARPER_LANGUAGE_OPTIONS } from "@/lib/editor/harper/dialect";
+import {
+  addHarperDictionaryWord,
+  removeHarperDictionaryWord,
+} from "@/lib/editor/harper/dictionary";
+import {
+  HARPER_LINT_KIND_GROUPS,
+  harperKindEnabled,
+  setHarperKindEnabled,
+} from "@/lib/editor/harper/kinds";
 import { toggleSpellcheckLanguage } from "@/lib/markdown/spellcheckFrontmatter";
 
 /** Workspace-wide markdown typing and view prefs. */
@@ -122,7 +132,7 @@ export function EditorPrefsSection() {
       </div>
       <div className="settings-row">
         <SettingsLabel
-          info="On-device English spelling and grammar via Harper (not the browser dictionary). First selected dialect is primary. Override per essay under Essay settings. Other languages may come later via a separate dictionary checker."
+          info="On-device English spelling and grammar via Harper. First selected dialect is primary. Override per essay under Essay settings. Turn off issue types you do not want, and add words to a dictionary shared across every essay."
         >
           Writing check
         </SettingsLabel>
@@ -135,39 +145,153 @@ export function EditorPrefsSection() {
         />
       </div>
       {prefs.spellcheckEnabled && (
-        <div className="spellcheck-langs is-detailed">
-          {HARPER_LANGUAGE_OPTIONS.map((option) => {
-            const checked = defaultLangs.includes(option.code);
-            const isPrimary = checked && option.code === primary;
-            return (
-              <label key={option.code}>
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggleDefaultLang(option.code)}
-                />
-                <span>{option.label}</span>
-                {isPrimary && (
-                  <span className="spellcheck-primary-badge">primary</span>
-                )}
-                {checked && !isPrimary && (
-                  <button
-                    type="button"
-                    className="spellcheck-make-primary"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setPrimary(option.code);
-                    }}
-                  >
-                    Make primary
-                  </button>
-                )}
-              </label>
-            );
-          })}
-        </div>
+        <>
+          <div className="spellcheck-langs is-detailed">
+            {HARPER_LANGUAGE_OPTIONS.map((option) => {
+              const checked = defaultLangs.includes(option.code);
+              const isPrimary = checked && option.code === primary;
+              return (
+                <label key={option.code}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleDefaultLang(option.code)}
+                  />
+                  <span>{option.label}</span>
+                  {isPrimary && (
+                    <span className="spellcheck-primary-badge">primary</span>
+                  )}
+                  {checked && !isPrimary && (
+                    <button
+                      type="button"
+                      className="spellcheck-make-primary"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setPrimary(option.code);
+                      }}
+                    >
+                      Make primary
+                    </button>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+          <HarperIssueTypeToggles />
+          <HarperDictionaryField />
+        </>
       )}
     </section>
+  );
+}
+
+function HarperIssueTypeToggles() {
+  const { prefs, updatePrefs } = useEditorPrefs();
+  const disabled = prefs.harperDisabledKinds;
+
+  return (
+    <div className="harper-kind-groups">
+      <p className="settings-section-subhead">
+        <SettingsLabel info="Uncheck a type to hide those underlines in every essay. Readability is Harper's long-sentence check.">
+          Issue types
+        </SettingsLabel>
+      </p>
+      {HARPER_LINT_KIND_GROUPS.map((group) => (
+        <fieldset key={group.id} className="harper-kind-group">
+          <legend>{group.label}</legend>
+          <div className="spellcheck-langs is-detailed">
+            {group.kinds.map((kind) => {
+              const checked = harperKindEnabled(disabled, kind.id);
+              return (
+                <label key={kind.id}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(event) =>
+                      updatePrefs({
+                        harperDisabledKinds: setHarperKindEnabled(
+                          disabled,
+                          kind.id,
+                          event.target.checked
+                        ),
+                      })
+                    }
+                  />
+                  <span>{kind.label}</span>
+                  {kind.hint && (
+                    <span className="harper-kind-hint">{kind.hint}</span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+      ))}
+    </div>
+  );
+}
+
+function HarperDictionaryField() {
+  const { prefs, updatePrefs } = useEditorPrefs();
+  const [draft, setDraft] = useState("");
+  const words = prefs.harperDictionary;
+
+  function addDraft() {
+    if (!draft.trim()) return;
+    updatePrefs({
+      harperDictionary: addHarperDictionaryWord(words, draft),
+    });
+    setDraft("");
+  }
+
+  return (
+    <div className="harper-dictionary">
+      <p className="settings-section-subhead">
+        <SettingsLabel info="Words added here (or from a spelling suggestion) are ignored in every essay. Synced with your account.">
+          Dictionary
+        </SettingsLabel>
+      </p>
+      {words.length > 0 && (
+        <ul className="harper-dictionary-list">
+          {words.map((word) => (
+            <li key={word}>
+              <span>{word}</span>
+              <button
+                type="button"
+                className="harper-dictionary-remove"
+                aria-label={`Remove ${word} from dictionary`}
+                onClick={() =>
+                  updatePrefs({
+                    harperDictionary: removeHarperDictionaryWord(words, word),
+                  })
+                }
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="harper-dictionary-add"
+        onSubmit={(event) => {
+          event.preventDefault();
+          addDraft();
+        }}
+      >
+        <input
+          type="text"
+          className="settings-text-input"
+          value={draft}
+          placeholder="Add a word"
+          aria-label="Add a word to the dictionary"
+          onChange={(event) => setDraft(event.target.value)}
+        />
+        <button type="submit" className="settings-link-btn">
+          Add
+        </button>
+      </form>
+    </div>
   );
 }
