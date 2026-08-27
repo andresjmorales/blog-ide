@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AddToLibraryButton } from "@/components/library/AddToLibraryButton";
 import { ClipboardIcon, ExternalLinkIcon } from "@/components/icons";
 import type { LinkPreview } from "@/lib/preview/openGraph";
@@ -24,15 +24,10 @@ export function LinkPreviewSnippet({
   error: string | null;
   onPinAndRead: () => void;
 }) {
-  const [imageFailed, setImageFailed] = useState(false);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const image = preview?.image ?? null;
   const title = preview?.title || url;
-
-  useEffect(() => {
-    setImageFailed(false);
-  }, [image]);
-
-  const showImage = Boolean(image) && !imageFailed;
+  const showImage = Boolean(image) && failedSrc !== image;
 
   async function copyTitle() {
     try {
@@ -54,7 +49,9 @@ export function LinkPreviewSnippet({
               className="link-preview-thumb-img"
               loading="lazy"
               referrerPolicy="no-referrer"
-              onError={() => setImageFailed(true)}
+              onError={() => {
+                if (image) setFailedSrc(image);
+              }}
             />
           ) : (
             <span className="link-preview-thumb-placeholder" />
