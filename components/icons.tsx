@@ -223,6 +223,79 @@ export function LinkIcon({ className = "" }: { className?: string }) {
   );
 }
 
+/** Clipboard for copying link titles / display text. */
+export function ClipboardIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width={TOOL_ICON}
+      height={TOOL_ICON}
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <rect
+        x="5"
+        y="3.5"
+        width="8"
+        height="10"
+        rx="1.2"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+      <path
+        d="M5 5.5H4.2A1.2 1.2 0 0 1 3 4.3V3.2A1.2 1.2 0 0 1 4.2 2h5.6A1.2 1.2 0 0 1 11 3.2V3.5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+      <rect
+        x="7.25"
+        y="1.75"
+        width="3.5"
+        height="1.7"
+        rx="0.6"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
+    </svg>
+  );
+}
+
+/** Box with an arrow, used to mark “open in a new tab”. */
+export function ExternalLinkIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width={TOOL_ICON}
+      height={TOOL_ICON}
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <path
+        d="M9.2 3.5H12.5V6.8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7.2 8.8 12.5 3.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M11 9.2v3.3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1H6.8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function PinIcon({ className = "" }: { className?: string }) {
   return (
     <svg

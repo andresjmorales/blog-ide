@@ -1,16 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { LinkPin } from "@/lib/pins/pinStore";
 import { fetchReaderExtract } from "@/lib/preview/client";
 
 export function LinkPinBody({ pin }: { pin: LinkPin }) {
   const [text, setText] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [manualBusy, setManualBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const autoBusy =
+    pin.autoExtract === true && text === null && error === null;
+  const busy = manualBusy || autoBusy;
 
   async function loadReader() {
-    setBusy(true);
+    setManualBusy(true);
     setError(null);
     try {
       const result = await fetchReaderExtract(pin.url);
@@ -18,9 +21,28 @@ export function LinkPinBody({ pin }: { pin: LinkPin }) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load extract");
     } finally {
-      setBusy(false);
+      setManualBusy(false);
     }
   }
+
+  useEffect(() => {
+    if (!pin.autoExtract) return;
+    let cancelled = false;
+    void fetchReaderExtract(pin.url)
+      .then((result) => {
+        if (!cancelled) setText(result.text);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(
+            err instanceof Error ? err.message : "Could not load extract"
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pin.autoExtract, pin.url]);
 
   return (
     <div className="link-pin-body">

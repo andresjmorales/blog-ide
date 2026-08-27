@@ -38,6 +38,8 @@ export type LinkPin = PinBase & {
   description?: string;
   siteName?: string;
   image?: string | null;
+  /** Session-only: load the reader extract as soon as the pin mounts. */
+  autoExtract?: boolean;
 };
 
 export type PdfPin = PinBase & {
@@ -424,11 +426,18 @@ export function openLinkPin(input: {
   description?: string;
   siteName?: string;
   image?: string | null;
+  autoExtract?: boolean;
 }): void {
   hydratePinLayout();
   const id = `link:${input.url}`;
   const existing = windows.find((w) => w.id === id);
-  if (existing) {
+  if (existing && existing.kind === "link") {
+    if (input.autoExtract && !existing.autoExtract) {
+      windows = windows.map((w) =>
+        w.id === id && w.kind === "link" ? { ...w, autoExtract: true } : w
+      );
+      emit();
+    }
     raiseId(id);
     return;
   }
@@ -442,6 +451,7 @@ export function openLinkPin(input: {
       description: input.description,
       siteName: input.siteName,
       image: input.image,
+      autoExtract: input.autoExtract === true,
       ...defaultPlacement({ width: 360, height: 320 }),
       zIndex: claimFloatZ(),
     },
