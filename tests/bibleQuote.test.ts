@@ -42,6 +42,29 @@ describe("prepareBibleQuoteHtml", () => {
     expect(quote).toContain("— John 3:16 (BSB)");
   });
 
+  it("inserts a blockquote with superscripted verse numbers", () => {
+    const editor = new Editor({
+      element: document.createElement("div"),
+      extensions: createExtensions(),
+      content: parseBody("Intro.\n"),
+    });
+    try {
+      editor.commands.insertContent(
+        wrapBibleQuoteAsBlockquote(
+          prepareBibleQuoteHtml(JOHN_316),
+          "John 3:16 (BSB)"
+        )
+      );
+      const md = serializeBody(editor.getJSON());
+      expect(md).toContain(">");
+      expect(md).toContain("<sup>16</sup>");
+      expect(md).toContain("— John 3:16 (BSB)");
+      expect(md).not.toContain("For God So Loved");
+    } finally {
+      editor.destroy();
+    }
+  });
+
   it("pastes verse numbers as superscript marks", () => {
     const editor = new Editor({
       element: document.createElement("div"),
