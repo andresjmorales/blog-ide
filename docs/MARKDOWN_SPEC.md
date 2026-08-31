@@ -99,6 +99,15 @@ one paragraph break, so PDF wraps stay in one paragraph instead of becoming
 a new block per line. HTML paste drops empty `<p><br></p>`-style paragraphs
 from Word / Docs / some PDF clipboards.
 
+## Superscript and subscript
+
+Toolbar **Aa** (More formatting) toggles superscript and subscript. They
+serialize as GFM inline HTML (`<sup>…</sup>` / `<sub>…</sub>`) so they
+round-trip without colliding with strikethrough `~~…~~`. HTML paste keeps
+`<sup>` / `<sub>` and Word/Docs `vertical-align: super|sub`; Unicode
+digits such as `²` / `₂` become marks when pasted. Shortcuts:
+**Ctrl+.** (superscript) and **Ctrl+,** (subscript).
+
 ## Markdown typing shortcuts (rich text)
 
 While typing in the WYSIWYG, TipTap **input rules** can auto-transform

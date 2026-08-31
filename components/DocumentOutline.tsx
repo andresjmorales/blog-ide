@@ -1,41 +1,21 @@
 "use client";
 
-import { useEditorState, type Editor } from "@tiptap/react";
+import { useEffect, useState } from "react";
+import type { Editor } from "@tiptap/react";
 import { PanelCaret } from "@/components/icons";
 import {
-  collectDocumentStats,
   formatReadingTime,
   formatWordCount,
   type DocumentStats,
 } from "@/lib/editor/documentStats";
+import {
+  OUTLINE_REFRESH_MS,
+  outlineSnapshotsEqual,
+  takeOutlineSnapshot,
+  type OutlineHeading,
+  type OutlineSnapshot,
+} from "@/lib/editor/documentOutline";
 import { scrollHeadingIntoView } from "@/lib/editor/editorScroll";
-
-export type OutlineHeading = {
-  level: number;
-  text: string;
-  pos: number;
-};
-
-function collectHeadings(editor: Editor): OutlineHeading[] {
-  const headings: OutlineHeading[] = [];
-  editor.state.doc.descendants((node, pos) => {
-    if (node.type.name !== "heading") return;
-    const level = Number(node.attrs.level ?? 1);
-    const text = node.textContent.trim();
-    if (!text) return;
-    headings.push({ level, text, pos });
-  });
-  return headings;
-}
-
-const EMPTY_STATS: DocumentStats = {
-  words: 0,
-  characters: 0,
-  charactersNoSpaces: 0,
-  paragraphs: 0,
-  headings: 0,
-  readingMinutes: 0,
-};
 
 type Props = {
   editor: Editor | null;
@@ -79,19 +59,34 @@ function DocumentOutlineLive({
   open: boolean;
   onToggle: () => void;
 }) {
-  const { headings, stats } = useEditorState({
-    editor,
-    selector: ({ editor: current }) => ({
-      headings: collectHeadings(current),
-      stats: current
-        ? collectDocumentStats(current.state.doc)
-        : EMPTY_STATS,
-    }),
-  });
+  const [snapshot, setSnapshot] = useState<OutlineSnapshot>(() =>
+    takeOutlineSnapshot(editor.state.doc)
+  );
+
+  useEffect(() => {
+    let timer = 0;
+    const refresh = () => {
+      const next = takeOutlineSnapshot(editor.state.doc);
+      setSnapshot((prev) => (outlineSnapshotsEqual(prev, next) ? prev : next));
+    };
+    const onUpdate = () => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(refresh, OUTLINE_REFRESH_MS);
+    };
+    refresh();
+    editor.on("update", onUpdate);
+    return () => {
+      editor.off("update", onUpdate);
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [editor]);
+
+  const headings = snapshot.headings;
+  const stats = snapshot.stats;
 
   const minLevel =
     headings.length > 0
-      ? Math.min(...headings.map((h) => h.level))
+      ? Math.min(...headings.map((h: OutlineHeading) => h.level))
       : 1;
 
   function scrollTo(pos: number) {

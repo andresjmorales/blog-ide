@@ -57,7 +57,7 @@ type Props = {
 
 /**
  * Pinnable Cleanup panel with tabs: Import, Text, Punctuation, Publish.
- * Convert case stays on the toolbar Cc menu.
+ * Convert case lives on the toolbar Aa menu.
  */
 export function CleanupDialog({
   open,
@@ -337,7 +337,7 @@ function CleanupPanel({
             ) : (
               <p className="blogide-cleanup-hint">
                 Switch to the rich text editor for text cleanup. Convert case
-                is on the toolbar (Cc).
+                is on the toolbar (Aa).
               </p>
             ))}
 
@@ -377,7 +377,7 @@ function TextTab({ editor }: { editor: Editor }) {
   return (
     <section>
       <p className="blogide-cleanup-hint">
-        Select text in the essay first. Convert case is on the toolbar (Cc).
+        Select text in the essay first. Convert case is on the toolbar (Aa).
       </p>
       <div className="blogide-cleanup-actions">
         <ActionButton

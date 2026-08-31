@@ -419,6 +419,8 @@ export const HarperHighlight = Extension.create({
 
   addProseMirrorPlugins() {
     const extensionEditor = this.editor;
+    let lastDecoState: HarperHighlightState | null = null;
+    let lastDecoSet: DecorationSet | null = null;
     return [
       new Plugin<HarperHighlightState>({
         key: harperHighlightKey,
@@ -445,6 +447,9 @@ export const HarperHighlight = Extension.create({
           decorations(state) {
             const pluginState = harperHighlightKey.getState(state);
             if (!pluginState || pluginState.issues.length === 0) return null;
+            if (pluginState === lastDecoState && lastDecoSet) {
+              return lastDecoSet;
+            }
             const decos = pluginState.issues.map((issue) =>
               Decoration.inline(issue.from, issue.to, {
                 class:
@@ -454,7 +459,9 @@ export const HarperHighlight = Extension.create({
                 "data-harper-id": issue.id,
               })
             );
-            return DecorationSet.create(state.doc, decos);
+            lastDecoState = pluginState;
+            lastDecoSet = DecorationSet.create(state.doc, decos);
+            return lastDecoSet;
           },
           handleClick(view, _pos, event) {
             const target = event.target;

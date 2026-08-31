@@ -6,7 +6,11 @@ import type { Editor } from "@tiptap/core";
 import { applyConvertCase, type CaseMode } from "@/lib/editor/applyConvertCase";
 import { claimFloatZ } from "@/lib/pins/pinStore";
 
-const OPTIONS: { mode: CaseMode; label: string; title: string }[] = [
+export const CONVERT_CASE_OPTIONS: {
+  mode: CaseMode;
+  label: string;
+  title: string;
+}[] = [
   { mode: "sentence", label: "Sentence case", title: "Capitalize first letter" },
   { mode: "upper", label: "UPPER CASE", title: "All uppercase" },
   { mode: "lower", label: "lower case", title: "All lowercase" },
@@ -21,6 +25,8 @@ const OPTIONS: { mode: CaseMode; label: string; title: string }[] = [
     title: "Capitalize every word",
   },
 ];
+
+const OPTIONS = CONVERT_CASE_OPTIONS;
 
 export function ConvertCaseMenu({ editor }: { editor: Editor }) {
   const [open, setOpen] = useState(false);
