@@ -33,14 +33,13 @@ import { BoldIcon } from "@/components/tiptap-icons/bold-icon";
 import { ItalicIcon } from "@/components/tiptap-icons/italic-icon";
 import { StrikeIcon } from "@/components/tiptap-icons/strike-icon";
 import { Code2Icon } from "@/components/tiptap-icons/code2-icon";
-import { CodeBlockIcon } from "@/components/tiptap-icons/code-block-icon";
 import { LinkIcon } from "@/components/tiptap-icons/link-icon";
 import { BlockquoteIcon } from "@/components/tiptap-icons/blockquote-icon";
 import { Undo2Icon } from "@/components/tiptap-icons/undo2-icon";
 import { Redo2Icon } from "@/components/tiptap-icons/redo2-icon";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
 import { CleanupToolbarButton } from "@/components/CleanupDialog";
-import { ConvertCaseMenu } from "@/components/ConvertCaseMenu";
+import { FormattingOverflowMenu } from "@/components/FormattingOverflowMenu";
 import type { DocRange } from "@/lib/editor/findReplaceInEditor";
 import { HeadingStyleMenu } from "@/components/HeadingStyleMenu";
 import { FindReplacePanel } from "@/components/FindReplacePanel";
@@ -650,7 +649,6 @@ function Toolbar({
       blockquote: current.isActive("blockquote"),
       bulletList: current.isActive("bulletList"),
       orderedList: current.isActive("orderedList"),
-      codeBlock: current.isActive("codeBlock"),
       canUndo: current.can().undo(),
       canRedo: current.can().redo(),
     }),
@@ -730,13 +728,7 @@ function Toolbar({
         >
           <Code2Icon className="blogide-tool-icon" />
         </ToolButton>
-        <ToolButton
-          title="Code block"
-          active={state.codeBlock}
-          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-        >
-          <CodeBlockIcon className="blogide-tool-icon" />
-        </ToolButton>
+        <FormattingOverflowMenu editor={editor} />
         <ToolButton
           title="Blockquote"
           active={state.blockquote}
@@ -753,7 +745,6 @@ function Toolbar({
         >
           <LinkIcon className="blogide-tool-icon" />
         </ToolButton>
-        <ConvertCaseMenu editor={editor} />
       </div>
 
       <span className="blogide-editor-toolbar-sep" aria-hidden />

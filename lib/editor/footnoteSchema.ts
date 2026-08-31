@@ -13,6 +13,7 @@ import { LinkShortcut } from "@/lib/editor/linkShortcut";
 import { SmartQuotes } from "@/lib/editor/smartQuotes";
 import { UndoReplace, DEFAULT_TYPOGRAPHY_LOCK_MS } from "@/lib/editor/undoReplace";
 import { FindHighlight } from "@/lib/editor/findHighlight";
+import { Subscript, Superscript } from "@/lib/editor/scriptMarks";
 
 export function createFootnoteExtensions(options: {
   typography?: boolean;
@@ -30,6 +31,8 @@ export function createFootnoteExtensions(options: {
       link: false,
     }),
     BlogideLink,
+    Superscript,
+    Subscript,
     StrictOrderedList,
     LinkShortcut,
     UndoReplace.configure({

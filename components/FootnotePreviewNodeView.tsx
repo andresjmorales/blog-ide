@@ -5,6 +5,7 @@ import {
   useEditorState,
   type NodeViewProps,
 } from "@tiptap/react";
+import { footnoteNumberAt } from "@/lib/editor/footnoteNumbers";
 
 /**
  * Read-only numbered footnote mark for split-view preview.
@@ -21,17 +22,12 @@ export function FootnotePreviewNodeView({
 
   const number = useEditorState({
     editor: outerEditor,
-    selector: ({ editor }) => {
-      const ownPosition = getPos();
-      if (typeof ownPosition !== "number") return 1;
-      let count = 0;
-      editor.state.doc.descendants((child, position) => {
-        if (position > ownPosition) return false;
-        if (child.type.name === "footnoteRef") count += 1;
-        return true;
-      });
-      return Math.max(count, 1);
-    },
+    selector: ({ editor }) =>
+      footnoteNumberAt(
+        editor.state.doc,
+        typeof getPos() === "number" ? getPos() : null,
+        footnoteId
+      ),
   });
 
   return (

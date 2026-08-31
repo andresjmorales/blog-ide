@@ -199,6 +199,8 @@ export const BibleRefHighlight = Extension.create({
 
   addProseMirrorPlugins() {
     const extensionEditor = this.editor;
+    let lastDecoState: BibleRefHighlightState | null = null;
+    let lastDecoSet: DecorationSet | null = null;
     return [
       new Plugin<BibleRefHighlightState>({
         key: bibleRefHighlightKey,
@@ -225,6 +227,9 @@ export const BibleRefHighlight = Extension.create({
           decorations(state) {
             const pluginState = bibleRefHighlightKey.getState(state);
             if (!pluginState || pluginState.hits.length === 0) return null;
+            if (pluginState === lastDecoState && lastDecoSet) {
+              return lastDecoSet;
+            }
             const decos = pluginState.hits.map((hit) =>
               Decoration.inline(hit.from, hit.to, {
                 class:
@@ -234,7 +239,9 @@ export const BibleRefHighlight = Extension.create({
                 "data-bible-ref-id": hit.id,
               })
             );
-            return DecorationSet.create(state.doc, decos);
+            lastDecoState = pluginState;
+            lastDecoSet = DecorationSet.create(state.doc, decos);
+            return lastDecoSet;
           },
           handleClick(_view, _pos, event) {
             const mark = markFromEvent(event);

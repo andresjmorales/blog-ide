@@ -114,6 +114,10 @@ export function HelpPanel({ open, onClose }: Props) {
               <kbd>Ctrl</kbd>+<kbd>B</kbd> / <kbd>I</kbd>: bold / italic
             </li>
             <li>
+              <kbd>Ctrl</kbd>+<kbd>.</kbd> / <kbd>,</kbd>: superscript /
+              subscript
+            </li>
+            <li>
               <kbd>Ctrl</kbd>+<kbd>K</kbd>: link
             </li>
             <li>
@@ -129,7 +133,8 @@ export function HelpPanel({ open, onClose }: Props) {
             <li>
               Broom / Cleanup: pinnable tabs for Import, Text, Punctuation,
               and Publish check; Text → Clean whitespace joins wrapped lines
-              to spaces and keeps blank lines; Cc = convert case; Cite is its
+              to spaces and keeps blank lines; Aa = superscript, subscript,
+              code block, and convert case; Cite is its
               own button
             </li>
             <li>

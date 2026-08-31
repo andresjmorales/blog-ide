@@ -26,6 +26,7 @@ import {
   MathInlineMarkdown,
 } from "@/lib/editor/math";
 import { FindHighlight } from "@/lib/editor/findHighlight";
+import { Subscript, Superscript } from "@/lib/editor/scriptMarks";
 import type { MarkdownTypingShortcuts } from "@/lib/settings";
 
 export type CreateExtensionsOptions = {
@@ -84,9 +85,10 @@ function preserveAsLiteralText(tokenName: string): AnyExtension {
 
 /**
  * The exhaustive v1 node/mark set from spec §5.1:
- * paragraph, heading h1-h4, bold, italic, inline code, strikethrough, link,
- * blockquote, bullet/ordered list, image, horizontal rule, code block
- * (with language attr), hard break, and the custom footnoteRef atom.
+ * paragraph, heading h1-h4, bold, italic, inline code, strikethrough,
+ * superscript, subscript, link, blockquote, bullet/ordered list, image,
+ * horizontal rule, code block (with language attr), hard break, and the
+ * custom footnoteRef atom.
  *
  * Shared between the editor component and the round-trip test suite so the
  * schema under test is exactly the schema being edited.
@@ -130,6 +132,8 @@ export function createExtensions(
         ]
       : []),
     BlogideLink,
+    Superscript,
+    Subscript,
     StrictOrderedList,
     TableKit.configure({
       table: { resizable: false },

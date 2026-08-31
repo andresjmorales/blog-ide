@@ -28,6 +28,7 @@ import {
 import { findInEditor } from "@/lib/editor/findReplaceInEditor";
 import { FootnoteSidenote } from "@/components/FootnoteSidenote";
 import { FootnoteToolbar } from "@/components/FootnoteToolbar";
+import { footnoteNumberAt } from "@/lib/editor/footnoteNumbers";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { useEssaySpellcheck } from "@/components/EssaySpellcheckContext";
 import { claimFloatZ } from "@/lib/pins/pinStore";
@@ -175,17 +176,12 @@ export function FootnoteNodeView({
 
   const number = useEditorState({
     editor: outerEditor,
-    selector: ({ editor }) => {
-      const ownPosition = getPos();
-      if (typeof ownPosition !== "number") return 1;
-      let count = 0;
-      editor.state.doc.descendants((child, position) => {
-        if (position > ownPosition) return false;
-        if (child.type.name === "footnoteRef") count += 1;
-        return true;
-      });
-      return Math.max(count, 1);
-    },
+    selector: ({ editor }) =>
+      footnoteNumberAt(
+        editor.state.doc,
+        typeof getPos() === "number" ? getPos() : null,
+        footnoteId
+      ),
   });
 
   const noteEditor = useEditor(

@@ -9,6 +9,7 @@ type Props = {
 
 const ROWS: { keys: string; action: string }[] = [
   { keys: "Ctrl+B / I", action: "Bold / italic" },
+  { keys: "Ctrl+. / ,", action: "Superscript / subscript" },
   { keys: "Ctrl+K", action: "Link" },
   { keys: "Ctrl+Shift+F", action: "Footnote" },
   { keys: "Ctrl+F", action: "Find (soft highlights)" },

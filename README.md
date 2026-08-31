@@ -36,10 +36,11 @@ by design.
   in the Substack editor. Download `.md` or `.html`; PDF (print) uses the
   browser Save as PDF dialog; optional Word `.docx` and PDF via Pandoc
   (`PANDOC_PATH`, plus a PDF engine such as `xelatex`). Import markdown or
-  `.docx` / `.odt` from the Files panel. Convert Case (Cc), Clean
+  `.docx` / `.odt` from the Files panel. Convert Case, superscript,
+  subscript, and Code block live under toolbar **Aa**. Clean
   whitespace (joins Shift-Enter / PDF wraps to spaces and keeps paragraph
-  breaks), and punctuation normalize (Chicago/MLA dashes, smart quotes)
-  for messy pastes
+  breaks) and punctuation normalize (Chicago/MLA dashes, smart quotes)
+  handle messy pastes.
 - **GitHub backup** — optional push (device-local PAT). Map a folder to a
   repo path or a document to `README.md` from Files → GitHub, or map the open
   essay under Essay settings → GitHub. Matching files are overwritten,
@@ -60,7 +61,8 @@ by design.
   Punctuation, and Publish (copy for Substack/Medium/HTML, Substack native
   footnote helper, link/image check); Clean whitespace joins Shift-Enter /
   PDF wraps to spaces and keeps blank lines; paste collapses extra empty
-  paragraphs; Convert Case is Cc on the toolbar; Cite is separate; paste or
+  paragraphs; Convert Case, superscript, subscript, and Code block live
+  under toolbar **Aa**; Cite is separate; paste or
   drag-drop images into the essay
 
 ## Stack

@@ -2,6 +2,11 @@ import type { JSONContent } from "@tiptap/core";
 import { Slice, type Schema } from "@tiptap/pm/model";
 import { parseBody } from "@/lib/markdown/pipeline";
 import { collapseExtraBlankLines } from "@/lib/editor/cleanWhitespace";
+import { wrapUnicodeScriptsInHtml } from "@/lib/editor/unicodeScripts";
+import {
+  looksLikeFetchBibleHtml,
+  prepareBibleQuoteHtml,
+} from "@/lib/bible/quoteHtml";
 
 export { collapseExtraBlankLines };
 
@@ -50,7 +55,10 @@ export function normalizePastedHtml(html: string): string {
       block
     );
   });
-  return next;
+  if (looksLikeFetchBibleHtml(next)) {
+    next = prepareBibleQuoteHtml(next);
+  }
+  return wrapUnicodeScriptsInHtml(next);
 }
 
 export function jsonFromPastedPlainText(text: string): JSONContent {

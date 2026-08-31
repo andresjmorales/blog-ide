@@ -6,12 +6,10 @@ import { useEditorState } from "@tiptap/react";
 import { FootnoteSidenote } from "@/components/FootnoteSidenote";
 import { DeletedFootnotesPanel } from "@/components/DeletedFootnotesPanel";
 import { PanelCaret } from "@/components/icons";
-
-type RailNote = {
-  id: string;
-  content: string;
-  number: number;
-};
+import {
+  collectRailNotes,
+  railNotesEqual,
+} from "@/lib/editor/footnoteNumbers";
 
 /** Ease toward the other pane (lower = slower / smoother). */
 const LINK_EASE = 0.22;
@@ -50,21 +48,8 @@ export function SidenoteRail({
 
   const notes = useEditorState({
     editor,
-    selector: ({ editor: current }): RailNote[] => {
-      const list: RailNote[] = [];
-      let number = 0;
-      current.state.doc.descendants((node) => {
-        if (node.type.name !== "footnoteRef") return true;
-        number += 1;
-        list.push({
-          id: String(node.attrs.id ?? ""),
-          content: String(node.attrs.content ?? ""),
-          number,
-        });
-        return true;
-      });
-      return list;
-    },
+    selector: ({ editor: current }) => collectRailNotes(current.state.doc),
+    equalityFn: railNotesEqual,
   });
 
   useEffect(() => {

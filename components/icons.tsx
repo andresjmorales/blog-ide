@@ -68,7 +68,6 @@ export function PanelCaret({
   );
 }
 
-/** Downward V used to open leftover footnote formatting tools. */
 export function MoreFormattingIcon({ className = "" }: { className?: string }) {
   return (
     <svg
@@ -87,6 +86,19 @@ export function MoreFormattingIcon({ className = "" }: { className?: string }) {
         strokeLinejoin="round"
       />
     </svg>
+  );
+}
+
+/** Compact Aa glyph for the extra-formatting overflow (super/sub, case, code block). */
+export function FormattingAaIcon({ className = "" }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={`inline-flex h-4 w-4 items-center justify-center font-serif leading-none ${className}`}
+      style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "-0.04em" }}
+    >
+      Aa
+    </span>
   );
 }
 

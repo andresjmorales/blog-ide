@@ -6,6 +6,10 @@ import type { Editor } from "@tiptap/core";
 import "@gracious.tech/fetch-client/client.css";
 import { fetchBiblePassage } from "@/lib/bible/client";
 import {
+  prepareBibleQuoteHtml,
+  wrapBibleQuoteAsBlockquote,
+} from "@/lib/bible/quoteHtml";
+import {
   FETCH_BIBLE_TRANSLATION_ABBREV,
   FETCH_BIBLE_TRANSLATION_NAME,
 } from "@/lib/bible/constants";
@@ -133,31 +137,22 @@ export function BibleHoverCard({ editor }: Props) {
   const currentEditor = editor;
 
   function insertQuote() {
+    const html = loaded?.html?.trim();
     const text = loaded?.text?.trim();
-    if (!text) return;
+    if (!html && !text) return;
+    const prepared = html ? prepareBibleQuoteHtml(html) : "";
+    const inner =
+      prepared ||
+      `<p>${text ? text.replace(/&/g, "&amp;").replace(/</g, "&lt;") : ""}</p>`;
     currentEditor
       .chain()
       .focus()
-      .insertContent([
-        {
-          type: "blockquote",
-          content: [
-            {
-              type: "paragraph",
-              content: [{ type: "text", text }],
-            },
-            {
-              type: "paragraph",
-              content: [
-                {
-                  type: "text",
-                  text: `— ${hit.label} (${FETCH_BIBLE_TRANSLATION_ABBREV})`,
-                },
-              ],
-            },
-          ],
-        },
-      ])
+      .insertContent(
+        wrapBibleQuoteAsBlockquote(
+          inner,
+          `${hit.label} (${FETCH_BIBLE_TRANSLATION_ABBREV})`
+        )
+      )
       .run();
     currentEditor.commands.setBibleRefActive(null);
   }
@@ -184,7 +179,9 @@ export function BibleHoverCard({ editor }: Props) {
       ) : loaded?.html ? (
         <div
           className="bible-ref-card-passage fetch-bible no-chapters no-headings no-notes no-red-letter"
-          dangerouslySetInnerHTML={{ __html: loaded.html }}
+          dangerouslySetInnerHTML={{
+            __html: prepareBibleQuoteHtml(loaded.html) || loaded.html,
+          }}
         />
       ) : (
         <p className="bible-ref-card-status">Loading…</p>

@@ -9,7 +9,7 @@ import { applyCleanWhitespace } from "@/lib/editor/applyCleanWhitespace";
 import { fitToolbarItems } from "@/lib/editor/footnoteToolbar";
 import { EditorOverflowMenu, type OverflowItem } from "@/components/EditorOverflowMenu";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
-import { ConvertCaseMenu } from "@/components/ConvertCaseMenu";
+import { FormattingOverflowMenu } from "@/components/FormattingOverflowMenu";
 import { CleanWhitespaceButton } from "@/components/CleanWhitespaceButton";
 import {
   BulletListIcon,
@@ -20,7 +20,6 @@ import { BoldIcon } from "@/components/tiptap-icons/bold-icon";
 import { ItalicIcon } from "@/components/tiptap-icons/italic-icon";
 import { StrikeIcon } from "@/components/tiptap-icons/strike-icon";
 import { Code2Icon } from "@/components/tiptap-icons/code2-icon";
-import { CodeBlockIcon } from "@/components/tiptap-icons/code-block-icon";
 import { LinkIcon } from "@/components/tiptap-icons/link-icon";
 import { BlockquoteIcon } from "@/components/tiptap-icons/blockquote-icon";
 import { Undo2Icon } from "@/components/tiptap-icons/undo2-icon";
@@ -62,7 +61,6 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
       blockquote: current.isActive("blockquote"),
       bulletList: current.isActive("bulletList"),
       orderedList: current.isActive("orderedList"),
-      codeBlock: current.isActive("codeBlock"),
       canUndo: current.can().undo(),
       canRedo: current.can().redo(),
     }),
@@ -144,15 +142,6 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
       render: () => <Code2Icon className="blogide-tool-icon" />,
     },
     {
-      id: "codeBlock",
-      kind: "item",
-      title: "Code block",
-      overflowLabel: "Code block",
-      active: state.codeBlock,
-      onClick: () => editor.chain().focus().toggleCodeBlock().run(),
-      render: () => <CodeBlockIcon className="blogide-tool-icon" />,
-    },
-    {
       id: "quote",
       kind: "item",
       title: "Blockquote",
@@ -173,11 +162,11 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
       render: () => <LinkIcon className="blogide-tool-icon" />,
     },
     {
-      id: "case",
+      id: "format",
       kind: "slot",
-      title: "Convert case",
-      overflowLabel: "Convert case",
-      render: () => <ConvertCaseMenu editor={editor} />,
+      title: "More formatting",
+      overflowLabel: "More formatting",
+      render: () => <FormattingOverflowMenu editor={editor} />,
     },
     { id: "sep-extra", kind: "sep", title: "", overflowLabel: "" },
     {
@@ -234,8 +223,23 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
   const overflowed = tools.slice(shown).filter((tool) => tool.kind !== "sep");
   const overflowItems: OverflowItem[] = overflowed.flatMap(
     (tool): OverflowItem[] => {
-      if (tool.id === "case") {
+      if (tool.id === "format") {
         return [
+          {
+            id: "superscript",
+            label: "Superscript",
+            onSelect: () => editor.chain().focus().toggleSuperscript().run(),
+          },
+          {
+            id: "subscript",
+            label: "Subscript",
+            onSelect: () => editor.chain().focus().toggleSubscript().run(),
+          },
+          {
+            id: "codeBlock",
+            label: "Code block",
+            onSelect: () => editor.chain().focus().toggleCodeBlock().run(),
+          },
           {
             kind: "submenu",
             id: "case",

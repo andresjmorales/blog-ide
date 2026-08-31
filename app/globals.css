@@ -1385,6 +1385,23 @@ html.app-shell-lock body {
   border-radius: 1px;
 }
 
+.editor-prose sup,
+.footnote-card-editor sup,
+.footnote-sidenote-body sup,
+.bible-ref-card-passage sup {
+  font-size: 0.72em;
+  line-height: 0;
+  vertical-align: super;
+}
+
+.editor-prose sub,
+.footnote-card-editor sub,
+.footnote-sidenote-body sub {
+  font-size: 0.72em;
+  line-height: 0;
+  vertical-align: sub;
+}
+
 /* Footnote reference, editor card, and wide-screen sidenotes (spec §5.2) */
 .footnote-node {
   display: inline;
