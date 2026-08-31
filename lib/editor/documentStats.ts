@@ -28,10 +28,11 @@ export function readingMinutesFromWords(words: number): number {
   return Math.max(1, Math.round(words / READING_WPM));
 }
 
-type StatsNode = {
+export type StatsNode = {
   type: { name: string };
   isText: boolean;
   text?: string;
+  textContent?: string;
   attrs?: Record<string, unknown>;
   descendants: (
     f: (node: StatsNode, pos: number, parent: StatsNode | null) => boolean | void

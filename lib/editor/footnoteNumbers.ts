@@ -76,7 +76,11 @@ export function collectRailNotes(doc: PMNode): RailNote[] {
   return list;
 }
 
-export function railNotesEqual(a: RailNote[], b: RailNote[]): boolean {
+export function railNotesEqual(
+  a: RailNote[],
+  b: RailNote[] | null
+): boolean {
+  if (b == null) return false;
   if (a === b) return true;
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {

@@ -1,6 +1,7 @@
 import {
   collectDocumentStats,
   type DocumentStats,
+  type StatsNode,
 } from "@/lib/editor/documentStats";
 
 export type OutlineHeading = {
@@ -14,16 +15,7 @@ export type OutlineSnapshot = {
   stats: DocumentStats;
 };
 
-type OutlineNode = {
-  type: { name: string };
-  attrs?: Record<string, unknown>;
-  textContent?: string;
-  descendants: (
-    f: (node: OutlineNode, pos: number) => boolean | void
-  ) => void;
-};
-
-export function collectOutlineHeadings(doc: OutlineNode): OutlineHeading[] {
+export function collectOutlineHeadings(doc: StatsNode): OutlineHeading[] {
   const headings: OutlineHeading[] = [];
   doc.descendants((node, pos) => {
     if (node.type.name !== "heading") return;
@@ -35,7 +27,7 @@ export function collectOutlineHeadings(doc: OutlineNode): OutlineHeading[] {
   return headings;
 }
 
-export function takeOutlineSnapshot(doc: OutlineNode): OutlineSnapshot {
+export function takeOutlineSnapshot(doc: StatsNode): OutlineSnapshot {
   return {
     headings: collectOutlineHeadings(doc),
     stats: collectDocumentStats(doc),
