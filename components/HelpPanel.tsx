@@ -105,9 +105,11 @@ export function HelpPanel({ open, onClose }: Props) {
             Shell can open by default (Settings → Editor). A pinned
             scratchpad.md is seeded for scraps; treat it like any other essay.
             Optional Pushbullet or ntfy capture (Settings → Integrations)
-            maps a virtual device or an ntfy topic to each Notes channel. Tokens
-            and topic names are encrypted on your account after you paste them
-            into Settings, never into a chat.
+            maps a virtual device or an ntfy topic to each Notes channel. Send
+            from the Pushbullet or ntfy app with BlogIDE closed; the next time
+            you open BlogIDE on a computer or phone, those notes catch up.
+            Tokens and topic names are encrypted on your account after you paste
+            them into Settings, never into a chat.
           </p>
         </section>
 

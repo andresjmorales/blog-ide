@@ -66,7 +66,7 @@ export async function ingestPushbulletPushes(input: {
   token: string;
   channels: Array<{ id: string; name: string }>;
 }): Promise<{ ingested: number; initialized: boolean }> {
-  const cursor = loadPushbulletCursor();
+  const cursor = await loadPushbulletCursor();
   const devices = await syncPushbulletDevices(input.token, input.channels);
   const deviceToChannel = new Map(
     devices.map.map((row) => [row.deviceIden, row.channelId])
@@ -75,7 +75,7 @@ export async function ingestPushbulletPushes(input: {
   if (cursor.modifiedAfter == null) {
     const recent = await listPushbulletPushes(input.token, { limit: 1 });
     const newest = newestModified(recent) ?? 0;
-    savePushbulletCursor({ modifiedAfter: newest, ingested: [] });
+    await savePushbulletCursor({ modifiedAfter: newest, ingested: [] });
     savePushbulletStatus({
       lastSyncAt: new Date().toISOString(),
       lastError: null,
@@ -119,7 +119,7 @@ export async function ingestPushbulletPushes(input: {
   }
 
   const newest = newestModified(pushes);
-  savePushbulletCursor(
+  await savePushbulletCursor(
     markIngested(
       cursor,
       ingested,

@@ -23,7 +23,7 @@ export async function ingestNtfyMessages(): Promise<{
   if (!secrets || secrets.topics.length === 0) {
     return { ingested: 0, initialized: false };
   }
-  const cursor = loadNtfyCursor();
+  const cursor = await loadNtfyCursor();
   const topicToChannel = new Map(
     secrets.topics.map((row) => [row.topic, row.channelId])
   );
@@ -34,7 +34,7 @@ export async function ingestNtfyMessages(): Promise<{
       const t = msg.time ?? 0;
       return t > max ? t : max;
     }, 0);
-    saveNtfyCursor({ since: newest || 0, ingested: [] });
+    await saveNtfyCursor({ since: newest || 0, ingested: [] });
     return { ingested: 0, initialized: true };
   }
 
@@ -76,7 +76,7 @@ export async function ingestNtfyMessages(): Promise<{
     return t > max ? t : max;
   }, cursor.since ?? 0);
 
-  saveNtfyCursor(
+  await saveNtfyCursor(
     markNtfyIngested(
       cursor,
       ingested,

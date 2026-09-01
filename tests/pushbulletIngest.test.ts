@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { markIngested } from "@/lib/pushbullet/cursor";
+import { markIngested, mergePushbulletCursors } from "@/lib/pushbullet/cursor";
 import { newestModified, selectPushesToIngest } from "@/lib/pushbullet/ingest";
 
 describe("selectPushesToIngest", () => {
@@ -75,6 +75,26 @@ describe("newestModified", () => {
       ])
     ).toBe(3.2);
     expect(newestModified([])).toBeNull();
+  });
+});
+
+describe("mergePushbulletCursors", () => {
+  it("keeps the account cursor on a new device with empty local state", () => {
+    const merged = mergePushbulletCursors(
+      { modifiedAfter: null, ingested: [] },
+      { modifiedAfter: 100, ingested: ["a"] }
+    );
+    expect(merged.modifiedAfter).toBe(100);
+    expect(merged.ingested).toEqual(["a"]);
+  });
+
+  it("does not drop a newer local cursor", () => {
+    const merged = mergePushbulletCursors(
+      { modifiedAfter: 120, ingested: ["b"] },
+      { modifiedAfter: 100, ingested: ["a"] }
+    );
+    expect(merged.modifiedAfter).toBe(120);
+    expect(merged.ingested.sort()).toEqual(["a", "b"]);
   });
 });
 

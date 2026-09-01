@@ -1,3 +1,9 @@
+import {
+  loadAccountCaptureState,
+  mergeIdLists,
+  saveAccountCaptureState,
+} from "@/lib/capture/accountState";
+
 const STORAGE_KEY = "blogide.ntfy.cursor";
 const MAX_INGESTED = 400;
 
@@ -6,7 +12,7 @@ export type NtfyCursor = {
   ingested: string[];
 };
 
-export function loadNtfyCursor(): NtfyCursor {
+export function readLocalNtfyCursor(): NtfyCursor {
   if (typeof window === "undefined") return { since: null, ingested: [] };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -25,15 +31,43 @@ export function loadNtfyCursor(): NtfyCursor {
   }
 }
 
-export function saveNtfyCursor(cursor: NtfyCursor): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
-      since: cursor.since,
-      ingested: cursor.ingested.slice(-MAX_INGESTED),
-    } satisfies NtfyCursor)
+export function mergeNtfyCursors(
+  local: NtfyCursor,
+  remote?: NtfyCursor
+): NtfyCursor {
+  if (!remote) return local;
+  const times = [local.since, remote.since].filter(
+    (n): n is number => typeof n === "number"
   );
+  return {
+    since: times.length > 0 ? Math.max(...times) : null,
+    ingested: mergeIdLists(local.ingested, remote.ingested, MAX_INGESTED),
+  };
+}
+
+export async function loadNtfyCursor(): Promise<NtfyCursor> {
+  const local = readLocalNtfyCursor();
+  try {
+    const remote = await loadAccountCaptureState();
+    return mergeNtfyCursors(local, remote.ntfy);
+  } catch {
+    return local;
+  }
+}
+
+export async function saveNtfyCursor(cursor: NtfyCursor): Promise<void> {
+  const next = {
+    since: cursor.since,
+    ingested: cursor.ingested.slice(-MAX_INGESTED),
+  };
+  if (typeof window !== "undefined") {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  }
+  try {
+    await saveAccountCaptureState({ ntfy: next });
+  } catch {
+    // Local cursor is enough until the next successful sync.
+  }
 }
 
 export function markNtfyIngested(

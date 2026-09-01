@@ -47,6 +47,7 @@ alter table user_settings add column if not exists stripe_subscription_status te
 alter table user_settings add column if not exists stripe_cancel_at timestamptz;
 alter table user_settings add column if not exists github_path text;
 alter table user_settings add column if not exists github_maps jsonb not null default '[]'::jsonb;
+alter table user_settings add column if not exists capture_state jsonb not null default '{}'::jsonb;
 do $$
 begin
   if not exists (
@@ -305,6 +306,7 @@ grant insert (
   github_path,
   github_maps,
   editor_prefs,
+  capture_state,
   updated_at
 )
   on user_settings to authenticated;
@@ -315,6 +317,7 @@ grant update (
   github_path,
   github_maps,
   editor_prefs,
+  capture_state,
   updated_at
 )
   on user_settings to authenticated;

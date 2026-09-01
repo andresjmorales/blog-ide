@@ -77,7 +77,10 @@ markdown.
   for now (they are used from the browser to those APIs).
 - Pushbullet: BlogIDE registers a virtual device per Notes channel and
   ingests pushes targeted at those devices. Broadcasts to all devices are
-  ignored. Catch-up uses `GET /v2/pushes?modified_after=`.
+  ignored. You send from the Pushbullet app with BlogIDE closed; the next
+  BlogIDE visit catch-up uses `GET /v2/pushes?modified_after=`. The cursor
+  is stored on the account so a phone and a laptop share the same catch-up
+  point.
 - ntfy: one generated topic per Notes channel. Publish with HTTP POST (or
   the ntfy app). Catch-up uses `GET /{topics}/json?poll=1&since=`. On
   ntfy.sh a topic name is the password unless reserved (Pro) or you

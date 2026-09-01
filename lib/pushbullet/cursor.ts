@@ -1,9 +1,14 @@
 import type { PushbulletCursor } from "@/lib/pushbullet/types";
+import {
+  loadAccountCaptureState,
+  mergeIdLists,
+  saveAccountCaptureState,
+} from "@/lib/capture/accountState";
 
 const STORAGE_KEY = "blogide.pushbullet.cursor";
 const MAX_INGESTED = 400;
 
-export function loadPushbulletCursor(): PushbulletCursor {
+export function readLocalPushbulletCursor(): PushbulletCursor {
   if (typeof window === "undefined") {
     return { modifiedAfter: null, ingested: [] };
   }
@@ -25,16 +30,43 @@ export function loadPushbulletCursor(): PushbulletCursor {
   }
 }
 
-export function savePushbulletCursor(cursor: PushbulletCursor): void {
-  if (typeof window === "undefined") return;
-  const ingested = cursor.ingested.slice(-MAX_INGESTED);
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
-      modifiedAfter: cursor.modifiedAfter,
-      ingested,
-    } satisfies PushbulletCursor)
+export function mergePushbulletCursors(
+  local: PushbulletCursor,
+  remote?: PushbulletCursor
+): PushbulletCursor {
+  if (!remote) return local;
+  const times = [local.modifiedAfter, remote.modifiedAfter].filter(
+    (n): n is number => typeof n === "number"
   );
+  return {
+    modifiedAfter: times.length > 0 ? Math.max(...times) : null,
+    ingested: mergeIdLists(local.ingested, remote.ingested, MAX_INGESTED),
+  };
+}
+
+export async function loadPushbulletCursor(): Promise<PushbulletCursor> {
+  const local = readLocalPushbulletCursor();
+  try {
+    const remote = await loadAccountCaptureState();
+    return mergePushbulletCursors(local, remote.pushbullet);
+  } catch {
+    return local;
+  }
+}
+
+export async function savePushbulletCursor(
+  cursor: PushbulletCursor
+): Promise<void> {
+  const ingested = cursor.ingested.slice(-MAX_INGESTED);
+  const next = { modifiedAfter: cursor.modifiedAfter, ingested };
+  if (typeof window !== "undefined") {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  }
+  try {
+    await saveAccountCaptureState({ pushbullet: next });
+  } catch {
+    // Local cursor is enough until the next successful sync.
+  }
 }
 
 export function clearPushbulletCursor(): void {
