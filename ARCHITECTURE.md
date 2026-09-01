@@ -67,6 +67,13 @@ markdown.
   `https://collection.fetch.bible/enhance.js`.
 - Stripe only if a shared hosted deploy opts into paid storage tiers
   ([docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md)).
+- Pushbullet is an opt-in Integrations capture path. The user’s access token
+  stays on the device (same as GitHub PAT / AI keys). BlogIDE registers a
+  virtual Pushbullet device per Notes channel and ingests pushes targeted at
+  those devices into the matching channel markdown. There is no HTTP webhook:
+  catch-up uses `GET /v2/pushes?modified_after=`, and a websocket to
+  `stream.pushbullet.com` listens while the editor tab is open. Broadcasts to
+  all devices are ignored so an existing Pushbullet workflow is unchanged.
 
 ## Persistence model
 
@@ -139,6 +146,7 @@ lib/supabase/         Browser, server, and service-role clients
 lib/pins/             Floating pin / pop-out session store
 lib/preview/          Publication HTML, SSRF helpers, OG helpers, reader extracts
 lib/github/           One-way GitHub backup (PAT, maps, Git Data push)
+lib/pushbullet/       Optional Pushbullet → Notes channel capture
 lib/pandoc/           Optional Word export/import when PANDOC_PATH is set
 lib/billing/          Public plan limits + Stripe plan application
 lib/stripe/           Server Stripe client and env helpers

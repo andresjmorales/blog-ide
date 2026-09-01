@@ -25,6 +25,7 @@ Never commit or include these values in reports:
 
 - Supabase service-role keys;
 - GitHub personal access tokens;
+- Pushbullet access tokens;
 - Anthropic / OpenAI API keys;
 - `.env.local` contents;
 - private document content.

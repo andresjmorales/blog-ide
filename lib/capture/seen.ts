@@ -21,3 +21,11 @@ export function subscribeShellSeen(listener: () => void): () => void {
     window.removeEventListener("storage", listener);
   };
 }
+
+export const NOTES_CHANGED_EVENT = "blogide-notes-changed";
+
+/** Shell / phone capture should reload after an out-of-band append. */
+export function notifyNotesChanged(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(NOTES_CHANGED_EVENT));
+}

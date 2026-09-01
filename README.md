@@ -12,7 +12,8 @@ by design.
 - **First-class footnotes** — inline notes, sidenote rail or anchored notes,
   pin/drag cards, deleted-note archive, Substack-style paste repair
 - **Workspace** — folder/document/link tree, Trash, Notes channels, a seeded
-  scratchpad you can rename or trash, phone terminal capture + desktop Shell
+  scratchpad you can rename or trash, phone terminal capture + desktop Shell,
+  optional Pushbullet capture into those channels
 - **Local-first sync** — IndexedDB autosave, optimistic Supabase sync, conflict
   copies, hard per-user quota (default 10 MiB combined)
 - **Research surfaces** — pop-out documents, link hover/Pin, cloud Library
@@ -149,7 +150,9 @@ a pinned `scratchpad.md` (a regular essay you can rename, move, or trash), and a
 `Notes/` folder (default `general.md` channel; legacy `notes.md` still works).
 Edits save to IndexedDB immediately and sync to
 Supabase. On a phone, you land in a terminal-style quick-capture screen; on
-desktop, open **Shell** for the same Notes stream.
+desktop, open **Shell** for the same Notes stream. Optional: Settings →
+Integrations → Pushbullet to capture notes you send to virtual devices from
+the Pushbullet app or browser extension.
 
 Optional: open **Account settings** to set a profile photo, display name, a
 GitHub backup repo (PAT stays on the device), or paste Anthropic / OpenAI keys

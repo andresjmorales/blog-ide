@@ -101,9 +101,12 @@ export function HelpPanel({ open, onClose }: Props) {
             a chat-style stream — open the <strong>Notes</strong> panel from the
             Panels menu. Channel files are managed from the Notes manager icon in
             that panel (new channel, open channel doc, rename, trash), not from
-            the Files tree.             On phone, the header Notes button opens capture mode;
+            the Files tree. On phone, the header Notes button opens capture mode;
             Shell can open by default (Settings → Editor). A pinned
             scratchpad.md is seeded for scraps; treat it like any other essay.
+            Optional Pushbullet capture (Settings → Integrations) creates a
+            virtual device per channel so a targeted push from the Pushbullet
+            app or extension lands in that Notes channel.
           </p>
         </section>
 
