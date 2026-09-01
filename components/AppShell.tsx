@@ -97,6 +97,10 @@ import {
   saveGithubSettings,
 } from "@/lib/github/settings";
 import { loadGithubToken } from "@/lib/github/token";
+import { startPushbulletCapture } from "@/lib/pushbullet/runtime";
+import { startNtfyCapture } from "@/lib/ntfy/runtime";
+import { hydrateAccountSecrets } from "@/lib/secrets/client";
+import { NOTES_CHANGED_EVENT } from "@/lib/capture/seen";
 import type { GithubMapStatus, GithubSyncMap } from "@/lib/github/types";
 import { GitHubPullDialog, type GithubPullApply } from "@/components/GitHubPullDialog";
 import {
@@ -109,6 +113,8 @@ import {
   getTrashNode,
   isInTrash,
   isSystemFolder,
+  listInboxChannels,
+  channelDisplayName,
   pickDefaultOpenDocument,
   uniqueSiblingName,
 } from "@/lib/workspace/tree";
@@ -339,6 +345,17 @@ function AppShellContent({
 
   const [nodes, setNodes] = useState<WorkspaceNode[]>([]);
   const githubMapNodes = useMemo(() => listGithubMapNodes(nodes), [nodes]);
+  const notesChannels = useMemo(
+    () =>
+      listInboxChannels(nodes).map((node) => ({
+        id: node.id,
+        name: channelDisplayName(node),
+      })),
+    [nodes]
+  );
+  const notesChannelKey = notesChannels
+    .map((channel) => `${channel.id}:${channel.name}`)
+    .join("|");
   const githubByNode = useMemo(() => {
     const map = new Map<string, GithubMapStatus>();
     for (const status of githubStatuses) {
@@ -362,6 +379,9 @@ function AppShellContent({
   /** Empty tree after wake/stale auth — keep prior nodes and offer Retry. */
   const [treeStale, setTreeStale] = useState(false);
   const nodesRef = useRef<WorkspaceNode[]>([]);
+  const pushbulletSessionRef = useRef<ReturnType<
+    typeof startPushbulletCapture
+  > | null>(null);
   const titlesRequestRef = useRef(0);
   const { status: syncStatus, label: syncLabel } = useSyncStatusLabel();
   const syncBanner = useStableSyncBanner(syncStatus);
@@ -397,6 +417,37 @@ function AppShellContent({
   useEffect(() => {
     nodesRef.current = nodes;
   }, [nodes]);
+
+  useEffect(() => {
+    if (previewMode) return;
+    void hydrateAccountSecrets();
+  }, [previewMode]);
+
+  useEffect(() => {
+    if (previewMode) return;
+    const session = startPushbulletCapture(() => nodesRef.current);
+    pushbulletSessionRef.current = session;
+    const ntfy = startNtfyCapture();
+    return () => {
+      session.stop();
+      ntfy.stop();
+      pushbulletSessionRef.current = null;
+    };
+  }, [previewMode]);
+
+  useEffect(() => {
+    pushbulletSessionRef.current?.channelsChanged();
+  }, [notesChannelKey]);
+
+  useEffect(() => {
+    function onNotesChanged() {
+      setShellRefreshKey((k) => k + 1);
+    }
+    window.addEventListener(NOTES_CHANGED_EVENT, onNotesChanged);
+    return () => {
+      window.removeEventListener(NOTES_CHANGED_EVENT, onNotesChanged);
+    };
+  }, []);
 
   const refreshGithubStatuses = useCallback(async () => {
     if (previewMode) return;
@@ -1860,6 +1911,7 @@ function AppShellContent({
                 ? undefined
                 : () => void handlePullFromGithub("workspace")
             }
+            pushbulletChannels={notesChannels}
           />
           <WorkspaceConnectionDialog
             open={connectionBlocked}

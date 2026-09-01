@@ -31,6 +31,8 @@ import {
 } from "@/lib/billing/plans";
 import { ProfilePhotoField } from "@/components/avatar/ProfilePhotoField";
 import { GitHubSettingsSection } from "@/components/GitHubSettingsSection";
+import { NtfySettingsSection } from "@/components/NtfySettingsSection";
+import { PushbulletSettingsSection } from "@/components/PushbulletSettingsSection";
 import { closeBiblePin } from "@/lib/pins/pinStore";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -47,6 +49,7 @@ type GithubSettingsProps = {
   onGithubSettingsChanged?: () => void;
   onPushWorkspace?: () => void;
   onPullMapped?: () => void;
+  pushbulletChannels?: Array<{ id: string; name: string }>;
 };
 
 export type SettingsTab =
@@ -92,6 +95,7 @@ export function SettingsPanel({
   onGithubSettingsChanged,
   onPushWorkspace,
   onPullMapped,
+  pushbulletChannels,
 }: Props) {
   useEffect(() => {
     if (!open) return;
@@ -122,6 +126,7 @@ export function SettingsPanel({
       onGithubSettingsChanged={onGithubSettingsChanged}
       onPushWorkspace={onPushWorkspace}
       onPullMapped={onPullMapped}
+      pushbulletChannels={pushbulletChannels}
     />
   );
 }
@@ -141,6 +146,7 @@ function SettingsDialog({
   onGithubSettingsChanged,
   onPushWorkspace,
   onPullMapped,
+  pushbulletChannels,
 }: {
   onClose: () => void;
   initialTab: SettingsTab;
@@ -649,6 +655,16 @@ function SettingsDialog({
                 onSettingsChanged={onGithubSettingsChanged}
                 onPushWorkspace={onPushWorkspace}
                 onPullMapped={onPullMapped}
+              />
+
+              <PushbulletSettingsSection
+                previewMode={previewMode}
+                channels={pushbulletChannels}
+              />
+
+              <NtfySettingsSection
+                previewMode={previewMode}
+                channels={pushbulletChannels}
               />
 
               <section className="settings-section">

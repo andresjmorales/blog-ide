@@ -164,6 +164,20 @@ quota shows the Pro size and “Pro subscription active”. Portal cancel schedu
 
 ---
 
+## Account secrets vault
+
+Pushbullet tokens and ntfy topic names are encrypted in `user_secrets`.
+Set `SECRETS_ENCRYPTION_KEY` on Vercel if you do not want the service-role
+key to be the encryption key. Changing the key after secrets exist makes
+them unreadable. Existing projects must re-run `supabase/schema.sql` (or
+apply `supabase/migrations/20260901190000_user_secrets.sql`).
+
+The host can decrypt these secrets with the encryption key. That is
+intentional for a single-operator app. GitHub PATs and AI keys stay in
+the browser.
+
+---
+
 ## Related
 
 - Architecture / quota model: [ARCHITECTURE.md](../ARCHITECTURE.md)

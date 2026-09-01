@@ -67,6 +67,8 @@ describe("SettingsPanel", () => {
   it("does not offer an AI import assist toggle", () => {
     render("integrations");
     expect(host!.textContent).toContain("AI API keys");
+    expect(host!.textContent).toContain("Pushbullet");
+    expect(host!.textContent).toContain("ntfy");
     expect(host!.textContent).not.toContain("AI import assist");
   });
 

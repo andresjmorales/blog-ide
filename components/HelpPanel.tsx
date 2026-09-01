@@ -101,9 +101,15 @@ export function HelpPanel({ open, onClose }: Props) {
             a chat-style stream — open the <strong>Notes</strong> panel from the
             Panels menu. Channel files are managed from the Notes manager icon in
             that panel (new channel, open channel doc, rename, trash), not from
-            the Files tree.             On phone, the header Notes button opens capture mode;
+            the Files tree. On phone, the header Notes button opens capture mode;
             Shell can open by default (Settings → Editor). A pinned
             scratchpad.md is seeded for scraps; treat it like any other essay.
+            Optional Pushbullet or ntfy capture (Settings → Integrations)
+            maps a virtual device or an ntfy topic to each Notes channel. Send
+            from the Pushbullet or ntfy app with BlogIDE closed; the next time
+            you open BlogIDE on a computer or phone, those notes catch up.
+            Tokens and topic names are encrypted on your account after you paste
+            them into Settings, never into a chat.
           </p>
         </section>
 
