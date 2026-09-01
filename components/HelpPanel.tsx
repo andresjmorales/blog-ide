@@ -104,9 +104,10 @@ export function HelpPanel({ open, onClose }: Props) {
             the Files tree. On phone, the header Notes button opens capture mode;
             Shell can open by default (Settings → Editor). A pinned
             scratchpad.md is seeded for scraps; treat it like any other essay.
-            Optional Pushbullet capture (Settings → Integrations) creates a
-            virtual device per channel so a targeted push from the Pushbullet
-            app or extension lands in that Notes channel.
+            Optional Pushbullet or ntfy capture (Settings → Integrations)
+            maps a virtual device or an ntfy topic to each Notes channel. Tokens
+            and topic names are encrypted on your account after you paste them
+            into Settings, never into a chat.
           </p>
         </section>
 

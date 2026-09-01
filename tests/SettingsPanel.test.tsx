@@ -68,6 +68,7 @@ describe("SettingsPanel", () => {
     render("integrations");
     expect(host!.textContent).toContain("AI API keys");
     expect(host!.textContent).toContain("Pushbullet");
+    expect(host!.textContent).toContain("ntfy");
     expect(host!.textContent).not.toContain("AI import assist");
   });
 

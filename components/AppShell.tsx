@@ -98,6 +98,8 @@ import {
 } from "@/lib/github/settings";
 import { loadGithubToken } from "@/lib/github/token";
 import { startPushbulletCapture } from "@/lib/pushbullet/runtime";
+import { startNtfyCapture } from "@/lib/ntfy/runtime";
+import { hydrateAccountSecrets } from "@/lib/secrets/client";
 import { NOTES_CHANGED_EVENT } from "@/lib/capture/seen";
 import type { GithubMapStatus, GithubSyncMap } from "@/lib/github/types";
 import { GitHubPullDialog, type GithubPullApply } from "@/components/GitHubPullDialog";
@@ -418,10 +420,17 @@ function AppShellContent({
 
   useEffect(() => {
     if (previewMode) return;
+    void hydrateAccountSecrets();
+  }, [previewMode]);
+
+  useEffect(() => {
+    if (previewMode) return;
     const session = startPushbulletCapture(() => nodesRef.current);
     pushbulletSessionRef.current = session;
+    const ntfy = startNtfyCapture();
     return () => {
       session.stop();
+      ntfy.stop();
       pushbulletSessionRef.current = null;
     };
   }, [previewMode]);

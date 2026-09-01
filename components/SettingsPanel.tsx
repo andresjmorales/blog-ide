@@ -31,6 +31,7 @@ import {
 } from "@/lib/billing/plans";
 import { ProfilePhotoField } from "@/components/avatar/ProfilePhotoField";
 import { GitHubSettingsSection } from "@/components/GitHubSettingsSection";
+import { NtfySettingsSection } from "@/components/NtfySettingsSection";
 import { PushbulletSettingsSection } from "@/components/PushbulletSettingsSection";
 import { closeBiblePin } from "@/lib/pins/pinStore";
 import { createClient } from "@/lib/supabase/client";
@@ -657,6 +658,11 @@ function SettingsDialog({
               />
 
               <PushbulletSettingsSection
+                previewMode={previewMode}
+                channels={pushbulletChannels}
+              />
+
+              <NtfySettingsSection
                 previewMode={previewMode}
                 channels={pushbulletChannels}
               />

@@ -67,13 +67,21 @@ markdown.
   `https://collection.fetch.bible/enhance.js`.
 - Stripe only if a shared hosted deploy opts into paid storage tiers
   ([docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md)).
-- Pushbullet is an opt-in Integrations capture path. The user’s access token
-  stays on the device (same as GitHub PAT / AI keys). BlogIDE registers a
-  virtual Pushbullet device per Notes channel and ingests pushes targeted at
-  those devices into the matching channel markdown. There is no HTTP webhook:
-  catch-up uses `GET /v2/pushes?modified_after=`, and a websocket to
-  `stream.pushbullet.com` listens while the editor tab is open. Broadcasts to
-  all devices are ignored so an existing Pushbullet workflow is unchanged.
+- Pushbullet and ntfy are opt-in Integrations capture paths. Access tokens
+  and ntfy topic names are encrypted (AES-256-GCM) and stored in
+  `user_secrets`, readable only through `/api/secrets` with the signed-in
+  user’s session. The encryption key is `SECRETS_ENCRYPTION_KEY` or, if
+  unset, `SUPABASE_SERVICE_ROLE_KEY`. Ciphertext is not available to the
+  Supabase `authenticated` role. On a new computer, sign-in hydrates the
+  vault so capture keeps working. GitHub PAT and AI keys stay device-local
+  for now (they are used from the browser to those APIs).
+- Pushbullet: BlogIDE registers a virtual device per Notes channel and
+  ingests pushes targeted at those devices. Broadcasts to all devices are
+  ignored. Catch-up uses `GET /v2/pushes?modified_after=`.
+- ntfy: one generated topic per Notes channel. Publish with HTTP POST (or
+  the ntfy app). Catch-up uses `GET /{topics}/json?poll=1&since=`. On
+  ntfy.sh a topic name is the password unless reserved (Pro) or you
+  self-host with ACL. ntfy itself is a Go/Docker server, not a Vercel app.
 
 ## Persistence model
 
@@ -146,7 +154,9 @@ lib/supabase/         Browser, server, and service-role clients
 lib/pins/             Floating pin / pop-out session store
 lib/preview/          Publication HTML, SSRF helpers, OG helpers, reader extracts
 lib/github/           One-way GitHub backup (PAT, maps, Git Data push)
+lib/secrets/          Encrypted account vault for capture integrations
 lib/pushbullet/       Optional Pushbullet → Notes channel capture
+lib/ntfy/             Optional ntfy → Notes channel capture
 lib/pandoc/           Optional Word export/import when PANDOC_PATH is set
 lib/billing/          Public plan limits + Stripe plan application
 lib/stripe/           Server Stripe client and env helpers

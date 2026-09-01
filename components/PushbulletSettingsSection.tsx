@@ -59,7 +59,7 @@ export function PushbulletSettingsSection({
       <section className="settings-section">
         <h3>
           Pushbullet
-          <SettingsInfo text="Sign in to capture notes sent to virtual Pushbullet devices into Notes channels. The access token stays on this device." />
+          <SettingsInfo text="Sign in to capture notes sent to virtual Pushbullet devices into Notes channels. The access token is stored encrypted on your account, not in this chat." />
         </h3>
         <p className="settings-help">Sign in to connect Pushbullet.</p>
       </section>
@@ -70,7 +70,7 @@ export function PushbulletSettingsSection({
     <section className="settings-section">
       <h3>
         Pushbullet
-        <SettingsInfo text="Paste an access token from Pushbullet Account Settings. BlogIDE creates a virtual device per Notes channel (BlogIDE · general, and so on). Keep using Pushbullet as usual; send a note, link, or file to one of those devices to append it to that channel. Pushes to all devices are left alone. There is no webhook: BlogIDE polls and listens while this tab is open, and catches up the next time you visit." />
+        <SettingsInfo text="Paste an access token from your Pushbullet Account Settings page into this field (never into a chat). It is encrypted and stored on your BlogIDE account so a new computer picks it up after sign-in. BlogIDE creates a virtual device per Notes channel (BlogIDE · general, and so on). Send a note, link, or file to that device; broadcasts to all devices are left alone." />
       </h3>
       <label className="settings-row settings-row-stack">
         <span>Access token</span>
@@ -93,10 +93,16 @@ export function PushbulletSettingsSection({
           className="rounded border border-border px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent"
           onClick={() => {
             if (!tokenDraft.trim()) return;
-            savePushbulletToken(tokenDraft.trim());
-            setSavedToken(tokenDraft.trim());
-            setTokenDraft("");
-            setMessage("Token saved on this device.");
+            void (async () => {
+              const ok = await savePushbulletToken(tokenDraft.trim());
+              setSavedToken(tokenDraft.trim());
+              setTokenDraft("");
+              setMessage(
+                ok
+                  ? "Token saved to your account."
+                  : "Saved on this device. Account sync failed; try again while online."
+              );
+            })();
           }}
         >
           Save token
@@ -106,10 +112,12 @@ export function PushbulletSettingsSection({
             type="button"
             className="settings-link-btn"
             onClick={() => {
-              clearPushbulletToken();
-              setSavedToken("");
-              setTokenDraft("");
-              setMessage("Token removed from this device.");
+              void (async () => {
+                await clearPushbulletToken();
+                setSavedToken("");
+                setTokenDraft("");
+                setMessage("Token removed from your account.");
+              })();
             }}
           >
             Remove token

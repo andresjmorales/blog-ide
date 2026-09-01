@@ -1,6 +1,6 @@
 /**
- * Pushbullet access token. Device-local only — never written to
- * Supabase or sent to BlogIDE's server. Same pattern as GitHub PAT / AI keys.
+ * Pushbullet access token. Prefer the encrypted account vault; localStorage
+ * is only a fallback until hydrate, and a cache if the vault is unreachable.
  */
 
 import { clearPushbulletCursor } from "@/lib/pushbullet/cursor";
@@ -9,7 +9,9 @@ import { clearPushbulletStatus } from "@/lib/pushbullet/status";
 const STORAGE_KEY = "blogide.pushbullet.token";
 export const PUSHBULLET_TOKEN_EVENT = "blogide-pushbullet";
 
-function read(): string {
+let memory = "";
+
+function readLocal(): string {
   if (typeof window === "undefined") return "";
   try {
     return localStorage.getItem(STORAGE_KEY) ?? "";
@@ -18,30 +20,47 @@ function read(): string {
   }
 }
 
-function write(token: string): void {
+function writeLocal(token: string): void {
   if (typeof window === "undefined") return;
   if (!token) localStorage.removeItem(STORAGE_KEY);
   else localStorage.setItem(STORAGE_KEY, token);
-  window.dispatchEvent(new Event(PUSHBULLET_TOKEN_EVENT));
 }
 
 export function loadPushbulletToken(): string {
-  return read();
+  return memory || readLocal();
 }
 
-export function savePushbulletToken(token: string): void {
+export function applyPushbulletToken(
+  token: string,
+  options: { persistLocal?: boolean } = {}
+): void {
   const next = token.trim();
-  if (next !== read()) {
+  if (next !== loadPushbulletToken()) {
     clearPushbulletCursor();
     clearPushbulletStatus();
   }
-  write(next);
+  memory = next;
+  if (options.persistLocal !== false) writeLocal(next);
 }
 
-export function clearPushbulletToken(): void {
-  clearPushbulletCursor();
-  clearPushbulletStatus();
-  write("");
+export async function savePushbulletToken(token: string): Promise<boolean> {
+  applyPushbulletToken(token, { persistLocal: true });
+  const { savePushbulletTokenRemote } = await import("@/lib/secrets/client");
+  const ok = await savePushbulletTokenRemote(token.trim());
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(PUSHBULLET_TOKEN_EVENT));
+  }
+  return ok;
+}
+
+export async function clearPushbulletToken(): Promise<boolean> {
+  applyPushbulletToken("", { persistLocal: true });
+  const { savePushbulletTokenRemote } = await import("@/lib/secrets/client");
+  const ok = await savePushbulletTokenRemote("");
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(PUSHBULLET_TOKEN_EVENT));
+  }
+  return ok;
 }
 
 export function maskPushbulletToken(token: string | undefined): string {

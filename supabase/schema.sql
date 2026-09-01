@@ -64,6 +64,12 @@ create unique index if not exists user_settings_stripe_subscription_id_uidx
   on user_settings (stripe_subscription_id)
   where stripe_subscription_id is not null;
 
+create table if not exists user_secrets (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  ciphertext text not null,
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists workspace_nodes (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -232,11 +238,13 @@ drop table if exists doc_index;
 
 alter table beta_codes enable row level security;
 alter table user_settings enable row level security;
+alter table user_secrets enable row level security;
 alter table workspace_nodes enable row level security;
 alter table documents enable row level security;
 alter table document_revisions enable row level security;
 
--- beta_codes: no client policies (service-role signup only).
+-- beta_codes / user_secrets: no client policies (service-role API only).
+revoke all on table user_secrets from public, anon, authenticated;
 
 drop policy if exists "user_settings owner select" on user_settings;
 drop policy if exists "user_settings owner insert" on user_settings;

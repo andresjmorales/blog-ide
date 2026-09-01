@@ -25,12 +25,18 @@ Never commit or include these values in reports:
 
 - Supabase service-role keys;
 - GitHub personal access tokens;
-- Pushbullet access tokens;
+- Pushbullet access tokens and ntfy topic names;
 - Anthropic / OpenAI API keys;
 - `.env.local` contents;
 - private document content.
 
-User-supplied Anthropic/OpenAI keys are stored in the browser (localStorage)
-and may be forwarded ephemerally through a Next.js proxy for CORS. They must
-never be persisted in Supabase or server env. The Supabase service-role key is
-server-only and must never use a `NEXT_PUBLIC_` environment variable.
+User-supplied Anthropic/OpenAI keys and GitHub PATs stay in the browser
+(localStorage). Pushbullet and ntfy secrets are encrypted (AES-256-GCM) in
+`user_secrets` and only decrypted by `/api/secrets` for the signed-in owner.
+A database dump without the server encryption key is not enough to read them.
+Anyone who holds both the database and `SECRETS_ENCRYPTION_KEY` /
+`SUPABASE_SERVICE_ROLE_KEY` can decrypt them. That is the same operator-trust
+model as encrypting secrets in your own Supabase project.
+
+The Supabase service-role key is server-only and must never use a
+`NEXT_PUBLIC_` environment variable.
