@@ -8,6 +8,23 @@ export type CaptureNote = {
 
 const BULLET_RE = /^[-*] \[(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\] (.+)$/;
 
+function isContinuationLine(line: string, nextLine?: string): boolean {
+  const blank = line === "" || /^[ \t]*$/.test(line);
+  if (blank) {
+    return nextLine != null && /^[ \t]/.test(nextLine);
+  }
+  if (!/^[ \t]/.test(line)) return false;
+  const normalized = unescapeMarkdown(line.trim());
+  return !BULLET_RE.test(normalized);
+}
+
+function continuationBody(line: string): string {
+  if (line === "" || /^[ \t]*$/.test(line)) return "";
+  if (line.startsWith("\t")) return line.slice(1);
+  if (line.startsWith("  ")) return line.slice(2);
+  return line.replace(/^[ \t]+/, "");
+}
+
 /**
  * Undo markdown character escapes. Opening a channel document in the editor
  * re-serializes bullets as `- \[2026-07-17 12:30\] …`, which used to make
@@ -24,7 +41,11 @@ export function formatCaptureBullet(
 ): string {
   const trimmed = text.trim();
   const stamp = formatCaptureStamp(at);
-  return `- [${stamp}] ${trimmed}`;
+  const lines = trimmed.split(/\r?\n/);
+  const head = `- [${stamp}] ${lines[0]}`;
+  if (lines.length === 1) return head;
+  const rest = lines.slice(1).map((line) => `  ${line}`);
+  return [head, ...rest].join("\n");
 }
 
 export function formatCaptureStamp(at: Date = new Date()): string {
@@ -38,11 +59,20 @@ export function formatCaptureStamp(at: Date = new Date()): string {
 
 export function parseCaptureNotes(markdown: string): CaptureNote[] {
   const notes: CaptureNote[] = [];
-  for (const line of markdown.split(/\r?\n/)) {
-    const match = BULLET_RE.exec(unescapeMarkdown(line.trim()));
+  const lines = markdown.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const match = BULLET_RE.exec(unescapeMarkdown(lines[i].trim()));
     if (!match) continue;
     const at = match[1];
-    const text = match[2];
+    const parts = [match[2]];
+    while (
+      i + 1 < lines.length &&
+      isContinuationLine(lines[i + 1], lines[i + 2])
+    ) {
+      i += 1;
+      parts.push(continuationBody(lines[i]));
+    }
+    const text = parts.join("\n");
     notes.push({ at, text, atMs: captureStampToMs(at) });
   }
   return notes;
@@ -82,7 +112,8 @@ export function removeCaptureBulletFromMarkdown(
   // Notes come from parseCaptureNotes (unescaped), but the stored line may
   // carry editor round-trip escapes — compare both sides normalized, and
   // tolerate `*` bullets the same way the parser does.
-  const target = `[${note.at}] ${note.text}`;
+  const firstLine = note.text.split(/\r?\n/)[0] ?? "";
+  const target = `[${note.at}] ${firstLine}`;
   const lines = markdown.split(/\r?\n/);
   const index = lines.findIndex((line) => {
     const normalized = unescapeMarkdown(line.trim());
@@ -91,7 +122,14 @@ export function removeCaptureBulletFromMarkdown(
     );
   });
   if (index === -1) return markdown;
-  lines.splice(index, 1);
+  let end = index + 1;
+  while (
+    end < lines.length &&
+    isContinuationLine(lines[end], lines[end + 1])
+  ) {
+    end += 1;
+  }
+  lines.splice(index, end - index);
   return lines.join("\n").replace(/\n{3,}/g, "\n\n");
 }
 

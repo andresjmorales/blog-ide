@@ -17,6 +17,16 @@ describe("formatPushAsCapture", () => {
     ).toBe("Shower thought: what if footnotes were first-class");
   });
 
+  it("keeps newlines in the body", () => {
+    expect(
+      formatPushAsCapture({
+        iden: "p-ml",
+        type: "note",
+        body: "first line\nsecond line\n\nthird",
+      })
+    ).toBe("first line\nsecond line\n\nthird");
+  });
+
   it("uses body or title alone", () => {
     expect(
       formatPushAsCapture({ iden: "p2", type: "note", body: "just the body" })

@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { collapseBroadcastNotes, type ChannelCaptureNote } from "@/lib/capture/broadcastNotes";
 import { appendQuickNote } from "@/lib/capture/appendQuickNote";
 import {
   captureNoteKey,
   parseCaptureNotes,
-  type CaptureNote,
 } from "@/lib/capture/format";
 import { removeQuickNote } from "@/lib/capture/removeQuickNote";
 import { markShellSeen } from "@/lib/capture/seen";
@@ -21,10 +21,7 @@ import {
 } from "@/lib/workspace/tree";
 import type { WorkspaceNode } from "@/lib/workspace/types";
 
-export type ListedNote = CaptureNote & {
-  channelId: string;
-  channelName: string;
-};
+export type ListedNote = ChannelCaptureNote;
 
 const ALL_CHANNELS = "__all__";
 
@@ -132,9 +129,9 @@ export function ShellChat({
   }, [loadNotes, refreshKey]);
 
   const visible = useMemo(() => {
-    if (filter === "all") return notes;
+    if (filter === "all") return collapseBroadcastNotes(notes, channels.length);
     return notes.filter((n) => n.channelId === filter);
-  }, [notes, filter]);
+  }, [notes, filter, channels.length]);
 
   const scrollToTail = useCallback(() => {
     const el = listRef.current;
@@ -206,11 +203,16 @@ export function ShellChat({
     setBusy(true);
     setError(null);
     try {
-      await removeQuickNote({
-        channelNodeId: note.channelId,
-        at: note.at,
-        text: note.text,
-      });
+      const targets = note.channelIds?.length
+        ? note.channelIds
+        : [note.channelId];
+      for (const channelId of targets) {
+        await removeQuickNote({
+          channelNodeId: channelId,
+          at: note.at,
+          text: note.text,
+        });
+      }
       await loadNotes();
       onNotesChanged?.();
     } catch (err) {
@@ -277,7 +279,9 @@ export function ShellChat({
           </p>
         )}
         {visible.map((note) => {
-          const key = captureNoteKey(note.channelId, note);
+          const key = note.channelIds?.length
+            ? `all\0${note.at}\0${note.text}`
+            : captureNoteKey(note.channelId, note);
           const channelTag =
             filter === "all" ? ` ${note.channelName}` : "";
           const metaLabel = `[${note.at}${channelTag}]`;

@@ -1858,6 +1858,9 @@ body.is-dragging-footnote-ref.is-footnote-drop-blocked {
   width: max-content;
   z-index: 80;
 }
+.settings-info-tip-wide {
+  max-width: min(22rem, calc(100vw - 1rem));
+}
 .settings-row {
   align-items: center;
   display: flex;

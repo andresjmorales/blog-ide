@@ -80,7 +80,9 @@ markdown.
   ignored. You send from the Pushbullet app with BlogIDE closed; the next
   BlogIDE visit catch-up uses `GET /v2/pushes?modified_after=`. The cursor
   is stored on the account so a phone and a laptop share the same catch-up
-  point.
+  point. Browser REST goes through `/api/pb` so ad blockers that list
+  `api.pushbullet.com` do not break catch-up. The live websocket is
+  best-effort; polling still imports pushes.
 - ntfy: one generated topic per Notes channel. Publish with HTTP POST (or
   the ntfy app). Catch-up uses `GET /{topics}/json?poll=1&since=`. On
   ntfy.sh a topic name is the password unless reserved (Pro) or you

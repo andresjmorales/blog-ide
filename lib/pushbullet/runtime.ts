@@ -42,6 +42,8 @@ export function startPushbulletCapture(getNodes: GetNodes): CaptureSession {
   let ingesting: Promise<void> | null = null;
   let retryMs = 1_000;
   let lastChannelKey = "";
+  /** After a stream open fails (typical uBlock block), stop retrying. */
+  let streamUnavailable = false;
 
   function channels() {
     return channelsFrom(getNodes());
@@ -95,17 +97,21 @@ export function startPushbulletCapture(getNodes: GetNodes): CaptureSession {
   }
 
   function connectSocket() {
-    if (stopped) return;
+    if (stopped || streamUnavailable) return;
     const token = loadPushbulletToken();
     if (!token || typeof WebSocket === "undefined") return;
     stopSocket();
+    let opened = false;
     try {
       socket = new WebSocket(pushbulletStreamUrl(token));
-    } catch (err) {
-      reportError(err);
-      scheduleReconnect();
+    } catch {
+      streamUnavailable = true;
       return;
     }
+    socket.onopen = () => {
+      opened = true;
+      retryMs = 1_000;
+    };
     socket.onmessage = (event) => {
       if (typeof event.data !== "string") return;
       try {
@@ -123,7 +129,12 @@ export function startPushbulletCapture(getNodes: GetNodes): CaptureSession {
     };
     socket.onclose = () => {
       socket = null;
-      scheduleReconnect();
+      if (opened) {
+        scheduleReconnect();
+        return;
+      }
+      // Never connected: ad blocker or network policy. Polling still catch-up.
+      streamUnavailable = true;
     };
   }
 
@@ -134,6 +145,7 @@ export function startPushbulletCapture(getNodes: GetNodes): CaptureSession {
       retryTimer = null;
     }
     retryMs = 1_000;
+    streamUnavailable = false;
     if (!loadPushbulletToken()) return;
     void ingest().then(() => connectSocket());
   }
@@ -141,7 +153,9 @@ export function startPushbulletCapture(getNodes: GetNodes): CaptureSession {
   function onVisibility() {
     if (document.visibilityState !== "visible") return;
     void ingest();
-    if (!socket && loadPushbulletToken()) connectSocket();
+    if (!socket && !streamUnavailable && loadPushbulletToken()) {
+      connectSocket();
+    }
   }
 
   function channelsChanged() {

@@ -6,6 +6,17 @@ import type {
 
 export const PUSHBULLET_API = "https://api.pushbullet.com/v2";
 export const PUSHBULLET_STREAM = "wss://stream.pushbullet.com/websocket";
+/** Account page where Pushbullet issues access tokens. */
+export const PUSHBULLET_TOKEN_URL =
+  "https://www.pushbullet.com/#settings/account";
+/** Browser REST calls go here so ad blockers never see api.pushbullet.com. */
+export const PUSHBULLET_PROXY = "/api/pb";
+
+export function pushbulletRestUrl(path: string): string {
+  const root =
+    typeof window !== "undefined" ? PUSHBULLET_PROXY : PUSHBULLET_API;
+  return `${root}${path}`;
+}
 
 export class PushbulletApiError extends Error {
   status: number;
@@ -42,7 +53,11 @@ export async function pushbulletFetch<T>(
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  const res = await fetch(`${PUSHBULLET_API}${path}`, { ...init, headers });
+  const res = await fetch(pushbulletRestUrl(path), {
+    ...init,
+    headers,
+    credentials: "same-origin",
+  });
   if (!res.ok) {
     throw new PushbulletApiError(await parseError(res), res.status);
   }
