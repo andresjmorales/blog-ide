@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { SettingsInfo } from "@/components/SettingsInfo";
-import { pushbulletWhoAmI } from "@/lib/pushbullet/client";
+import {
+  PUSHBULLET_TOKEN_URL,
+  pushbulletWhoAmI,
+} from "@/lib/pushbullet/client";
+import { formatPushbulletUserError, PUSHBULLET_TROUBLESHOOTING } from "@/lib/pushbullet/errors";
 import { deviceNickname } from "@/lib/pushbullet/devices";
 import {
   loadPushbulletStatus,
@@ -60,6 +64,7 @@ export function PushbulletSettingsSection({
         <h3>
           Pushbullet
           <SettingsInfo text="Sign in to capture notes sent to virtual Pushbullet devices into Notes channels. The access token is stored encrypted on your account, not in this chat." />
+          <SettingsInfo kind="help" text={PUSHBULLET_TROUBLESHOOTING} />
         </h3>
         <p className="settings-help">Sign in to connect Pushbullet.</p>
       </section>
@@ -71,18 +76,31 @@ export function PushbulletSettingsSection({
       <h3>
         Pushbullet
         <SettingsInfo text="Paste an access token from your Pushbullet Account Settings page into this field (never into a chat). It is encrypted and stored on your BlogIDE account so a new computer picks it up after sign-in. BlogIDE creates a virtual device per Notes channel (BlogIDE · general, and so on). Send a note, link, or file to that device; broadcasts to all devices are left alone." />
+        <SettingsInfo kind="help" text={PUSHBULLET_TROUBLESHOOTING} />
       </h3>
-      <label className="settings-row settings-row-stack">
-        <span>Access token</span>
-        <input
-          type="password"
-          autoComplete="off"
-          className="settings-text-input"
-          placeholder={
-            savedToken
-              ? `Saved · ${maskPushbulletToken(savedToken)}`
-              : "From pushbullet.com/#settings"
-          }
+        <p className="settings-help">
+          Create an access token on your{" "}
+          <a
+            href={PUSHBULLET_TOKEN_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-4 hover:text-foreground"
+          >
+            Pushbullet account page
+          </a>
+          , then paste it here. Never paste it in a chat.
+        </p>
+        <label className="settings-row settings-row-stack">
+          <span>Access token</span>
+          <input
+            type="password"
+            autoComplete="off"
+            className="settings-text-input"
+            placeholder={
+              savedToken
+                ? `Saved · ${maskPushbulletToken(savedToken)}`
+                : "From pushbullet.com/#settings/account"
+            }
           value={tokenDraft}
           onChange={(e) => setTokenDraft(e.target.value)}
         />
@@ -143,9 +161,9 @@ export function PushbulletSettingsSection({
                 );
               } catch (err) {
                 setMessage(
-                  err instanceof Error
-                    ? err.message
-                    : "Could not verify token."
+                  formatPushbulletUserError(
+                    err instanceof Error ? err : "Could not verify token."
+                  )
                 );
               } finally {
                 setBusy(false);
@@ -175,9 +193,9 @@ export function PushbulletSettingsSection({
                 );
               } catch (err) {
                 setMessage(
-                  err instanceof Error
-                    ? err.message
-                    : "Could not sync devices."
+                  formatPushbulletUserError(
+                    err instanceof Error ? err : "Could not sync devices."
+                  )
                 );
               } finally {
                 setBusy(false);
@@ -213,9 +231,15 @@ export function PushbulletSettingsSection({
         </>
       )}
       {status.email || status.lastSyncAt || status.lastError ? (
-        <p className="mt-2 text-xs text-muted">
+        <p
+          className={
+            status.lastError
+              ? "mt-2 text-xs text-red-600 dark:text-red-400"
+              : "mt-2 text-xs text-muted"
+          }
+        >
           {status.lastError
-            ? status.lastError
+            ? formatPushbulletUserError(new Error(status.lastError))
             : status.lastSyncAt
               ? `Last catch-up ${new Date(status.lastSyncAt).toLocaleString()}.`
               : null}

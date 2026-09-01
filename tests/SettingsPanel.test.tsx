@@ -69,6 +69,9 @@ describe("SettingsPanel", () => {
     expect(host!.textContent).toContain("AI API keys");
     expect(host!.textContent).toContain("Pushbullet");
     expect(host!.textContent).toContain("ntfy");
+    expect(
+      host!.querySelector('button[aria-label="Troubleshooting"]')
+    ).not.toBeNull();
     expect(host!.textContent).not.toContain("AI import assist");
   });
 

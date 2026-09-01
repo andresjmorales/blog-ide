@@ -17,6 +17,13 @@ describe("capture format", () => {
     );
   });
 
+  it("stores extra lines as indented continuations", () => {
+    const at = new Date(2026, 6, 17, 12, 30);
+    expect(formatCaptureBullet("line one\nline two\n\nline three", at)).toBe(
+      "- [2026-07-17 12:30] line one\n  line two\n  \n  line three"
+    );
+  });
+
   it("parses capture bullets and ignores other lines", () => {
     const md = `---
 title: Notes
@@ -33,6 +40,27 @@ not a bullet
       {
         at: "2026-07-17 13:05",
         text: "second note",
+        atMs: expect.any(Number),
+      },
+    ]);
+  });
+
+  it("keeps multiline bodies on one note", () => {
+    const md = `- [2026-07-17 12:30] line one
+  line two
+
+  line three
+- [2026-07-17 13:05] next
+`;
+    expect(parseCaptureNotes(md)).toEqual([
+      {
+        at: "2026-07-17 12:30",
+        text: "line one\nline two\n\nline three",
+        atMs: expect.any(Number),
+      },
+      {
+        at: "2026-07-17 13:05",
+        text: "next",
         atMs: expect.any(Number),
       },
     ]);
@@ -61,6 +89,24 @@ not a bullet
       text: "drop me",
     });
     expect(next).not.toContain("drop me");
+    expect(next).toContain("keep");
+    expect(next).toContain("also keep");
+  });
+
+  it("removes a multiline capture bullet", () => {
+    const md = `# Notes
+
+- [2026-07-17 12:30] keep
+- [2026-07-17 13:05] drop me
+  second line
+- [2026-07-17 14:00] also keep
+`;
+    const next = removeCaptureBulletFromMarkdown(md, {
+      at: "2026-07-17 13:05",
+      text: "drop me\nsecond line",
+    });
+    expect(next).not.toContain("drop me");
+    expect(next).not.toContain("second line");
     expect(next).toContain("keep");
     expect(next).toContain("also keep");
   });

@@ -2,17 +2,20 @@
 
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { InfoIcon } from "@/components/icons";
+import { InfoIcon, QuestionIcon } from "@/components/icons";
 
 const TIP_WIDTH = 248;
+const HELP_TIP_WIDTH = 320;
 const VIEW_PAD = 8;
 
 type Props = {
   text: string;
+  /** Circled “?” for troubleshooting; default is the info “i”. */
+  kind?: "info" | "help";
 };
 
-/** Compact “i” control; longer setting copy lives in the hover/focus tip. */
-export function SettingsInfo({ text }: Props) {
+/** Compact “i” / “?” control; longer setting copy lives in the hover/focus tip. */
+export function SettingsInfo({ text, kind = "info" }: Props) {
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(
     null
@@ -24,7 +27,10 @@ export function SettingsInfo({ text }: Props) {
   useLayoutEffect(() => {
     if (!open || !buttonRef.current) return;
     const rect = buttonRef.current.getBoundingClientRect();
-    const width = Math.min(TIP_WIDTH, window.innerWidth - VIEW_PAD * 2);
+    const width = Math.min(
+      kind === "help" ? HELP_TIP_WIDTH : TIP_WIDTH,
+      window.innerWidth - VIEW_PAD * 2
+    );
     const left = Math.min(
       Math.max(VIEW_PAD, rect.left),
       window.innerWidth - width - VIEW_PAD
@@ -35,7 +41,7 @@ export function SettingsInfo({ text }: Props) {
       top = Math.max(VIEW_PAD, rect.top - tipHeight - 6);
     }
     setCoords({ top, left });
-  }, [open, text]);
+  }, [open, text, kind]);
 
   useEffect(() => {
     if (!open) return;
@@ -66,7 +72,7 @@ export function SettingsInfo({ text }: Props) {
         ref={buttonRef}
         type="button"
         className="settings-info-btn"
-        aria-label="More information"
+        aria-label={kind === "help" ? "Troubleshooting" : "More information"}
         aria-describedby={open ? tipId : undefined}
         aria-expanded={open}
         onClick={(event) => {
@@ -78,7 +84,11 @@ export function SettingsInfo({ text }: Props) {
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
       >
-        <InfoIcon size={13} />
+        {kind === "help" ? (
+          <QuestionIcon size={13} />
+        ) : (
+          <InfoIcon size={13} />
+        )}
       </button>
       {open &&
         typeof document !== "undefined" &&
@@ -87,7 +97,11 @@ export function SettingsInfo({ text }: Props) {
             ref={tipRef}
             id={tipId}
             role="tooltip"
-            className="settings-info-tip"
+            className={
+              kind === "help"
+                ? "settings-info-tip settings-info-tip-wide"
+                : "settings-info-tip"
+            }
             style={
               coords
                 ? { top: coords.top, left: coords.left }

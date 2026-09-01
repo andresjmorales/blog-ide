@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { appendQuickNote } from "@/lib/capture/appendQuickNote";
-import { parseCaptureNotes, type CaptureNote } from "@/lib/capture/format";
+import { collapseBroadcastNotes, type ChannelCaptureNote } from "@/lib/capture/broadcastNotes";
+import { parseCaptureNotes } from "@/lib/capture/format";
 import {
   loadLastCaptureChannelId,
   saveLastCaptureChannelId,
@@ -16,10 +17,7 @@ import {
 } from "@/lib/workspace/tree";
 import type { WorkspaceNode } from "@/lib/workspace/types";
 
-type HistoryLine = CaptureNote & {
-  channelId: string;
-  channelName: string;
-};
+type HistoryLine = ChannelCaptureNote;
 
 const ALL_CHANNELS = "__all__";
 
@@ -166,9 +164,11 @@ export function TerminalCapture({
   }, [loadHistory, refreshKey]);
 
   const visible = useMemo(() => {
-    if (viewChannelId === "all") return history;
+    if (viewChannelId === "all") {
+      return collapseBroadcastNotes(history, channels.length);
+    }
     return history.filter((n) => n.channelId === viewChannelId);
-  }, [history, viewChannelId]);
+  }, [history, viewChannelId, channels.length]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

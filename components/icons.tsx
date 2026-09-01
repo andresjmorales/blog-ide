@@ -361,6 +361,41 @@ export function InfoIcon({
   );
 }
 
+/** Circled question mark for troubleshooting tips. */
+export function QuestionIcon({
+  className = "",
+  size = TOOL_ICON,
+}: {
+  className?: string;
+  size?: number;
+}) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <circle
+        cx="8"
+        cy="8"
+        r="6.25"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+      <path
+        d="M6.35 6.15c0-1.05.85-1.8 1.75-1.8.95 0 1.7.7 1.7 1.65 0 .7-.35 1.1-.95 1.5-.5.35-.75.55-.75 1.15"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <circle cx="8" cy="11.2" r="0.8" fill="currentColor" />
+    </svg>
+  );
+}
+
 /** Magnifying glass for Find. */
 export function SearchIcon({ className = "" }: { className?: string }) {
   return (

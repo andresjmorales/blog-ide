@@ -1,3 +1,4 @@
+import { countUniqueUnreadNotes } from "@/lib/capture/broadcastNotes";
 import { parseCaptureNotes } from "@/lib/capture/format";
 import { loadShellSeenAtMs } from "@/lib/capture/seen";
 import { openDocument } from "@/lib/sync/engine";
@@ -10,16 +11,14 @@ export async function countUnreadCaptureNotes(
 ): Promise<number> {
   const seenAt = loadShellSeenAtMs();
   const channels = listInboxChannels(nodes);
-  let count = 0;
+  const notes: ReturnType<typeof parseCaptureNotes> = [];
   for (const channel of channels) {
     try {
       const opened = await openDocument(channel.id);
-      for (const note of parseCaptureNotes(opened.markdown)) {
-        if (note.atMs > seenAt) count += 1;
-      }
+      notes.push(...parseCaptureNotes(opened.markdown));
     } catch {
       /* skip missing channel */
     }
   }
-  return count;
+  return countUniqueUnreadNotes(notes, seenAt);
 }

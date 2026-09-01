@@ -13,7 +13,9 @@ by design.
   pin/drag cards, deleted-note archive, Substack-style paste repair
 - **Workspace** — folder/document/link tree, Trash, Notes channels, a seeded
   scratchpad you can rename or trash, phone terminal capture + desktop Shell,
-  optional Pushbullet or ntfy capture into those channels
+  optional Pushbullet or ntfy capture into those channels (Pushbullet REST
+  goes through this site so ad blockers that block api.pushbullet.com still
+  allow catch-up)
 - **Local-first sync** — IndexedDB autosave, optimistic Supabase sync, conflict
   copies, hard per-user quota (default 10 MiB combined)
 - **Research surfaces** — pop-out documents, link hover/Pin, cloud Library
