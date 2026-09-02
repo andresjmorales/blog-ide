@@ -251,6 +251,40 @@ export type ToolbarLocation = {
   index: number;
 };
 
+export type ToolbarDropKey = `${ToolbarZone}:${number | "end"}`;
+
+export function parseToolbarDropKey(
+  key: string | undefined | null,
+  lengths: { bar: number; overflow: number; unused: number }
+): ToolbarLocation | null {
+  if (!key) return null;
+  const [zone, raw] = key.split(":");
+  if (zone !== "bar" && zone !== "overflow" && zone !== "unused") return null;
+  const index =
+    raw === "end" ? lengths[zone] : Number.parseInt(raw ?? "", 10);
+  if (!Number.isFinite(index) || index < 0) return null;
+  return { zone, index };
+}
+
+export function toolbarSourceKey(source: ToolbarLocation): string {
+  return `${source.zone}:${source.index}`;
+}
+
+/**
+ * Prefer a chip under the pointer over the strip's `:end` catch-all.
+ * HTML5 DnD and `elementFromPoint` both miss chips in Firefox and report
+ * the parent strip instead, which always appended the held item.
+ */
+export function preferToolbarDropKey(
+  keys: Array<string | null | undefined>,
+  sourceKey: string
+): string | undefined {
+  const clean = keys.filter((key): key is string => Boolean(key));
+  const chip = clean.find((key) => key !== sourceKey && !key.endsWith(":end"));
+  if (chip) return chip;
+  return clean.find((key) => key.endsWith(":end"));
+}
+
 function takeFromZone(
   layout: ToolbarLayout,
   unused: ToolbarItemId[],

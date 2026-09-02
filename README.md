@@ -32,8 +32,10 @@ by design.
   canned actions (critique / tighten / title / expand), selection context,
   streaming replies, light model picker, smarter Apply (diff / patch), and
   import cleanup assist
-- **Export / import** — Copy → Markdown copies source; Copy → HTML pastes
-  formatted HTML (readable plain text as fallback, not markdown). Prepare
+- **Export / import** — Copy → Rich text is the same formatted paste as
+  selecting the essay and copying; Copy → Markdown copies source; Copy → HTML
+  pastes publication HTML (readable plain text as fallback, not markdown).
+  Prepare
   publish opens Cleanup → Publish for footnote copy formats (bracketed [1]
   markers, superscripts + Notes, or linked HTML endnotes). Pasting HTML
   cannot recreate native footnotes on other editors; Cleanup → Publish can

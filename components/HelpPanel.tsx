@@ -86,8 +86,10 @@ export function HelpPanel({ open, onClose }: Props) {
             Pin, and Library. The{" "}
             <strong>Library</strong> panel (right dock) holds
             research PDFs and bookmarks. Use the essay menu → Preview in new tab for
-            publication-style HTML. Copy → Markdown copies the source. Copy →
-            HTML pastes publication HTML. Prepare publish opens Cleanup → Publish
+            publication-style HTML. Copy → Rich text is the same formatted
+            paste as selecting the essay and copying. Copy → Markdown copies
+            the source. Copy → HTML pastes publication HTML. Prepare publish
+            opens Cleanup → Publish
             for footnote copy formats (bracketed [1], superscripts, linked
             endnotes) and Substack native-footnote steps. Export Word when Pandoc is
             installed, or Push to GitHub. Edits save locally first, then sync

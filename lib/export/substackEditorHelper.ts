@@ -68,9 +68,15 @@ export const SUBSTACK_FOOTNOTE_HELPER = `(() => {
   }
 
   function findMarker() {
+    const notes = findNotesList();
+    const cutoff = notes
+      ? (notes.heading ? notes.heading.pos : notes.list.pos)
+      : Infinity;
     let found = null;
     view.state.doc.descendants((node, pos) => {
-      if (found || !node.isText || !node.text) return;
+      if (found) return false;
+      if (pos >= cutoff) return false;
+      if (!node.isText || !node.text) return;
       const m = /\\[\\^?(\\d+)\\]/.exec(node.text);
       if (!m) return;
       let from = pos + m.index;

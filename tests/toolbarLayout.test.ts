@@ -7,6 +7,8 @@ import {
   moveToolbarEntry,
   normalizeToolbarLayout,
   overflowSlot,
+  parseToolbarDropKey,
+  preferToolbarDropKey,
   unusedToolbarItems,
 } from "@/lib/editor/toolbarLayout";
 
@@ -69,5 +71,41 @@ describe("toolbarLayout", () => {
     expect(layoutsEqual(DEFAULT_TOOLBAR_LAYOUT, DEFAULT_TOOLBAR_LAYOUT)).toBe(
       true
     );
+  });
+});
+
+describe("parseToolbarDropKey", () => {
+  const lengths = { bar: 10, overflow: 5, unused: 2 };
+
+  it("reads a chip index and the end-of-strip fallback", () => {
+    expect(parseToolbarDropKey("bar:3", lengths)).toEqual({
+      zone: "bar",
+      index: 3,
+    });
+    expect(parseToolbarDropKey("overflow:end", lengths)).toEqual({
+      zone: "overflow",
+      index: 5,
+    });
+    expect(parseToolbarDropKey("unused:0", lengths)).toEqual({
+      zone: "unused",
+      index: 0,
+    });
+  });
+
+  it("rejects junk", () => {
+    expect(parseToolbarDropKey("nope", lengths)).toBeNull();
+    expect(parseToolbarDropKey("bar:-1", lengths)).toBeNull();
+  });
+});
+
+describe("preferToolbarDropKey", () => {
+  it("skips the held chip and the strip end when another chip is hit", () => {
+    expect(
+      preferToolbarDropKey(["bar:7", "bar:11", "bar:end"], "bar:7")
+    ).toBe("bar:11");
+  });
+
+  it("falls back to the strip when only the source and the gutter remain", () => {
+    expect(preferToolbarDropKey(["bar:7", "bar:end"], "bar:7")).toBe("bar:end");
   });
 });

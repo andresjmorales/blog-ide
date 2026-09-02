@@ -55,4 +55,68 @@ describe("ToolbarLayoutEditor", () => {
       true
     );
   });
+
+  it("reorders a chip under the pointer instead of always sending it to the end", () => {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => {
+      root!.render(
+        <EditorPrefsProvider prefs={mergePrefs({})} updatePrefs={() => {}}>
+          <ToolbarLayoutEditor />
+        </EditorPrefsProvider>
+      );
+    });
+    const bold = host.querySelector<HTMLElement>('[data-toolbar-drop="bar:7"]');
+    const link = host.querySelector<HTMLElement>('[data-toolbar-drop="bar:11"]');
+    expect(bold).toBeTruthy();
+    expect(link).toBeTruthy();
+    expect(bold?.textContent).toContain("Bold");
+    expect(link?.textContent).toContain("Link");
+    const point = vi
+      .spyOn(document, "elementFromPoint")
+      .mockReturnValue(link as HTMLElement);
+    document.elementsFromPoint = () => [link as HTMLElement];
+    act(() => {
+      bold!.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          bubbles: true,
+          clientX: 10,
+          clientY: 10,
+          button: 0,
+          pointerId: 1,
+        })
+      );
+    });
+    act(() => {
+      window.dispatchEvent(
+        new PointerEvent("pointermove", {
+          bubbles: true,
+          clientX: 80,
+          clientY: 10,
+          pointerId: 1,
+        })
+      );
+    });
+    act(() => {
+      window.dispatchEvent(
+        new PointerEvent("pointerup", {
+          bubbles: true,
+          clientX: 80,
+          clientY: 10,
+          pointerId: 1,
+        })
+      );
+    });
+    point.mockRestore();
+    Reflect.deleteProperty(document, "elementsFromPoint");
+    const labels = [...host.querySelectorAll("[data-toolbar-drop]")].map((node) =>
+      node.textContent?.trim()
+    );
+    const boldAt = labels.indexOf("Bold");
+    const linkAt = labels.indexOf("Link");
+    expect(linkAt).toBeGreaterThan(-1);
+    expect(boldAt).toBeGreaterThan(-1);
+    expect(Math.abs(boldAt - linkAt)).toBe(1);
+  });
 });

@@ -98,6 +98,10 @@ import {
 } from "@/lib/export/document";
 import { htmlForPublishTarget, type PublishCopyTarget } from "@/lib/export/clipboardHtml";
 import {
+  richTextFromEditor,
+  richTextFromMarkdown,
+} from "@/lib/export/richTextClipboard";
+import {
   exportMarkdownAsDocx,
   exportMarkdownAsPdf,
 } from "@/lib/pandoc/client";
@@ -1415,6 +1419,25 @@ export function DocumentWorkspace({
     }
   }
 
+  async function copyForRichText() {
+    try {
+      const editor = editorRef.current;
+      const { html, plain } =
+        editor && !isMarkdownCanonical(mode)
+          ? richTextFromEditor(editor)
+          : richTextFromMarkdown(currentMarkdown());
+      await copyDocumentForPaste({ html, plain });
+    } catch {
+      await dialog.confirm({
+        title: "Copy failed",
+        message:
+          "Could not write to the clipboard. Try Copy → Markdown or Export → HTML.",
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
+    }
+  }
+
   async function copyForPublish(target: PublishCopyTarget) {
     const markdown = currentMarkdown();
     const { html, plain } = htmlForPublishTarget(markdown, target);
@@ -1620,6 +1643,13 @@ export function DocumentWorkspace({
       id: "copy",
       label: "Copy",
       items: [
+        {
+          id: "copy-rich",
+          label: "Rich text",
+          onSelect: () => {
+            void copyForRichText();
+          },
+        },
         {
           id: "copy-md",
           label: "Markdown",
