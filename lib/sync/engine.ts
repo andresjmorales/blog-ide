@@ -10,6 +10,7 @@ import {
 } from "@/lib/db/indexed";
 import { releaseRemovedEssayImages } from "@/lib/assets/quota";
 import { normalize } from "@/lib/markdown/pipeline";
+import { WORKSPACE_READ_TIMEOUT_MS, withTimeout } from "@/lib/net/timeout";
 import {
   createDocumentConflictCopy,
   fetchRemoteDocument,
@@ -187,9 +188,12 @@ export async function openDocument(nodeId: string): Promise<OpenedDocument> {
   let remote: Awaited<ReturnType<typeof fetchRemoteDocument>> = null;
   let remoteError: unknown = null;
   try {
-    remote = await fetchRemoteDocument(nodeId);
+    remote = await withTimeout(
+      fetchRemoteDocument(nodeId),
+      WORKSPACE_READ_TIMEOUT_MS
+    );
   } catch (error) {
-    // Offline or Supabase unreachable — fall back to the local copy below.
+    // Offline, hung, or Supabase unreachable — fall back to the local copy below.
     remoteError = error;
   }
 
@@ -490,9 +494,12 @@ export async function fastForwardDocument(
 
   let remote: Awaited<ReturnType<typeof fetchRemoteDocument>> = null;
   try {
-    remote = await fetchRemoteDocument(nodeId);
+    remote = await withTimeout(
+      fetchRemoteDocument(nodeId),
+      WORKSPACE_READ_TIMEOUT_MS
+    );
   } catch {
-    return null; // offline — nothing to fast-forward
+    return null; // offline / hung — nothing to fast-forward
   }
   if (!remote) return null;
 

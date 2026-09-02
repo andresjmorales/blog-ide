@@ -1,3 +1,5 @@
+import { isTimeoutError } from "@/lib/net/timeout";
+
 /** Classify workspace bootstrap / tree load failures for friendlier UI. */
 
 export type WorkspaceFailureKind = "network" | "auth" | "schema" | "unknown";
@@ -11,6 +13,8 @@ export function classifyWorkspaceFailure(error: unknown): WorkspaceFailureKind {
         : "";
   const lower = message.toLowerCase();
 
+  if (isTimeoutError(error)) return "network";
+
   if (
     lower.includes("failed to fetch") ||
     lower.includes("networkerror") ||
@@ -22,7 +26,9 @@ export function classifyWorkspaceFailure(error: unknown): WorkspaceFailureKind {
     lower.includes("err_tunnel") ||
     lower.includes("err_cert") ||
     lower.includes("ssl") ||
-    lower.includes("certificate")
+    lower.includes("certificate") ||
+    lower.includes("timed out") ||
+    lower.includes("timeout")
   ) {
     return "network";
   }

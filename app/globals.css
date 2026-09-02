@@ -2315,6 +2315,12 @@ body.is-dragging-footnote-ref.is-footnote-drop-blocked {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+.workspace-connection-retry {
+  color: var(--foreground);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  margin: 0 0 0.85rem;
+}
 .workspace-connection-detail {
   margin: 0 0 1rem;
 }
@@ -2405,6 +2411,7 @@ body.is-dragging-footnote-ref.is-footnote-drop-blocked {
 }
 .app-dialog-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   justify-content: flex-end;
 }

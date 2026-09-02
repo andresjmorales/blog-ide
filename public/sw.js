@@ -4,8 +4,23 @@
  * cache-first for static assets. Document content is never cached here —
  * offline editing is handled by IndexedDB (milestone 3).
  */
-const CACHE_NAME = "blogide-shell-v1";
-const SHELL_URLS = ["/", "/editor", "/manifest.webmanifest", "/icons/icon.svg"];
+const CACHE_NAME = "blogide-shell-v2";
+const SHELL_URLS = [
+  "/",
+  "/editor",
+  "/offline.html",
+  "/manifest.webmanifest",
+  "/icons/icon.svg",
+];
+const NAV_TIMEOUT_MS = 4000;
+
+function fetchWithTimeout(request, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return fetch(request, { signal: controller.signal }).finally(() => {
+    clearTimeout(timer);
+  });
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -39,7 +54,7 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
+      fetchWithTimeout(request, NAV_TIMEOUT_MS)
         .then((response) => {
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
@@ -49,6 +64,7 @@ self.addEventListener("fetch", (event) => {
           caches
             .match(request)
             .then((cached) => cached ?? caches.match("/editor"))
+            .then((cached) => cached ?? caches.match("/offline.html"))
             .then((cached) => cached ?? Response.error())
         )
     );

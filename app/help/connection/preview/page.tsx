@@ -19,6 +19,7 @@ export default function ConnectionDialogPreviewPage() {
   const [kind, setKind] = useState<WorkspaceFailureKind>("network");
   const [open, setOpen] = useState(true);
   const [retrying, setRetrying] = useState(false);
+  const [retryInSec, setRetryInSec] = useState<number | null>(8);
 
   return (
     <div className="relative min-h-dvh bg-background text-foreground">
@@ -74,6 +75,13 @@ export default function ConnectionDialogPreviewPage() {
         >
           Retrying: {retrying ? "on" : "off"}
         </button>
+        <button
+          type="button"
+          className="blogide-chrome-btn"
+          onClick={() => setRetryInSec((v) => (v == null ? 8 : v > 0 ? v - 1 : 8))}
+        >
+          Countdown: {retryInSec ?? "off"}
+        </button>
       </div>
 
       <WorkspaceConnectionDialog
@@ -81,6 +89,8 @@ export default function ConnectionDialogPreviewPage() {
         kind={kind}
         detail="TypeError: NetworkError when attempting to fetch resource."
         retrying={retrying}
+        retryInSec={retryInSec}
+        onContinueOffline={() => setOpen(false)}
         onRetry={() => {
           setRetrying(true);
           window.setTimeout(() => setRetrying(false), 1200);

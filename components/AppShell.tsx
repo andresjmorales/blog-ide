@@ -19,11 +19,22 @@ import {
 import { DocumentWorkspace } from "@/components/DocumentWorkspace";
 import { SettingsPanel, type SettingsTab } from "@/components/SettingsPanel";
 import { WorkspaceConnectionDialog } from "@/components/WorkspaceConnectionDialog";
+import { WorkspaceBootSplash } from "@/components/WorkspaceBootSplash";
 import { HelpPanel } from "@/components/HelpPanel";
 import {
   classifyWorkspaceFailure,
   type WorkspaceFailureKind,
 } from "@/lib/workspace/connectionError";
+import {
+  formatWorkspaceBootLabel,
+  nextRetryDelaySec,
+  shouldShowConnectionDialog,
+} from "@/lib/workspace/bootPolicy";
+import {
+  loadCachedWorkspaceTree,
+  saveCachedWorkspaceTree,
+} from "@/lib/workspace/treeCache";
+import { BOOT_SLOW_HINT_MS, withTimeout, WORKSPACE_READ_TIMEOUT_MS } from "@/lib/net/timeout";
 import { UserMenu } from "@/components/UserMenu";
 import { AiSidebar } from "@/components/AiSidebar";
 import type { AiSelection } from "@/lib/ai/selection";
@@ -372,12 +383,23 @@ function AppShellContent({
     null
   );
   const [documentReloadKey, setDocumentReloadKey] = useState(0);
-  const [treeLoading, setTreeLoading] = useState(false);
+  const [treeLoading, setTreeLoading] = useState(!previewMode);
   const [treeError, setTreeError] = useState<string | null>(null);
   const [treeErrorKind, setTreeErrorKind] =
     useState<WorkspaceFailureKind>("unknown");
   /** Empty tree after wake/stale auth — keep prior nodes and offer Retry. */
   const [treeStale, setTreeStale] = useState(false);
+  const [bootSlow, setBootSlow] = useState(false);
+  const [bootAttempts, setBootAttempts] = useState(0);
+  const [retryInSec, setRetryInSec] = useState<number | null>(null);
+  const [offlineEssayId, setOfflineEssayId] = useState<string | null>(null);
+  const [dismissedConnectionDialog, setDismissedConnectionDialog] =
+    useState(false);
+  const bootInFlightRef = useRef(false);
+  const bootCancelledRef = useRef(false);
+  const bootAttemptsRef = useRef(0);
+  const countdownTimerRef = useRef<number | null>(null);
+  const slowHintTimerRef = useRef<number | null>(null);
   const nodesRef = useRef<WorkspaceNode[]>([]);
   const pushbulletSessionRef = useRef<ReturnType<
     typeof startPushbulletCapture
@@ -678,22 +700,28 @@ function AppShellContent({
   /** Revalidate auth after idle tabs (Firefox throttles token refresh). */
   const recoverWorkspace = useCallback(async () => {
     if (previewMode) return;
+    if (bootInFlightRef.current) return;
     try {
-      const supabase = createClient();
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) {
-        await supabase.auth.refreshSession();
-      } else {
-        // Nudge refresh so a near-expiry token is renewed on wake.
-        const expiresAt = sessionData.session.expires_at ?? 0;
-        if (expiresAt * 1000 < Date.now() + 60_000) {
-          await supabase.auth.refreshSession();
-        }
-      }
-      const ok = await refreshTree();
-      if (!ok && nodesRef.current.length > 0) {
-        setTreeStale(true);
-      }
+      await withTimeout(
+        (async () => {
+          const supabase = createClient();
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (!sessionData.session) {
+            await supabase.auth.refreshSession();
+          } else {
+            // Nudge refresh so a near-expiry token is renewed on wake.
+            const expiresAt = sessionData.session.expires_at ?? 0;
+            if (expiresAt * 1000 < Date.now() + 60_000) {
+              await supabase.auth.refreshSession();
+            }
+          }
+          const ok = await refreshTree();
+          if (!ok && nodesRef.current.length > 0) {
+            setTreeStale(true);
+          }
+        })(),
+        WORKSPACE_READ_TIMEOUT_MS
+      );
     } catch {
       if (nodesRef.current.length > 0) setTreeStale(true);
     }
@@ -705,14 +733,19 @@ function AppShellContent({
     saveActiveDocumentId(activeNodeId);
   }, [activeNodeId, previewMode]);
 
-  const bootWorkspace = useCallback(async () => {
-    if (previewMode) return false;
-    setTreeLoading(true);
-    try {
-      const ids = await ensureDefaultWorkspace();
-      const list = await listWorkspaceNodes();
-      setNodes(list);
-      refreshDocTitles(list);
+  const clearBootTimers = useCallback(() => {
+    if (countdownTimerRef.current != null) {
+      window.clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    if (slowHintTimerRef.current != null) {
+      window.clearTimeout(slowHintTimerRef.current);
+      slowHintTimerRef.current = null;
+    }
+  }, []);
+
+  const openRememberedDocument = useCallback(
+    (list: WorkspaceNode[], scratchpadId?: string | null) => {
       const remembered = loadActiveDocumentId();
       const rememberedOk =
         remembered != null &&
@@ -725,49 +758,150 @@ function AppShellContent({
       setActiveNodeId((current) => {
         if (current) return current;
         if (rememberedOk) return remembered;
-        return pickDefaultOpenDocument(list, {
-          scratchpadId: ids.scratchpadId,
-        });
+        return pickDefaultOpenDocument(list, { scratchpadId });
       });
+    },
+    [setActiveNodeId]
+  );
+
+  const hydrateCachedTree = useCallback(() => {
+    if (nodesRef.current.length > 0) return;
+    const cached = loadCachedWorkspaceTree(userEmail);
+    if (!cached?.nodes.length) return;
+    setNodes(cached.nodes);
+    refreshDocTitles(cached.nodes);
+    openRememberedDocument(cached.nodes, cached.scratchpadId);
+  }, [openRememberedDocument, refreshDocTitles, setNodes, userEmail]);
+
+  const scheduleBootRetry = useCallback(
+    (delaySec: number, retry: () => void) => {
+      clearBootTimers();
+      let remaining = delaySec;
+      setRetryInSec(remaining);
+      countdownTimerRef.current = window.setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) {
+          if (countdownTimerRef.current != null) {
+            window.clearInterval(countdownTimerRef.current);
+            countdownTimerRef.current = null;
+          }
+          setRetryInSec(null);
+          retry();
+          return;
+        }
+        setRetryInSec(remaining);
+      }, 1000);
+    },
+    [clearBootTimers, setRetryInSec]
+  );
+
+  const bootWorkspace = useCallback(async () => {
+    if (previewMode) return false;
+    if (bootInFlightRef.current) return false;
+    bootInFlightRef.current = true;
+    clearBootTimers();
+    setRetryInSec(null);
+    setTreeLoading(true);
+    setBootSlow(false);
+    slowHintTimerRef.current = window.setTimeout(() => {
+      setBootSlow(true);
+    }, BOOT_SLOW_HINT_MS);
+
+    hydrateCachedTree();
+
+    let failedKind: WorkspaceFailureKind | null = null;
+    try {
+      const ids = await ensureDefaultWorkspace();
+      const list = await listWorkspaceNodes();
+      setNodes(list);
+      refreshDocTitles(list);
+      openRememberedDocument(list, ids.scratchpadId);
+      saveCachedWorkspaceTree(userEmail, list, ids.scratchpadId ?? null);
       setTreeError(null);
       setTreeErrorKind("unknown");
       setTreeStale(false);
+      setBootAttempts(0);
+      bootAttemptsRef.current = 0;
+      setOfflineEssayId(null);
+      setDismissedConnectionDialog(false);
       return true;
     } catch (error) {
-      setTreeErrorKind(classifyWorkspaceFailure(error));
+      const nextAttempts = bootAttemptsRef.current + 1;
+      bootAttemptsRef.current = nextAttempts;
+      setBootAttempts(nextAttempts);
+      failedKind = classifyWorkspaceFailure(error);
+      setTreeErrorKind(failedKind);
       setTreeError(
         error instanceof Error
           ? error.message
           : "Could not reach BlogIDE’s cloud workspace."
       );
+      if (nodesRef.current.length === 0) {
+        const remembered = loadActiveDocumentId();
+        if (remembered) {
+          void getLocalDoc(remembered).then((local) => {
+            if (local) setOfflineEssayId(remembered);
+          });
+        }
+      }
       return false;
     } finally {
+      if (slowHintTimerRef.current != null) {
+        window.clearTimeout(slowHintTimerRef.current);
+        slowHintTimerRef.current = null;
+      }
+      setBootSlow(false);
       setTreeLoading(false);
+      bootInFlightRef.current = false;
+      const retryable =
+        failedKind === "network" || failedKind === "unknown";
+      if (
+        !bootCancelledRef.current &&
+        retryable &&
+        bootAttemptsRef.current > 0
+      ) {
+        scheduleBootRetry(nextRetryDelaySec(bootAttemptsRef.current), () => {
+          void bootWorkspace();
+        });
+      }
     }
   }, [
+    clearBootTimers,
+    hydrateCachedTree,
+    openRememberedDocument,
     previewMode,
     refreshDocTitles,
-    setActiveNodeId,
+    scheduleBootRetry,
     setNodes,
     setTreeError,
     setTreeErrorKind,
     setTreeLoading,
     setTreeStale,
+    userEmail,
   ]);
 
   useEffect(() => {
     if (previewMode) return;
     // Defer: bootWorkspace setStates; sync call in effect trips set-state-in-effect.
+    bootCancelledRef.current = false;
     let cancelled = false;
     const id = window.setTimeout(() => {
       if (cancelled) return;
       void bootWorkspace();
     }, 0);
+    function onOnline() {
+      if (cancelled) return;
+      void bootWorkspace();
+    }
+    window.addEventListener("online", onOnline);
     return () => {
       cancelled = true;
+      bootCancelledRef.current = true;
       window.clearTimeout(id);
+      window.removeEventListener("online", onOnline);
+      clearBootTimers();
     };
-  }, [previewMode, bootWorkspace]);
+  }, [previewMode, bootWorkspace, clearBootTimers]);
 
   // Anchor the header/toolbar: the app scrolls in inner panes, so lock the
   // page itself while the shell is mounted.
@@ -1488,6 +1622,13 @@ function AppShellContent({
   const showTerminal =
     !previewMode && hydrated && effectiveSurface === "capture";
 
+  const bootLabel = formatWorkspaceBootLabel({
+    inFlight: treeLoading,
+    failedAttempts: bootAttempts,
+    retryInSec,
+    slow: bootSlow,
+  });
+
   const fileExplorer = previewMode ? (
     <div className="p-3">
       <p className="mb-3 text-xs font-mono uppercase tracking-wider text-muted">
@@ -1534,7 +1675,8 @@ function AppShellContent({
         previewMode ? undefined : (id) => void handlePullFromGithub({ nodeId: id })
       }
       githubByNode={githubByNode}
-      loading={treeLoading}
+      loading={treeLoading || (retryInSec != null && nodes.length === 0)}
+      loadingLabel={bootLabel}
       // Hard boot failures use WorkspaceConnectionDialog instead of a red blurb.
       error={
         treeError && nodes.length === 0 ? null : treeError
@@ -1543,7 +1685,9 @@ function AppShellContent({
   );
 
   const connectionBlocked =
-    !previewMode && Boolean(treeError) && nodes.length === 0 && !treeLoading;
+    !previewMode &&
+    !dismissedConnectionDialog &&
+    shouldShowConnectionDialog(bootAttempts, nodes.length > 0);
 
   const libraryPanel = <LibraryPanel />;
 
@@ -1683,22 +1827,24 @@ function AppShellContent({
             </div>
           </header>
 
-          {treeStale && (
+          {(treeStale || (bootAttempts > 0 && nodes.length > 0)) && (
             <div
               role="status"
               className="flex flex-wrap items-center gap-3 border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm"
             >
               <span>
-                Workspace files may be out of date after the tab was idle.
-                Your open essay is still local. Retry before making tree
-                changes.
+                {bootAttempts > 0 && nodes.length > 0
+                  ? `${bootLabel} Essays on this device are still here.`
+                  : "Workspace files may be out of date after the tab was idle. Your open essay is still local. Retry before making tree changes."}
               </span>
               <button
                 type="button"
                 className="rounded border border-border px-2 py-0.5 text-xs hover:bg-panel"
-                onClick={() => void recoverWorkspace()}
+                onClick={() =>
+                  void (bootAttempts > 0 ? bootWorkspace() : recoverWorkspace())
+                }
               >
-                Retry
+                {treeLoading ? "Retrying…" : "Retry"}
               </button>
               <button
                 type="button"
@@ -1781,7 +1927,20 @@ function AppShellContent({
               </>
             )}
 
-            <main className="min-h-0 min-w-0 flex-1">
+            <main className="relative min-h-0 min-w-0 flex-1">
+              {!previewMode &&
+              !activeNodeId &&
+              (treeLoading ||
+                connectionBlocked ||
+                retryInSec != null ||
+                bootAttempts > 0) ? (
+                <div className="absolute inset-0 z-10 bg-background">
+                  <WorkspaceBootSplash
+                    label={bootLabel}
+                    retryInSec={retryInSec}
+                  />
+                </div>
+              ) : null}
               <DocumentWorkspace
                 key={`${previewMode ? "preview" : activeNodeId}-${documentReloadKey}`}
                 nodeId={previewMode ? null : activeNodeId}
@@ -1918,6 +2077,15 @@ function AppShellContent({
             kind={treeErrorKind}
             detail={treeError}
             retrying={treeLoading}
+            retryInSec={retryInSec}
+            onContinueOffline={
+              offlineEssayId
+                ? () => {
+                    setActiveNodeId(offlineEssayId);
+                    setDismissedConnectionDialog(true);
+                  }
+                : null
+            }
             onRetry={() => {
               void bootWorkspace();
             }}
