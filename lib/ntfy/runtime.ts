@@ -1,3 +1,4 @@
+import { registerCaptureIngest } from "@/lib/capture/refresh";
 import { ingestNtfyMessages } from "@/lib/ntfy/ingest";
 import { ntfyStreamUrl } from "@/lib/ntfy/client";
 import { loadNtfySecrets, NTFY_SECRETS_EVENT } from "@/lib/ntfy/settings";
@@ -105,10 +106,12 @@ export function startNtfyCapture(): CaptureSession {
   window.addEventListener(NTFY_SECRETS_EVENT, onSecretsChange);
   document.addEventListener("visibilitychange", onVisibility);
   window.addEventListener("focus", onVisibility);
+  const unregisterIngest = registerCaptureIngest(ingest);
 
   return {
     stop() {
       stopped = true;
+      unregisterIngest();
       if (pollTimer != null) window.clearInterval(pollTimer);
       if (retryTimer != null) window.clearTimeout(retryTimer);
       window.removeEventListener(NTFY_SECRETS_EVENT, onSecretsChange);

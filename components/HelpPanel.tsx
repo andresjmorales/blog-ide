@@ -109,7 +109,9 @@ export function HelpPanel({ open, onClose }: Props) {
             from the Pushbullet or ntfy app with BlogIDE closed; the next time
             you open BlogIDE on a computer or phone, those notes catch up.
             Tokens and topic names are encrypted on your account after you paste
-            them into Settings, never into a chat. Create a Pushbullet token on
+            them into Settings, never into a chat. Notes refresh pulls
+            Pushbullet and ntfy immediately; background catch-up is every couple
+            of minutes if the live stream is blocked. Create a Pushbullet token on
             the Pushbullet account page (Settings → Account). Ad blockers such
             as uBlock Origin often block Pushbullet’s hosts; BlogIDE talks to
             Pushbullet through this site so you usually do not need to disable

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { collapseBroadcastNotes, type ChannelCaptureNote } from "@/lib/capture/broadcastNotes";
 import { appendQuickNote } from "@/lib/capture/appendQuickNote";
+import { requestCaptureRefresh } from "@/lib/capture/refresh";
 import {
   captureNoteKey,
   parseCaptureNotes,
@@ -81,6 +82,7 @@ export function ShellChat({
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [pulling, setPulling] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
 
   const sendToAll = composeChannelId === ALL_CHANNELS;
@@ -249,11 +251,23 @@ export function ShellChat({
         </select>
         <button
           type="button"
-          className="rounded px-1.5 py-0.5 text-muted hover:text-foreground"
-          onClick={() => void loadNotes()}
-          title="Refresh"
+          className="rounded px-1.5 py-0.5 text-muted hover:text-foreground disabled:opacity-40"
+          onClick={() => {
+            if (pulling) return;
+            void (async () => {
+              setPulling(true);
+              try {
+                await requestCaptureRefresh();
+                await loadNotes();
+              } finally {
+                setPulling(false);
+              }
+            })();
+          }}
+          disabled={pulling}
+          title="Pull from Pushbullet and ntfy, then reload this list"
         >
-          refresh
+          {pulling ? "pulling…" : "refresh"}
         </button>
         {onNewChannel &&
           onOpenChannelDoc &&
