@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   getLocalDoc,
@@ -56,28 +56,28 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe("openDocument", () => {
   it("falls back to the local copy when the remote fetch hangs", async () => {
-    vi.useFakeTimers();
-    try {
-      const nodeId = freshNodeId();
-      await putLocalDoc({
-        nodeId,
-        markdown: "# Local essay\n",
-        updatedAt: new Date().toISOString(),
-        dirty: false,
-        baseVersion: 3,
-      });
-      mockFetchRemote.mockReturnValue(new Promise(() => {}));
+    const nodeId = freshNodeId();
+    await putLocalDoc({
+      nodeId,
+      markdown: "# Local essay\n",
+      updatedAt: new Date().toISOString(),
+      dirty: false,
+      baseVersion: 3,
+    });
+    mockFetchRemote.mockReturnValue(new Promise(() => {}));
 
-      const pending = openDocument(nodeId);
-      await vi.advanceTimersByTimeAsync(8_000);
-      const opened = await pending;
-      expect(opened.markdown).toBe("# Local essay\n");
-      expect(opened.baseVersion).toBe(3);
-    } finally {
-      vi.useRealTimers();
-    }
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const pending = openDocument(nodeId);
+    await vi.advanceTimersByTimeAsync(8_000);
+    const opened = await pending;
+    expect(opened.markdown).toBe("# Local essay\n");
+    expect(opened.baseVersion).toBe(3);
   });
 
   it("falls back to the local copy when the remote fetch fails (offline)", async () => {

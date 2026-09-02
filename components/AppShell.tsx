@@ -792,7 +792,7 @@ function AppShellContent({
         setRetryInSec(remaining);
       }, 1000);
     },
-    [clearBootTimers]
+    [clearBootTimers, setRetryInSec]
   );
 
   const bootWorkspace = useCallback(async () => {
@@ -872,7 +872,6 @@ function AppShellContent({
     previewMode,
     refreshDocTitles,
     scheduleBootRetry,
-    setActiveNodeId,
     setNodes,
     setTreeError,
     setTreeErrorKind,

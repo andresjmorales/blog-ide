@@ -26,11 +26,9 @@ function readSignal(signal?: AbortSignal): AbortSignal {
 export async function ensureDefaultWorkspace(
   signal?: AbortSignal
 ): Promise<DefaultWorkspaceIds> {
-  const { data, error } = await client().rpc(
-    "ensure_default_workspace",
-    {},
-    { abortSignal: readSignal(signal) }
-  );
+  const { data, error } = await client()
+    .rpc("ensure_default_workspace")
+    .abortSignal(readSignal(signal));
   if (error) throw error;
   const payload = data as DefaultWorkspaceIds;
   if (!payload || typeof payload !== "object") {
@@ -70,15 +68,13 @@ export async function saveDocumentRemote(
   markdown: string,
   baseVersion: number
 ): Promise<SaveDocumentResult> {
-  const { data, error } = await client().rpc(
-    "save_document",
-    {
+  const { data, error } = await client()
+    .rpc("save_document", {
       p_node_id: nodeId,
       p_markdown: markdown,
       p_base_version: baseVersion,
-    },
-    { abortSignal: requestTimeoutSignal(SYNC_WRITE_TIMEOUT_MS) }
-  );
+    })
+    .abortSignal(requestTimeoutSignal(SYNC_WRITE_TIMEOUT_MS));
   if (error) throw error;
   return data as SaveDocumentResult;
 }

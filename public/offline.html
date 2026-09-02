@@ -85,20 +85,68 @@
       <button type="button" id="retry">Try now</button>
     </main>
     <script>
-      var seconds = 10;
+      var DELAY_MS = 10000;
       var count = document.getElementById("count");
-      var timer = setInterval(function () {
-        seconds -= 1;
-        if (seconds <= 0) {
+      var timer = null;
+      var deadline = 0;
+      var probing = false;
+
+      function probeEditor() {
+        var controller = new AbortController();
+        var abortTimer = setTimeout(function () {
+          controller.abort();
+        }, 3000);
+        return fetch("/editor", {
+          cache: "no-store",
+          signal: controller.signal,
+        }).finally(function () {
+          clearTimeout(abortTimer);
+        });
+      }
+
+      function remainingSec() {
+        return Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      }
+
+      function startCountdown() {
+        probing = false;
+        deadline = Date.now() + DELAY_MS;
+        count.textContent = String(remainingSec());
+        if (timer) clearInterval(timer);
+        timer = setInterval(function () {
+          var left = remainingSec();
+          count.textContent = String(left);
+          if (left <= 0) {
+            clearInterval(timer);
+            timer = null;
+            tryAgain();
+          }
+        }, 250);
+      }
+
+      function tryAgain() {
+        if (probing) return;
+        probing = true;
+        if (timer) {
           clearInterval(timer);
-          location.reload();
-          return;
+          timer = null;
         }
-        count.textContent = String(seconds);
-      }, 1000);
-      document.getElementById("retry").addEventListener("click", function () {
-        location.reload();
-      });
+        count.textContent = "…";
+        probeEditor()
+          .then(function (res) {
+            if (res && res.ok) {
+              location.replace("/editor");
+              return;
+            }
+            startCountdown();
+          })
+          .catch(function () {
+            startCountdown();
+          });
+      }
+
+      document.getElementById("retry").addEventListener("click", tryAgain);
+      startCountdown();
     </script>
   </body>
 </html>

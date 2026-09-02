@@ -353,6 +353,7 @@ export function DocumentWorkspace({
       setRailsSnapshot(null);
     }
     setLoading(Boolean(persistEnabled && nodeId));
+    setOpeningSlow(false);
     setLoadError(null);
   }
 
@@ -454,10 +455,7 @@ export function DocumentWorkspace({
   }, []);
 
   useEffect(() => {
-    if (!loading) {
-      setOpeningSlow(false);
-      return;
-    }
+    if (!loading) return;
     const id = window.setTimeout(() => setOpeningSlow(true), BOOT_SLOW_HINT_MS);
     return () => window.clearTimeout(id);
   }, [loading]);
@@ -531,7 +529,10 @@ export function DocumentWorkspace({
           error instanceof Error ? error.message : "Could not open document."
         );
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setOpeningSlow(false);
+        }
       }
     }
 
