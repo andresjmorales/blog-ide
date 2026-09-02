@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type DragEvent } from "react";
+import { useState, type DragEvent } from "react";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { SettingsLabel } from "@/components/SettingsInfo";
 import { FormattingAaIcon, GrabHandle } from "@/components/icons";
@@ -47,10 +47,6 @@ export function ToolbarLayoutEditor() {
     normalizeToolbarLayout(prefs.toolbarLayout)
   );
   const [dragOver, setDragOver] = useState<string | null>(null);
-
-  useEffect(() => {
-    setDraft(normalizeToolbarLayout(prefs.toolbarLayout));
-  }, [prefs.toolbarLayout]);
 
   const unused = unusedToolbarItems(draft);
   const overflow = overflowSlot(draft);
