@@ -69,10 +69,14 @@ describe("ToolbarLayoutEditor", () => {
     });
     const bold = host.querySelector<HTMLElement>('[data-toolbar-drop="bar:7"]');
     const link = host.querySelector<HTMLElement>('[data-toolbar-drop="bar:11"]');
+    expect(bold).toBeTruthy();
+    expect(link).toBeTruthy();
     expect(bold?.textContent).toContain("Bold");
     expect(link?.textContent).toContain("Link");
-    const point = vi.spyOn(document, "elementFromPoint").mockReturnValue(link);
-    document.elementsFromPoint = () => [link];
+    const point = vi
+      .spyOn(document, "elementFromPoint")
+      .mockReturnValue(link as HTMLElement);
+    document.elementsFromPoint = () => [link as HTMLElement];
     act(() => {
       bold!.dispatchEvent(
         new PointerEvent("pointerdown", {

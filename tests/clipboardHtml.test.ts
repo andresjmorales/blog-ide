@@ -102,10 +102,12 @@ First[^1] then[^2].
     const notes = html.split(/<p>Notes<\/p>/)[1] ?? "";
     const items = notes.match(/<li[\s\S]*?<\/li>/g) ?? [];
     expect(items).toHaveLength(2);
-    expect(items[0]).toContain('href="https://example.com/foo/bar/baz"');
-    expect(items[0]).toContain("this piece");
-    expect(items[1]).toContain("Second note stays second.");
-    expect(items[0].match(/<p>/g)?.length ?? 0).toBeLessThanOrEqual(1);
+    const first = items[0] ?? "";
+    const second = items[1] ?? "";
+    expect(first).toContain('href="https://example.com/foo/bar/baz"');
+    expect(first).toContain("this piece");
+    expect(second).toContain("Second note stays second.");
+    expect(first.match(/<p>/g)?.length ?? 0).toBeLessThanOrEqual(1);
   });
 
   it("joins a stacked note (sentence plus path URL) into one list item", () => {

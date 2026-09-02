@@ -181,11 +181,11 @@ export function ToolbarLayoutEditor() {
               slot={slot}
               index={index}
               highlight={dragOver === `bar:${index}`}
-              dragging={
+              dragging={Boolean(
                 drag?.started &&
-                drag.source.zone === "bar" &&
-                drag.source.index === index
-              }
+                  drag.source.zone === "bar" &&
+                  drag.source.index === index
+              )}
               onPointerDown={(event) =>
                 onChipPointerDown(
                   event,
@@ -219,11 +219,11 @@ export function ToolbarLayoutEditor() {
                 id={id}
                 dropKey={`overflow:${index}`}
                 highlight={dragOver === `overflow:${index}`}
-                dragging={
+                dragging={Boolean(
                   drag?.started &&
-                  drag.source.zone === "overflow" &&
-                  drag.source.index === index
-                }
+                    drag.source.zone === "overflow" &&
+                    drag.source.index === index
+                )}
                 onPointerDown={(event) =>
                   onChipPointerDown(event, { zone: "overflow", index })
                 }
@@ -250,11 +250,11 @@ export function ToolbarLayoutEditor() {
                 id={id}
                 dropKey={`unused:${index}`}
                 highlight={dragOver === `unused:${index}`}
-                dragging={
+                dragging={Boolean(
                   drag?.started &&
-                  drag.source.zone === "unused" &&
-                  drag.source.index === index
-                }
+                    drag.source.zone === "unused" &&
+                    drag.source.index === index
+                )}
                 onPointerDown={(event) =>
                   onChipPointerDown(event, { zone: "unused", index })
                 }
