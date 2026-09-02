@@ -89,15 +89,14 @@ export function MoreFormattingIcon({ className = "" }: { className?: string }) {
   );
 }
 
-/** Compact Aa glyph for the extra-formatting overflow (super/sub, case, code block). */
+/** Compact Aa+ glyph for the extra-formatting overflow folder. */
 export function FormattingAaIcon({ className = "" }: { className?: string }) {
   return (
     <span
       aria-hidden
-      className={`inline-flex h-4 w-4 items-center justify-center font-serif leading-none ${className}`}
-      style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "-0.04em" }}
+      className={`formatting-aa-icon inline-flex items-center justify-center ${className}`}
     >
-      Aa
+      Aa+
     </span>
   );
 }

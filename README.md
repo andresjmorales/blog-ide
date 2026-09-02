@@ -32,15 +32,18 @@ by design.
   canned actions (critique / tighten / title / expand), selection context,
   streaming replies, light model picker, smarter Apply (diff / patch), and
   import cleanup assist
-- **Export / import** — Copy all text copies markdown; Copy for Substack /
-  Medium / HTML pastes formatted HTML (readable plain text as fallback, not
-  markdown). Substack/Medium cannot recreate native footnotes from a paste;
-  Cleanup → Publish can copy `[1]` markers plus a helper script that runs
-  in the Substack editor. Download `.md` or `.html`; PDF (print) uses the
+- **Export / import** — Copy → Markdown copies source; Copy → HTML pastes
+  formatted HTML (readable plain text as fallback, not markdown). Prepare
+  publish opens Cleanup → Publish for footnote copy formats (bracketed [1]
+  markers, superscripts + Notes, or linked HTML endnotes). Pasting HTML
+  cannot recreate native footnotes on other editors; Cleanup → Publish can
+  copy `[1]` markers plus a helper script that runs in the Substack editor.
+  Download `.md` or `.html`; PDF (print) uses the
   browser Save as PDF dialog; optional Word `.docx` and PDF via Pandoc
   (`PANDOC_PATH`, plus a PDF engine such as `xelatex`). Import markdown or
   `.docx` / `.odt` from the Files panel. Convert Case, superscript,
-  subscript, and Code block live under toolbar **Aa**. Clean
+  subscript, inline code, and Code block live under toolbar **Aa+** (reorder
+  under Settings → Editor). Clean
   whitespace (joins Shift-Enter / PDF wraps to spaces and keeps paragraph
   breaks) and punctuation normalize (Chicago/MLA dashes, smart quotes)
   handle messy pastes.
@@ -61,11 +64,11 @@ by design.
   characters insert into the focused field (title, subtitle, metadata,
   find/replace)
 - **Cleanup** (broom) — pinnable tabbed panel: Import (fix footnotes), Text,
-  Punctuation, and Publish (copy for Substack/Medium/HTML, Substack native
-  footnote helper, link/image check); Clean whitespace joins Shift-Enter /
+  Punctuation, and Publish (footnote copy formats, Substack native footnote
+  helper, link/image check); Clean whitespace joins Shift-Enter /
   PDF wraps to spaces and keeps blank lines; paste collapses extra empty
-  paragraphs; Convert Case, superscript, subscript, and Code block live
-  under toolbar **Aa**; Cite is separate; paste or
+  paragraphs; Convert Case, superscript, subscript, inline code, and Code
+  block live under toolbar **Aa+**; Cite is separate; paste or
   drag-drop images into the essay
 
 ## Stack
@@ -74,8 +77,8 @@ Next.js, TypeScript, Tailwind CSS, TipTap, Supabase, and IndexedDB. GitHub
 backup and model APIs are optional. See [ARCHITECTURE.md](./ARCHITECTURE.md)
 for boundaries, persistence, quota, and the repository map. Differences from
 GFM (frontmatter, captions, footnotes, math/tables) are summarized in
-[docs/MARKDOWN_SPEC.md](./docs/MARKDOWN_SPEC.md). Copying into Substack,
-Medium, HTML, and PDF is covered in
+[docs/MARKDOWN_SPEC.md](./docs/MARKDOWN_SPEC.md). Copying HTML and Markdown,
+and preparing footnotes for other editors, is covered in
 [docs/PUBLISH_EXPORT.md](./docs/PUBLISH_EXPORT.md).
 
 ## Getting started

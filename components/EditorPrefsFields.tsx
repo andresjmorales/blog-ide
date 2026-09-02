@@ -15,6 +15,7 @@ import {
   setHarperKindEnabled,
 } from "@/lib/editor/harper/kinds";
 import { toggleSpellcheckLanguage } from "@/lib/markdown/spellcheckFrontmatter";
+import { ToolbarLayoutEditor } from "@/components/ToolbarLayoutEditor";
 
 /** Workspace-wide markdown typing and view prefs. */
 export function MarkdownPrefsSection() {
@@ -104,6 +105,9 @@ export function EditorPrefsSection() {
 
   return (
     <section className="settings-section">
+      <h3>Toolbar</h3>
+      <ToolbarLayoutEditor />
+      <h3>Writing</h3>
       <div className="settings-row">
         <SettingsLabel info="Open the footnote editor card when the pointer rests on a superscript.">
           Open footnote on hover

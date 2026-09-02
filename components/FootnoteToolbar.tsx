@@ -166,7 +166,12 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
       kind: "slot",
       title: "More formatting",
       overflowLabel: "More formatting",
-      render: () => <FormattingOverflowMenu editor={editor} />,
+      render: () => (
+        <FormattingOverflowMenu
+          editor={editor}
+          items={["superscript", "subscript", "codeBlock", "case"]}
+        />
+      ),
     },
     { id: "sep-extra", kind: "sep", title: "", overflowLabel: "" },
     {

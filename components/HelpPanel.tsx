@@ -86,9 +86,10 @@ export function HelpPanel({ open, onClose }: Props) {
             Pin, and Library. The{" "}
             <strong>Library</strong> panel (right dock) holds
             research PDFs and bookmarks. Use the essay menu → Preview in new tab for
-            publication-style HTML. Copy → All text copies the markdown. Copy →
-            Substack / Medium (essay menu or Cleanup → Publish) turns GFM footnotes into
-            numbered notes for that platform. Export Word when Pandoc is
+            publication-style HTML. Copy → Markdown copies the source. Copy →
+            HTML pastes publication HTML. Prepare publish opens Cleanup → Publish
+            for footnote copy formats (bracketed [1], superscripts, linked
+            endnotes) and Substack native-footnote steps. Export Word when Pandoc is
             installed, or Push to GitHub. Edits save locally first, then sync
             online.
           </p>
@@ -146,8 +147,9 @@ export function HelpPanel({ open, onClose }: Props) {
             <li>
               Broom / Cleanup: pinnable tabs for Import, Text, Punctuation,
               and Publish check; Text → Clean whitespace joins wrapped lines
-              to spaces and keeps blank lines; Aa = superscript, subscript,
-              code block, and convert case; Cite is its
+              to spaces and keeps blank lines; Aa+ = extra formatting (inline
+              code, superscript, subscript, code block, convert case) and is
+              customizable under Settings → Editor; Cite is its
               own button
             </li>
             <li>

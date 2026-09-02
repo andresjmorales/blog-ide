@@ -96,11 +96,7 @@ import {
   downloadHtmlDocument,
   downloadMarkdown,
 } from "@/lib/export/document";
-import {
-  htmlForPublishTarget,
-  PUBLISH_COPY_TARGETS,
-  type PublishCopyTarget,
-} from "@/lib/export/clipboardHtml";
+import { htmlForPublishTarget, type PublishCopyTarget } from "@/lib/export/clipboardHtml";
 import {
   exportMarkdownAsDocx,
   exportMarkdownAsPdf,
@@ -1625,20 +1621,25 @@ export function DocumentWorkspace({
       label: "Copy",
       items: [
         {
-          id: "copy-all",
-          label: "All text",
+          id: "copy-md",
+          label: "Markdown",
           onSelect: () => {
             void copyForExport();
           },
         },
-        ...PUBLISH_COPY_TARGETS.map((target) => ({
-          id: `copy-for-${target.id}`,
-          label: `For ${target.label}`,
+        {
+          id: "copy-html",
+          label: "HTML",
           onSelect: () => {
-            void copyForPublish(target.id);
+            void copyForPublish("html");
           },
-        })),
+        },
       ],
+    },
+    {
+      id: "prepare-publish",
+      label: "Prepare publish",
+      onSelect: () => openCleanup("publish"),
     },
     {
       kind: "submenu",

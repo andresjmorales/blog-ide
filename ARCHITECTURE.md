@@ -43,8 +43,8 @@ markdown.
   `/api/import/pandoc`) when `PANDOC_PATH` points at a working binary.
   PDF also needs a PDF engine (`PANDOC_PDF_ENGINE` or xelatex / WeasyPrint /
   Typst on PATH). TipTap stays the editor; markdown and clipboard HTML remain
-  the happy path. Platform paste cannot create Substack/Medium native
-  footnotes — see [docs/PUBLISH_EXPORT.md](./docs/PUBLISH_EXPORT.md).
+  the happy path. Platform paste cannot create native footnotes on
+  Substack or Medium — see [docs/PUBLISH_EXPORT.md](./docs/PUBLISH_EXPORT.md).
 
 ### Optional external services
 

@@ -68,7 +68,7 @@ source still contains the `![…](…)` line so the URL can be fixed.
 Footnote bodies live in inline TipTap atoms and serialize to ordered GFM-style
 references plus definitions (`[^n]` / `[^n]: …`). Nested block content inside
 notes is supported where the shared extension set allows it. Pasting that
-markdown into Substack or Medium does **not** create native platform footnotes;
+markdown into another editor does **not** create native platform footnotes;
 see [PUBLISH_EXPORT.md](./PUBLISH_EXPORT.md).
 
 ## Lists
@@ -101,7 +101,8 @@ from Word / Docs / some PDF clipboards.
 
 ## Superscript and subscript
 
-Toolbar **Aa** (More formatting) toggles superscript and subscript. They
+Toolbar **Aa+** (More formatting) holds extra inline formatting by default:
+inline code, superscript, subscript, code block, and convert case. They
 serialize as GFM inline HTML (`<sup>…</sup>` / `<sub>…</sub>`) so they
 round-trip without colliding with strikethrough `~~…~~`. HTML paste keeps
 `<sup>` / `<sub>` and Word/Docs `vertical-align: super|sub`; Unicode

@@ -7,6 +7,11 @@ import {
   panelLayoutFromLegacy,
   type PanelLayout,
 } from "@/lib/panels/layout";
+import {
+  DEFAULT_TOOLBAR_LAYOUT,
+  normalizeToolbarLayout,
+  type ToolbarLayout,
+} from "@/lib/editor/toolbarLayout";
 
 export type SidenoteLayout = "anchored" | "sticky";
 
@@ -86,6 +91,11 @@ export type EditorPrefs = {
    * with editor_prefs and used across every essay.
    */
   harperDictionary?: string[];
+  /**
+   * Essay formatting toolbar order: visible items, dividers, and the Aa+
+   * overflow folder. Missing ids become unused chips in Settings → Editor.
+   */
+  toolbarLayout?: ToolbarLayout;
 };
 
 export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
@@ -113,6 +123,7 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   allowMarkdownOnly: false,
   harperDisabledKinds: [],
   harperDictionary: [],
+  toolbarLayout: DEFAULT_TOOLBAR_LAYOUT,
 };
 
 const LOCAL_KEY = "blogide.editorPrefs";
@@ -152,6 +163,9 @@ export function mergePrefs(partial: EditorPrefs = {}): Required<EditorPrefs> {
     ),
     harperDictionary: normalizeHarperDictionary(
       partial.harperDictionary ?? merged.harperDictionary
+    ),
+    toolbarLayout: normalizeToolbarLayout(
+      partial.toolbarLayout ?? merged.toolbarLayout
     ),
   };
 }
