@@ -514,12 +514,12 @@ body {
 
 .formatting-aa-icon {
   font-family: ui-sans-serif, system-ui, sans-serif;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 650;
   letter-spacing: -0.03em;
   line-height: 1;
-  min-width: 1.25rem;
-  padding-top: 0.14rem;
+  min-width: 1.35rem;
+  transform: translateY(2px);
 }
 
 .blogide-table-delete {
