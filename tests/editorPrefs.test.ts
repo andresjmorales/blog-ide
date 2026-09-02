@@ -13,6 +13,9 @@ describe("editor prefs defaults", () => {
     expect(merged.smartQuotes).toBe(true);
     expect(merged.fetchBibleEnabled).toBe(false);
     expect(merged.leftWidth).toBe(300);
+    expect(merged.toolbarLayout.some((slot) => slot.type === "overflow")).toBe(
+      true
+    );
   });
 
   it("maps an older smartQuotes: false blob onto typography", () => {

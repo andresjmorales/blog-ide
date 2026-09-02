@@ -24,7 +24,7 @@ describe("FormattingOverflowMenu", () => {
     editor = null;
   });
 
-  it("lists superscript, subscript, code block, and convert case", () => {
+  it("lists superscript, subscript, code block, convert case, and inline code", () => {
     editor = new Editor({
       extensions: createExtensions(),
       content: parseBody("Hello.\n"),
@@ -38,13 +38,14 @@ describe("FormattingOverflowMenu", () => {
     const button = host.querySelector<HTMLButtonElement>(
       'button[title="More formatting"]'
     );
-    expect(button?.textContent).toContain("Aa");
+    expect(button?.textContent).toContain("Aa+");
     act(() => {
       button!.click();
     });
     const labels = [...document.querySelectorAll('[role="menuitem"]')].map(
       (item) => item.textContent?.replace("‹", "").trim()
     );
+    expect(labels).toContain("Inline code");
     expect(labels).toContain("Superscript");
     expect(labels).toContain("Subscript");
     expect(labels).toContain("Code block");

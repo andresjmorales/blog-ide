@@ -1,45 +1,55 @@
 /**
- * Platform-specific HTML for pasting into Substack, Medium, and HTML
- * targets. Native platform footnotes cannot be created by clipboard HTML:
- * Substack only builds footnoteAnchor nodes via insertFootnote(), and
- * Medium has no footnote schema at all.
+ * Clipboard HTML for publish-style pastes. Native platform footnotes cannot
+ * be created by HTML alone: Substack only builds footnoteAnchor nodes via
+ * insertFootnote(), and Medium has no footnote schema.
  *
  * Hover-tip chrome from the in-app preview is never included. text/plain
  * on the clipboard is a readable rendering of this HTML, never markdown
- * source (Substack will otherwise paste the markdown).
+ * source (some editors will otherwise paste the markdown).
  */
 
 import { buildPublicationPreview } from "@/lib/preview/publicationHtml";
 import { htmlToPlainText } from "@/lib/export/htmlPlain";
 import { SUBSTACK_NOTES_HEADING } from "@/lib/export/substackEditorHelper";
 
+export type PublishCopyFormat = "superscripts" | "html" | "markers";
+
+/** Current ids plus older Substack/Medium aliases. */
 export type PublishCopyTarget =
+  | PublishCopyFormat
   | "substack"
-  | "substack-native"
   | "medium"
-  | "html";
+  | "substack-native";
 
 export const PUBLISH_COPY_TARGETS: Array<{
-  id: Exclude<PublishCopyTarget, "substack-native">;
+  id: PublishCopyFormat;
   label: string;
   hint: string;
 }> = [
   {
-    id: "substack",
-    label: "Substack",
-    hint: "Formatted paste with static numbered notes",
+    id: "markers",
+    label: "Bracketed numbers [1]",
+    hint: "In-text [1] markers and a Notes list at the end",
   },
   {
-    id: "medium",
-    label: "Medium",
-    hint: "Superscripts and a Notes list",
+    id: "superscripts",
+    label: "Superscript numbers",
+    hint: "In-text superscripts and a Notes list at the end",
   },
   {
     id: "html",
-    label: "HTML",
-    hint: "Publication HTML with linked endnotes",
+    label: "Linked HTML endnotes",
+    hint: "Publication HTML with numbered refs linked to notes",
   },
 ];
+
+export function resolvePublishCopyTarget(
+  target: PublishCopyTarget
+): PublishCopyFormat {
+  if (target === "html") return "html";
+  if (target === "markers" || target === "substack-native") return "markers";
+  return "superscripts";
+}
 
 export type PublishCopyResult = {
   title: string;
@@ -139,8 +149,8 @@ function replaceEndnotesWithList(
   section.replaceWith(frag);
 }
 
-/** Paste-safe: superscripts + Notes list. No hash links (Substack strips them). */
-function formatSubstack(doc: Document, root: HTMLElement): void {
+/** Paste-safe: superscripts + Notes list. No hash links. */
+function formatSuperscripts(doc: Document, root: HTMLElement): void {
   replaceRefsWithSup(doc, root);
   replaceEndnotesWithList(doc, root, { heading: true });
 }
@@ -149,14 +159,8 @@ function formatSubstack(doc: Document, root: HTMLElement): void {
  * Markers the Substack editor helper can find, plus a Notes ordered list
  * whose formatting survives paste into ProseMirror.
  */
-function formatSubstackNative(doc: Document, root: HTMLElement): void {
+function formatMarkers(doc: Document, root: HTMLElement): void {
   replaceRefsWithMarkers(doc, root);
-  replaceEndnotesWithList(doc, root, { heading: true });
-}
-
-/** Medium has no footnote schema. Superscripts + Notes is the real format. */
-function formatMedium(doc: Document, root: HTMLElement): void {
-  replaceRefsWithSup(doc, root);
   replaceEndnotesWithList(doc, root, { heading: true });
 }
 
@@ -201,30 +205,29 @@ function formatHtml(doc: Document, root: HTMLElement): void {
 
 /**
  * HTML for a publish target. `plain` is what should go in text/plain.
- * Platform pastes omit the essay title (Substack/Medium have their own
- * title field). HTML includes it.
+ * Body-only pastes omit the essay title (the destination has its own title
+ * field). Linked HTML includes it.
  */
 export function htmlForPublishTarget(
   markdown: string,
   target: PublishCopyTarget
 ): PublishCopyResult {
+  const format = resolvePublishCopyTarget(target);
   const preview = buildPublicationPreview(markdown);
   const prepared = preparePublicationBody(markdown);
   if (!prepared) {
     const html =
-      target === "html"
+      format === "html"
         ? withTitle(preview.title, preview.bodyHtml)
         : preview.bodyHtml;
     return { title: preview.title, html, plain: htmlToPlainText(html) };
   }
-  if (target === "medium") formatMedium(prepared.doc, prepared.root);
-  else if (target === "html") formatHtml(prepared.doc, prepared.root);
-  else if (target === "substack-native") {
-    formatSubstackNative(prepared.doc, prepared.root);
-  } else formatSubstack(prepared.doc, prepared.root);
+  if (format === "html") formatHtml(prepared.doc, prepared.root);
+  else if (format === "markers") formatMarkers(prepared.doc, prepared.root);
+  else formatSuperscripts(prepared.doc, prepared.root);
 
   const body = prepared.root.innerHTML;
-  const html = target === "html" ? withTitle(prepared.title, body) : body;
+  const html = format === "html" ? withTitle(prepared.title, body) : body;
   return {
     title: prepared.title,
     html,
@@ -232,11 +235,11 @@ export function htmlForPublishTarget(
   };
 }
 
-/** @deprecated Use htmlForPublishTarget(md, "substack") */
+/** @deprecated Use htmlForPublishTarget(md, "superscripts") */
 export function clipboardHtmlFromMarkdown(markdown: string): {
   title: string;
   html: string;
 } {
-  const result = htmlForPublishTarget(markdown, "substack");
+  const result = htmlForPublishTarget(markdown, "superscripts");
   return { title: result.title, html: result.html };
 }

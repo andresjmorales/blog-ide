@@ -22,7 +22,7 @@ import {
   substackFootnoteBookmarklet,
 } from "@/lib/export/substackEditorHelper";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
-import { BroomIcon, PinIcon } from "@/components/icons";
+import { BroomIcon, ClipboardIcon, PinIcon } from "@/components/icons";
 import { getActiveProvider, loadAiKeys } from "@/lib/ai/keys";
 import { claimFloatZ } from "@/lib/pins/pinStore";
 
@@ -57,7 +57,7 @@ type Props = {
 
 /**
  * Pinnable Cleanup panel with tabs: Import, Text, Punctuation, Publish.
- * Convert case lives on the toolbar Aa menu.
+ * Convert case lives on the toolbar Aa+ menu.
  */
 export function CleanupDialog({
   open,
@@ -337,7 +337,7 @@ function CleanupPanel({
             ) : (
               <p className="blogide-cleanup-hint">
                 Switch to the rich text editor for text cleanup. Convert case
-                is on the toolbar (Aa).
+                is on the toolbar (Aa+).
               </p>
             ))}
 
@@ -377,7 +377,7 @@ function TextTab({ editor }: { editor: Editor }) {
   return (
     <section>
       <p className="blogide-cleanup-hint">
-        Select text in the essay first. Convert case is on the toolbar (Aa).
+        Select text in the essay first. Convert case is on the toolbar (Aa+).
       </p>
       <div className="blogide-cleanup-actions">
         <ActionButton
@@ -490,18 +490,16 @@ function PublishTab({
   }, []);
 
   async function copyFor(target: PublishCopyTarget) {
-    const spec =
-      PUBLISH_COPY_TARGETS.find((item) => item.id === target) ??
-      (target === "substack-native"
-        ? { label: "Substack (native notes)" }
-        : null);
+    const spec = PUBLISH_COPY_TARGETS.find((item) => item.id === target);
     setCopyBusy(target);
     setCopyStatus(null);
     try {
       const markdown = getMarkdown();
       const { html, plain } = htmlForPublishTarget(markdown, target);
       await copyDocumentForPaste({ html, plain });
-      setCopyStatus(`Copied for ${spec?.label ?? target}. Paste into the other editor.`);
+      setCopyStatus(
+        `Copied ${spec?.label ?? "HTML"}. Paste into the other editor.`
+      );
     } catch {
       setCopyStatus("Copy failed. Try the essay menu → Export → HTML.");
     } finally {
@@ -534,52 +532,74 @@ function PublishTab({
     <section>
       <p className="blogide-cleanup-hint">
         These copies put formatted HTML on the clipboard (readable text as the
-        fallback, not markdown). Substack and Medium will not turn pasted HTML
-        into native footnotes. Essay menu → Copy → All text stays raw markdown.
+        fallback, not markdown). Essay menu → Copy → Markdown stays raw source.
+        Pasted HTML will not become native footnotes in another editor.
       </p>
       <div className="blogide-cleanup-actions mb-3">
         {PUBLISH_COPY_TARGETS.map((target) => (
           <ActionButton
             key={target.id}
-            label={
-              copyBusy === target.id ? "Copying…" : `Copy for ${target.label}`
-            }
+            label={copyBusy === target.id ? "Copying…" : target.label}
             hint={target.hint}
             disabled={copyBusy != null}
             onClick={() => void copyFor(target.id)}
           />
         ))}
       </div>
+      <h3 className="blogide-cleanup-subhead">
+        Instructions to natively insert footnotes into the Substack editor
+      </h3>
       <p className="blogide-cleanup-hint">
-        Native Substack footnotes (the ones you click in their editor) only exist
-        if you paste markers, then run a helper in that tab. Playwright is not
-        required.
+        Substack only creates clickable footnotes through its own editor
+        command. Paste text with markers, then run the helper in that tab.
       </p>
-      <ol className="blogide-cleanup-hint mb-2 list-decimal pl-4">
-        <li>Copy markers for Substack</li>
-        <li>Paste into your Substack draft</li>
-        <li>Paste the helper into that tab&apos;s browser console</li>
+      <ol className="blogide-publish-steps">
+        <li>
+          <div className="blogide-publish-step-row">
+            <span>Copy text with markers</span>
+            <CopyIconButton
+              label={
+                copyBusy === "markers"
+                  ? "Copying text with markers"
+                  : "Copy text with markers"
+              }
+              disabled={copyBusy != null}
+              onClick={() => void copyFor("markers")}
+            />
+          </div>
+          <p>Paste into your Substack draft. The title field stays separate.</p>
+        </li>
+        <li>
+          <div className="blogide-publish-step-row">
+            <span>Copy helper script</span>
+            <CopyIconButton
+              label={
+                copyBusy === "script"
+                  ? "Copying helper script"
+                  : "Copy helper script"
+              }
+              disabled={copyBusy != null}
+              onClick={() => void copyHelper("script")}
+            />
+          </div>
+          <p>
+            In the Substack tab, open the console (F12), paste, and press
+            Enter.
+          </p>
+          <div className="blogide-publish-step-alt">
+            <span>Or copy a bookmarklet and save it as a bookmark URL</span>
+            <CopyIconButton
+              label={
+                copyBusy === "bookmarklet"
+                  ? "Copying bookmarklet"
+                  : "Copy bookmarklet"
+              }
+              disabled={copyBusy != null}
+              onClick={() => void copyHelper("bookmarklet")}
+            />
+          </div>
+        </li>
       </ol>
-      <div className="blogide-cleanup-actions mb-3">
-        <ActionButton
-          label={copyBusy === "substack-native" ? "Copying…" : "Copy markers"}
-          hint="Body [1] markers plus a Notes list"
-          disabled={copyBusy != null}
-          onClick={() => void copyFor("substack-native")}
-        />
-        <ActionButton
-          label={copyBusy === "script" ? "Copying…" : "Copy helper script"}
-          hint="Run in the Substack editor console"
-          disabled={copyBusy != null}
-          onClick={() => void copyHelper("script")}
-        />
-        <ActionButton
-          label={copyBusy === "bookmarklet" ? "Copying…" : "Copy bookmarklet"}
-          hint="Optional: save as a bookmark URL"
-          disabled={copyBusy != null}
-          onClick={() => void copyHelper("bookmarklet")}
-        />
-      </div>
       {copyStatus && (
         <p className="mb-3 text-xs text-muted" role="status">
           {copyStatus}
@@ -686,6 +706,29 @@ function StatusBadge({ ok, soft }: { ok: boolean | null; soft?: boolean }) {
     <span className="mt-0.5 shrink-0 rounded bg-panel px-1.5 py-0.5 text-[0.65rem] font-semibold text-muted">
       Skip
     </span>
+  );
+}
+
+function CopyIconButton({
+  label,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="blogide-publish-copy-btn"
+      title={label}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <ClipboardIcon className="blogide-tool-icon" />
+    </button>
   );
 }
 

@@ -13,8 +13,8 @@ Hello[^1].
 `;
 
 describe("htmlForPublishTarget", () => {
-  it("emits Substack paste-safe superscripts and a Notes list, not native-looking anchors", () => {
-    const { title, html, plain } = htmlForPublishTarget(SAMPLE, "substack");
+  it("emits paste-safe superscripts and a Notes list, not native-looking anchors", () => {
+    const { title, html, plain } = htmlForPublishTarget(SAMPLE, "superscripts");
     expect(title).toBe("Clipboard sample");
     expect(html).not.toContain("<h1>");
     expect(html).toContain("<sup>1</sup>");
@@ -30,15 +30,12 @@ describe("htmlForPublishTarget", () => {
     expect(plain).not.toContain("[^1]");
   });
 
-  it("emits Medium superscripts and a Notes list without hash links", () => {
-    const { html } = htmlForPublishTarget(SAMPLE, "medium");
-    expect(html).not.toContain("<h1>");
-    expect(html).toContain("<sup>1</sup>");
-    expect(html).toContain("A cited claim.");
-    expect(html).toContain("<ol>");
-    expect(html).not.toContain("footnote-anchor");
-    expect(html).not.toContain("href=\"#fn-");
-    expect(html).not.toContain("preview-fn-tip");
+  it("treats the older Substack and Medium ids as superscripts", () => {
+    const modern = htmlForPublishTarget(SAMPLE, "superscripts").html;
+    expect(htmlForPublishTarget(SAMPLE, "substack").html).toBe(modern);
+    expect(htmlForPublishTarget(SAMPLE, "medium").html).toBe(modern);
+    expect(modern).toContain("<sup>1</sup>");
+    expect(modern).not.toContain("href=\"#fn-");
   });
 
   it("emits linked HTML endnotes and includes the title", () => {
@@ -54,7 +51,7 @@ describe("htmlForPublishTarget", () => {
   });
 
   it("emits [1] markers and a Notes list for the Substack editor helper", () => {
-    const { html, plain } = htmlForPublishTarget(SAMPLE, "substack-native");
+    const { html, plain } = htmlForPublishTarget(SAMPLE, "markers");
     expect(html).not.toContain("<h1>");
     expect(html).toContain("[1]");
     expect(html).not.toContain("<sup>");
@@ -64,6 +61,7 @@ describe("htmlForPublishTarget", () => {
     expect(html).not.toContain("footnote-anchor");
     expect(plain).toContain("[1]");
     expect(plain).toContain("A cited claim.");
+    expect(htmlForPublishTarget(SAMPLE, "substack-native").html).toBe(html);
   });
 });
 

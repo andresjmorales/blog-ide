@@ -1,10 +1,31 @@
 # Publishing from BlogIDE
 
-BlogIDE is the place to write. Substack, Medium, Word, and HTML/PDF are
-exit ramps. Footnotes are first-class in BlogIDE; they are not first-class
-on most paste targets.
+BlogIDE is the place to write. Other editors, Word, and HTML/PDF are exit
+ramps. Footnotes are first-class in BlogIDE; they are not first-class on
+most paste targets.
 
-## What each platform actually does
+## Copy formats
+
+Essay menu → **Copy** is only Markdown (source) and HTML (publication HTML).
+**Prepare publish** opens Cleanup → Publish, where the copy buttons describe
+the footnote shape rather than a platform name:
+
+1. **Bracketed numbers `[1]`** — `[1]` in the body and a Notes list at the
+   end. Also used as step 1 of the Substack helper.
+2. **Superscript numbers** — `<sup>1</sup>` in the body and a Notes list at
+   the end. Readable static notes. This is the honest paste for editors that
+   have no footnote schema (including Medium) and for a Substack draft you
+   are not going to convert with the helper.
+3. **Linked HTML endnotes** — numbered refs linked to notes, plus back-links.
+   Same family as Export → HTML. Use this for Ghost, WordPress, a personal
+   site, or a standalone file.
+
+Clipboard `text/plain` is a readable rendering of that HTML, never the
+markdown source (some editors will otherwise paste the markdown). Hover tips
+from Preview are stripped from the copy payload; the downloaded HTML file
+matches Preview (plus print CSS).
+
+Pasting HTML cannot create native footnotes in another editor.
 
 ### Substack
 
@@ -19,20 +40,19 @@ Pasting HTML cannot create those nodes. Substack’s paste sanitizer:
 - strips hash-link footnotes and custom classes such as `footnote-anchor`
 - will often paste `text/plain` when that payload looks like markdown
 
-So a clipboard that puts **markdown source** in `text/plain` (the old Copy
-for Substack behavior) looks identical to Copy → All text. Mimicking
-Substack’s *published* HTML (`<a class="footnote-anchor" href="#footnote-1">`)
-does not recreate native editor footnotes either. That markup is what
-BlogIDE *imports* from a published Substack page; it is not what the
-editor accepts on paste.
+So a clipboard that puts **markdown source** in `text/plain` looks identical
+to Copy → Markdown. Mimicking Substack’s *published* HTML
+(`<a class="footnote-anchor" href="#footnote-1">`) does not recreate native
+editor footnotes either. That markup is what BlogIDE *imports* from a
+published Substack page; it is not what the editor accepts on paste.
 
 Honest options:
 
-1. **Copy for Substack** — formatted HTML, `<sup>1</sup>` in the body, a
+1. **Superscript numbers** — formatted HTML, `<sup>1</sup>` in the body, a
    Notes list at the end. Readable. Not clickable native Substack notes.
-2. **Copy markers + helper** — paste `[1]` markers and a Notes list, then
-   run BlogIDE’s helper in the Substack tab so it calls `insertFootnote()`
-   for you.
+2. **Text with markers + helper** — paste `[1]` markers and a Notes list,
+   then run BlogIDE’s helper in the Substack tab so it calls
+   `insertFootnote()` for you.
 
 The helper is a console script / bookmarklet, not a Playwright robot.
 Automating a logged-in Substack session from BlogIDE would mean stealing
@@ -48,16 +68,16 @@ They do not create native Substack footnotes.
 
 Medium has no footnote schema. The usual workaround is a superscript in
 the body and a Notes list at the end (sometimes with a `^` back-link after
-publish, using Medium’s generated paragraph ids). Copy for Medium emits
-that static form. Hash links to `#fn-1` are omitted; Medium rewrites ids
-on publish.
+publish, using Medium’s generated paragraph ids). **Superscript numbers**
+emits that static form. Hash links to `#fn-1` are omitted; Medium rewrites
+ids on publish.
 
 ### HTML
 
-Copy for HTML / Export → HTML is BlogIDE’s publication HTML: numbered
-refs, linked endnotes, captions, KaTeX. Use this for Ghost, WordPress, a
-personal site, or a standalone file. Hover tips from Preview are stripped
-from the copy payload; the downloaded file matches Preview (plus print CSS).
+Copy → HTML / Export → HTML / **Linked HTML endnotes** is BlogIDE’s
+publication HTML: numbered refs, linked endnotes, captions, KaTeX. Hover
+tips from Preview are stripped from the copy payload; the downloaded file
+matches Preview (plus print CSS).
 
 ### Word (Pandoc)
 
@@ -81,23 +101,23 @@ Two paths:
 
 | Action | Clipboard | File | Footnotes |
 | --- | --- | --- | --- |
-| Copy → All text | Markdown | — | GFM `[^1]` |
-| Copy → For Substack | HTML + readable plain | — | Static `<sup>` + Notes |
-| Copy → For Medium | HTML + readable plain | — | Static `<sup>` + Notes |
-| Copy → For HTML | HTML + readable plain | — | Linked endnotes |
-| Cleanup → Copy markers | HTML with `[1]` + Notes list | — | For the Substack helper |
+| Copy → Markdown | Markdown | — | GFM `[^1]` |
+| Copy → HTML | HTML + readable plain | — | Linked endnotes |
+| Cleanup → Superscript numbers | HTML + readable plain | — | Static `<sup>` + Notes |
+| Cleanup → Bracketed numbers [1] | HTML with `[1]` + Notes list | — | For the Substack helper |
+| Cleanup → Linked HTML endnotes | HTML + readable plain | — | Linked endnotes |
 | Export → Markdown | — | `.md` | GFM |
 | Export → HTML | — | `.html` | Preview endnotes |
 | Export → PDF (print) | — | via browser | Preview endnotes |
 | Export → Word | — | `.docx` | Word footnotes (Pandoc) |
 | Export → PDF (Pandoc) | — | `.pdf` | Engine footnotes |
 
-`text/plain` on the platform copies is a readable rendering of the HTML,
+`text/plain` on the HTML copies is a readable rendering of the HTML,
 never the markdown source.
 
 ## Native Substack footnotes (helper)
 
-1. Cleanup → Publish → **Copy markers**.
+1. Cleanup → Publish → **Copy text with markers**.
 2. Paste into a Substack draft (title field stays separate; the paste is
    body only).
 3. Open DevTools on that tab (F12) → Console.
@@ -109,7 +129,7 @@ deletes that list. **Copy bookmarklet** is the same code as a
 `javascript:` URL if you prefer a bookmark.
 
 If Substack’s schema changes, the helper will say `insertFootnote` is
-missing. Re-check this doc or fall back to static Copy for Substack.
+missing. Re-check this doc or fall back to static superscript numbers.
 
 ## Pandoc
 

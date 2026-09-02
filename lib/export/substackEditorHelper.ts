@@ -83,7 +83,7 @@ export const SUBSTACK_FOOTNOTE_HELPER = `(() => {
 
   const packed = findNotesList();
   if (!packed || !packed.list.items.length) {
-    alert("No Notes list found. Use Cleanup → Publish → Copy markers, paste into Substack, then run this.");
+    alert("No Notes list found. Use Cleanup → Publish → Copy text with markers, paste into Substack, then run this.");
     return;
   }
   const notes = {};

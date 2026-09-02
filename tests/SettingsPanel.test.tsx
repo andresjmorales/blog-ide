@@ -62,6 +62,8 @@ describe("SettingsPanel", () => {
       editorTab.click();
     });
     expect(host!.textContent).toContain("Open Notes on phone");
+    expect(host!.textContent).toContain("Rearrange toolbar");
+    expect(host!.textContent).toContain("Aa+");
   });
 
   it("does not offer an AI import assist toggle", () => {

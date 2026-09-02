@@ -5,7 +5,6 @@ import {
   EditorContent,
   ReactNodeViewRenderer,
   useEditor,
-  useEditorState,
 } from "@tiptap/react";
 import type { AnyExtension, Editor } from "@tiptap/core";
 import { Placeholder } from "@tiptap/extensions";
@@ -23,25 +22,9 @@ import {
   isFindReplaceHotkey,
   isInsertFootnoteHotkey,
 } from "@/lib/editor/findHotkey";
-import {
-  BulletListIcon,
-  OrderedListIcon,
-  PanelCaret,
-  SearchIcon,
-} from "@/components/icons";
-import { BoldIcon } from "@/components/tiptap-icons/bold-icon";
-import { ItalicIcon } from "@/components/tiptap-icons/italic-icon";
-import { StrikeIcon } from "@/components/tiptap-icons/strike-icon";
-import { Code2Icon } from "@/components/tiptap-icons/code2-icon";
-import { LinkIcon } from "@/components/tiptap-icons/link-icon";
-import { BlockquoteIcon } from "@/components/tiptap-icons/blockquote-icon";
-import { Undo2Icon } from "@/components/tiptap-icons/undo2-icon";
-import { Redo2Icon } from "@/components/tiptap-icons/redo2-icon";
-import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
-import { CleanupToolbarButton } from "@/components/CleanupDialog";
-import { FormattingOverflowMenu } from "@/components/FormattingOverflowMenu";
+import { PanelCaret } from "@/components/icons";
 import type { DocRange } from "@/lib/editor/findReplaceInEditor";
-import { HeadingStyleMenu } from "@/components/HeadingStyleMenu";
+import { FormattingToolbar } from "@/components/FormattingToolbar";
 import { FindReplacePanel } from "@/components/FindReplacePanel";
 import { CitationInsertDialog } from "@/components/CitationInsertDialog";
 import { ShortcutCheatsheet } from "@/components/ShortcutCheatsheet";
@@ -65,8 +48,6 @@ import {
   normalizePastedHtml,
   sliceFromPastedPlainText,
 } from "@/lib/editor/normalizePastedWhitespace";
-import { ImageInsertMenu } from "@/components/ImageInsertMenu";
-import { promptForLink } from "@/lib/editor/linkShortcut";
 import { TableControls } from "@/components/TableControls";
 import {
   firstImageFile,
@@ -503,7 +484,7 @@ export function DocumentEditor({
     >
       <div className="flex flex-col h-full">
         {editor && (
-          <Toolbar
+          <FormattingToolbar
             editor={editor}
             extra={toolbarExtra}
             onOpenFind={openFind}
@@ -620,216 +601,5 @@ export function DocumentEditor({
         </div>
       </div>
     </EssaySpellcheckProvider>
-  );
-}
-
-function Toolbar({
-  editor,
-  extra,
-  onOpenFind,
-  onOpenCitation,
-  cleanupOpen,
-  onOpenCleanup,
-}: {
-  editor: Editor;
-  extra?: React.ReactNode;
-  onOpenFind: () => void;
-  onOpenCitation: () => void;
-  cleanupOpen: boolean;
-  onOpenCleanup?: () => void;
-}) {
-  const state = useEditorState({
-    editor,
-    selector: ({ editor: current }) => ({
-      bold: current.isActive("bold"),
-      italic: current.isActive("italic"),
-      code: current.isActive("code"),
-      strike: current.isActive("strike"),
-      link: current.isActive("link"),
-      blockquote: current.isActive("blockquote"),
-      bulletList: current.isActive("bulletList"),
-      orderedList: current.isActive("orderedList"),
-      canUndo: current.can().undo(),
-      canRedo: current.can().redo(),
-    }),
-  });
-
-  return (
-    <div
-      className="blogide-editor-toolbar shrink-0"
-      role="toolbar"
-      aria-label="Formatting"
-    >
-      <div className="blogide-editor-toolbar-group">
-        <ToolButton
-          title="Undo (Ctrl+Z)"
-          disabled={!state.canUndo}
-          onClick={() => editor.chain().focus().undo().run()}
-        >
-          <Undo2Icon className="blogide-tool-icon" />
-        </ToolButton>
-        <ToolButton
-          title="Redo (Ctrl+Shift+Z)"
-          disabled={!state.canRedo}
-          onClick={() => editor.chain().focus().redo().run()}
-        >
-          <Redo2Icon className="blogide-tool-icon" />
-        </ToolButton>
-      </div>
-
-      <span className="blogide-editor-toolbar-sep" aria-hidden />
-
-      <div className="blogide-editor-toolbar-group">
-        <HeadingStyleMenu editor={editor} />
-        <ToolButton
-          title="Bullet list"
-          active={state.bulletList}
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-        >
-          <BulletListIcon className="blogide-tool-icon" />
-        </ToolButton>
-        <ToolButton
-          title="Ordered list"
-          active={state.orderedList}
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        >
-          <OrderedListIcon className="blogide-tool-icon" />
-        </ToolButton>
-      </div>
-
-      <span className="blogide-editor-toolbar-sep" aria-hidden />
-
-      <div className="blogide-editor-toolbar-group">
-        <ToolButton
-          title="Bold (Ctrl+B)"
-          active={state.bold}
-          onClick={() => editor.chain().focus().toggleBold().run()}
-        >
-          <BoldIcon className="blogide-tool-icon" />
-        </ToolButton>
-        <ToolButton
-          title="Italic (Ctrl+I)"
-          active={state.italic}
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-        >
-          <ItalicIcon className="blogide-tool-icon" />
-        </ToolButton>
-        <ToolButton
-          title="Strikethrough"
-          active={state.strike}
-          onClick={() => editor.chain().focus().toggleStrike().run()}
-        >
-          <StrikeIcon className="blogide-tool-icon" />
-        </ToolButton>
-        <ToolButton
-          title="Inline code (Ctrl+E)"
-          active={state.code}
-          onClick={() => editor.chain().focus().toggleCode().run()}
-        >
-          <Code2Icon className="blogide-tool-icon" />
-        </ToolButton>
-        <FormattingOverflowMenu editor={editor} />
-        <ToolButton
-          title="Blockquote"
-          active={state.blockquote}
-          onClick={() => editor.chain().focus().toggleBlockquote().run()}
-        >
-          <BlockquoteIcon className="blogide-tool-icon" />
-        </ToolButton>
-        <ToolButton
-          title="Add or edit link (Ctrl+K)"
-          active={state.link}
-          onClick={() => {
-            void promptForLink(editor);
-          }}
-        >
-          <LinkIcon className="blogide-tool-icon" />
-        </ToolButton>
-      </div>
-
-      <span className="blogide-editor-toolbar-sep" aria-hidden />
-
-      <div className="blogide-editor-toolbar-group">
-        <SpecialCharsMenu editor={editor} />
-        <ImageInsertMenu editor={editor} />
-        <ToolButton
-          title="Divider (horizontal rule)"
-          onClick={() => editor.chain().focus().setHorizontalRule().run()}
-        >
-          Div
-        </ToolButton>
-        <ToolButton
-          title="Insert table"
-          onClick={() =>
-            editor
-              .chain()
-              .focus()
-              .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-              .run()
-          }
-        >
-          Table
-        </ToolButton>
-        <ToolButton
-          title="Insert inline math"
-          onClick={() => editor.chain().focus().insertInlineMath("x").run()}
-        >
-          TeX
-        </ToolButton>
-        <ToolButton
-          title="Insert footnote (Ctrl+Shift+F)"
-          onClick={() => editor.chain().focus().insertFootnote().run()}
-        >
-          Footnote
-        </ToolButton>
-        <ToolButton title="Insert citation from BibTeX" onClick={onOpenCitation}>
-          Cite
-        </ToolButton>
-      </div>
-
-      <span className="blogide-editor-toolbar-sep" aria-hidden />
-
-      <div className="blogide-editor-toolbar-group">
-        <ToolButton title="Find (Ctrl+F)" onClick={onOpenFind}>
-          <SearchIcon className="blogide-tool-icon" />
-        </ToolButton>
-        {onOpenCleanup && (
-          <CleanupToolbarButton open={cleanupOpen} onOpen={onOpenCleanup} />
-        )}
-      </div>
-
-      {extra ? <div className="blogide-toolbar-extra">{extra}</div> : null}
-    </div>
-  );
-}
-
-function ToolButton({
-  title,
-  active = false,
-  disabled = false,
-  onClick,
-  children,
-}: {
-  title: string;
-  active?: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-label={title}
-      disabled={disabled}
-      onClick={onClick}
-      className={`inline-flex h-8 min-w-8 items-center justify-center rounded px-2 text-[0.8125rem] leading-none disabled:opacity-40 ${
-        active
-          ? "bg-accent/15 text-accent"
-          : "text-muted hover:bg-panel hover:text-foreground"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
