@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { SettingsLabel } from "@/components/SettingsInfo";
 import { FormattingAaIcon, GrabHandle } from "@/components/icons";
@@ -11,35 +11,25 @@ import {
   moveToolbarEntry,
   normalizeToolbarLayout,
   overflowSlot,
+  parseToolbarDropKey,
+  preferToolbarDropKey,
   removeToolbarDivider,
+  toolbarSourceKey,
   TOOLBAR_ITEM_LABELS,
   unusedToolbarItems,
+  type ToolbarDropKey,
   type ToolbarItemId,
   type ToolbarLayout,
   type ToolbarLocation,
   type ToolbarSlot,
 } from "@/lib/editor/toolbarLayout";
 
-type DragPayload = ToolbarLocation & { kind: "item" | "divider" | "overflow" };
-
-function parseDrag(data: string | undefined): DragPayload | null {
-  if (!data) return null;
-  try {
-    const parsed = JSON.parse(data) as DragPayload;
-    if (
-      parsed &&
-      (parsed.zone === "bar" ||
-        parsed.zone === "overflow" ||
-        parsed.zone === "unused") &&
-      typeof parsed.index === "number"
-    ) {
-      return parsed;
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
+type DragState = {
+  source: ToolbarLocation;
+  started: boolean;
+  x: number;
+  y: number;
+};
 
 export function ToolbarLayoutEditor() {
   const { prefs, updatePrefs } = useEditorPrefs();
@@ -47,33 +37,122 @@ export function ToolbarLayoutEditor() {
     normalizeToolbarLayout(prefs.toolbarLayout)
   );
   const [dragOver, setDragOver] = useState<string | null>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const dragRef = useRef<DragState | null>(null);
 
   const unused = unusedToolbarItems(draft);
   const overflow = overflowSlot(draft);
   const dirty = !layoutsEqual(draft, prefs.toolbarLayout);
+  const lengths = {
+    bar: draft.length,
+    overflow: overflow?.items.length ?? 0,
+    unused: unused.length,
+  };
+  const stopListenRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => stopListenRef.current?.();
+  }, []);
 
   function applyMove(source: ToolbarLocation, dest: ToolbarLocation) {
     const next = moveToolbarEntry(draft, unused, source, dest);
     setDraft(next.layout);
   }
 
-  function onDragStart(event: DragEvent, payload: DragPayload) {
-    event.dataTransfer.setData("application/json", JSON.stringify(payload));
-    event.dataTransfer.effectAllowed = "move";
-  }
-
-  function onDragOver(event: DragEvent, key: string) {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-    setDragOver(key);
-  }
-
-  function onDrop(event: DragEvent, dest: ToolbarLocation) {
-    event.preventDefault();
-    setDragOver(null);
-    const source = parseDrag(event.dataTransfer.getData("application/json"));
-    if (!source) return;
+  function dropAt(key: string | undefined, source: ToolbarLocation) {
+    const dest = parseToolbarDropKey(key, lengths);
+    if (!dest) return;
     applyMove(source, dest);
+  }
+
+  function dropKeyAt(clientX: number, clientY: number, source: ToolbarLocation) {
+    const sourceKey = toolbarSourceKey(source);
+    const stack =
+      typeof document.elementsFromPoint === "function"
+        ? document.elementsFromPoint(clientX, clientY)
+        : [document.elementFromPoint(clientX, clientY)];
+    const keys: string[] = [];
+    for (const node of stack) {
+      if (!(node instanceof Element)) continue;
+      const hit = node.closest<HTMLElement>("[data-toolbar-drop]");
+      const key = hit?.getAttribute("data-toolbar-drop");
+      if (key && !keys.includes(key)) keys.push(key);
+    }
+    const preferred = preferToolbarDropKey(keys, sourceKey);
+    if (preferred && !preferred.endsWith(":end")) return preferred;
+    if (preferred?.endsWith(":end")) {
+      const zone = preferred.split(":")[0];
+      const strip = document.querySelector<HTMLElement>(
+        `[data-toolbar-drop="${preferred}"]`
+      );
+      if (strip && zone) {
+        const fromX = dropKeyFromStripX(strip, zone, clientX, sourceKey);
+        if (fromX) return fromX;
+      }
+    }
+    return preferred;
+  }
+
+  function onChipPointerDown(
+    event: PointerEvent<HTMLElement>,
+    source: ToolbarLocation,
+    onClick?: () => void
+  ) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    try {
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    } catch {
+      /* happy-dom and some browsers omit capture */
+    }
+    const pointerId = event.pointerId;
+    const next = { source, started: false, x: event.clientX, y: event.clientY };
+    dragRef.current = next;
+    setDrag(next);
+    setDragOver(null);
+
+    const onMove = (moveEvent: globalThis.PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
+      const cur = dragRef.current;
+      if (!cur) return;
+      const dist = Math.hypot(moveEvent.clientX - cur.x, moveEvent.clientY - cur.y);
+      const started = cur.started || dist >= 4;
+      if (started !== cur.started) {
+        const startedDrag = { ...cur, started };
+        dragRef.current = startedDrag;
+        setDrag(startedDrag);
+      }
+      if (!started) return;
+      setDragOver(dropKeyAt(moveEvent.clientX, moveEvent.clientY, cur.source) ?? null);
+    };
+
+    const onUp = (upEvent: globalThis.PointerEvent) => {
+      if (upEvent.pointerId !== pointerId) return;
+      stopListen();
+      const cur = dragRef.current;
+      dragRef.current = null;
+      setDrag(null);
+      setDragOver(null);
+      if (!cur) return;
+      if (!cur.started) {
+        onClick?.();
+        return;
+      }
+      dropAt(dropKeyAt(upEvent.clientX, upEvent.clientY, cur.source), cur.source);
+    };
+
+    function stopListen() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      stopListenRef.current = null;
+    }
+
+    stopListenRef.current?.();
+    stopListenRef.current = stopListen;
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
   }
 
   return (
@@ -91,30 +170,30 @@ export function ToolbarLayoutEditor() {
       <div className="toolbar-layout-zone">
         <div className="toolbar-layout-zone-label">Toolbar</div>
         <div
-          className="toolbar-layout-strip"
-          onDragOver={(event) => onDragOver(event, "bar-end")}
-          onDrop={(event) => onDrop(event, { zone: "bar", index: draft.length })}
-          onDragLeave={() => setDragOver(null)}
+          className={`toolbar-layout-strip${
+            dragOver === "bar:end" ? " is-drop" : ""
+          }`}
+          data-toolbar-drop="bar:end"
         >
           {draft.map((slot, index) => (
             <BarChip
               key={slotKey(slot, index)}
               slot={slot}
               index={index}
-              highlight={dragOver === `bar-${index}`}
-              onDragStart={(event) =>
-                onDragStart(event, {
-                  zone: "bar",
-                  index,
-                  kind: slot.type,
-                })
+              highlight={dragOver === `bar:${index}`}
+              dragging={
+                drag?.started &&
+                drag.source.zone === "bar" &&
+                drag.source.index === index
               }
-              onDragOver={(event) => onDragOver(event, `bar-${index}`)}
-              onDrop={(event) => onDrop(event, { zone: "bar", index })}
-              onRemoveDivider={
-                slot.type === "divider"
-                  ? () => setDraft(removeToolbarDivider(draft, slot.id))
-                  : undefined
+              onPointerDown={(event) =>
+                onChipPointerDown(
+                  event,
+                  { zone: "bar", index },
+                  slot.type === "divider"
+                    ? () => setDraft(removeToolbarDivider(draft, slot.id))
+                    : undefined
+                )
               }
             />
           ))}
@@ -127,16 +206,9 @@ export function ToolbarLayoutEditor() {
         </div>
         <div
           className={`toolbar-layout-strip${
-            dragOver === "overflow-end" ? " is-drop" : ""
+            dragOver === "overflow:end" ? " is-drop" : ""
           }`}
-          onDragOver={(event) => onDragOver(event, "overflow-end")}
-          onDrop={(event) =>
-            onDrop(event, {
-              zone: "overflow",
-              index: overflow?.items.length ?? 0,
-            })
-          }
-          onDragLeave={() => setDragOver(null)}
+          data-toolbar-drop="overflow:end"
         >
           {(overflow?.items ?? []).length === 0 ? (
             <span className="toolbar-layout-empty">Drop items here</span>
@@ -145,16 +217,16 @@ export function ToolbarLayoutEditor() {
               <ItemChip
                 key={id}
                 id={id}
-                highlight={dragOver === `overflow-${index}`}
-                onDragStart={(event) =>
-                  onDragStart(event, {
-                    zone: "overflow",
-                    index,
-                    kind: "item",
-                  })
+                dropKey={`overflow:${index}`}
+                highlight={dragOver === `overflow:${index}`}
+                dragging={
+                  drag?.started &&
+                  drag.source.zone === "overflow" &&
+                  drag.source.index === index
                 }
-                onDragOver={(event) => onDragOver(event, `overflow-${index}`)}
-                onDrop={(event) => onDrop(event, { zone: "overflow", index })}
+                onPointerDown={(event) =>
+                  onChipPointerDown(event, { zone: "overflow", index })
+                }
               />
             ))
           )}
@@ -165,13 +237,9 @@ export function ToolbarLayoutEditor() {
         <div className="toolbar-layout-zone-label">Available</div>
         <div
           className={`toolbar-layout-strip${
-            dragOver === "unused-end" ? " is-drop" : ""
+            dragOver === "unused:end" ? " is-drop" : ""
           }`}
-          onDragOver={(event) => onDragOver(event, "unused-end")}
-          onDrop={(event) =>
-            onDrop(event, { zone: "unused", index: unused.length })
-          }
-          onDragLeave={() => setDragOver(null)}
+          data-toolbar-drop="unused:end"
         >
           {unused.length === 0 ? (
             <span className="toolbar-layout-empty">Every control is in use</span>
@@ -180,12 +248,16 @@ export function ToolbarLayoutEditor() {
               <ItemChip
                 key={id}
                 id={id}
-                highlight={dragOver === `unused-${index}`}
-                onDragStart={(event) =>
-                  onDragStart(event, { zone: "unused", index, kind: "item" })
+                dropKey={`unused:${index}`}
+                highlight={dragOver === `unused:${index}`}
+                dragging={
+                  drag?.started &&
+                  drag.source.zone === "unused" &&
+                  drag.source.index === index
                 }
-                onDragOver={(event) => onDragOver(event, `unused-${index}`)}
-                onDrop={(event) => onDrop(event, { zone: "unused", index })}
+                onPointerDown={(event) =>
+                  onChipPointerDown(event, { zone: "unused", index })
+                }
               />
             ))
           )}
@@ -235,35 +307,47 @@ function slotKey(slot: ToolbarSlot, index: number): string {
   return `overflow-${index}`;
 }
 
+function dropKeyFromStripX(
+  strip: HTMLElement,
+  zone: string,
+  clientX: number,
+  sourceKey: string
+): string {
+  const chips = [...strip.querySelectorAll<HTMLElement>(":scope > [data-toolbar-drop]")];
+  for (const chip of chips) {
+    const key = chip.getAttribute("data-toolbar-drop");
+    if (!key || key === sourceKey || key.endsWith(":end")) continue;
+    const rect = chip.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) continue;
+    if (clientX < rect.left + rect.width / 2) return key;
+  }
+  return `${zone}:end`;
+}
+
 function BarChip({
   slot,
   index,
   highlight,
-  onDragStart,
-  onDragOver,
-  onDrop,
-  onRemoveDivider,
+  dragging,
+  onPointerDown,
 }: {
   slot: ToolbarSlot;
   index: number;
   highlight: boolean;
-  onDragStart: (event: DragEvent) => void;
-  onDragOver: (event: DragEvent) => void;
-  onDrop: (event: DragEvent) => void;
-  onRemoveDivider?: () => void;
+  dragging: boolean;
+  onPointerDown: (event: PointerEvent<HTMLElement>) => void;
 }) {
   if (slot.type === "divider") {
     return (
       <button
         type="button"
-        draggable
+        data-toolbar-drop={`bar:${index}`}
         title="Divider — drag to move, click to remove"
         aria-label={`Divider ${index + 1}`}
-        className={`toolbar-layout-chip is-divider${highlight ? " is-drop" : ""}`}
-        onDragStart={onDragStart}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
-        onClick={onRemoveDivider}
+        className={`toolbar-layout-chip is-divider${highlight ? " is-drop" : ""}${
+          dragging ? " is-dragging" : ""
+        }`}
+        onPointerDown={onPointerDown}
       >
         <GrabHandle className="toolbar-layout-grip" />
         <span className="toolbar-layout-divider-bar" />
@@ -273,12 +357,12 @@ function BarChip({
   if (slot.type === "overflow") {
     return (
       <div
-        draggable
+        data-toolbar-drop={`bar:${index}`}
         title="Aa+ overflow folder"
-        className={`toolbar-layout-chip is-overflow${highlight ? " is-drop" : ""}`}
-        onDragStart={onDragStart}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
+        className={`toolbar-layout-chip is-overflow${highlight ? " is-drop" : ""}${
+          dragging ? " is-dragging" : ""
+        }`}
+        onPointerDown={onPointerDown}
       >
         <GrabHandle className="toolbar-layout-grip" />
         <FormattingAaIcon />
@@ -289,35 +373,35 @@ function BarChip({
   return (
     <ItemChip
       id={slot.id}
+      dropKey={`bar:${index}`}
       highlight={highlight}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
+      dragging={dragging}
+      onPointerDown={onPointerDown}
     />
   );
 }
 
 function ItemChip({
   id,
+  dropKey,
   highlight,
-  onDragStart,
-  onDragOver,
-  onDrop,
+  dragging,
+  onPointerDown,
 }: {
   id: ToolbarItemId;
+  dropKey: ToolbarDropKey;
   highlight: boolean;
-  onDragStart: (event: DragEvent) => void;
-  onDragOver: (event: DragEvent) => void;
-  onDrop: (event: DragEvent) => void;
+  dragging: boolean;
+  onPointerDown: (event: PointerEvent<HTMLElement>) => void;
 }) {
   return (
     <div
-      draggable
+      data-toolbar-drop={dropKey}
       title={TOOLBAR_ITEM_LABELS[id]}
-      className={`toolbar-layout-chip${highlight ? " is-drop" : ""}`}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
+      className={`toolbar-layout-chip${highlight ? " is-drop" : ""}${
+        dragging ? " is-dragging" : ""
+      }`}
+      onPointerDown={onPointerDown}
     >
       <GrabHandle className="toolbar-layout-grip" />
       <span>{TOOLBAR_ITEM_LABELS[id]}</span>

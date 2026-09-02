@@ -6,7 +6,15 @@ most paste targets.
 
 ## Copy formats
 
-Essay menu → **Copy** is only Markdown (source) and HTML (publication HTML).
+Essay menu → **Copy**:
+
+- **Rich text** — the same formatted clipboard as selecting the essay in
+  the editor and copying (Ctrl+A / Ctrl+C). Other rich editors, including
+  Substack, paste headings, bold, quotes, and links. Footnotes stay as
+  BlogIDE’s editor marks, not native Substack notes.
+- **Markdown** — source only. Substack will treat this as plain text.
+- **HTML** — publication HTML with linked endnotes.
+
 **Prepare publish** opens Cleanup → Publish, where the copy buttons describe
 the footnote shape rather than a platform name:
 
@@ -101,6 +109,7 @@ Two paths:
 
 | Action | Clipboard | File | Footnotes |
 | --- | --- | --- | --- |
+| Copy → Rich text | Editor HTML + plain | — | BlogIDE footnote marks |
 | Copy → Markdown | Markdown | — | GFM `[^1]` |
 | Copy → HTML | HTML + readable plain | — | Linked endnotes |
 | Cleanup → Superscript numbers | HTML + readable plain | — | Static `<sup>` + Notes |
@@ -122,6 +131,12 @@ never the markdown source.
    body only).
 3. Open DevTools on that tab (F12) → Console.
 4. Cleanup → Publish → **Copy helper script**, paste, Enter.
+
+Markers HTML is paste-sanitized for Substack: `<sup>` / `<sub>` inside
+quotes are unwrapped (Substack otherwise drops the whole blockquote), and
+each Notes item is flattened to one paragraph so a path URL on its own
+line does not split the item and shift later numbers. The helper also
+ignores leftover `[n]` text inside the Notes section.
 
 The script finds `[1]` / `[^1]`, calls `insertFootnote()`, fills each note
 from the trailing Notes list (keeping bold/links from the paste), then

@@ -1452,9 +1452,11 @@ html.app-shell-lock body {
 .footnote-card-editor sup,
 .footnote-sidenote-body sup,
 .bible-ref-card-passage sup {
-  font-size: 0.72em;
-  line-height: 0;
-  vertical-align: super;
+  font-size: 0.7em;
+  line-height: 1;
+  position: relative;
+  top: -0.25em;
+  vertical-align: baseline;
 }
 
 .editor-prose sub,
@@ -1477,9 +1479,11 @@ html.app-shell-lock body {
   line-height: 1;
   margin: 0 0.08em;
   padding: 0.12em 0.22em;
+  position: relative;
+  top: -0.25em;
   touch-action: none;
   user-select: none;
-  vertical-align: super;
+  vertical-align: baseline;
 }
 .footnote-ref:hover,
 .footnote-ref:focus-visible,
@@ -2024,7 +2028,12 @@ body.is-dragging-footnote-ref.is-footnote-drop-blocked {
   gap: 0.3rem;
   line-height: 1;
   padding: 0.3rem 0.45rem;
+  touch-action: none;
   user-select: none;
+}
+.toolbar-layout-chip.is-dragging {
+  cursor: grabbing;
+  opacity: 0.45;
 }
 .toolbar-layout-chip.is-drop {
   border-color: var(--accent);

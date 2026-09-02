@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { htmlForPublishTarget } from "@/lib/export/clipboardHtml";
+import {
+  flattenToParagraph,
+  htmlForPublishTarget,
+} from "@/lib/export/clipboardHtml";
 import { htmlToPlainText } from "@/lib/export/htmlPlain";
 import { SUBSTACK_FOOTNOTE_HELPER } from "@/lib/export/substackEditorHelper";
 
@@ -63,6 +66,85 @@ describe("htmlForPublishTarget", () => {
     expect(plain).toContain("A cited claim.");
     expect(htmlForPublishTarget(SAMPLE, "substack-native").html).toBe(html);
   });
+
+  it("keeps a blockquote that contained superscripts, without <sup> tags", () => {
+    const md = `---
+title: Quote
+---
+
+> Energy is mc<sup>2</sup> in this quote.
+
+Hello[^1].
+
+[^1]: A cited claim.
+`;
+    const { html } = htmlForPublishTarget(md, "markers");
+    expect(html).toContain("<blockquote>");
+    expect(html).toMatch(/mc2|mc²/);
+    expect(html).not.toContain("<sup>");
+    expect(html).toContain("[1]");
+  });
+
+  it("keeps a path URL inside one Notes item so later numbers stay aligned", () => {
+    const md = `---
+title: Linked note
+---
+
+First[^1] then[^2].
+
+[^1]: See [this piece](https://example.com/foo/bar/baz) for the claim.
+
+[^2]: Second note stays second.
+`;
+    const { html } = htmlForPublishTarget(md, "markers");
+    expect(html).toContain("[1]");
+    expect(html).toContain("[2]");
+    const notes = html.split(/<p>Notes<\/p>/)[1] ?? "";
+    const items = notes.match(/<li[\s\S]*?<\/li>/g) ?? [];
+    expect(items).toHaveLength(2);
+    expect(items[0]).toContain('href="https://example.com/foo/bar/baz"');
+    expect(items[0]).toContain("this piece");
+    expect(items[1]).toContain("Second note stays second.");
+    expect(items[0].match(/<p>/g)?.length ?? 0).toBeLessThanOrEqual(1);
+  });
+
+  it("joins a stacked note (sentence plus path URL) into one list item", () => {
+    const md = `---
+title: Stacked note
+---
+
+First[^1] then[^2].
+
+[^1]: See the source.
+    https://example.com/foo/bar
+
+[^2]: Second note stays second.
+`;
+    const { html } = htmlForPublishTarget(md, "markers");
+    const notes = html.split(/<p>Notes<\/p>/)[1] ?? "";
+    const items = notes.match(/<li[\s\S]*?<\/li>/g) ?? [];
+    expect(items).toHaveLength(2);
+    expect(items[0]).toContain("See the source");
+    expect(items[0]).toMatch(/example\.com\/foo\/bar/);
+    expect(items[1]).toContain("Second note stays second.");
+  });
+});
+
+describe("flattenToParagraph", () => {
+  it("joins stacked note blocks and keeps a path link", () => {
+    const doc = new DOMParser().parseFromString(
+      `<li><p>Intro sentence.</p><p><a href="https://example.com/a/b/c">https://example.com/a/b/c</a></p></li>`,
+      "text/html"
+    );
+    const li = doc.querySelector("li");
+    expect(li).toBeTruthy();
+    const p = flattenToParagraph(doc, li!);
+    expect(p.querySelectorAll("p")).toHaveLength(0);
+    expect(p.textContent).toContain("Intro sentence");
+    expect(p.querySelector("a")?.getAttribute("href")).toBe(
+      "https://example.com/a/b/c"
+    );
+  });
 });
 
 describe("htmlToPlainText", () => {
@@ -80,6 +162,7 @@ describe("SUBSTACK_FOOTNOTE_HELPER", () => {
     expect(SUBSTACK_FOOTNOTE_HELPER).not.toContain("http://");
     expect(SUBSTACK_FOOTNOTE_HELPER).not.toContain("https://");
     expect(SUBSTACK_FOOTNOTE_HELPER).toContain("Notes");
+    expect(SUBSTACK_FOOTNOTE_HELPER).toContain("cutoff");
   });
 
   it("uses a marker regex that matches [1] and [^1]", () => {

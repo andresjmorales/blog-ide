@@ -149,6 +149,107 @@ function replaceEndnotesWithList(
   section.replaceWith(frag);
 }
 
+const INLINE_TAGS = new Set([
+  "a",
+  "em",
+  "strong",
+  "b",
+  "i",
+  "u",
+  "s",
+  "code",
+  "span",
+]);
+
+/** Drop `<sup>` / `<sub>` but keep their text (Substack drops some blocks that contain them). */
+export function unwrapSupSub(root: ParentNode): void {
+  for (const el of [...root.querySelectorAll("sup, sub")]) {
+    el.replaceWith(...el.childNodes);
+  }
+}
+
+function appendInlineClone(
+  doc: Document,
+  target: Element,
+  node: Node
+): void {
+  if (node.nodeType === Node.TEXT_NODE) {
+    target.appendChild(doc.createTextNode(node.textContent ?? ""));
+    return;
+  }
+  if (!(node instanceof HTMLElement)) return;
+  const tag = node.tagName.toLowerCase();
+  if (tag === "br") {
+    target.appendChild(doc.createTextNode(" "));
+    return;
+  }
+  if (tag === "sup" || tag === "sub") {
+    for (const child of [...node.childNodes]) appendInlineClone(doc, target, child);
+    return;
+  }
+  if (tag === "a") {
+    const a = doc.createElement("a");
+    const href = node.getAttribute("href");
+    if (href) a.setAttribute("href", href);
+    for (const child of [...node.childNodes]) appendInlineClone(doc, a, child);
+    if (a.textContent || href) target.appendChild(a);
+    return;
+  }
+  if (INLINE_TAGS.has(tag)) {
+    const clone = doc.createElement(tag);
+    for (const child of [...node.childNodes]) appendInlineClone(doc, clone, child);
+    if (clone.childNodes.length) target.appendChild(clone);
+    return;
+  }
+  if (target.childNodes.length && !/\s$/.test(target.textContent ?? "")) {
+    target.appendChild(doc.createTextNode(" "));
+  }
+  for (const child of [...node.childNodes]) appendInlineClone(doc, target, child);
+}
+
+/** One paragraph of phrasing content so Substack will not split a list item. */
+export function flattenToParagraph(doc: Document, source: Element): HTMLParagraphElement {
+  const p = doc.createElement("p");
+  for (const child of [...source.childNodes]) appendInlineClone(doc, p, child);
+  return p;
+}
+
+function flattenBlockquotes(doc: Document, root: ParentNode): void {
+  for (const quote of [...root.querySelectorAll("blockquote")]) {
+    quote.replaceChildren(flattenToParagraph(doc, quote));
+  }
+}
+
+function notesList(root: ParentNode): HTMLOListElement | null {
+  const heading = [...root.querySelectorAll("p")].find(
+    (p) => (p.textContent ?? "").trim() === SUBSTACK_NOTES_HEADING
+  );
+  const after = heading?.nextElementSibling;
+  if (after instanceof HTMLOListElement) return after;
+  const lists = [...root.querySelectorAll("ol")];
+  return lists[lists.length - 1] ?? null;
+}
+
+function flattenNotesItems(doc: Document, root: ParentNode): void {
+  const list = notesList(root);
+  if (!list) return;
+  for (const li of [...list.children]) {
+    if (!(li instanceof HTMLLIElement)) continue;
+    li.replaceChildren(flattenToParagraph(doc, li));
+  }
+}
+
+/**
+ * Substack's paste sanitizer drops some blocks that contain `<sup>` and
+ * splits list items that have nested block tags (a URL on its own line
+ * inside a note is the usual case). Markers HTML has to stay simple.
+ */
+export function sanitizeMarkersHtml(doc: Document, root: HTMLElement): void {
+  unwrapSupSub(root);
+  flattenBlockquotes(doc, root);
+  flattenNotesItems(doc, root);
+}
+
 /** Paste-safe: superscripts + Notes list. No hash links. */
 function formatSuperscripts(doc: Document, root: HTMLElement): void {
   replaceRefsWithSup(doc, root);
@@ -162,6 +263,7 @@ function formatSuperscripts(doc: Document, root: HTMLElement): void {
 function formatMarkers(doc: Document, root: HTMLElement): void {
   replaceRefsWithMarkers(doc, root);
   replaceEndnotesWithList(doc, root, { heading: true });
+  sanitizeMarkersHtml(doc, root);
 }
 
 /** Linked endnotes for HTML files / CMSs that keep href + id. */
