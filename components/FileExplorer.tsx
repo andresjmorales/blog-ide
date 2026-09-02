@@ -50,6 +50,8 @@ type Props = {
   onPullFromGithub?: (nodeId: string) => void;
   githubByNode?: Map<string, GithubMapStatus>;
   loading?: boolean;
+  /** Overrides the default "Loading workspace…" copy (retry countdown, etc.). */
+  loadingLabel?: string;
   error?: string | null;
 };
 
@@ -144,6 +146,7 @@ export function FileExplorer({
   onPullFromGithub,
   githubByNode,
   loading,
+  loadingLabel,
   error,
 }: Props) {
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -415,7 +418,9 @@ export function FileExplorer({
       </div>
 
       {loading && (
-        <p className="text-xs text-muted">Loading workspace…</p>
+        <p className="text-xs text-muted" role="status" aria-live="polite">
+          {loadingLabel ?? "Loading workspace…"}
+        </p>
       )}
       {error && (
         <p className="mb-2 text-xs text-red-600 dark:text-red-400">{error}</p>

@@ -57,6 +57,29 @@ beforeEach(() => {
 });
 
 describe("openDocument", () => {
+  it("falls back to the local copy when the remote fetch hangs", async () => {
+    vi.useFakeTimers();
+    try {
+      const nodeId = freshNodeId();
+      await putLocalDoc({
+        nodeId,
+        markdown: "# Local essay\n",
+        updatedAt: new Date().toISOString(),
+        dirty: false,
+        baseVersion: 3,
+      });
+      mockFetchRemote.mockReturnValue(new Promise(() => {}));
+
+      const pending = openDocument(nodeId);
+      await vi.advanceTimersByTimeAsync(8_000);
+      const opened = await pending;
+      expect(opened.markdown).toBe("# Local essay\n");
+      expect(opened.baseVersion).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("falls back to the local copy when the remote fetch fails (offline)", async () => {
     const nodeId = freshNodeId();
     await putLocalDoc({

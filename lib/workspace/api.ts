@@ -1,4 +1,9 @@
 import { createClient } from "@/lib/supabase/client";
+import {
+  requestTimeoutSignal,
+  SYNC_WRITE_TIMEOUT_MS,
+  WORKSPACE_READ_TIMEOUT_MS,
+} from "@/lib/net/timeout";
 import type {
   ConflictResolution,
   CreateDocumentConflictCopyResult,
@@ -14,8 +19,18 @@ function client() {
   return createClient();
 }
 
-export async function ensureDefaultWorkspace(): Promise<DefaultWorkspaceIds> {
-  const { data, error } = await client().rpc("ensure_default_workspace");
+function readSignal(signal?: AbortSignal): AbortSignal {
+  return signal ?? requestTimeoutSignal(WORKSPACE_READ_TIMEOUT_MS);
+}
+
+export async function ensureDefaultWorkspace(
+  signal?: AbortSignal
+): Promise<DefaultWorkspaceIds> {
+  const { data, error } = await client().rpc(
+    "ensure_default_workspace",
+    {},
+    { abortSignal: readSignal(signal) }
+  );
   if (error) throw error;
   const payload = data as DefaultWorkspaceIds;
   if (!payload || typeof payload !== "object") {
@@ -24,22 +39,27 @@ export async function ensureDefaultWorkspace(): Promise<DefaultWorkspaceIds> {
   return payload;
 }
 
-export async function listWorkspaceNodes(): Promise<WorkspaceNode[]> {
+export async function listWorkspaceNodes(
+  signal?: AbortSignal
+): Promise<WorkspaceNode[]> {
   const { data, error } = await client()
     .from("workspace_nodes")
     .select("*")
-    .order("position", { ascending: true });
+    .order("position", { ascending: true })
+    .abortSignal(readSignal(signal));
   if (error) throw error;
   return (data ?? []) as WorkspaceNode[];
 }
 
 export async function fetchRemoteDocument(
-  nodeId: string
+  nodeId: string,
+  signal?: AbortSignal
 ): Promise<RemoteDocument | null> {
   const { data, error } = await client()
     .from("documents")
     .select("*")
     .eq("node_id", nodeId)
+    .abortSignal(readSignal(signal))
     .maybeSingle();
   if (error) throw error;
   return data as RemoteDocument | null;
@@ -50,11 +70,15 @@ export async function saveDocumentRemote(
   markdown: string,
   baseVersion: number
 ): Promise<SaveDocumentResult> {
-  const { data, error } = await client().rpc("save_document", {
-    p_node_id: nodeId,
-    p_markdown: markdown,
-    p_base_version: baseVersion,
-  });
+  const { data, error } = await client().rpc(
+    "save_document",
+    {
+      p_node_id: nodeId,
+      p_markdown: markdown,
+      p_base_version: baseVersion,
+    },
+    { abortSignal: requestTimeoutSignal(SYNC_WRITE_TIMEOUT_MS) }
+  );
   if (error) throw error;
   return data as SaveDocumentResult;
 }

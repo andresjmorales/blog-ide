@@ -13,6 +13,10 @@ type Props = {
   detail?: string | null;
   onRetry: () => void;
   retrying?: boolean;
+  /** Automatic retry countdown (seconds). */
+  retryInSec?: number | null;
+  /** Open the last essay cached on this device without a cloud tree. */
+  onContinueOffline?: (() => void) | null;
 };
 
 /**
@@ -25,6 +29,8 @@ export function WorkspaceConnectionDialog({
   detail,
   onRetry,
   retrying = false,
+  retryInSec = null,
+  onContinueOffline = null,
 }: Props) {
   if (!open) return null;
 
@@ -70,6 +76,12 @@ export function WorkspaceConnectionDialog({
           </details>
         ) : null}
 
+        {retryInSec != null && retryInSec > 0 && !retrying ? (
+          <p className="workspace-connection-retry" role="status" aria-live="polite">
+            Retrying in {retryInSec}…
+          </p>
+        ) : null}
+
         <div className="app-dialog-actions">
           <button
             type="button"
@@ -78,6 +90,15 @@ export function WorkspaceConnectionDialog({
           >
             Leave editor
           </button>
+          {onContinueOffline ? (
+            <button
+              type="button"
+              className="app-dialog-btn"
+              onClick={onContinueOffline}
+            >
+              Open last essay on this device
+            </button>
+          ) : null}
           <button
             type="button"
             className="app-dialog-btn is-primary"

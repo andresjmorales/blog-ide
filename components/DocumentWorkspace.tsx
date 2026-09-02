@@ -34,6 +34,7 @@ import {
 } from "@/lib/markdown/pipeline";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 import { getLocalDoc } from "@/lib/db/indexed";
+import { BOOT_SLOW_HINT_MS, OPEN_DOC_FLUSH_TIMEOUT_MS, withTimeout } from "@/lib/net/timeout";
 import {
   fastForwardDocument,
   flushSyncQueue,
@@ -284,6 +285,7 @@ export function DocumentWorkspace({
   const [cleanupTab, setCleanupTab] = useState<CleanupTab>("import");
   const [cleanupEditor, setCleanupEditor] = useState<Editor | null>(null);
   const [loading, setLoading] = useState(false);
+  const [openingSlow, setOpeningSlow] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [baseVersion, setBaseVersion] = useState(1);
   const editorRef = useRef<Editor | null>(null);
@@ -451,6 +453,15 @@ export function DocumentWorkspace({
     return saveLocal(pending.nodeId, pending.markdown, baseVersionRef.current);
   }, []);
 
+  useEffect(() => {
+    if (!loading) {
+      setOpeningSlow(false);
+      return;
+    }
+    const id = window.setTimeout(() => setOpeningSlow(true), BOOT_SLOW_HINT_MS);
+    return () => window.clearTimeout(id);
+  }, [loading]);
+
   // Load document when node changes.
   useEffect(() => {
     let cancelled = false;
@@ -473,8 +484,10 @@ export function DocumentWorkspace({
       setLoading(true);
       setLoadError(null);
       try {
-        // Flush previous doc before switching.
-        await flushSyncQueue();
+        // Don't let a hung sync queue block opening the local copy.
+        await withTimeout(flushSyncQueue(), OPEN_DOC_FLUSH_TIMEOUT_MS).catch(
+          () => undefined
+        );
         const opened = await openDocument(nodeId);
         if (cancelled) return;
         pendingLocalRef.current = null;
@@ -1786,8 +1799,18 @@ export function DocumentWorkspace({
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted">
-        Opening document…
+      <div
+        className="flex h-full flex-col items-center justify-center px-6 text-center text-sm text-muted"
+        role="status"
+        aria-live="polite"
+      >
+        <p>{openingSlow ? "Still opening…" : "Opening document…"}</p>
+        {openingSlow ? (
+          <p className="mt-2 max-w-sm text-xs">
+            If the cloud does not respond, BlogIDE will use the copy on this
+            device.
+          </p>
+        ) : null}
       </div>
     );
   }

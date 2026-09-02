@@ -87,6 +87,38 @@ describe("WorkspaceConnectionDialog", () => {
     expect(onRetry).toHaveBeenCalledOnce();
   });
 
+  it("shows an automatic retry countdown", () => {
+    render(
+      <WorkspaceConnectionDialog
+        open
+        kind="network"
+        retryInSec={8}
+        onRetry={() => {}}
+      />
+    );
+    expect(container.textContent).toContain("Retrying in 8…");
+  });
+
+  it("offers a local-essay continue action", () => {
+    const onContinue = vi.fn();
+    render(
+      <WorkspaceConnectionDialog
+        open
+        kind="network"
+        onRetry={() => {}}
+        onContinueOffline={onContinue}
+      />
+    );
+    const continueBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent?.includes("Open last essay")
+    );
+    expect(continueBtn).toBeTruthy();
+    act(() => {
+      continueBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(onContinue).toHaveBeenCalledOnce();
+  });
+
   it("disables retry while retrying", () => {
     render(
       <WorkspaceConnectionDialog

@@ -21,8 +21,9 @@ export default function ConnectionHelpPage() {
         BlogIDE’s editor loads from <strong className="text-foreground">blogide.com</strong>,
         but your files sync through a separate cloud API (
         <code className="text-foreground">*.supabase.co</code>). If that second
-        connection is blocked or broken by a work network, you’ll see a
-        connection error even though the website itself loads fine.
+        connection is blocked, dropped, or rewritten by a work network, the
+        editor retries on a countdown and then shows a connection error.
+        Essays already on this device usually stay available.
       </p>
 
       <section className="mb-8 space-y-3">
@@ -40,6 +41,11 @@ export default function ConnectionHelpPage() {
           <li>
             <span className="text-foreground">Another browser / private window</span>{" "}
             with extensions off.
+          </li>
+          <li>
+            <span className="text-foreground">Wait for the retry countdown</span>{" "}
+            before assuming the app is stuck. A content filter that drops
+            packets can look like a frozen “Loading…” until BlogIDE times out.
           </li>
           <li>
             <span className="text-foreground">Sign out, then sign in</span>, and
