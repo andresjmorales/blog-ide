@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { appendQuickNote } from "@/lib/capture/appendQuickNote";
 import { collapseBroadcastNotes, type ChannelCaptureNote } from "@/lib/capture/broadcastNotes";
 import { parseCaptureNotes } from "@/lib/capture/format";
+import { requestCaptureRefresh } from "@/lib/capture/refresh";
 import {
   loadLastCaptureChannelId,
   saveLastCaptureChannelId,
@@ -85,6 +86,7 @@ export function TerminalCapture({
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pulling, setPulling] = useState(false);
   const [history, setHistory] = useState<HistoryLine[]>([]);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -279,11 +281,23 @@ export function TerminalCapture({
           </select>
           <button
             type="button"
-            className="rounded px-1.5 py-0.5 text-muted hover:text-foreground"
-            onClick={() => void loadHistory()}
-            title="Refresh"
+            className="rounded px-1.5 py-0.5 text-muted hover:text-foreground disabled:opacity-40"
+            onClick={() => {
+              if (pulling) return;
+              void (async () => {
+                setPulling(true);
+                try {
+                  await requestCaptureRefresh();
+                  await loadHistory();
+                } finally {
+                  setPulling(false);
+                }
+              })();
+            }}
+            disabled={pulling}
+            title="Pull from Pushbullet and ntfy, then reload this list"
           >
-            refresh
+            {pulling ? "pulling…" : "refresh"}
           </button>
         </div>
 

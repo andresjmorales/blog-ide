@@ -1,3 +1,4 @@
+import { registerCaptureIngest } from "@/lib/capture/refresh";
 import { channelDisplayName, listInboxChannels } from "@/lib/workspace/tree";
 import type { WorkspaceNode } from "@/lib/workspace/types";
 import { PushbulletApiError, pushbulletStreamUrl } from "@/lib/pushbullet/client";
@@ -179,10 +180,12 @@ export function startPushbulletCapture(getNodes: GetNodes): CaptureSession {
   window.addEventListener(PUSHBULLET_TOKEN_EVENT, onTokenChange);
   document.addEventListener("visibilitychange", onVisibility);
   window.addEventListener("focus", onVisibility);
+  const unregisterIngest = registerCaptureIngest(ingest);
 
   return {
     stop() {
       stopped = true;
+      unregisterIngest();
       if (pollTimer != null) window.clearInterval(pollTimer);
       if (retryTimer != null) window.clearTimeout(retryTimer);
       if (deviceTimer != null) window.clearTimeout(deviceTimer);
