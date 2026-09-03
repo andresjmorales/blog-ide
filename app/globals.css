@@ -417,7 +417,8 @@ body {
   flex-direction: column;
   gap: 0.45rem;
   min-height: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 0.4rem 0.4rem 0.6rem;
 }
 .cite-search-row {
@@ -445,18 +446,20 @@ body {
 .cite-results,
 .cite-essay {
   display: flex;
-  flex: 1;
+  flex: 0 0 auto;
   flex-direction: column;
   min-height: 0;
-  overflow: hidden;
 }
 .cite-hit-list,
 .cite-essay-list {
   list-style: none;
   margin: 0;
-  min-height: 0;
-  overflow-y: auto;
   padding: 0;
+}
+.cite-hit {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.35rem;
+  margin-bottom: 0.35rem;
 }
 .cite-hit-main,
 .cite-essay-item {

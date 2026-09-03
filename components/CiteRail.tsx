@@ -475,33 +475,33 @@ function CiteHitRow({
           </p>
           {hit.bibtex && (
             <details className="cite-bibtex">
-              <summary>BibTeX</summary>
+              <summary>Raw BibTeX</summary>
               <pre>{hit.bibtex}</pre>
             </details>
           )}
-          <div className="cite-hit-actions">
-            <button type="button" className="cite-action is-primary" onClick={onInsertFootnote}>
-              Insert footnote
-            </button>
-            <button type="button" className="cite-action" onClick={onCopy}>
-              {copied ? "Copied" : "Copy"}
-            </button>
-            <button type="button" className="cite-action" onClick={onInsertCaret}>
-              Insert at caret
-            </button>
-            {hit.bibtex && (
-              <button type="button" className="cite-action" onClick={onCopyBibtex}>
-                BibTeX
-              </button>
-            )}
-            {hit.zotero && connected && (
-              <a className="cite-zotero-link" href={zoteroSelectHref(hit.zotero)}>
-                Open in Zotero
-              </a>
-            )}
-          </div>
         </div>
       )}
+      <div className="cite-hit-actions">
+        <button type="button" className="cite-action is-primary" onClick={onInsertFootnote}>
+          Insert footnote
+        </button>
+        <button type="button" className="cite-action" onClick={onCopy}>
+          {copied ? "Copied" : "Copy"}
+        </button>
+        <button type="button" className="cite-action" onClick={onInsertCaret}>
+          Insert at caret
+        </button>
+        {hit.bibtex && (
+          <button type="button" className="cite-action" onClick={onCopyBibtex}>
+            BibTeX
+          </button>
+        )}
+        {hit.zotero && connected && (
+          <a className="cite-zotero-link" href={zoteroSelectHref(hit.zotero)}>
+            Open in Zotero
+          </a>
+        )}
+      </div>
     </li>
   );
 }
