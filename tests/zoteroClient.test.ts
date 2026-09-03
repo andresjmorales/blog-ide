@@ -76,10 +76,10 @@ describe("zotero helpers", () => {
   it("searches Zotero with the read-only query the spec describes", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      expect(url).toContain("https://api.zotero.org/users/123/items");
+      expect(url).toContain("https://api.zotero.org/users/123/items/top");
       expect(url).toContain("q=Nussbaum");
       expect(url).toContain("qmode=titleCreatorYear");
-      expect(url).toContain("itemType=-note");
+      expect(url).not.toContain("itemType=");
       expect(url).toContain("include=data%2Ccitation%2Cbibtex");
       expect(url).not.toContain("secret-key");
       expect(init?.headers).toBeInstanceOf(Headers);

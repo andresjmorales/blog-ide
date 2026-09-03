@@ -176,6 +176,7 @@ import {
   type PanelId,
   type PanelLayout,
 } from "@/lib/panels/layout";
+import { OPEN_LIBRARY_CITE_EVENT } from "@/lib/citations/openLibraryCite";
 
 const MIN_PANEL = 180;
 const MAX_PANEL = 480;
@@ -546,6 +547,20 @@ function AppShellContent({
     },
     [commitLayout, syncFloatingPins]
   );
+
+  useEffect(() => {
+    function onOpenLibraryCite() {
+      if (isDockablePanelPinOpen("library")) {
+        openToolPanelPin("library", PANEL_LABELS.library);
+        return;
+      }
+      applyLayout(showPanel(prefsRef.current.panelLayout, "library"));
+    }
+    window.addEventListener(OPEN_LIBRARY_CITE_EVENT, onOpenLibraryCite);
+    return () => {
+      window.removeEventListener(OPEN_LIBRARY_CITE_EVENT, onOpenLibraryCite);
+    };
+  }, [applyLayout]);
 
   // Prefs restore floating ids across refresh; pin windows are session-only
   // until this runs and re-opens them.

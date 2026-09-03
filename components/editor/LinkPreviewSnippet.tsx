@@ -4,12 +4,11 @@ import { useState } from "react";
 import { AddToLibraryButton } from "@/components/library/AddToLibraryButton";
 import { ExternalLinkIcon } from "@/components/icons";
 import type { LinkPreview } from "@/lib/preview/openGraph";
+import { citeLinkedUrl } from "@/lib/citations/libraryCite";
 
 /**
  * Compact OG chrome for the link bubble: fixed thumbnail, one-line summary,
- * Open (new tab) and Pin and read here.
- *
- * Future: add a Cite button here once a Zotero API integration exists.
+ * Open (new tab), Pin and read here, save to Library, and cite.
  */
 export function LinkPreviewSnippet({
   url,
@@ -82,7 +81,13 @@ export function LinkPreviewSnippet({
         <button type="button" onClick={onPinAndRead}>
           Pin and read here
         </button>
-        {/* Future: add a Cite button here once a Zotero API integration exists. */}
+        <button
+          type="button"
+          title="Cite this link in the essay"
+          onClick={() => citeLinkedUrl(url, title)}
+        >
+          Cite
+        </button>
         <AddToLibraryButton url={url} title={title} variant="hover" />
       </div>
     </div>

@@ -9,7 +9,7 @@ type Props = {
   onClose: () => void;
 };
 
-/** Narrow-viewport Cite sheet. Desktop uses the Cite rail instead. */
+/** Narrow-viewport Cite sheet. Desktop opens the Library panel instead. */
 export function CitationInsertDialog({ editor, open, onClose }: Props) {
   return (
     <CiteRail

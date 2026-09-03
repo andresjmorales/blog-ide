@@ -165,7 +165,7 @@ lib/pins/             Floating pin / pop-out session store
 lib/preview/          Publication HTML, SSRF helpers, OG helpers, reader extracts
 lib/github/           One-way GitHub backup (PAT, maps, Git Data push)
 lib/zotero/           Read-only Zotero Web API client and device-local key
-lib/citations/        BibTeX format, Cite rail helpers, clipboard copy
+lib/citations/        BibTeX format, Library Cite helpers, clipboard copy
 lib/secrets/          Encrypted account vault for capture integrations
 lib/pushbullet/       Optional Pushbullet → Notes channel capture
 lib/ntfy/             Optional ntfy → Notes channel capture

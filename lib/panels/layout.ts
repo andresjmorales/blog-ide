@@ -56,7 +56,7 @@ export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
   },
   sizes: {
     left: 240,
-    right: 320,
+    right: 360,
     bottom: 220,
   },
 };

@@ -4,7 +4,7 @@
  * human copy; this index is for restyle, jump-to, and offline re-copy.
  */
 
-export type EssayCitationProvider = "zotero" | "bibtex";
+export type EssayCitationProvider = "zotero" | "bibtex" | "library";
 
 export type EssayCitationFormatted = {
   "chicago-note"?: string;
@@ -52,7 +52,13 @@ export function parseEssayCitationsJson(payload: string): EssayCitation[] {
     for (const entry of parsed) {
       if (!isRecord(entry)) continue;
       if (typeof entry.id !== "string" || !entry.id) continue;
-      if (entry.provider !== "zotero" && entry.provider !== "bibtex") continue;
+      if (
+        entry.provider !== "zotero" &&
+        entry.provider !== "bibtex" &&
+        entry.provider !== "library"
+      ) {
+        continue;
+      }
       if (typeof entry.citeKey !== "string") continue;
       if (typeof entry.title !== "string") continue;
       const footnoteIds = Array.isArray(entry.footnoteIds)

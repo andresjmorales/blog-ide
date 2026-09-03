@@ -170,7 +170,7 @@ Essay-aware rules:
 - Convert footnote hyperlinks like [1](#footnote-1) or similar into GFM footnotes: body uses [^1] and definitions use [^1]: note text at the end.
 - If the doc already has [^1] in the prose AND a trailing block of bare [^1] / [^2] lines each followed by note paragraphs, MERGE those paragraphs into [^n]: definitions and DELETE the bare trailing markers. Do not create a second set of footnotes.
 - Preserve footnote wording; do not invent notes or citations.
-- Do not add or invent <!--blogide-citations:…--> trailers. Those are BlogIDE-only snapshots written by the Cite rail.
+- Do not add or invent <!--blogide-citations:…--> trailers. Those are BlogIDE-only snapshots written by Library Cite.
 - Normalize headings to ATX (# ## ### ####). The essay title belongs in frontmatter title:, not as a body Heading 1. Do not invent a title if none exists.
 - Turn indented quote-looking paragraphs into markdown blockquotes (> ).
 - Remove leftover footnote navigation chrome ("Jump to footnote", back-ref arrows, "Share", subscribe CTAs, like counts, author bio footers that are clearly platform chrome).
