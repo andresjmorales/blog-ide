@@ -19,7 +19,7 @@ import {
 import {
   openLinkEditor,
 } from "@/lib/editor/linkShortcut";
-import { PinIcon } from "@/components/icons";
+import { PinIcon, TrashIcon } from "@/components/icons";
 import {
   clearFindHighlights,
   scrollMatchIntoView,
@@ -397,6 +397,23 @@ export function FootnoteNodeView({
       hoverOpenTimer.current = null;
     }
   }, []);
+
+  const deleteThisFootnote = useCallback(() => {
+    if (hoverCloseTimer.current) {
+      clearTimeout(hoverCloseTimer.current);
+      hoverCloseTimer.current = null;
+    }
+    if (getFootnoteFindSession()?.footnoteId === footnoteId) {
+      setFootnoteFindSession(null);
+    }
+    stickyFootnoteIds.delete(footnoteId);
+    pinnedFootnoteIds.delete(footnoteId);
+    cardPositions.delete(footnoteId);
+    setSticky(false);
+    setPinned(false);
+    setOpen(false);
+    outerEditor.commands.deleteFootnote(footnoteId);
+  }, [footnoteId, outerEditor]);
 
   const commitAndClose = useCallback(() => {
     if (hoverCloseTimer.current) {
@@ -896,16 +913,27 @@ export function FootnoteNodeView({
               if (prefs.footnoteOpenOnHover) scheduleHoverClose();
             }}
             headerActions={
-              <button
-                type="button"
-                className="pinned-surface-btn"
-                onClick={togglePinned}
-                aria-pressed={pinned}
-                title={pinned ? "Unpin footnote" : "Pin footnote"}
-                aria-label={pinned ? "Unpin footnote" : "Pin footnote"}
-              >
-                <PinIcon />
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="pinned-surface-btn footnote-card-delete"
+                  onClick={deleteThisFootnote}
+                  title="Delete footnote"
+                  aria-label="Delete footnote"
+                >
+                  <TrashIcon />
+                </button>
+                <button
+                  type="button"
+                  className="pinned-surface-btn"
+                  onClick={togglePinned}
+                  aria-pressed={pinned}
+                  title={pinned ? "Unpin footnote" : "Pin footnote"}
+                  aria-label={pinned ? "Unpin footnote" : "Pin footnote"}
+                >
+                  <PinIcon />
+                </button>
+              </>
             }
           >
             {editorBody}
@@ -936,6 +964,15 @@ export function FootnoteNodeView({
                   <span>Footnote {number}</span>
                 </span>
                 <span className="footnote-card-actions">
+                  <button
+                    type="button"
+                    className="footnote-card-delete"
+                    onClick={deleteThisFootnote}
+                    title="Delete footnote"
+                    aria-label="Delete footnote"
+                  >
+                    <TrashIcon />
+                  </button>
                   <button
                     type="button"
                     onClick={commitAndClose}

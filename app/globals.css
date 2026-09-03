@@ -331,8 +331,308 @@ body {
   font-variant-numeric: tabular-nums;
   margin: 0.05rem 0 0;
 }
+.editor-left-rails {
+  display: none;
+  flex-direction: row;
+  flex-shrink: 0;
+  min-height: 0;
+}
+.cite-rail {
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-height: 0;
+  width: 2.25rem;
+}
+.cite-rail.is-open {
+  width: 13.5rem;
+}
+.cite-rail-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 0.7rem;
+  font-weight: 650;
+  gap: 0.35rem;
+  justify-content: space-between;
+  letter-spacing: 0.06em;
+  padding: 0.55rem 0.5rem;
+  text-transform: uppercase;
+  width: 100%;
+}
+.cite-rail-toggle:hover {
+  background: var(--panel);
+  color: var(--foreground);
+}
+.cite-rail:not(.is-open) .cite-rail-toggle-label {
+  letter-spacing: 0.08em;
+  margin-top: 0.6rem;
+  writing-mode: vertical-rl;
+}
+.cite-rail:not(.is-open) .cite-rail-toggle {
+  flex-direction: column-reverse;
+  gap: 0.6rem;
+  justify-content: flex-start;
+  letter-spacing: 0;
+  padding: 0.55rem 0.15rem;
+}
+.cite-rail-splitter {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  cursor: row-resize;
+  flex-shrink: 0;
+  height: 0.45rem;
+  padding: 0;
+  width: 100%;
+}
+.cite-rail-splitter:hover,
+.cite-rail-splitter:focus-visible {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.editor-left-rails.is-stacked {
+  border-right: 1px solid var(--border);
+  flex-direction: column;
+  width: 13.5rem;
+}
+.editor-left-rails.is-stacked .doc-outline,
+.editor-left-rails.is-stacked .cite-rail {
+  border-right: 0;
+  flex: 1 1 var(--cite-outline-basis, 55%);
+  min-height: 0;
+  width: auto;
+}
+.editor-left-rails.is-stacked .cite-rail {
+  flex-basis: var(--cite-rail-basis, 45%);
+}
+.cite-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0.4rem 0.4rem 0.6rem;
+}
+.cite-search-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.cite-search,
+.cite-style select,
+.cite-paste-input {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--foreground);
+  font-size: 0.72rem;
+  outline: none;
+  padding: 0.28rem 0.4rem;
+  width: 100%;
+}
+.cite-search:focus,
+.cite-style select:focus,
+.cite-paste-input:focus {
+  border-color: var(--accent);
+}
+.cite-results,
+.cite-essay {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.cite-hit-list,
+.cite-essay-list {
+  list-style: none;
+  margin: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0;
+}
+.cite-hit-main,
+.cite-essay-item {
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--foreground);
+  cursor: pointer;
+  display: block;
+  padding: 0.28rem 0.35rem;
+  text-align: left;
+  width: 100%;
+}
+.cite-hit-main:hover,
+.cite-essay-item:hover:not(:disabled) {
+  background: var(--panel);
+}
+.cite-essay-item:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+.cite-hit-meta,
+.cite-empty,
+.cite-error {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+.cite-hit-title,
+.cite-essay-title {
+  display: block;
+  font-size: 0.76rem;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cite-hit-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.15rem 0.3rem 0.4rem;
+}
+.cite-preview-text {
+  color: var(--foreground);
+  font-size: 0.7rem;
+  line-height: 1.4;
+  margin: 0;
+  white-space: pre-wrap;
+}
+.cite-hit-actions,
+.cite-paste-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.cite-action {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 0.65rem;
+  padding: 0.15rem 0.35rem;
+}
+.cite-action:hover,
+.cite-action.is-primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.cite-file {
+  display: inline-flex;
+  align-items: center;
+}
+.cite-bibtex {
+  font-size: 0.65rem;
+}
+.cite-bibtex pre {
+  font-size: 0.62rem;
+  margin: 0.25rem 0 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+.cite-zotero-link {
+  color: var(--muted);
+  font-size: 0.65rem;
+  padding: 0.15rem 0.2rem;
+}
+.cite-essay-head,
+.cite-paste-toggle {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+.cite-essay h3,
+.cite-paste-toggle {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  margin: 0.2rem 0;
+  padding: 0;
+  text-transform: uppercase;
+}
+.cite-paste-toggle {
+  cursor: pointer;
+  width: 100%;
+}
+.cite-paste-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  min-height: 6.5rem;
+  resize: vertical;
+}
+.cite-edited {
+  color: var(--accent);
+  font-size: 0.6rem;
+  letter-spacing: 0.04em;
+  margin-left: 0.3rem;
+  text-transform: uppercase;
+}
+.cite-error {
+  color: #b45309;
+}
+.cite-sheet {
+  inset: 0;
+  position: fixed;
+  z-index: 200;
+}
+.cite-sheet-backdrop {
+  background: rgb(0 0 0 / 40%);
+  border: 0;
+  inset: 0;
+  position: absolute;
+}
+.cite-sheet-panel {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 16px 40px rgb(0 0 0 / 25%);
+  display: flex;
+  flex-direction: column;
+  inset: 0.75rem;
+  max-height: calc(100dvh - 1.5rem);
+  position: absolute;
+}
+.cite-sheet-header {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  padding: 0.7rem 0.85rem;
+}
+.cite-sheet-header h2 {
+  font-size: 0.9rem;
+  font-weight: 650;
+  margin: 0;
+}
+.cite-sheet-close {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.cite-sheet-panel .cite-panel {
+  flex: 1;
+  padding: 0.65rem 0.75rem 0.85rem;
+}
 @media (min-width: 768px) {
   .doc-outline {
+    display: flex;
+  }
+  .editor-left-rails {
     display: flex;
   }
 }
@@ -1595,6 +1895,11 @@ body.is-dragging-footnote-ref.is-footnote-drop-blocked {
   background: color-mix(in srgb, var(--accent) 15%, transparent);
   border-color: var(--accent);
   color: var(--accent);
+}
+.footnote-card-heading .footnote-card-actions button.footnote-card-delete:hover,
+.pinned-surface-btn.footnote-card-delete:hover {
+  border-color: color-mix(in srgb, #c2410c 45%, var(--border));
+  color: #c2410c;
 }
 .footnote-card-toolbar {
   align-items: center;

@@ -170,6 +170,7 @@ Essay-aware rules:
 - Convert footnote hyperlinks like [1](#footnote-1) or similar into GFM footnotes: body uses [^1] and definitions use [^1]: note text at the end.
 - If the doc already has [^1] in the prose AND a trailing block of bare [^1] / [^2] lines each followed by note paragraphs, MERGE those paragraphs into [^n]: definitions and DELETE the bare trailing markers. Do not create a second set of footnotes.
 - Preserve footnote wording; do not invent notes or citations.
+- Do not add or invent <!--blogide-citations:…--> trailers. Those are BlogIDE-only snapshots written by the Cite rail.
 - Normalize headings to ATX (# ## ### ####). The essay title belongs in frontmatter title:, not as a body Heading 1. Do not invent a title if none exists.
 - Turn indented quote-looking paragraphs into markdown blockquotes (> ).
 - Remove leftover footnote navigation chrome ("Jump to footnote", back-ref arrows, "Share", subscribe CTAs, like counts, author bio footers that are clearly platform chrome).
@@ -187,6 +188,7 @@ Footnotes (important — do not confuse with body prose):
   [^2]: Another note.
 - When reading or critiquing the essay, treat definition lines as asides / endnotes, not as continuation of the main argument. Do not summarize or quote footnote definitions as if they were body paragraphs unless the user asked about the notes.
 - When rewriting the full document, keep markers in the body and matching [^n]: definitions at the end; preserve ids and wording unless the user asked to change the notes. Do not inline footnote text into the main essay.
+- If a <!--blogide-citations:…--> comment is present, leave it unchanged. Do not invent citation snapshots.
 
 Apply / rewrite protocol:
 - When the user asks you to rewrite, edit, tighten, or expand the whole essay: return ONLY the complete markdown document (keep frontmatter if present). No preamble or code fences.

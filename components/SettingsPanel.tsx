@@ -31,6 +31,7 @@ import {
 } from "@/lib/billing/plans";
 import { ProfilePhotoField } from "@/components/avatar/ProfilePhotoField";
 import { GitHubSettingsSection } from "@/components/GitHubSettingsSection";
+import { ZoteroSettingsSection } from "@/components/ZoteroSettingsSection";
 import { NtfySettingsSection } from "@/components/NtfySettingsSection";
 import { PushbulletSettingsSection } from "@/components/PushbulletSettingsSection";
 import { closeBiblePin } from "@/lib/pins/pinStore";
@@ -646,6 +647,8 @@ function SettingsDialog({
                   </p>
                 )}
               </section>
+
+              <ZoteroSettingsSection />
 
               <GitHubSettingsSection
                 previewMode={previewMode}
