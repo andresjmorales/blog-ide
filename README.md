@@ -12,12 +12,12 @@ by design.
 - **First-class footnotes** — inline notes, sidenote rail or anchored notes,
   pin/drag cards, delete from the note popup, deleted-note archive,
   Substack-style paste repair
-- **Library + Cite** — one research panel (right dock, or pop it out as a
-  floating window). Search Zotero (read-only Web API key, device-local) or
-  paste BibTeX, insert a Chicago note as a footnote, copy the same string,
-  and keep a small used-sources index on the essay. Saved PDFs and
-  bookmarks stay pin/open/recall; a cited hyperlink can be saved back to
-  Library for later. Toolbar Cite opens this panel (sheet on a phone).
+- **Library + Cite** — one research panel (right dock, or pop it out).
+  Saved links and PDFs share a compact list with Zotero search and pasted
+  BibTeX. Expand a row for cite / open / remove. PDFs open and pin; they
+  are not formatted citations. Cited here is the essay’s used-sources
+  list (Copy list for a bibliography). Toolbar Cite opens this panel
+  (sheet on a phone).
 - **Workspace** — folder/document/link tree, Trash, Notes channels, a seeded
   scratchpad you can rename or trash, phone terminal capture + desktop Shell,
   optional Pushbullet or ntfy capture into those channels (Pushbullet REST

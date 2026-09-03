@@ -84,10 +84,11 @@ export function HelpPanel({ open, onClose }: Props) {
             are listed and never imported as a new essay. Click a
             link (or Ctrl+K) for the link menu with Open Graph preview, Open,
             Pin, and Library. The{" "}
-            <strong>Library</strong> panel (right dock, or pop it out) holds
-            research PDFs, bookmarks, and citations: search Zotero or paste
-            BibTeX, insert a footnote, and cite a saved link later. Toolbar
-            Cite opens that panel (or a sheet on a phone). Use the essay
+            <strong>Library</strong> panel (right dock, or pop it out) is
+            one list of saved links, PDFs, Zotero hits, and pasted BibTeX.
+            Expand a row to cite, open, or remove it. Cited here is the
+            bibliography for footnotes already in the essay (Copy list).
+            Toolbar Cite opens that panel (or a sheet on a phone). Use the essay
             menu → Preview in new tab for
             publication-style HTML. Copy → Rich text is the same formatted
             paste as selecting the essay and copying. Copy → Markdown copies

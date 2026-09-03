@@ -18,8 +18,44 @@ export type CiteHit = {
   formatted: string;
   bibtex: string;
   url?: string;
+  /** Session Library row id when this hit is a saved PDF or bookmark. */
+  libraryId?: string;
   zotero?: ZoteroSearchHit;
 };
+
+/** Compact kind chip: zotero / bibtex / link / pdf. */
+export function hitKindLabel(hit: CiteHit): string {
+  if (hit.provider === "zotero") return "zotero";
+  if (hit.provider === "bibtex") return "bibtex";
+  if (hit.itemType === "pdf") return "pdf";
+  if (hit.itemType === "link" || hit.url) return "link";
+  return hit.itemType || "item";
+}
+
+export function hitCanCite(hit: CiteHit): boolean {
+  return hitKindLabel(hit) !== "pdf";
+}
+
+/** Idle Library list: saved items + pasted BibTeX, not essay snapshots. */
+export function listBrowseHits(
+  sessionHits: CiteHit[],
+  libraryHits: CiteHit[]
+): CiteHit[] {
+  return mergeHits(sessionHits, libraryHits);
+}
+
+export function listSearchHits(
+  remoteHits: CiteHit[],
+  sessionHits: CiteHit[],
+  essayHits: CiteHit[],
+  libraryHits: CiteHit[],
+  query: string
+): CiteHit[] {
+  return mergeHits(
+    remoteHits,
+    filterHits([...sessionHits, ...libraryHits, ...essayHits], query)
+  );
+}
 
 function yearFromFields(fields: Record<string, string>): string {
   const raw = fields.year ?? fields.date ?? "";

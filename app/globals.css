@@ -394,21 +394,18 @@ body {
   overflow: visible;
   padding: 0;
 }
-.library-saved {
+.library-adders {
   border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+  gap: 0.4rem;
   margin-top: 0.35rem;
-  min-height: 0;
-  padding-top: 0.65rem;
+  padding-top: 0.55rem;
 }
-.library-saved-heading {
-  color: var(--muted);
-  font-size: 0.66rem;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  margin: 0 0 0.35rem;
-  text-transform: uppercase;
+.library-adder-row,
+.library-adder-form {
+  display: flex;
+  gap: 0.4rem;
 }
 .cite-panel {
   display: flex;
@@ -457,20 +454,38 @@ body {
 }
 .cite-hit {
   border-bottom: 1px solid var(--border);
-  padding-bottom: 0.35rem;
-  margin-bottom: 0.35rem;
+  margin: 0;
+  padding: 0.05rem 0;
 }
 .cite-hit-main,
 .cite-essay-item {
+  align-items: center;
   background: transparent;
   border: 0;
   border-radius: 4px;
   color: var(--foreground);
   cursor: pointer;
-  display: block;
-  padding: 0.28rem 0.35rem;
+  display: flex;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.22rem 0.2rem;
   text-align: left;
   width: 100%;
+}
+.cite-hit-caret {
+  color: var(--muted);
+  flex-shrink: 0;
+  transition: transform 0.12s ease;
+}
+.cite-hit.is-expanded .cite-hit-caret {
+  transform: rotate(90deg);
+}
+.cite-hit-kind {
+  color: var(--muted);
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 .cite-hit-main:hover,
 .cite-essay-item:hover:not(:disabled) {
@@ -490,11 +505,22 @@ body {
 .cite-hit-title,
 .cite-essay-title {
   display: block;
+  flex: 1;
   font-size: 0.76rem;
   line-height: 1.3;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.cite-essay-row {
+  align-items: center;
+  display: flex;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.cite-essay-row .cite-essay-item {
+  flex: 1;
 }
 .cite-hit-preview {
   display: flex;
@@ -528,6 +554,10 @@ body {
 .cite-action.is-primary {
   border-color: var(--accent);
   color: var(--accent);
+}
+.cite-action-danger:hover {
+  border-color: #b45309;
+  color: #b45309;
 }
 .cite-file {
   display: inline-flex;

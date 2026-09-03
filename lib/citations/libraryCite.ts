@@ -44,6 +44,7 @@ export function hitFromLibraryEntry(entry: LibraryMeta): CiteHit {
     formatted,
     bibtex: "",
     url: entry.url,
+    libraryId: entry.id,
   };
 }
 
