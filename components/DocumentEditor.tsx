@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  lazy,
-  Suspense,
-  useEffect,
-  useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-  type ReactNode,
-} from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   EditorContent,
   ReactNodeViewRenderer,
@@ -34,8 +26,10 @@ import { PanelCaret } from "@/components/icons";
 import type { DocRange } from "@/lib/editor/findReplaceInEditor";
 import { FormattingToolbar } from "@/components/FormattingToolbar";
 import { FindReplacePanel } from "@/components/FindReplacePanel";
-import { CiteRail } from "@/components/CiteRail";
+import { CitationInsertDialog } from "@/components/CitationInsertDialog";
 import { ShortcutCheatsheet } from "@/components/ShortcutCheatsheet";
+import { getEssayEditor, setEssayEditor } from "@/lib/citations/essayEditor";
+import { requestOpenLibraryCite } from "@/lib/citations/openLibraryCite";
 import { DocumentOutline } from "@/components/DocumentOutline";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { useAppDialog } from "@/components/AppDialog";
@@ -94,9 +88,6 @@ type Props = {
   /** Controlled outline rail (split mode snapshots / restores this). */
   outlineOpen?: boolean;
   onOutlineOpenChange?: (open: boolean) => void;
-  /** Controlled Cite rail (split mode snapshots / restores this). */
-  citeOpen?: boolean;
-  onCiteOpenChange?: (open: boolean) => void;
 };
 
 function withEditorNodeViews(extension: AnyExtension): AnyExtension {
@@ -156,8 +147,6 @@ export function DocumentEditor({
   onOpenCleanup,
   outlineOpen: outlineOpenProp,
   onOutlineOpenChange,
-  citeOpen: citeOpenProp,
-  onCiteOpenChange,
 }: Props) {
   const { prefs, updatePrefs } = useEditorPrefs();
   const dialog = useAppDialog();
@@ -171,16 +160,8 @@ export function DocumentEditor({
     if (onOutlineOpenChange) onOutlineOpenChange(value);
     else setOutlineOpenLocal(value);
   };
-  const [citeOpenLocal, setCiteOpenLocal] = useState(false);
-  const citeOpen = citeOpenProp ?? citeOpenLocal;
-  const setCiteOpen = (next: boolean | ((prev: boolean) => boolean)) => {
-    const value = typeof next === "function" ? next(citeOpen) : next;
-    if (onCiteOpenChange) onCiteOpenChange(value);
-    else setCiteOpenLocal(value);
-  };
+  const [citeSheetOpen, setCiteSheetOpen] = useState(false);
   const [narrowViewport, setNarrowViewport] = useState(false);
-  const [leftSplit, setLeftSplit] = useState(0.55);
-  const leftRailsRef = useRef<HTMLDivElement | null>(null);
   const [findOpen, setFindOpen] = useState(false);
   /** Bumped on every Ctrl+F / Find click so an already-open panel refocuses. */
   const [findFocusNonce, setFindFocusNonce] = useState(0);
@@ -197,7 +178,6 @@ export function DocumentEditor({
       : prefs.spellcheckLanguages;
   const lang = primaryLang(effectiveLanguages);
   const harperDialect = dialectFromLang(lang);
-  const leftStacked = outlineOpen && citeOpen;
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 767px)");
@@ -206,34 +186,6 @@ export function DocumentEditor({
     media.addEventListener("change", sync);
     return () => media.removeEventListener("change", sync);
   }, []);
-
-  function onLeftSplitPointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
-    const root = leftRailsRef.current;
-    if (!root) return;
-    event.preventDefault();
-    const startY = event.clientY;
-    const start = leftSplit;
-    const height = root.getBoundingClientRect().height;
-    const pointerId = event.pointerId;
-    const target = event.currentTarget;
-    target.setPointerCapture(pointerId);
-    function onMove(moveEvent: PointerEvent) {
-      if (height <= 0) return;
-      const next = start + (moveEvent.clientY - startY) / height;
-      setLeftSplit(Math.min(0.75, Math.max(0.25, next)));
-    }
-    function onUp() {
-      target.removeEventListener("pointermove", onMove);
-      target.removeEventListener("pointerup", onUp);
-      try {
-        target.releasePointerCapture(pointerId);
-      } catch {
-        /* already released */
-      }
-    }
-    target.addEventListener("pointermove", onMove);
-    target.addEventListener("pointerup", onUp);
-  }
 
   // Avoid re-serializing / setContent loops on every parent render.
   const lastEmittedRef = useRef(markdown);
@@ -496,8 +448,10 @@ export function DocumentEditor({
 
   useEffect(() => {
     if (editorRef) editorRef.current = editor;
+    setEssayEditor(editor ?? null);
     return () => {
       if (editorRef) editorRef.current = null;
+      if (getEssayEditor() === editor) setEssayEditor(null);
     };
   }, [editor, editorRef]);
 
@@ -547,7 +501,10 @@ export function DocumentEditor({
             editor={editor}
             extra={toolbarExtra}
             onOpenFind={openFind}
-            onOpenCitation={() => setCiteOpen(true)}
+            onOpenCitation={() => {
+              if (narrowViewport) setCiteSheetOpen(true);
+              else requestOpenLibraryCite();
+            }}
             cleanupOpen={cleanupOpen}
             onOpenCleanup={onOpenCleanup}
           />
@@ -573,44 +530,19 @@ export function DocumentEditor({
         )}
         <div className="flex min-h-0 flex-1">
           {editor && (
-            <div
-              ref={leftRailsRef}
-              className={`editor-left-rails ${leftStacked ? "is-stacked" : ""}`}
-              style={
-                leftStacked
-                  ? {
-                      ["--cite-outline-basis" as string]: `${Math.round(leftSplit * 100)}%`,
-                      ["--cite-rail-basis" as string]: `${Math.round((1 - leftSplit) * 100)}%`,
-                    }
-                  : undefined
-              }
-            >
+            <div className="editor-left-rails">
               <DocumentOutline
                 editor={editor}
                 open={outlineOpen}
                 onToggle={() => setOutlineOpen((open) => !open)}
               />
-              {leftStacked && (
-                <button
-                  type="button"
-                  className="cite-rail-splitter"
-                  aria-label="Resize outline and cite"
-                  onPointerDown={onLeftSplitPointerDown}
-                />
-              )}
-              <CiteRail
-                editor={editor}
-                open={citeOpen}
-                onToggle={() => setCiteOpen((open) => !open)}
-              />
             </div>
           )}
           {editor && narrowViewport && (
-            <CiteRail
+            <CitationInsertDialog
               editor={editor}
-              open={citeOpen}
-              onToggle={() => setCiteOpen((open) => !open)}
-              variant="sheet"
+              open={citeSheetOpen}
+              onClose={() => setCiteSheetOpen(false)}
             />
           )}
           {/* Prose + optional bottom dock — between Outline and Notes rail. */}

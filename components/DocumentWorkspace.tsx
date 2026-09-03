@@ -268,11 +268,9 @@ export function DocumentWorkspace({
   const modeRef = useRef(mode);
   const [sourceText, setSourceText] = useState("");
   const [outlineOpen, setOutlineOpen] = useState(true);
-  const [citeOpen, setCiteOpen] = useState(false);
   /** Outline/sidenotes before entering split/source — restored on exit. */
   const [railsSnapshot, setRailsSnapshot] = useState<{
     outlineOpen: boolean;
-    citeOpen: boolean;
     sidenotes: boolean;
   } | null>(null);
   /** Apply sidenotes restore after render (avoid updatePrefs during render). */
@@ -351,7 +349,6 @@ export function DocumentWorkspace({
     setMode("wysiwyg");
     if (railsSnapshot) {
       setOutlineOpen(railsSnapshot.outlineOpen);
-      setCiteOpen(railsSnapshot.citeOpen);
       setPendingSidenotesRestore(railsSnapshot.sidenotes);
       setRailsSnapshot(null);
     }
@@ -1308,18 +1305,15 @@ export function DocumentWorkspace({
     if (railsSnapshot) return;
     setRailsSnapshot({
       outlineOpen,
-      citeOpen,
       sidenotes: prefs.sidenotes,
     });
     setOutlineOpen(false);
-    setCiteOpen(false);
     if (prefs.sidenotes) updatePrefs({ sidenotes: false });
   }
 
   function restoreRailsFromMarkdown() {
     if (!railsSnapshot) return;
     setOutlineOpen(railsSnapshot.outlineOpen);
-    setCiteOpen(railsSnapshot.citeOpen);
     updatePrefs({ sidenotes: railsSnapshot.sidenotes });
     setRailsSnapshot(null);
   }
@@ -2043,8 +2037,6 @@ export function DocumentWorkspace({
         onOpenCleanup={() => openCleanup("import")}
         outlineOpen={outlineOpen}
         onOutlineOpenChange={setOutlineOpen}
-        citeOpen={citeOpen}
-        onCiteOpenChange={setCiteOpen}
       />
       <EssaySettingsPanel
         open={essaySettingsOpen}

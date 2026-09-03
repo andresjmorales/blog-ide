@@ -54,6 +54,18 @@ import {
   ZOTERO_CONFIG_EVENT,
   type ZoteroConfig,
 } from "@/lib/zotero/token";
+import { hitFromLibraryEntry } from "@/lib/citations/libraryCite";
+import {
+  getEssayEditor,
+  subscribeEssayEditor,
+} from "@/lib/citations/essayEditor";
+import { OPEN_LIBRARY_CITE_EVENT } from "@/lib/citations/openLibraryCite";
+import {
+  getLibraryServerSnapshot,
+  listLibraryEntries,
+  subscribeLibrary,
+} from "@/lib/library/sessionLibrary";
+import { useSyncExternalStore } from "react";
 
 const SEARCH_DEBOUNCE_MS = 320;
 
@@ -141,7 +153,17 @@ export function CiteRail({
   );
 }
 
-function CitePanel({ editor }: { editor: Editor }) {
+export function CitePanel({
+  editor: editorProp,
+}: {
+  editor?: Editor | null;
+}) {
+  const storeEditor = useSyncExternalStore(
+    subscribeEssayEditor,
+    getEssayEditor,
+    () => null
+  );
+  const editor = editorProp ?? storeEditor;
   const { prefs } = useEditorPrefs();
   const [config, setConfig] = useState<ZoteroConfig>(() => loadZoteroConfig());
   const [style, setStyle] = useState<CiteStyleId>(
@@ -158,6 +180,12 @@ function CitePanel({ editor }: { editor: Editor }) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [citationsTick, setCitationsTick] = useState(0);
   const searchGen = useRef(0);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const libraryEntries = useSyncExternalStore(
+    subscribeLibrary,
+    listLibraryEntries,
+    getLibraryServerSnapshot
+  );
 
   const connected = isZoteroConnected(config);
 
@@ -172,6 +200,7 @@ function CitePanel({ editor }: { editor: Editor }) {
   }, [prefs.dashStyle]);
 
   useEffect(() => {
+    if (!editor) return;
     const bump = () => setCitationsTick((n) => n + 1);
     editor.on("update", bump);
     editor.on("transaction", bump);
@@ -181,12 +210,23 @@ function CitePanel({ editor }: { editor: Editor }) {
     };
   }, [editor]);
 
+  useEffect(() => {
+    function focusSearch() {
+      window.setTimeout(() => searchRef.current?.focus(), 40);
+    }
+    window.addEventListener(OPEN_LIBRARY_CITE_EVENT, focusSearch);
+    return () => window.removeEventListener(OPEN_LIBRARY_CITE_EVENT, focusSearch);
+  }, []);
+
   void citationsTick;
-  const essayCitations = readEssayCitations(editor);
-  const used = listUsedEssaySources(essayCitations, editor.state.doc, style);
+  const essayCitations = editor ? readEssayCitations(editor) : [];
+  const used = editor
+    ? listUsedEssaySources(essayCitations, editor.state.doc, style)
+    : [];
   const essayHits = essayCitations.map((citation) =>
     hitFromEssayCitation(citation, style)
   );
+  const libraryHits = libraryEntries.map(hitFromLibraryEntry);
 
   useEffect(() => {
     const q = query.trim();
@@ -218,7 +258,10 @@ function CitePanel({ editor }: { editor: Editor }) {
   const q = query.trim();
   const remoteHits = q && connected ? zoteroHits : [];
   const results = (() => {
-    const local = filterHits([...sessionHits, ...essayHits], q);
+    const local = filterHits(
+      [...sessionHits, ...essayHits, ...libraryHits],
+      q
+    );
     if (!q) return local.slice(0, 12);
     return mergeHits(remoteHits, local);
   })();
@@ -290,8 +333,9 @@ function CitePanel({ editor }: { editor: Editor }) {
       <div className="cite-search-row">
         <input
           type="search"
+          ref={searchRef}
           className="cite-search"
-          placeholder="Search sources"
+          placeholder="Search Zotero, this essay, or saved items"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           aria-label="Search citations"
@@ -319,9 +363,9 @@ function CitePanel({ editor }: { editor: Editor }) {
           <p className="cite-empty">
             {query.trim()
               ? connected
-                ? "No matches in Zotero or this essay."
-                : "No matches in this essay. Connect Zotero in Settings, or paste BibTeX."
-              : "Connect Zotero in Settings, paste BibTeX, or drop a .bib."}
+                ? "No matches in Zotero, this essay, or saved items."
+                : "No matches here. Connect Zotero in Settings, or paste BibTeX."
+              : "Search Zotero, paste BibTeX, or pick a saved PDF / link below."}
           </p>
         )}
         {results.length > 0 && (
@@ -337,7 +381,7 @@ function CitePanel({ editor }: { editor: Editor }) {
                   setExpandedId((current) => (current === hit.id ? null : hit.id))
                 }
                 onInsertFootnote={() => {
-                  if (!hit.formatted) return;
+                  if (!editor || !hit.formatted) return;
                   insertCitationFootnote(
                     editor,
                     citationFromHit(hit, style),
@@ -345,7 +389,7 @@ function CitePanel({ editor }: { editor: Editor }) {
                   );
                 }}
                 onInsertCaret={() => {
-                  if (!hit.formatted) return;
+                  if (!editor || !hit.formatted) return;
                   insertCitationAtCaret(
                     editor,
                     citationFromHit(hit, style),
@@ -365,7 +409,9 @@ function CitePanel({ editor }: { editor: Editor }) {
         style={style}
         connected={connected}
         copiedId={copiedId}
-        onJump={(pos) => scrollFootnoteIntoView(editor, pos)}
+        onJump={(pos) => {
+          if (editor) scrollFootnoteIntoView(editor, pos);
+        }}
         onCopy={(id, text) => void copyText(id, text)}
         onCopyWorksCited={() =>
           void copyText("works-cited", worksCitedBlock(used, style))
@@ -382,9 +428,15 @@ function CitePanel({ editor }: { editor: Editor }) {
                   }
                   const next = citationFromHit(hitFromZotero(fresh), style);
                   next.footnoteIds = row.citation.footnoteIds;
-                  updateCitationSnapshot(editor, next);
-                  if (row.footnote) {
-                    rewriteFootnoteContent(editor, row.footnote.id, fresh.citation);
+                  if (editor) {
+                    updateCitationSnapshot(editor, next);
+                    if (row.footnote) {
+                      rewriteFootnoteContent(
+                        editor,
+                        row.footnote.id,
+                        fresh.citation
+                      );
+                    }
                   }
                   setError(null);
                 } catch (err) {

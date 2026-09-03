@@ -84,8 +84,11 @@ export function HelpPanel({ open, onClose }: Props) {
             are listed and never imported as a new essay. Click a
             link (or Ctrl+K) for the link menu with Open Graph preview, Open,
             Pin, and Library. The{" "}
-            <strong>Library</strong> panel (right dock) holds
-            research PDFs and bookmarks. Use the essay menu → Preview in new tab for
+            <strong>Library</strong> panel (right dock, or pop it out) holds
+            research PDFs, bookmarks, and citations: search Zotero or paste
+            BibTeX, insert a footnote, and cite a saved link later. Toolbar
+            Cite opens that panel (or a sheet on a phone). Use the essay
+            menu → Preview in new tab for
             publication-style HTML. Copy → Rich text is the same formatted
             paste as selecting the essay and copying. Copy → Markdown copies
             the source. Copy → HTML pastes publication HTML. Prepare publish
@@ -151,9 +154,10 @@ export function HelpPanel({ open, onClose }: Props) {
               and Publish check; Text → Clean whitespace joins wrapped lines
               to spaces and keeps blank lines; Aa+ = extra formatting (inline
               code, superscript, subscript, code block, convert case) and is
-              customizable under Settings → Editor; Cite opens a
-              source rail (or a sheet on a phone) to search Zotero or
-              paste BibTeX, insert a footnote, or copy a Chicago note
+              customizable under Settings → Editor; Cite opens the
+              Library panel (or a sheet on a phone) to search Zotero,
+              saved items, or paste BibTeX, insert a footnote, or copy a
+              Chicago note
             </li>
             <li>
               <kbd>?</kbd>: shortcut cheatsheet (when not typing in the essay)

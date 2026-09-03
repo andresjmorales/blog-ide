@@ -71,7 +71,7 @@ export function ZoteroSettingsSection() {
     <section className="settings-section">
       <h3>
         Zotero
-        <SettingsInfo text="Search your Zotero library from the Cite rail and insert Chicago notes as BlogIDE footnotes. Create a key with library read only — BlogIDE never writes items. The key stays in this browser, not in Supabase." />
+        <SettingsInfo text="Search your Zotero library from the Library panel (toolbar Cite, or pop the panel out) and insert Chicago notes as BlogIDE footnotes. Create a key with library read only — BlogIDE never writes items. The key stays in this browser, not in Supabase." />
       </h3>
       <p className="settings-help">
         Off until a key is saved.{" "}

@@ -590,7 +590,7 @@ export function openToolPanelPin(
       panelId,
       title,
       ...defaultPlacement({
-        width: panelId === "files" ? 280 : 360,
+        width: panelId === "files" ? 280 : panelId === "library" ? 420 : 360,
         height: 520,
       }),
       zIndex: claimFloatZ(),

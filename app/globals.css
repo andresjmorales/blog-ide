@@ -381,35 +381,34 @@ body {
   letter-spacing: 0;
   padding: 0.55rem 0.15rem;
 }
-.cite-rail-splitter {
-  background: transparent;
-  border: 0;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  cursor: row-resize;
-  flex-shrink: 0;
-  height: 0.45rem;
-  padding: 0;
-  width: 100%;
-}
-.cite-rail-splitter:hover,
-.cite-rail-splitter:focus-visible {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-}
-.editor-left-rails.is-stacked {
-  border-right: 1px solid var(--border);
+.library-panel {
+  display: flex;
+  flex: 1;
   flex-direction: column;
-  width: 13.5rem;
-}
-.editor-left-rails.is-stacked .doc-outline,
-.editor-left-rails.is-stacked .cite-rail {
-  border-right: 0;
-  flex: 1 1 var(--cite-outline-basis, 55%);
+  gap: 0.15rem;
   min-height: 0;
-  width: auto;
+  padding: 0.65rem 0.75rem 0.85rem;
 }
-.editor-left-rails.is-stacked .cite-rail {
-  flex-basis: var(--cite-rail-basis, 45%);
+.library-panel .cite-panel {
+  flex: 0 0 auto;
+  overflow: visible;
+  padding: 0;
+}
+.library-saved {
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  margin-top: 0.35rem;
+  min-height: 0;
+  padding-top: 0.65rem;
+}
+.library-saved-heading {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.35rem;
+  text-transform: uppercase;
 }
 .cite-panel {
   display: flex;

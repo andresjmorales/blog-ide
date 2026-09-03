@@ -218,13 +218,14 @@ export async function searchZoteroItems(
 ): Promise<ZoteroSearchHit[]> {
   const q = query.trim();
   if (!q) return [];
+  // /items/top is parent records only (no child PDFs or notes). A combined
+  // itemType=-note || -attachment filter is rejected as Invalid itemType.
   const items = await zoteroFetch<ZoteroItemResponse[]>(
     config,
-    `${libraryPath(config)}/items`,
+    `${libraryPath(config)}/items/top`,
     {
       q,
       qmode: "titleCreatorYear",
-      itemType: "-note || -attachment",
       include: includeForStyle(style),
       style,
       limit: String(Math.min(50, Math.max(1, limit))),

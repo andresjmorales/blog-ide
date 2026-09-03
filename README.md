@@ -12,9 +12,12 @@ by design.
 - **First-class footnotes** — inline notes, sidenote rail or anchored notes,
   pin/drag cards, delete from the note popup, deleted-note archive,
   Substack-style paste repair
-- **Cite rail** — search Zotero (read-only Web API key, device-local) or
+- **Library + Cite** — one research panel (right dock, or pop it out as a
+  floating window). Search Zotero (read-only Web API key, device-local) or
   paste BibTeX, insert a Chicago note as a footnote, copy the same string,
-  and keep a small used-sources index on the essay. Lives beside Outline.
+  and keep a small used-sources index on the essay. Saved PDFs and
+  bookmarks stay pin/open/recall; a cited hyperlink can be saved back to
+  Library for later. Toolbar Cite opens this panel (sheet on a phone).
 - **Workspace** — folder/document/link tree, Trash, Notes channels, a seeded
   scratchpad you can rename or trash, phone terminal capture + desktop Shell,
   optional Pushbullet or ntfy capture into those channels (Pushbullet REST
@@ -23,10 +26,11 @@ by design.
 - **Local-first sync** — IndexedDB autosave, optimistic Supabase sync, conflict
   copies, hard per-user quota (default 10 MiB combined)
 - **Research surfaces** — pop-out documents, link hover/Pin, cloud Library
-  (PDFs + site bookmarks under quota; bookmark from hover/pin), publication
-  Preview, pre-publish link/image check, image compress + Storage upload with
-  progress, clearer errors, alt text on the selected figure, broken-image
-  cards, combined quota accounting, and zip export that bundles owned assets
+  (PDFs + site bookmarks under quota; bookmark or cite from hover/pin),
+  publication Preview, pre-publish link/image check, image compress +
+  Storage upload with progress, clearer errors, alt text on the selected
+  figure, broken-image cards, combined quota accounting, and zip export
+  that bundles owned assets
 - **Optional fetch(bible)** — off until enabled under Settings → Integrations.
   Highlights English scripture references in the essay (plain text in
   markdown), hover-previews the Berean Standard Bible, and opens a pinned

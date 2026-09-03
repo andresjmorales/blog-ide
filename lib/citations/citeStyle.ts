@@ -1,6 +1,6 @@
 import type { CitationStyle } from "@/lib/citations/formatBibtex";
 
-/** Cite-rail styles. Chicago note is the essay default (Zotero API default). */
+/** Citation styles. Chicago note is the essay default (Zotero API default). */
 export type CiteStyleId =
   | "chicago-note-bibliography"
   | "chicago-author-date"

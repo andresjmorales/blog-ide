@@ -9,7 +9,7 @@ import type { ZoteroSearchHit } from "@/lib/zotero/client";
 
 export type CiteHit = {
   id: string;
-  provider: "zotero" | "bibtex";
+  provider: "zotero" | "bibtex" | "library";
   citeKey: string;
   title: string;
   creators: string;
@@ -17,6 +17,7 @@ export type CiteHit = {
   itemType: string;
   formatted: string;
   bibtex: string;
+  url?: string;
   zotero?: ZoteroSearchHit;
 };
 
@@ -142,7 +143,8 @@ export function filterHits(hits: CiteHit[], query: string): CiteHit[] {
   const q = query.trim().toLowerCase();
   if (!q) return hits;
   return hits.filter((hit) => {
-    const hay = `${hit.title} ${hit.creators} ${hit.year} ${hit.citeKey} ${hit.itemType}`.toLowerCase();
+    const hay =
+      `${hit.title} ${hit.creators} ${hit.year} ${hit.citeKey} ${hit.itemType} ${hit.url ?? ""}`.toLowerCase();
     return hay.includes(q);
   });
 }
