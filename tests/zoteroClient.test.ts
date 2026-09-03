@@ -74,7 +74,7 @@ describe("zotero helpers", () => {
   });
 
   it("searches Zotero with the read-only query the spec describes", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       expect(url).toContain("https://api.zotero.org/users/123/items");
       expect(url).toContain("q=Nussbaum");
@@ -82,6 +82,10 @@ describe("zotero helpers", () => {
       expect(url).toContain("itemType=-note");
       expect(url).toContain("include=data%2Ccitation%2Cbibtex");
       expect(url).not.toContain("secret-key");
+      expect(init?.headers).toBeInstanceOf(Headers);
+      expect((init?.headers as Headers).get("Authorization")).toBe(
+        "Bearer secret-key"
+      );
       return new Response(
         JSON.stringify([
           {
@@ -108,9 +112,7 @@ describe("zotero helpers", () => {
     expect(hits[0]?.title).toBe("Creating Capabilities");
     expect(hits[0]?.citation).toContain("*Creating Capabilities*");
     expect(hits[0]?.bibtex).toContain("@book");
-    const headers = (fetchMock.mock.calls[0]?.[1] as RequestInit)?.headers;
-    expect(headers).toBeInstanceOf(Headers);
-    expect((headers as Headers).get("Authorization")).toBe("Bearer secret-key");
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it("explains a rejected key", () => {
