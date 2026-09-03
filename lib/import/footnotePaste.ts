@@ -8,7 +8,10 @@
  * (the failure mode when definition back-links were treated as new footnotes).
  */
 
-import { createFootnoteId } from "@/lib/editor/footnote";
+import {
+  createFootnoteId,
+  encodeFootnoteAttr,
+} from "@/lib/editor/footnote";
 
 /** In-body ref → definition target (#footnote-1, #fn-1). Not #footnote-anchor-1. */
 const DEF_HREF_RE =
@@ -17,14 +20,6 @@ const DEF_HREF_RE =
 /** Back-link from a definition up to the in-body anchor. */
 const BACK_HREF_RE =
   /#(?:footnote-anchor|user-content-fnref|fnref)[-_]?([A-Za-z0-9]+)/i;
-
-function escapeAttr(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
 
 function textOf(el: Element): string {
   return (el.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -70,6 +65,25 @@ function htmlFragmentToMarkdown(root: Element): string {
     if (tag === "code") {
       const inner = (el.textContent ?? "").replace(/`/g, "\\`");
       return inner ? `\`${inner}\`` : "";
+    }
+    if (tag === "ul" || tag === "ol") {
+      const items = [...el.children].filter(
+        (child) => child.tagName.toLowerCase() === "li"
+      );
+      const lines = items
+        .map((li, index) => {
+          const body = [...li.childNodes]
+            .map(walk)
+            .join("")
+            .replace(/[ \t]+\n/g, "\n")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim();
+          if (!body) return "";
+          const prefix = tag === "ol" ? `${index + 1}. ` : "- ";
+          return `${prefix}${body}`;
+        })
+        .filter(Boolean);
+      return lines.length ? `${lines.join("\n")}\n\n` : "";
     }
     if (tag === "p" || tag === "div" || tag === "li" || tag === "section") {
       const inner = children.replace(/[ \t]+\n/g, "\n").trim();
@@ -206,7 +220,7 @@ export function transformPastedFootnoteHtml(html: string): string {
     const sup = doc.createElement("sup");
     sup.setAttribute("data-footnote-ref", "");
     sup.setAttribute("data-id", createFootnoteId());
-    sup.setAttribute("data-content", escapeAttr(content));
+    sup.setAttribute("data-content", encodeFootnoteAttr(content));
     sup.textContent = label;
     anchor.replaceWith(sup);
   }

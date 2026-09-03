@@ -1,4 +1,5 @@
 import { generateHTML } from "@tiptap/core";
+import { decodeFootnoteAttr } from "@/lib/editor/footnote";
 import { createExtensions } from "@/lib/editor/extensions";
 import { captionMarkdownToHtml } from "@/lib/editor/imageCaption";
 import { parseBody } from "@/lib/markdown/pipeline";
@@ -184,7 +185,7 @@ export function enhancePublicationFootnotes(
 
   refs.forEach((sup, index) => {
     const n = index + 1;
-    const content = sup.getAttribute("data-content") || "";
+    const content = decodeFootnoteAttr(sup.getAttribute("data-content") || "");
     let noteHtml = "";
     try {
       noteHtml = content.trim() ? renderNoteHtml(content.trim()) : "<p></p>";

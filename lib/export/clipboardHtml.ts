@@ -168,10 +168,16 @@ export function unwrapSupSub(root: ParentNode): void {
   }
 }
 
+function lastChildIsBr(target: Element): boolean {
+  const last = target.lastChild;
+  return last instanceof HTMLElement && last.tagName.toLowerCase() === "br";
+}
+
 function appendInlineClone(
   doc: Document,
   target: Element,
-  node: Node
+  node: Node,
+  options: { tight?: boolean } = {}
 ): void {
   if (node.nodeType === Node.TEXT_NODE) {
     target.appendChild(doc.createTextNode(node.textContent ?? ""));
@@ -180,11 +186,15 @@ function appendInlineClone(
   if (!(node instanceof HTMLElement)) return;
   const tag = node.tagName.toLowerCase();
   if (tag === "br") {
-    target.appendChild(doc.createTextNode(" "));
+    if (!lastChildIsBr(target) && target.childNodes.length) {
+      target.appendChild(doc.createElement("br"));
+    }
     return;
   }
   if (tag === "sup" || tag === "sub") {
-    for (const child of [...node.childNodes]) appendInlineClone(doc, target, child);
+    for (const child of [...node.childNodes]) {
+      appendInlineClone(doc, target, child, options);
+    }
     return;
   }
   if (tag === "a") {
@@ -201,13 +211,47 @@ function appendInlineClone(
     if (clone.childNodes.length) target.appendChild(clone);
     return;
   }
-  if (target.childNodes.length && !/\s$/.test(target.textContent ?? "")) {
-    target.appendChild(doc.createTextNode(" "));
+  if (tag === "ul" || tag === "ol") {
+    const items = [...node.children].filter(
+      (child) => child.tagName.toLowerCase() === "li"
+    );
+    items.forEach((li, index) => {
+      if (target.childNodes.length && !lastChildIsBr(target)) {
+        target.appendChild(doc.createElement("br"));
+      }
+      const prefix = tag === "ol" ? `${index + 1}. ` : "• ";
+      target.appendChild(doc.createTextNode(prefix));
+      for (const child of [...li.childNodes]) {
+        appendInlineClone(doc, target, child, { tight: true });
+      }
+    });
+    return;
+  }
+  if (
+    tag === "li" ||
+    tag === "p" ||
+    tag === "div" ||
+    tag === "blockquote" ||
+    tag === "section"
+  ) {
+    if (
+      !options.tight &&
+      target.childNodes.length &&
+      !lastChildIsBr(target)
+    ) {
+      target.appendChild(doc.createElement("br"));
+    }
+    for (const child of [...node.childNodes]) appendInlineClone(doc, target, child);
+    return;
   }
   for (const child of [...node.childNodes]) appendInlineClone(doc, target, child);
 }
 
-/** One paragraph of phrasing content so Substack will not split a list item. */
+/**
+ * One paragraph of phrasing content so Substack will not split a list item.
+ * Nested lists and paragraphs become `<br>` plus `•` / `1.` markers so
+ * newlines and bullets survive paste.
+ */
 export function flattenToParagraph(doc: Document, source: Element): HTMLParagraphElement {
   const p = doc.createElement("p");
   for (const child of [...source.childNodes]) appendInlineClone(doc, p, child);

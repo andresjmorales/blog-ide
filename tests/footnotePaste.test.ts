@@ -1,12 +1,22 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { Editor } from "@tiptap/core";
+import { decodeFootnoteAttr } from "@/lib/editor/footnote";
+import { createExtensions } from "@/lib/editor/extensions";
 import {
   convertMarkdownFootnoteLinks,
   repairSplitFootnoteMarkdown,
   transformPastedFootnoteHtml,
 } from "@/lib/import/footnotePaste";
 import { parseBody, serializeBody } from "@/lib/markdown/pipeline";
+
+function pastedNoteContent(html: string): string {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  return decodeFootnoteAttr(
+    doc.querySelector("[data-content]")?.getAttribute("data-content") || ""
+  );
+}
 
 describe("footnotePaste", () => {
   it("turns Substack-style footnote anchors into data-footnote-ref", () => {
@@ -23,7 +33,7 @@ describe("footnotePaste", () => {
     `;
     const next = transformPastedFootnoteHtml(html);
     expect(next).toContain("data-footnote-ref");
-    expect(next).toContain("The note body");
+    expect(pastedNoteContent(next)).toContain("The note body");
     expect(next).not.toContain('id="footnote-1"');
     // Back-link must not become a second footnote.
     expect(next.match(/data-footnote-ref/g)?.length).toBe(1);
@@ -42,7 +52,7 @@ describe("footnotePaste", () => {
     `;
     const next = transformPastedFootnoteHtml(html);
     expect(next.match(/data-footnote-ref/g)?.length).toBe(1);
-    expect(next).toContain("Supporting detail");
+    expect(pastedNoteContent(next)).toContain("Supporting detail");
     expect(next).not.toContain("footnotes");
   });
 
@@ -58,10 +68,49 @@ describe("footnotePaste", () => {
     `;
     const next = transformPastedFootnoteHtml(html);
     expect(next).toContain("data-footnote-ref");
-    expect(next).toContain("[the source](https://example.com/doc)");
-    expect(next).toContain("*note*");
-    expect(next).toContain("**emphasis**");
+    const content = pastedNoteContent(next);
+    expect(content).toContain("[the source](https://example.com/doc)");
+    expect(content).toContain("*note*");
+    expect(content).toContain("**emphasis**");
     expect(next.match(/data-footnote-ref/g)?.length).toBe(1);
+  });
+
+  it("preserves bullets and emphasis in pasted HTML footnote bodies", () => {
+    if (typeof DOMParser === "undefined") return;
+    const html = `
+      <p>Claim<a class="footnote-anchor" href="#footnote-1" id="footnote-anchor-1">1</a>.</p>
+      <div class="footnote" id="footnote-1">
+        <a href="#footnote-anchor-1">1</a>
+        <p>See these:</p>
+        <ul>
+          <li>first <strong>item</strong></li>
+          <li><em>second</em></li>
+        </ul>
+      </div>
+    `;
+    const next = transformPastedFootnoteHtml(html);
+    const content = pastedNoteContent(next);
+    expect(content).toContain("See these:");
+    expect(content).toMatch(/- first \*\*item\*\*/);
+    expect(content).toMatch(/- \*second\*/);
+
+    const editor = new Editor({
+      extensions: createExtensions(),
+      content: next,
+      contentType: "html",
+    });
+    try {
+      let note = "";
+      editor.state.doc.descendants((node) => {
+        if (node.type.name === "footnoteRef") {
+          note = String(node.attrs.content ?? "");
+        }
+      });
+      expect(note).toContain("first **item**");
+      expect(note).toContain("*second*");
+    } finally {
+      editor.destroy();
+    }
   });
 
   it("converts markdown footnote hyperlinks to GFM", () => {
