@@ -60,6 +60,31 @@ export function decodeFootnoteValue(value: string): string {
 }
 
 /**
+ * HTML `data-content` form. Percent-encoding keeps newlines, slashes, and
+ * quotes intact when clipboard HTML is reparsed or whitespace-collapsed.
+ */
+export function encodeFootnoteAttr(value: string): string {
+  return encodeURIComponent(value);
+}
+
+export function decodeFootnoteAttr(value: string): string {
+  if (!value) return "";
+  // Older clipboard HTML stored raw markdown, including literal newlines.
+  if (value.includes("\n") || value.includes("\r")) return value;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function footnoteAttrTitle(content: string): string {
+  const line = content.replace(/\s+/g, " ").trim();
+  if (!line) return "Empty footnote";
+  return line.length > 140 ? `${line.slice(0, 137)}…` : line;
+}
+
+/**
  * Inline atomic footnote reference. Its body lives in the `content` attribute
  * as markdown; numbered GFM references only exist in serialized markdown.
  */
@@ -72,8 +97,8 @@ export const FootnoteRef = Node.create({
 
   addAttributes() {
     return {
-      id: { default: null },
-      content: { default: "" },
+      id: { default: null, rendered: false },
+      content: { default: "", rendered: false },
     };
   },
 
@@ -102,8 +127,15 @@ export const FootnoteRef = Node.create({
         getAttrs: (element) => {
           if (!(element instanceof HTMLElement)) return false;
           return {
-            id: element.getAttribute("data-id") || createFootnoteId(),
-            content: element.getAttribute("data-content") || "",
+            id:
+              element.getAttribute("data-id") ||
+              element.getAttribute("id") ||
+              createFootnoteId(),
+            content: decodeFootnoteAttr(
+              element.getAttribute("data-content") ||
+                element.getAttribute("content") ||
+                ""
+            ),
           };
         },
       },
@@ -111,14 +143,15 @@ export const FootnoteRef = Node.create({
   },
 
   renderHTML({ node, HTMLAttributes }) {
+    const content = String(node.attrs.content || "");
     return [
       "sup",
       mergeAttributes(HTMLAttributes, {
         "data-footnote-ref": "",
         "data-id": node.attrs.id,
-        "data-content": node.attrs.content || "",
+        "data-content": encodeFootnoteAttr(content),
         class: "footnote-ref",
-        title: node.attrs.content || "Empty footnote",
+        title: footnoteAttrTitle(content),
       }),
       "?",
     ];

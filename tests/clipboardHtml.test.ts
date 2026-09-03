@@ -110,6 +110,35 @@ First[^1] then[^2].
     expect(first.match(/<p>/g)?.length ?? 0).toBeLessThanOrEqual(1);
   });
 
+  it("keeps footnote bullets, breaks, and inline marks in markers copy", () => {
+    const md = `---
+title: Listed note
+---
+
+Hello[^1].
+
+[^1]:
+    See these:
+
+    - first **item**
+    - second with a [link](https://example.com/a/b)
+
+    And a second paragraph.
+`;
+    const { html, plain } = htmlForPublishTarget(md, "markers");
+    const notes = html.split(/<p>Notes<\/p>/)[1] ?? "";
+    const items = notes.match(/<li[\s\S]*?<\/li>/g) ?? [];
+    expect(items).toHaveLength(1);
+    const note = items[0] ?? "";
+    expect(note).toContain("• ");
+    expect(note).toContain("<br");
+    expect(note).toContain("<strong>item</strong>");
+    expect(note).toContain('href="https://example.com/a/b"');
+    expect(note).toContain("And a second paragraph");
+    expect(plain).toMatch(/first/);
+    expect(plain).toMatch(/second paragraph/);
+  });
+
   it("joins a stacked note (sentence plus path URL) into one list item", () => {
     const md = `---
 title: Stacked note
@@ -146,6 +175,21 @@ describe("flattenToParagraph", () => {
     expect(p.querySelector("a")?.getAttribute("href")).toBe(
       "https://example.com/a/b/c"
     );
+    expect(p.innerHTML).toContain("<br");
+  });
+
+  it("keeps list markers and line breaks inside one paragraph", () => {
+    const doc = new DOMParser().parseFromString(
+      `<li><p>See these:</p><ul><li><p>first <strong>item</strong></p></li><li><p>second</p></li></ul><p>And more.</p></li>`,
+      "text/html"
+    );
+    const li = doc.querySelector("li");
+    const p = flattenToParagraph(doc, li!);
+    expect(p.querySelectorAll("ul, ol, li, p")).toHaveLength(0);
+    expect(p.textContent).toContain("• first");
+    expect(p.textContent).toContain("• second");
+    expect(p.querySelector("strong")?.textContent).toBe("item");
+    expect((p.innerHTML.match(/<br/g) ?? []).length).toBeGreaterThanOrEqual(2);
   });
 });
 

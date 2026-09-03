@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { Editor } from "@tiptap/core";
 import {
+  decodeFootnoteAttr,
   decodeFootnoteValue,
+  encodeFootnoteAttr,
   encodeFootnoteValue,
 } from "@/lib/editor/footnote";
 import { createExtensions } from "@/lib/editor/extensions";
@@ -53,6 +55,18 @@ describe("footnote value encoding", () => {
     expect(decodeFootnoteValue(encoded)).toBe(content);
   });
 
+  it("round-trips newlines, slashes, and quotes in HTML attributes", () => {
+    const content =
+      "See these:\n\n- first **item**\n- path https://example.com/a/b\n\nA \"quoted\" aside.";
+    const encoded = encodeFootnoteAttr(content);
+    expect(encoded).not.toMatch(/[\n\r]/);
+    expect(encoded).toContain("%0A");
+    expect(encoded).toContain("%2F");
+    expect(decodeFootnoteAttr(encoded)).toBe(content);
+    expect(decodeFootnoteAttr(content)).toBe(content);
+    expect(decodeFootnoteAttr("plain note")).toBe("plain note");
+  });
+
   it("still decodes legacy sentinels that left underscores literal", () => {
     // Old encoder: encodeURIComponent + %→_ without encoding `_` first.
     const legacy = encodeURIComponent(
@@ -70,7 +84,11 @@ describe("footnote value encoding", () => {
 describe("Substack FootnoteToDOM paste (ai-sentience)", () => {
   it("preserves link-only footnote 1 through paste + serialize", () => {
     const transformed = transformPastedFootnoteHtml(SUBSTACK_HTML);
-    expect(transformed).toContain("Link to sources");
+    const pasted = new DOMParser().parseFromString(transformed, "text/html");
+    const first = decodeFootnoteAttr(
+      pasted.querySelector("[data-content]")?.getAttribute("data-content") || ""
+    );
+    expect(first).toContain("Link to sources");
 
     const editor = new Editor({
       extensions: createExtensions(),
