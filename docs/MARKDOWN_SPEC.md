@@ -71,6 +71,11 @@ notes is supported where the shared extension set allows it. Pasting that
 markdown into another editor does **not** create native platform footnotes;
 see [PUBLISH_EXPORT.md](./PUBLISH_EXPORT.md).
 
+A BlogIDE-only `<!--blogide-citations:…-->` trailer may follow the notes. It
+is a snapshot of sources inserted from the Cite rail (Zotero or BibTeX), not
+the human copy. If the comment is stripped, the footnote bodies still read
+correctly.
+
 ## Lists
 
 - Bullet and ordered lists follow normal GFM serialization.

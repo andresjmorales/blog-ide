@@ -151,8 +151,9 @@ export function HelpPanel({ open, onClose }: Props) {
               and Publish check; Text → Clean whitespace joins wrapped lines
               to spaces and keeps blank lines; Aa+ = extra formatting (inline
               code, superscript, subscript, code block, convert case) and is
-              customizable under Settings → Editor; Cite is its
-              own button
+              customizable under Settings → Editor; Cite opens a
+              source rail (or a sheet on a phone) to search Zotero or
+              paste BibTeX, insert a footnote, or copy a Chicago note
             </li>
             <li>
               <kbd>?</kbd>: shortcut cheatsheet (when not typing in the essay)

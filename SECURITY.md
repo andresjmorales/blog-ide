@@ -30,8 +30,8 @@ Never commit or include these values in reports:
 - `.env.local` contents;
 - private document content.
 
-User-supplied Anthropic/OpenAI keys and GitHub PATs stay in the browser
-(localStorage). Pushbullet and ntfy secrets are encrypted (AES-256-GCM) in
+User-supplied Anthropic/OpenAI keys, GitHub PATs, and Zotero API keys stay
+in the browser (localStorage). Pushbullet and ntfy secrets are encrypted (AES-256-GCM) in
 `user_secrets` and only decrypted by `/api/secrets` for the signed-in owner.
 A database dump without the server encryption key is not enough to read them.
 Anyone who holds both the database and `SECRETS_ENCRYPTION_KEY` /

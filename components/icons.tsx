@@ -325,6 +325,34 @@ export function PinIcon({ className = "" }: { className?: string }) {
   );
 }
 
+/** Small trash can for footnote / cite delete. */
+export function TrashIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width={TOOL_ICON}
+      height={TOOL_ICON}
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <path
+        d="M3.25 4.5h9.5M6.25 4.5V3.25h3.5V4.5M5 4.5l.35 8.25h5.3L11 4.5"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6.75 6.75v4.25M9.25 6.75v4.25"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 /** Circle-i for extra frontmatter fields on the title block. */
 export function InfoIcon({
   className = "",

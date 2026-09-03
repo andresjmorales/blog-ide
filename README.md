@@ -10,7 +10,11 @@ by design.
 - **WYSIWYG editor with a markdown soul** — TipTap rich text, source toggle, and
   byte-for-byte round-trip for supported constructs
 - **First-class footnotes** — inline notes, sidenote rail or anchored notes,
-  pin/drag cards, deleted-note archive, Substack-style paste repair
+  pin/drag cards, delete from the note popup, deleted-note archive,
+  Substack-style paste repair
+- **Cite rail** — search Zotero (read-only Web API key, device-local) or
+  paste BibTeX, insert a Chicago note as a footnote, copy the same string,
+  and keep a small used-sources index on the essay. Lives beside Outline.
 - **Workspace** — folder/document/link tree, Trash, Notes channels, a seeded
   scratchpad you can rename or trash, phone terminal capture + desktop Shell,
   optional Pushbullet or ntfy capture into those channels (Pushbullet REST

@@ -407,7 +407,7 @@ function ToolbarItem({
     case "cite":
       return (
         <span data-toolbar-slot="cite">
-          <ToolButton title="Insert citation from BibTeX" onClick={handlers.onOpenCitation}>
+          <ToolButton title="Cite: search, insert, or copy" onClick={handlers.onOpenCitation}>
             Cite
           </ToolButton>
         </span>

@@ -1,5 +1,6 @@
 import { Node, mergeAttributes, type JSONContent } from "@tiptap/core";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
+import type { EssayCitation } from "@/lib/markdown/essayCitations";
 import { queueFootnoteEditorOpen } from "@/lib/editor/footnoteOpen";
 import { applyMoveFootnoteRef } from "@/lib/editor/moveFootnoteRef";
 
@@ -16,6 +17,7 @@ declare module "@tiptap/core" {
       insertFootnote: (content?: string) => ReturnType;
       restoreDeletedFootnote: (id: string) => ReturnType;
       dismissDeletedFootnote: (id: string) => ReturnType;
+      deleteFootnote: (id: string) => ReturnType;
       /** Move the footnote atom at `from` to insert position `to`. */
       moveFootnoteRef: (from: number, to: number) => ReturnType;
     };
@@ -115,6 +117,10 @@ export const FootnoteRef = Node.create({
             default: [] as DeletedFootnote[],
             rendered: false,
           },
+          essayCitations: {
+            default: [] as EssayCitation[],
+            rendered: false,
+          },
         },
       },
     ];
@@ -211,6 +217,26 @@ export const FootnoteRef = Node.create({
                   list.filter((item) => item.id !== id)
                 )
             );
+          }
+          return true;
+        },
+
+      deleteFootnote:
+        (id: string) =>
+        ({ state, dispatch }) => {
+          let pos: number | null = null;
+          let size = 0;
+          state.doc.descendants((node, nodePos) => {
+            if (node.type.name === this.name && String(node.attrs.id) === id) {
+              pos = nodePos;
+              size = node.nodeSize;
+              return false;
+            }
+            return true;
+          });
+          if (pos == null) return false;
+          if (dispatch) {
+            dispatch(state.tr.delete(pos, pos + size));
           }
           return true;
         },

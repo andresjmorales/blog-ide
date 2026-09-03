@@ -12,9 +12,14 @@ import {
 } from "@/lib/editor/footnote";
 import {
   appendDeletedFootnotesTrailer,
-  stripDeletedFootnotesTrailer,
+  parseDeletedFootnotesPayload,
   type DeletedFootnote,
 } from "@/lib/markdown/deletedFootnotes";
+import {
+  appendCitationsTrailer,
+  stripBlogideTrailers,
+  type EssayCitation,
+} from "@/lib/markdown/essayCitations";
 import { splitFrontmatter } from "./frontmatter";
 
 /**
@@ -165,8 +170,9 @@ function prepareFootnotes(body: string): PreparedFootnotes {
 
 /** Parse a markdown body (frontmatter already removed) into TipTap JSON. */
 export function parseBody(body: string): JSONContent {
-  const { body: withoutTrailer, deleted } = stripDeletedFootnotesTrailer(body);
-  const prepared = prepareFootnotes(withoutTrailer);
+  const stripped = stripBlogideTrailers(body);
+  const deleted = parseDeletedFootnotesPayload(stripped.deletedPayload);
+  const prepared = prepareFootnotes(stripped.body);
   const withCaptions = prepareImageCaptions(prepared.markdown);
   const withMath = prepareMath(withCaptions);
   const withProtectedLists = protectZeroPaddedOrderedMarkers(withMath);
@@ -181,6 +187,7 @@ export function parseBody(body: string): JSONContent {
     ...doc.attrs,
     orphanFootnotes: prepared.orphans,
     deletedFootnotes: deleted,
+    essayCitations: stripped.citations,
   };
   return doc;
 }
@@ -219,8 +226,14 @@ export function serializeBody(doc: JSONContent): string {
   const deleted = Array.isArray(doc.attrs?.deletedFootnotes)
     ? (doc.attrs.deletedFootnotes as DeletedFootnote[])
     : [];
+  const citations = Array.isArray(doc.attrs?.essayCitations)
+    ? (doc.attrs.essayCitations as EssayCitation[])
+    : [];
 
-  return appendDeletedFootnotesTrailer(withFooter, deleted);
+  return appendDeletedFootnotesTrailer(
+    appendCitationsTrailer(withFooter, citations),
+    deleted
+  );
 }
 
 /**

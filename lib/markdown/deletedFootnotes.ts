@@ -4,6 +4,8 @@
  * remains untouched.
  */
 
+import { stripBlogideTrailers } from "@/lib/markdown/essayCitations";
+
 export type DeletedFootnote = {
   id: string;
   content: string;
@@ -12,45 +14,43 @@ export type DeletedFootnote = {
 
 export const MAX_DELETED_FOOTNOTES = 50;
 
-const TRAILER_RE =
-  /\n*<!--blogide-deleted-footnotes:([\s\S]*?)-->\s*$/;
+export function parseDeletedFootnotesPayload(
+  payload: string | null
+): DeletedFootnote[] {
+  if (!payload) return [];
+  try {
+    const parsed = JSON.parse(payload) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (entry): entry is DeletedFootnote =>
+          !!entry &&
+          typeof entry === "object" &&
+          typeof (entry as DeletedFootnote).id === "string" &&
+          typeof (entry as DeletedFootnote).content === "string"
+      )
+      .map((entry) => ({
+        id: entry.id,
+        content: entry.content,
+        deletedAt:
+          typeof entry.deletedAt === "string"
+            ? entry.deletedAt
+            : new Date(0).toISOString(),
+      }))
+      .slice(0, MAX_DELETED_FOOTNOTES);
+  } catch {
+    return [];
+  }
+}
 
 export function stripDeletedFootnotesTrailer(body: string): {
   body: string;
   deleted: DeletedFootnote[];
 } {
-  const match = body.match(TRAILER_RE);
-  if (!match) return { body, deleted: [] };
-
-  let deleted: DeletedFootnote[] = [];
-  try {
-    const parsed = JSON.parse(match[1]) as unknown;
-    if (Array.isArray(parsed)) {
-      deleted = parsed
-        .filter(
-          (entry): entry is DeletedFootnote =>
-            !!entry &&
-            typeof entry === "object" &&
-            typeof (entry as DeletedFootnote).id === "string" &&
-            typeof (entry as DeletedFootnote).content === "string"
-        )
-        .map((entry) => ({
-          id: entry.id,
-          content: entry.content,
-          deletedAt:
-            typeof entry.deletedAt === "string"
-              ? entry.deletedAt
-              : new Date(0).toISOString(),
-        }))
-        .slice(0, MAX_DELETED_FOOTNOTES);
-    }
-  } catch {
-    deleted = [];
-  }
-
+  const stripped = stripBlogideTrailers(body);
   return {
-    body: body.slice(0, match.index).replace(/\s+$/, "") + "\n",
-    deleted,
+    body: stripped.body,
+    deleted: parseDeletedFootnotesPayload(stripped.deletedPayload),
   };
 }
 
