@@ -1,11 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Editor } from "@tiptap/core";
 import { createExtensions } from "@/lib/editor/extensions";
 import { parseBody } from "@/lib/markdown/pipeline";
 import {
   BibleRefHighlight,
   bibleRefHighlightKey,
+  getBibleRefState,
 } from "@/lib/editor/bible/BibleRefHighlight";
+import { HOVER_OPEN_DELAY_MS } from "@/lib/editor/hoverIntent";
 
 function makeEditor(body: string): Editor {
   const element = document.createElement("div");
@@ -103,6 +105,47 @@ describe("BibleRefHighlight", () => {
       expect(texts).toEqual(["Romans 8:28", "John 3:16"]);
     } finally {
       editor.destroy();
+    }
+  });
+
+  it("opens a verse card only after the pointer pauses", () => {
+    vi.useFakeTimers();
+    const editor = makeEditor("See John 3:16 today.\n");
+    try {
+      editor.commands.setBibleRefsEnabled(true);
+      const mark = editor.view.dom.querySelector("[data-bible-ref-id]");
+      expect(mark).toBeTruthy();
+      mark!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+      expect(getBibleRefState(editor).activeId).toBeNull();
+      vi.advanceTimersByTime(HOVER_OPEN_DELAY_MS - 1);
+      expect(getBibleRefState(editor).activeId).toBeNull();
+      vi.advanceTimersByTime(2);
+      expect(getBibleRefState(editor).activeId).toBeTruthy();
+    } finally {
+      editor.destroy();
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not open when the pointer moves past or the wheel scrolls", () => {
+    vi.useFakeTimers();
+    const editor = makeEditor("See John 3:16 today.\n");
+    try {
+      editor.commands.setBibleRefsEnabled(true);
+      const mark = editor.view.dom.querySelector("[data-bible-ref-id]");
+      expect(mark).toBeTruthy();
+      mark!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+      mark!.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+      vi.advanceTimersByTime(HOVER_OPEN_DELAY_MS + 40);
+      expect(getBibleRefState(editor).activeId).toBeNull();
+
+      mark!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+      editor.view.dom.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+      vi.advanceTimersByTime(HOVER_OPEN_DELAY_MS + 40);
+      expect(getBibleRefState(editor).activeId).toBeNull();
+    } finally {
+      editor.destroy();
+      vi.useRealTimers();
     }
   });
 });

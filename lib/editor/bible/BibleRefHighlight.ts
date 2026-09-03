@@ -16,6 +16,10 @@ import {
   rangesOverlap,
 } from "@/lib/editor/changedRange";
 import { openBiblePin } from "@/lib/pins/pinStore";
+import {
+  createHoverIntent,
+  type HoverIntent,
+} from "@/lib/editor/hoverIntent";
 
 export type BibleRefHighlightState = {
   hits: BibleRefHit[];
@@ -30,7 +34,7 @@ const EMPTY: BibleRefHighlightState = { hits: [], activeId: null };
 
 type BibleStorage = {
   enabled: boolean;
-  hoverTimer: ReturnType<typeof setTimeout> | null;
+  hover: HoverIntent | null;
 };
 
 declare module "@tiptap/core" {
@@ -127,13 +131,28 @@ function markFromEvent(event: Event): HTMLElement | null {
   return mark instanceof HTMLElement ? mark : null;
 }
 
+function bibleHover(editor: Editor): HoverIntent {
+  const storage = editor.storage.bibleRefHighlight;
+  if (!storage.hover) {
+    storage.hover = createHoverIntent({
+      onOpen: (id) => {
+        if (!editor.isDestroyed) editor.commands.setBibleRefActive(id);
+      },
+      onClose: () => {
+        if (!editor.isDestroyed) editor.commands.setBibleRefActive(null);
+      },
+    });
+  }
+  return storage.hover;
+}
+
 export const BibleRefHighlight = Extension.create({
   name: "bibleRefHighlight",
 
   addStorage() {
     return {
       enabled: false,
-      hoverTimer: null,
+      hover: null,
     } satisfies BibleStorage;
   },
 
@@ -144,10 +163,8 @@ export const BibleRefHighlight = Extension.create({
         ({ editor }) => {
           const storage = editor.storage.bibleRefHighlight;
           storage.enabled = enabled;
-          if (storage.hoverTimer) {
-            clearTimeout(storage.hoverTimer);
-            storage.hoverTimer = null;
-          }
+          storage.hover?.dispose();
+          storage.hover = null;
           if (!enabled) {
             setState(editor, EMPTY);
             return true;
@@ -169,24 +186,13 @@ export const BibleRefHighlight = Extension.create({
       holdBibleRefCard:
         () =>
         ({ editor }) => {
-          const storage = editor.storage.bibleRefHighlight;
-          if (storage.hoverTimer) {
-            clearTimeout(storage.hoverTimer);
-            storage.hoverTimer = null;
-          }
+          bibleHover(editor).hold();
           return true;
         },
       releaseBibleRefCard:
         () =>
         ({ editor }) => {
-          const storage = editor.storage.bibleRefHighlight;
-          if (storage.hoverTimer) clearTimeout(storage.hoverTimer);
-          storage.hoverTimer = setTimeout(() => {
-            storage.hoverTimer = null;
-            if (!editor.isDestroyed) {
-              editor.commands.setBibleRefActive(null);
-            }
-          }, 280);
+          bibleHover(editor).leave();
           return true;
         },
     };
@@ -194,7 +200,8 @@ export const BibleRefHighlight = Extension.create({
 
   onDestroy() {
     const storage = this.editor.storage.bibleRefHighlight;
-    if (storage.hoverTimer) clearTimeout(storage.hoverTimer);
+    storage.hover?.dispose();
+    storage.hover = null;
   },
 
   addProseMirrorPlugins() {
@@ -272,8 +279,7 @@ export const BibleRefHighlight = Extension.create({
               if (!mark) return false;
               const id = mark.getAttribute("data-bible-ref-id");
               if (!id) return false;
-              extensionEditor.commands.holdBibleRefCard();
-              extensionEditor.commands.setBibleRefActive(id);
+              bibleHover(extensionEditor).enter(id);
               return false;
             },
             mouseout(_view, event) {
@@ -286,7 +292,11 @@ export const BibleRefHighlight = Extension.create({
               ) {
                 return false;
               }
-              extensionEditor.commands.releaseBibleRefCard();
+              bibleHover(extensionEditor).leave();
+              return false;
+            },
+            wheel() {
+              bibleHover(extensionEditor).cancelOpen();
               return false;
             },
           },

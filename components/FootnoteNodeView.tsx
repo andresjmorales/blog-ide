@@ -61,6 +61,7 @@ import {
   shouldFollowFootnoteRef,
   shouldRepositionFootnoteCard,
 } from "@/lib/editor/footnoteCard";
+import { HOVER_OPEN_DELAY_MS } from "@/lib/editor/hoverIntent";
 import { shouldStartPointerDrag } from "@/lib/pins/surfacePointer";
 import {
   caretCoordsAtPos,
@@ -111,6 +112,7 @@ export function FootnoteNodeView({
   const pinnedRef = useRef(pinned);
   const openRef = useRef(open);
   const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverOpenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragSuppressUntil = useRef(0);
   const refDrag = useRef<{
     pointerId: number;
@@ -389,11 +391,19 @@ export function FootnoteNodeView({
     }
   }, [content, noteEditor, updateAttributes]);
 
+  const cancelHoverOpen = useCallback(() => {
+    if (hoverOpenTimer.current) {
+      clearTimeout(hoverOpenTimer.current);
+      hoverOpenTimer.current = null;
+    }
+  }, []);
+
   const commitAndClose = useCallback(() => {
     if (hoverCloseTimer.current) {
       clearTimeout(hoverCloseTimer.current);
       hoverCloseTimer.current = null;
     }
+    cancelHoverOpen();
     commitContent();
     if (getFootnoteFindSession()?.footnoteId === footnoteId) {
       setFootnoteFindSession(null);
@@ -405,7 +415,7 @@ export function FootnoteNodeView({
     setPinned(false);
     setCardPosition({});
     setOpen(false);
-  }, [commitContent, footnoteId]);
+  }, [cancelHoverOpen, commitContent, footnoteId]);
 
   const cancelHoverClose = useCallback(() => {
     if (hoverCloseTimer.current) {
@@ -437,6 +447,7 @@ export function FootnoteNodeView({
       sticky?: boolean;
     }) => {
       cancelHoverClose();
+      cancelHoverOpen();
       if (options?.sticky) {
         stickyFootnoteIds.add(footnoteId);
         setSticky(true);
@@ -494,7 +505,7 @@ export function FootnoteNodeView({
         });
       }
     },
-    [cancelHoverClose, footnoteId, isDesktop, noteEditor]
+    [cancelHoverClose, cancelHoverOpen, footnoteId, isDesktop, noteEditor]
   );
 
   /** Freeze the floating card at its current viewport spot (pin or drag). */
@@ -647,6 +658,7 @@ export function FootnoteNodeView({
   useEffect(() => {
     return () => {
       if (hoverCloseTimer.current) clearTimeout(hoverCloseTimer.current);
+      if (hoverOpenTimer.current) clearTimeout(hoverOpenTimer.current);
       document.body.classList.remove(
         "is-dragging-footnote-ref",
         "is-footnote-drop-blocked"
@@ -813,14 +825,20 @@ export function FootnoteNodeView({
         onPointerCancel={endRefDrag}
         onMouseEnter={() => {
           if (refDrag.current?.dragging) return;
-          if (prefs.footnoteOpenOnHover) {
+          if (!prefs.footnoteOpenOnHover) return;
+          cancelHoverClose();
+          if (openRef.current || hoverOpenTimer.current) return;
+          hoverOpenTimer.current = setTimeout(() => {
+            hoverOpenTimer.current = null;
             openCard({ focusEditor: false, sticky: false });
-          }
+          }, HOVER_OPEN_DELAY_MS);
         }}
         onMouseLeave={() => {
           if (refDrag.current?.dragging) return;
+          cancelHoverOpen();
           if (prefs.footnoteOpenOnHover) scheduleHoverClose();
         }}
+        onWheel={cancelHoverOpen}
         onClick={(event) => {
           if (skipClickAfterDrag.current) {
             skipClickAfterDrag.current = false;
