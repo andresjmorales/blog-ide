@@ -1,39 +1,18 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { pickPdfFile } from "@/lib/assets/imagePipeline";
 import { QuotaExceededError } from "@/lib/assets/upload";
 import { CitePanel } from "@/components/CiteRail";
 import {
-  getEssayEditor,
-  subscribeEssayEditor,
-} from "@/lib/citations/essayEditor";
-import { insertLibraryCitation } from "@/lib/citations/libraryCite";
-import {
   addLibraryLinkDurable,
   addLibraryPdfDurable,
   hydrateLibraryFromCloud,
-  listLibraryEntries,
-  getLibraryServerSnapshot,
-  removeLibraryEntryDurable,
-  resolveLibraryPdfSrc,
-  subscribeLibrary,
-  type LibraryMeta,
 } from "@/lib/library/sessionLibrary";
 import { fetchLinkPreview } from "@/lib/preview/client";
 import { openLinkPin, openPdfPin } from "@/lib/pins/pinStore";
 
 export function LibraryPanel() {
-  const entries = useSyncExternalStore(
-    subscribeLibrary,
-    listLibraryEntries,
-    getLibraryServerSnapshot
-  );
-  const editor = useSyncExternalStore(
-    subscribeEssayEditor,
-    getEssayEditor,
-    () => null
-  );
   const [linkDraft, setLinkDraft] = useState("");
   const [linkBusy, setLinkBusy] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -110,35 +89,12 @@ export function LibraryPanel() {
     }
   }
 
-  async function openEntry(entry: LibraryMeta) {
-    if (entry.kind === "link" && entry.url) {
-      openLinkPin({ url: entry.url, title: entry.name });
-      return;
-    }
-    const src = await resolveLibraryPdfSrc(entry);
-    if (!src) return;
-    openPdfPin({ src, title: entry.name, revokeOnClose: false });
-  }
-
-  function citeEntry(entry: LibraryMeta) {
-    if (!editor) return;
-    insertLibraryCitation(editor, entry);
-  }
-
-  return (
-    <div className="library-panel">
-      <CitePanel editor={editor} />
-      <section className="library-saved">
-        <h3 className="library-saved-heading">Saved</h3>
-        <p className="mb-3 text-xs leading-relaxed text-muted">
-          PDFs and site bookmarks. Open or pin them, or cite a saved item in
-          the essay. Signed-in items sync and count toward storage quota
-          (same bucket as essay images, separate Library inventory).
-        </p>
-        <div className="mb-3 flex flex-wrap gap-2">
+  const adders = (
+    <section className="library-adders">
+        <div className="library-adder-row">
           <button
             type="button"
-            className="rounded border border-border px-2.5 py-1.5 text-xs font-medium hover:border-accent hover:text-accent"
+            className="cite-action"
             onClick={() => void addPdf()}
           >
             Add PDF…
@@ -150,95 +106,39 @@ export function LibraryPanel() {
           </p>
         )}
         <form
-          className="mb-3 flex flex-col gap-1.5"
+          className="library-adder-form"
           onSubmit={(event) => {
             event.preventDefault();
             void addLink();
           }}
         >
-          <label className="text-[0.65rem] font-semibold uppercase tracking-wide text-muted">
-            Add site link
-          </label>
-          <div className="flex gap-1.5">
-            <input
-              type="url"
-              value={linkDraft}
-              onChange={(event) => setLinkDraft(event.target.value)}
-              placeholder="https://…"
-              className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground placeholder:text-muted"
-            />
-            <button
-              type="submit"
-              disabled={linkBusy || !linkDraft.trim()}
-              className="shrink-0 rounded border border-border px-2.5 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-40"
-            >
-              {linkBusy ? "…" : "Add"}
-            </button>
-          </div>
-          {linkError && (
-            <p className="text-[0.7rem] text-red-600 dark:text-red-400">
-              {linkError}
-            </p>
-          )}
+          <input
+            type="url"
+            value={linkDraft}
+            onChange={(event) => setLinkDraft(event.target.value)}
+            placeholder="Add site link…"
+            aria-label="Add site link"
+            className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground placeholder:text-muted"
+          />
+          <button
+            type="submit"
+            disabled={linkBusy || !linkDraft.trim()}
+            className="cite-action"
+          >
+            {linkBusy ? "…" : "Add"}
+          </button>
         </form>
-        {entries.length === 0 ? (
-          <p className="text-xs text-muted">
-            Nothing saved yet. Bookmark a link from the hover card, or add a
-            PDF here.
+        {linkError && (
+          <p className="text-[0.7rem] text-red-600 dark:text-red-400">
+            {linkError}
           </p>
-        ) : (
-          <ul className="space-y-0.5">
-            {entries.map((entry) => {
-              const canOpen =
-                entry.kind === "link"
-                  ? Boolean(entry.url)
-                  : Boolean(entry.url || entry.assetPath || entry.id);
-              return (
-                <li
-                  key={entry.id}
-                  className="group flex items-center gap-1 rounded hover:bg-panel"
-                >
-                  <button
-                    type="button"
-                    disabled={!canOpen}
-                    title={canOpen ? `Open ${entry.name}` : "Unavailable"}
-                    className="min-w-0 flex-1 truncate px-2 py-1.5 text-left text-muted hover:text-foreground disabled:opacity-40"
-                    onClick={() => void openEntry(entry)}
-                  >
-                    <span className="mr-1.5 text-[0.65rem] uppercase tracking-wide text-muted">
-                      {entry.kind === "link" ? "link" : "pdf"}
-                    </span>
-                    {entry.name}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!editor}
-                    className="shrink-0 rounded px-1.5 py-1 text-[0.65rem] text-muted opacity-0 hover:text-accent group-hover:opacity-100 disabled:opacity-30"
-                    title={
-                      editor
-                        ? "Insert as a footnote"
-                        : "Open an essay to cite"
-                    }
-                    aria-label={`Cite ${entry.name}`}
-                    onClick={() => citeEntry(entry)}
-                  >
-                    cite
-                  </button>
-                  <button
-                    type="button"
-                    className="shrink-0 rounded px-1.5 py-1 text-[0.65rem] text-muted opacity-0 hover:text-red-600 group-hover:opacity-100 dark:hover:text-red-400"
-                    title="Remove from library"
-                    aria-label={`Remove ${entry.name}`}
-                    onClick={() => void removeLibraryEntryDurable(entry.id)}
-                  >
-                    rm
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
         )}
       </section>
+  );
+
+  return (
+    <div className="library-panel">
+      <CitePanel afterResults={adders} />
     </div>
   );
 }
