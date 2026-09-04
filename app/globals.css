@@ -608,6 +608,42 @@ body {
   cursor: pointer;
   width: 100%;
 }
+.cite-section-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 0.66rem;
+  font-weight: 650;
+  gap: 0.35rem;
+  letter-spacing: 0.06em;
+  margin: 0.2rem 0;
+  min-width: 0;
+  padding: 0;
+  text-transform: uppercase;
+  width: auto;
+}
+.cite-section-toggle .cite-hit-caret {
+  flex-shrink: 0;
+}
+.cite-section-toggle.is-open .cite-hit-caret {
+  transform: rotate(90deg);
+}
+.cite-section-toggle .cite-count {
+  letter-spacing: 0;
+  text-transform: none;
+}
+.cite-link-host {
+  color: var(--muted);
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+  text-transform: none;
+}
 .cite-paste-input {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   min-height: 6.5rem;

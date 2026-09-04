@@ -198,6 +198,7 @@ export function CitePanel({
   const [searching, setSearching] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [pasteOpen, setPasteOpen] = useState(true);
+  const [citedOpen, setCitedOpen] = useState(true);
   const [pasteSource, setPasteSource] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [citationsTick, setCitationsTick] = useState(0);
@@ -498,11 +499,50 @@ export function CitePanel({
         )}
       </div>
 
+      <div className="cite-paste">
+        <CiteSectionToggle
+          open={pasteOpen}
+          onToggle={() => setPasteOpen((value) => !value)}
+          label="Paste BibTeX"
+        />
+        {pasteOpen && (
+          <>
+            <textarea
+              className="cite-paste-input"
+              value={pasteSource}
+              onChange={(event) => setPasteSource(event.target.value)}
+              placeholder={`@book{key,\n  author = {Doe, Jane},\n  title = {Example},\n  year = {2024}\n}`}
+              spellCheck={false}
+            />
+            <div className="cite-paste-actions">
+              <button
+                type="button"
+                className="cite-action"
+                onClick={() => importBibtex(pasteSource)}
+              >
+                Add to results
+              </button>
+              <label className="cite-action cite-file">
+                Open .bib
+                <input
+                  type="file"
+                  accept=".bib,application/x-bibtex,text/plain"
+                  hidden
+                  onChange={onPasteFile}
+                />
+              </label>
+            </div>
+          </>
+        )}
+      </div>
+
       {afterResults}
 
       <ThisEssayList
         rows={used}
         style={style}
+        open={citedOpen}
+        onToggle={() => setCitedOpen((value) => !value)}
         connected={connected}
         copiedId={copiedId}
         onJump={(pos) => {
@@ -582,46 +622,6 @@ export function CitePanel({
         }
         inLibrary={(url) => findLibraryLinkByUrl(url) != null}
       />
-
-      <div className="cite-paste">
-        <button
-          type="button"
-          className="cite-paste-toggle"
-          aria-expanded={pasteOpen}
-          onClick={() => setPasteOpen((open) => !open)}
-        >
-          Paste BibTeX
-        </button>
-        {pasteOpen && (
-          <>
-            <textarea
-              className="cite-paste-input"
-              value={pasteSource}
-              onChange={(event) => setPasteSource(event.target.value)}
-              placeholder={`@book{key,\n  author = {Doe, Jane},\n  title = {Example},\n  year = {2024}\n}`}
-              spellCheck={false}
-            />
-            <div className="cite-paste-actions">
-              <button
-                type="button"
-                className="cite-action"
-                onClick={() => importBibtex(pasteSource)}
-              >
-                Add to results
-              </button>
-              <label className="cite-action cite-file">
-                Open .bib
-                <input
-                  type="file"
-                  accept=".bib,application/x-bibtex,text/plain"
-                  hidden
-                  onChange={onPasteFile}
-                />
-              </label>
-            </div>
-          </>
-        )}
-      </div>
 
     </div>
   );
@@ -790,9 +790,44 @@ function CiteHitRow({
   );
 }
 
+function CiteSectionToggle({
+  open,
+  onToggle,
+  label,
+  extra,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  label: string;
+  extra?: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`cite-section-toggle ${open ? "is-open" : ""}`}
+      aria-expanded={open}
+      onClick={onToggle}
+    >
+      <PanelCaret direction="right" className="cite-hit-caret" size={10} />
+      <span className="cite-section-label">{label}</span>
+      {extra}
+    </button>
+  );
+}
+
+function displayEssayLinkTitle(row: EssayLinkedUrl): string {
+  const title = row.title.trim();
+  if (!title) return row.host;
+  if (/^https?:\/\//i.test(title)) return title.toLowerCase();
+  if (title.toLowerCase() === row.host) return row.host;
+  return title;
+}
+
 function ThisEssayList({
   rows,
   style,
+  open,
+  onToggle,
   connected,
   copiedId,
   addingId,
@@ -806,6 +841,8 @@ function ThisEssayList({
 }: {
   rows: UsedEssaySource[];
   style: CiteStyleId;
+  open: boolean;
+  onToggle: () => void;
   connected: boolean;
   copiedId: string | null;
   addingId: string | null;
@@ -820,18 +857,29 @@ function ThisEssayList({
   return (
     <section className="cite-essay">
       <div className="cite-essay-head">
-        <h3>Cited here</h3>
-        {rows.length > 0 && (
+        <CiteSectionToggle
+          open={open}
+          onToggle={onToggle}
+          label="Cited here"
+          extra={
+            rows.length > 0 ? (
+              <span className="cite-count">{rows.length}</span>
+            ) : undefined
+          }
+        />
+        {open && rows.length > 0 && (
           <button type="button" className="cite-action" onClick={onCopyWorksCited}>
             {copiedId === "works-cited" ? "Copied" : "Copy list"}
           </button>
         )}
       </div>
-      <p className="cite-empty">
-        Footnotes still in this essay, or a citation pasted at the caret.
-        Deleted notes drop off. Copy list for a bibliography.
-      </p>
-      {rows.length > 0 && (
+      {open && (
+        <p className="cite-empty">
+          Footnotes still in this essay, or a citation pasted at the caret.
+          Deleted notes drop off. Copy list for a bibliography.
+        </p>
+      )}
+      {open && rows.length > 0 && (
         <ul className="cite-essay-list">
           {rows.map((row) => {
             const text = displayFormatted(row.citation, style);
@@ -951,20 +999,19 @@ function EssayLinksList({
   return (
     <section className="cite-essay">
       <div className="cite-essay-head">
-        <button
-          type="button"
-          className="cite-paste-toggle"
-          aria-expanded={open}
-          onClick={onToggle}
-        >
-          Links in this essay
-          {rows.length > 0 && (
-            <span className="cite-count">
-              {rows.length}
-              {hosts > 1 ? ` · ${hosts} sites` : ""}
-            </span>
-          )}
-        </button>
+        <CiteSectionToggle
+          open={open}
+          onToggle={onToggle}
+          label="Links in this essay"
+          extra={
+            rows.length > 0 ? (
+              <span className="cite-count">
+                {rows.length}
+                {hosts > 1 ? ` · ${hosts} sites` : ""}
+              </span>
+            ) : undefined
+          }
+        />
       </div>
       {open && (
         <>
@@ -987,10 +1034,12 @@ function EssayLinksList({
                       type="button"
                       className="cite-essay-item"
                       onClick={() => onJump(row.firstPos)}
-                      title={row.url}
+                      title={row.url.toLowerCase()}
                     >
-                      <span className="cite-hit-kind">{row.host}</span>
-                      <span className="cite-essay-title">{row.title}</span>
+                      <span className="cite-link-host">{row.host}</span>
+                      <span className="cite-essay-title">
+                        {displayEssayLinkTitle(row)}
+                      </span>
                       {row.count > 1 && (
                         <span className="cite-count">×{row.count}</span>
                       )}
