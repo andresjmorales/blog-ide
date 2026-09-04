@@ -85,6 +85,7 @@ import {
   type LibraryMeta,
 } from "@/lib/library/sessionLibrary";
 import { openLinkPin, openPdfPin } from "@/lib/pins/pinStore";
+import { showErrorToast, showSuccessToast, showToast } from "@/lib/ui/toast";
 import { useSyncExternalStore } from "react";
 
 const SEARCH_DEBOUNCE_MS = 320;
@@ -195,9 +196,9 @@ export function CitePanel({
   const [zoteroHits, setZoteroHits] = useState<CiteHit[]>([]);
   const [sessionHits, setSessionHits] = useState<CiteHit[]>([]);
   const [searching, setSearching] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [pasteOpen, setPasteOpen] = useState(true);
+  const [citedOpen, setCitedOpen] = useState(true);
   const [pasteSource, setPasteSource] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [citationsTick, setCitationsTick] = useState(0);
@@ -277,9 +278,13 @@ export function CitePanel({
       const result = await addUrlToZotero(config, { url, title }, style);
       const key = canonicalizeLibraryUrl(url) ?? url.trim();
       setZoteroByUrl((prev) => ({ ...prev, [key]: result.hit }));
-      setError(null);
+      showSuccessToast(
+        result.created ? "Added to your Zotero library." : "Already in your Zotero library.",
+        undefined,
+        "cite-zotero-add"
+      );
     } catch (err) {
-      setError(zoteroErrorCopy(err, "write"));
+      showErrorToast(zoteroErrorCopy(err, "write"), "Could not add to Zotero.", "cite-zotero-add");
     } finally {
       setAddingId((current) => (current === id ? null : current));
     }
@@ -288,9 +293,9 @@ export function CitePanel({
   async function addToLibrary(url: string, title?: string) {
     try {
       await addLibraryLinkDurable({ url, title });
-      setError(null);
+      showSuccessToast("Saved to Library.", undefined, "cite-library-add");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not add that link.");
+      showErrorToast(err, "Could not add that link.", "cite-library-add");
     }
   }
 
@@ -304,12 +309,11 @@ export function CitePanel({
         .then((items) => {
           if (gen !== searchGen.current) return;
           setZoteroHits(items.map(hitFromZotero));
-          setError(null);
         })
         .catch((err) => {
           if (gen !== searchGen.current) return;
           setZoteroHits([]);
-          setError(zoteroErrorCopy(err));
+          showErrorToast(zoteroErrorCopy(err), "Zotero search failed.", "cite-zotero-search");
         })
         .finally(() => {
           if (gen === searchGen.current) setSearching(false);
@@ -335,10 +339,13 @@ export function CitePanel({
   function importBibtex(source: string) {
     const hits = hitsFromBibtex(source, style);
     if (hits.length === 0) {
-      setError("No BibTeX entries found. Paste an @article{…} or @book{…}.");
+      showToast({
+        tone: "error",
+        message: "No BibTeX entries found. Paste an @article{…} or @book{…}.",
+        replaceKey: "cite-bibtex",
+      });
       return [];
     }
-    setError(null);
     setSessionHits((prev) => mergeHits(hits, prev));
     setExpandedId(hits[0]?.id ?? null);
     return hits;
@@ -378,7 +385,7 @@ export function CitePanel({
   async function copyText(id: string, text: string) {
     const ok = await copyPlainText(text);
     if (ok) flashCopied(id);
-    else setError("Could not copy to the clipboard.");
+    else showErrorToast("Could not copy to the clipboard.", "Could not copy.", "cite-copy");
   }
 
   return (
@@ -492,93 +499,12 @@ export function CitePanel({
         )}
       </div>
 
-      {afterResults}
-
-      <ThisEssayList
-        rows={used}
-        style={style}
-        connected={connected}
-        copiedId={copiedId}
-        onJump={(pos) => {
-          if (editor) scrollFootnoteIntoView(editor, pos);
-        }}
-        onCopy={(id, text) => void copyText(id, text)}
-        onCopyUrl={(id, url) => void copyText(id, url)}
-        onCopyWorksCited={() =>
-          void copyText("works-cited", worksCitedBlock(used, style))
-        }
-        onAddToZotero={
-          connected
-            ? (row) => {
-                const url = row.citation.url;
-                if (!url) return;
-                void addToZotero(`used:${row.citation.id}`, url, row.citation.title);
-              }
-            : undefined
-        }
-        addingId={addingId}
-        zoteroByUrl={zoteroByUrl}
-        onRefresh={
-          connected
-            ? async (row) => {
-                if (row.citation.provider !== "zotero") return;
-                try {
-                  const fresh = await getZoteroItem(config, row.citation.id, style);
-                  if (!fresh?.citation) {
-                    setError("Zotero had no formatted citation for that item.");
-                    return;
-                  }
-                  const next = citationFromHit(hitFromZotero(fresh), style);
-                  next.footnoteIds = row.citation.footnoteIds;
-                  if (editor) {
-                    updateCitationSnapshot(editor, next);
-                    if (row.footnote) {
-                      rewriteFootnoteContent(
-                        editor,
-                        row.footnote.id,
-                        fresh.citation
-                      );
-                    }
-                  }
-                  setError(null);
-                } catch (err) {
-                  setError(zoteroErrorCopy(err));
-                }
-              }
-            : undefined
-        }
-      />
-
-      <EssayLinksList
-        rows={linkedUrls}
-        open={linksOpen}
-        onToggle={() => setLinksOpen((value) => !value)}
-        connected={connected}
-        copiedId={copiedId}
-        addingId={addingId}
-        zoteroByUrl={zoteroByUrl}
-        onJump={(pos) => {
-          if (editor) scrollFootnoteIntoView(editor, pos);
-        }}
-        onCopyUrl={(id, url) => void copyText(id, url)}
-        onAddToLibrary={(row) => void addToLibrary(row.url, row.title)}
-        onAddToZotero={
-          connected
-            ? (row) => void addToZotero(`link:${row.canonical}`, row.url, row.title)
-            : undefined
-        }
-        inLibrary={(url) => findLibraryLinkByUrl(url) != null}
-      />
-
       <div className="cite-paste">
-        <button
-          type="button"
-          className="cite-paste-toggle"
-          aria-expanded={pasteOpen}
-          onClick={() => setPasteOpen((open) => !open)}
-        >
-          Paste BibTeX
-        </button>
+        <CiteSectionToggle
+          open={pasteOpen}
+          onToggle={() => setPasteOpen((value) => !value)}
+          label="Paste BibTeX"
+        />
         {pasteOpen && (
           <>
             <textarea
@@ -610,7 +536,93 @@ export function CitePanel({
         )}
       </div>
 
-      {error && <p className="cite-error">{error}</p>}
+      {afterResults}
+
+      <ThisEssayList
+        rows={used}
+        style={style}
+        open={citedOpen}
+        onToggle={() => setCitedOpen((value) => !value)}
+        connected={connected}
+        copiedId={copiedId}
+        onJump={(pos) => {
+          if (editor) scrollFootnoteIntoView(editor, pos);
+        }}
+        onCopy={(id, text) => void copyText(id, text)}
+        onCopyUrl={(id, url) => void copyText(id, url)}
+        onCopyWorksCited={() =>
+          void copyText("works-cited", worksCitedBlock(used, style))
+        }
+        onAddToZotero={
+          connected
+            ? (row) => {
+                const url = row.citation.url;
+                if (!url) return;
+                void addToZotero(`used:${row.citation.id}`, url, row.citation.title);
+              }
+            : undefined
+        }
+        addingId={addingId}
+        zoteroByUrl={zoteroByUrl}
+        onRefresh={
+          connected
+            ? async (row) => {
+                if (row.citation.provider !== "zotero") return;
+                try {
+                  const fresh = await getZoteroItem(config, row.citation.id, style);
+                  if (!fresh?.citation) {
+                    showToast({
+                      tone: "error",
+                      message: "Zotero had no formatted citation for that item.",
+                      replaceKey: "cite-zotero-refresh",
+                    });
+                    return;
+                  }
+                  const next = citationFromHit(hitFromZotero(fresh), style);
+                  next.footnoteIds = row.citation.footnoteIds;
+                  if (editor) {
+                    updateCitationSnapshot(editor, next);
+                    if (row.footnote) {
+                      rewriteFootnoteContent(
+                        editor,
+                        row.footnote.id,
+                        fresh.citation
+                      );
+                    }
+                  }
+                } catch (err) {
+                  showErrorToast(
+                    zoteroErrorCopy(err),
+                    "Could not refresh that citation.",
+                    "cite-zotero-refresh"
+                  );
+                }
+              }
+            : undefined
+        }
+      />
+
+      <EssayLinksList
+        rows={linkedUrls}
+        open={linksOpen}
+        onToggle={() => setLinksOpen((value) => !value)}
+        connected={connected}
+        copiedId={copiedId}
+        addingId={addingId}
+        zoteroByUrl={zoteroByUrl}
+        onJump={(pos) => {
+          if (editor) scrollFootnoteIntoView(editor, pos);
+        }}
+        onCopyUrl={(id, url) => void copyText(id, url)}
+        onAddToLibrary={(row) => void addToLibrary(row.url, row.title)}
+        onAddToZotero={
+          connected
+            ? (row) => void addToZotero(`link:${row.canonical}`, row.url, row.title)
+            : undefined
+        }
+        inLibrary={(url) => findLibraryLinkByUrl(url) != null}
+      />
+
     </div>
   );
 }
@@ -778,9 +790,44 @@ function CiteHitRow({
   );
 }
 
+function CiteSectionToggle({
+  open,
+  onToggle,
+  label,
+  extra,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  label: string;
+  extra?: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`cite-section-toggle ${open ? "is-open" : ""}`}
+      aria-expanded={open}
+      onClick={onToggle}
+    >
+      <PanelCaret direction="right" className="cite-hit-caret" size={10} />
+      <span className="cite-section-label">{label}</span>
+      {extra}
+    </button>
+  );
+}
+
+function displayEssayLinkTitle(row: EssayLinkedUrl): string {
+  const title = row.title.trim();
+  if (!title) return row.host;
+  if (/^https?:\/\//i.test(title)) return title.toLowerCase();
+  if (title.toLowerCase() === row.host) return row.host;
+  return title;
+}
+
 function ThisEssayList({
   rows,
   style,
+  open,
+  onToggle,
   connected,
   copiedId,
   addingId,
@@ -794,6 +841,8 @@ function ThisEssayList({
 }: {
   rows: UsedEssaySource[];
   style: CiteStyleId;
+  open: boolean;
+  onToggle: () => void;
   connected: boolean;
   copiedId: string | null;
   addingId: string | null;
@@ -808,18 +857,29 @@ function ThisEssayList({
   return (
     <section className="cite-essay">
       <div className="cite-essay-head">
-        <h3>Cited here</h3>
-        {rows.length > 0 && (
+        <CiteSectionToggle
+          open={open}
+          onToggle={onToggle}
+          label="Cited here"
+          extra={
+            rows.length > 0 ? (
+              <span className="cite-count">{rows.length}</span>
+            ) : undefined
+          }
+        />
+        {open && rows.length > 0 && (
           <button type="button" className="cite-action" onClick={onCopyWorksCited}>
             {copiedId === "works-cited" ? "Copied" : "Copy list"}
           </button>
         )}
       </div>
-      <p className="cite-empty">
-        Footnotes still in this essay, or a citation pasted at the caret.
-        Deleted notes drop off. Copy list for a bibliography.
-      </p>
-      {rows.length > 0 && (
+      {open && (
+        <p className="cite-empty">
+          Footnotes still in this essay, or a citation pasted at the caret.
+          Deleted notes drop off. Copy list for a bibliography.
+        </p>
+      )}
+      {open && rows.length > 0 && (
         <ul className="cite-essay-list">
           {rows.map((row) => {
             const text = displayFormatted(row.citation, style);
@@ -939,20 +999,19 @@ function EssayLinksList({
   return (
     <section className="cite-essay">
       <div className="cite-essay-head">
-        <button
-          type="button"
-          className="cite-paste-toggle"
-          aria-expanded={open}
-          onClick={onToggle}
-        >
-          Links in this essay
-          {rows.length > 0 && (
-            <span className="cite-count">
-              {rows.length}
-              {hosts > 1 ? ` · ${hosts} sites` : ""}
-            </span>
-          )}
-        </button>
+        <CiteSectionToggle
+          open={open}
+          onToggle={onToggle}
+          label="Links in this essay"
+          extra={
+            rows.length > 0 ? (
+              <span className="cite-count">
+                {rows.length}
+                {hosts > 1 ? ` · ${hosts} sites` : ""}
+              </span>
+            ) : undefined
+          }
+        />
       </div>
       {open && (
         <>
@@ -975,10 +1034,12 @@ function EssayLinksList({
                       type="button"
                       className="cite-essay-item"
                       onClick={() => onJump(row.firstPos)}
-                      title={row.url}
+                      title={row.url.toLowerCase()}
                     >
-                      <span className="cite-hit-kind">{row.host}</span>
-                      <span className="cite-essay-title">{row.title}</span>
+                      <span className="cite-link-host">{row.host}</span>
+                      <span className="cite-essay-title">
+                        {displayEssayLinkTitle(row)}
+                      </span>
                       {row.count > 1 && (
                         <span className="cite-count">×{row.count}</span>
                       )}

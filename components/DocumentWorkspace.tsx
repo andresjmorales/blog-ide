@@ -90,6 +90,7 @@ import {
   type AiSelection,
 } from "@/lib/ai/selection";
 import { useAppDialog } from "@/components/AppDialog";
+import { showErrorToast, showSuccessToast } from "@/lib/ui/toast";
 import {
   copyDocumentForPaste,
   copyMarkdownToClipboard,
@@ -785,13 +786,7 @@ export function DocumentWorkspace({
       });
       applyMarkdown(unwrapMarkdownReply(reply.trim()));
     } catch (error) {
-      await dialog.confirm({
-        title: "AI cleanup failed",
-        message:
-          error instanceof Error ? error.message : "Could not clean import.",
-        confirmLabel: "OK",
-        cancelLabel: "Dismiss",
-      });
+      showErrorToast(error, "Could not clean import.", "ai-import-cleanup");
     }
   }, [
     mode,
@@ -1403,19 +1398,18 @@ export function DocumentWorkspace({
       currentMarkdown(),
       documentName ?? `${essayTitle}.md`
     );
+    showSuccessToast("Downloaded markdown.", undefined, "export-file");
   }
 
   async function copyForExport() {
     try {
       await copyMarkdownToClipboard(currentMarkdown());
     } catch {
-      await dialog.confirm({
-        title: "Copy failed",
-        message:
-          "Could not write to the clipboard. Try downloading .md instead.",
-        confirmLabel: "OK",
-        cancelLabel: "Close",
-      });
+      showErrorToast(
+        "Could not write to the clipboard. Try downloading .md instead.",
+        "Could not copy.",
+        "copy-export"
+      );
     }
   }
 
@@ -1428,13 +1422,11 @@ export function DocumentWorkspace({
           : richTextFromMarkdown(currentMarkdown());
       await copyDocumentForPaste({ html, plain });
     } catch {
-      await dialog.confirm({
-        title: "Copy failed",
-        message:
-          "Could not write to the clipboard. Try Copy → Markdown or Export → HTML.",
-        confirmLabel: "OK",
-        cancelLabel: "Close",
-      });
+      showErrorToast(
+        "Could not write to the clipboard. Try Copy → Markdown or Export → HTML.",
+        "Could not copy.",
+        "copy-export"
+      );
     }
   }
 
@@ -1444,13 +1436,11 @@ export function DocumentWorkspace({
     try {
       await copyDocumentForPaste({ html, plain });
     } catch {
-      await dialog.confirm({
-        title: "Copy failed",
-        message:
-          "Could not write to the clipboard. Try downloading .md or HTML instead.",
-        confirmLabel: "OK",
-        cancelLabel: "Close",
-      });
+      showErrorToast(
+        "Could not write to the clipboard. Try downloading .md or HTML instead.",
+        "Could not copy.",
+        "copy-export"
+      );
     }
   }
 
@@ -1461,6 +1451,7 @@ export function DocumentWorkspace({
       }),
       documentName ?? `${essayTitle}.html`
     );
+    showSuccessToast("Downloaded HTML.", undefined, "export-file");
   }
 
   function exportPdfPrint() {
@@ -1469,47 +1460,29 @@ export function DocumentWorkspace({
         fetchBible: prefs.fetchBibleEnabled,
       });
     } catch (err) {
-      void dialog.confirm({
-        title: "Print blocked",
-        message:
-          err instanceof Error
-            ? err.message
-            : "Could not open the print preview. Allow pop-ups, then try again.",
-        confirmLabel: "OK",
-        cancelLabel: "Close",
-      });
+      showErrorToast(
+        err,
+        "Could not open the print preview. Allow pop-ups, then try again.",
+        "export-file"
+      );
     }
   }
 
   async function exportPdfPandoc() {
     try {
       await exportMarkdownAsPdf(currentMarkdown(), essayTitle);
+      showSuccessToast("Downloaded PDF.", undefined, "export-file");
     } catch (error) {
-      await dialog.confirm({
-        title: "PDF export failed",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Could not convert this essay to PDF.",
-        confirmLabel: "OK",
-        cancelLabel: "Close",
-      });
+      showErrorToast(error, "Could not convert this essay to PDF.", "export-file");
     }
   }
 
   async function exportDocx() {
     try {
       await exportMarkdownAsDocx(currentMarkdown(), essayTitle);
+      showSuccessToast("Downloaded Word file.", undefined, "export-file");
     } catch (error) {
-      await dialog.confirm({
-        title: "Word export failed",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Could not convert this essay to Word.",
-        confirmLabel: "OK",
-        cancelLabel: "Close",
-      });
+      showErrorToast(error, "Could not convert this essay to Word.", "export-file");
     }
   }
 
@@ -1526,20 +1499,13 @@ export function DocumentWorkspace({
         scope: { nodeId },
       });
       const files = results.reduce((n, r) => n + r.fileCount, 0);
-      await dialog.confirm({
-        title: "Pushed to GitHub",
-        message: `Wrote ${files} file${files === 1 ? "" : "s"}. Matching paths were overwritten; extra files in the repo were left alone.`,
-        confirmLabel: "OK",
-        cancelLabel: "Close",
-      });
+      showSuccessToast(
+        `Pushed ${files} file${files === 1 ? "" : "s"} to GitHub.`,
+        undefined,
+        "github-push"
+      );
     } catch (error) {
-      await dialog.confirm({
-        title: "GitHub push failed",
-        message:
-          error instanceof Error ? error.message : "Could not push to GitHub.",
-        confirmLabel: "OK",
-        cancelLabel: "Close",
-      });
+      showErrorToast(error, "Could not push to GitHub.", "github-push");
     }
   }
 
@@ -1616,15 +1582,7 @@ export function DocumentWorkspace({
             fetchBible: prefs.fetchBibleEnabled,
           });
         } catch (err) {
-          void dialog.confirm({
-            title: "Preview blocked",
-            message:
-              err instanceof Error
-                ? err.message
-                : "Could not open the preview tab.",
-            confirmLabel: "OK",
-            cancelLabel: "Close",
-          });
+          showErrorToast(err, "Could not open the preview tab.", "preview-tab");
         }
       },
     },

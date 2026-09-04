@@ -11,12 +11,12 @@ import {
 } from "@/lib/library/sessionLibrary";
 import { fetchLinkPreview } from "@/lib/preview/client";
 import { openLinkPin, openPdfPin } from "@/lib/pins/pinStore";
+import { showErrorToast } from "@/lib/ui/toast";
 
 export function LibraryPanel() {
   const [linkDraft, setLinkDraft] = useState("");
   const [linkBusy, setLinkBusy] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
-  const [pdfError, setPdfError] = useState<string | null>(null);
 
   useEffect(() => {
     void hydrateLibraryFromCloud();
@@ -25,7 +25,6 @@ export function LibraryPanel() {
   async function addPdf() {
     const file = await pickPdfFile();
     if (!file) return;
-    setPdfError(null);
     try {
       const entry = await addLibraryPdfDurable(file);
       openPdfPin({
@@ -34,12 +33,12 @@ export function LibraryPanel() {
         revokeOnClose: entry.revokeOnClose,
       });
     } catch (err) {
-      setPdfError(
+      showErrorToast(
         err instanceof QuotaExceededError
           ? "Storage quota exceeded. Free space in Settings."
-          : err instanceof Error
-            ? err.message
-            : "Could not add PDF."
+          : err,
+        "Could not add PDF.",
+        "library-pdf"
       );
     }
   }
@@ -100,11 +99,6 @@ export function LibraryPanel() {
             Add PDF…
           </button>
         </div>
-        {pdfError && (
-          <p className="mb-2 text-[0.7rem] text-red-600 dark:text-red-400">
-            {pdfError}
-          </p>
-        )}
         <form
           className="library-adder-form"
           onSubmit={(event) => {
