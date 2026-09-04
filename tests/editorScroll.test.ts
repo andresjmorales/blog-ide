@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Editor } from "@tiptap/core";
+import { scrollMatchIntoView } from "@/lib/editor/findHighlight";
 import {
   EDITOR_SCROLL_SELECTOR,
   OUTLINE_HEADING_ALIGN,
@@ -170,6 +171,75 @@ describe("scrollHeadingIntoView", () => {
     try {
       scrollHeadingIntoView(editor, 1);
       await nextFrame();
+      const expected = 2100 - 100 - 800 * OUTLINE_HEADING_ALIGN;
+      expect(pane.scrollTop).toBeCloseTo(expected, 0);
+    } finally {
+      pane.remove();
+    }
+  });
+});
+
+describe("scrollMatchIntoView", () => {
+  function nextFrames(count: number): Promise<void> {
+    return new Promise((resolve) => {
+      const step = (left: number) => {
+        if (left <= 0) {
+          resolve();
+          return;
+        }
+        requestAnimationFrame(() => step(left - 1));
+      };
+      step(count);
+    });
+  }
+
+  function mockPane() {
+    const pane = document.createElement("div");
+    pane.setAttribute("data-blogide-editor-scroll", "");
+    Object.defineProperty(pane, "clientHeight", { value: 800 });
+    Object.defineProperty(pane, "scrollHeight", { value: 4000 });
+    pane.scrollTop = 0;
+    pane.getBoundingClientRect = () =>
+      ({
+        top: 100,
+        bottom: 900,
+        left: 0,
+        right: 600,
+        width: 600,
+        height: 800,
+        x: 0,
+        y: 100,
+        toJSON() {
+          return {};
+        },
+      }) as DOMRect;
+    pane.scrollTo = ((options?: ScrollToOptions | number) => {
+      if (typeof options === "object" && options?.top != null) {
+        pane.scrollTop = options.top;
+      }
+    }) as typeof pane.scrollTo;
+    const prose = document.createElement("div");
+    pane.appendChild(prose);
+    document.body.appendChild(pane);
+    return { pane, prose };
+  }
+
+  it("scrolls the essay pane to a match even when coordsAtPos(to) throws", async () => {
+    const { pane, prose } = mockPane();
+    const editor = {
+      isDestroyed: false,
+      view: {
+        dom: prose,
+        coordsAtPos: (pos: number) => {
+          if (pos === 20) throw new Error("Invalid position");
+          return { top: 2100, bottom: 2118, left: 0, right: 80 };
+        },
+      },
+    } as unknown as Editor;
+
+    try {
+      scrollMatchIntoView(editor, { from: 10, to: 20, text: "token" });
+      await nextFrames(2);
       const expected = 2100 - 100 - 800 * OUTLINE_HEADING_ALIGN;
       expect(pane.scrollTop).toBeCloseTo(expected, 0);
     } finally {

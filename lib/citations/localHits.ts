@@ -133,6 +133,7 @@ export function hitFromZotero(hit: ZoteroSearchHit): CiteHit {
     itemType: hit.itemType,
     formatted: hit.citation,
     bibtex: hit.bibtex,
+    url: hit.url,
     zotero: hit,
   };
 }
@@ -158,6 +159,7 @@ export function hitFromEssayCitation(
     itemType: citation.provider,
     formatted,
     bibtex: citation.bibtex ?? "",
+    url: citation.url,
   };
 }
 
@@ -172,6 +174,7 @@ export function citationFromHit(
     title: hit.title,
     formatted: { [formattedKeyForStyle(style)]: hit.formatted },
     bibtex: hit.bibtex || undefined,
+    url: hit.url,
   };
 }
 

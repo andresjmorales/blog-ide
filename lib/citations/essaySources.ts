@@ -93,10 +93,96 @@ function findMarkForCitation(
   return marks.find((mark) => citationMatchesText(citation, mark.content));
 }
 
+function collectSearchableText(doc: ProseMirrorNode | JSONContent): string {
+  const parts: string[] = [];
+  if (doc && typeof doc === "object" && "descendants" in doc) {
+    (doc as ProseMirrorNode).descendants((node) => {
+      if (node.type.name === "footnoteRef") {
+        parts.push(String(node.attrs.content ?? ""));
+        return true;
+      }
+      if (node.isText && node.text) parts.push(node.text);
+      return true;
+    });
+    return parts.join("\n");
+  }
+  function visit(node: JSONContent) {
+    if (node.type === "footnoteRef") {
+      parts.push(String(node.attrs?.content ?? ""));
+    }
+    if (node.type === "text" && typeof node.text === "string") {
+      parts.push(node.text);
+    }
+    node.content?.forEach(visit);
+  }
+  visit(doc as JSONContent);
+  return parts.join("\n");
+}
+
+function formattedStillInDoc(
+  citation: EssayCitation,
+  docText: string
+): boolean {
+  return formattedStrings(citation).some((value) => {
+    const needle = value.trim();
+    return needle.length > 0 && docText.includes(needle);
+  });
+}
+
+export function citationStillInEssay(
+  citation: EssayCitation,
+  doc: ProseMirrorNode | JSONContent,
+  marks = collectFootnoteMarks(doc),
+  docText = collectSearchableText(doc)
+): boolean {
+  if (findMarkForCitation(citation, marks)) return true;
+  return formattedStillInDoc(citation, docText);
+}
+
+export function citationsSnapshotEqual(
+  left: EssayCitation[],
+  right: EssayCitation[]
+): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((entry, index) => {
+    const other = right[index];
+    if (!other || entry.id !== other.id) return false;
+    const a = entry.footnoteIds ?? [];
+    const b = other.footnoteIds ?? [];
+    return a.length === b.length && a.every((id, i) => id === b[i]);
+  });
+}
+
 /**
- * Sources this essay already used: the citations trailer plus footnotes
- * whose body still matches a stored formatted string. Ordered by first
- * footnote number, then trailer order for caret-only inserts.
+ * Drop trailer entries whose footnote was deleted and whose formatted
+ * string is no longer in the essay (caret inserts stay while the text does).
+ */
+export function pruneEssayCitations(
+  citations: EssayCitation[],
+  doc: ProseMirrorNode | JSONContent
+): EssayCitation[] {
+  const marks = collectFootnoteMarks(doc);
+  const docText = collectSearchableText(doc);
+  const livingIds = new Set(marks.map((mark) => mark.id));
+  return citations
+    .map((citation) => {
+      const footnoteIds = (citation.footnoteIds ?? []).filter((id) =>
+        livingIds.has(id)
+      );
+      return {
+        ...citation,
+        footnoteIds: footnoteIds.length ? footnoteIds : undefined,
+      };
+    })
+    .filter((citation) =>
+      citationStillInEssay(citation, doc, marks, docText)
+    );
+}
+
+/**
+ * Sources still present in this essay: living footnotes (by id or matching
+ * note text), then caret-only inserts whose formatted string is still here.
+ * Deleted footnotes drop off.
  */
 export function listUsedEssaySources(
   citations: EssayCitation[],
@@ -104,12 +190,14 @@ export function listUsedEssaySources(
   style: CiteStyleId
 ): UsedEssaySource[] {
   const marks = collectFootnoteMarks(doc);
+  const docText = collectSearchableText(doc);
   const claimed = new Set<string>();
   const listed = new Set<string>();
   const rows: UsedEssaySource[] = [];
 
   for (const citation of citations) {
     const footnote = findMarkForCitation(citation, marks) ?? null;
+    if (!footnote && !formattedStillInDoc(citation, docText)) continue;
     if (footnote) claimed.add(footnote.id);
     listed.add(citation.id);
     const expected = preferredFormatted(citation, style);

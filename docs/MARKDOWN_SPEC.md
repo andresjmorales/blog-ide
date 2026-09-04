@@ -72,9 +72,9 @@ markdown into another editor does **not** create native platform footnotes;
 see [PUBLISH_EXPORT.md](./PUBLISH_EXPORT.md).
 
 A BlogIDE-only `<!--blogide-citations:…-->` trailer may follow the notes. It
-is a snapshot of sources inserted from Library Cite (Zotero, BibTeX, or a saved link), not
-the human copy. If the comment is stripped, the footnote bodies still read
-correctly.
+is a snapshot of sources still used from Library Cite (Zotero, BibTeX, or a saved link), not
+the human copy. Deleted footnotes are dropped from the snapshot. If the comment
+is stripped, the footnote bodies still read correctly.
 
 ## Lists
 
