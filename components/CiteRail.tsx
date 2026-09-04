@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Editor } from "@tiptap/react";
-import { PanelCaret } from "@/components/icons";
+import { BookmarkIcon, PanelCaret, ZoteroMarkIcon } from "@/components/icons";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import {
   CITE_STYLE_LABELS,
@@ -84,6 +84,7 @@ import {
   subscribeLibrary,
   type LibraryMeta,
 } from "@/lib/library/sessionLibrary";
+import { resolveLibraryOpenTarget } from "@/lib/library/openLibraryItem";
 import { openLinkPin, openPdfPin } from "@/lib/pins/pinStore";
 import { showErrorToast, showSuccessToast, showToast } from "@/lib/ui/toast";
 import { useSyncExternalStore } from "react";
@@ -472,7 +473,7 @@ export function CitePanel({
                 }}
                 onCopy={() => void copyText(hit.id, hit.formatted)}
                 onCopyUrl={
-                  hit.url
+                  hit.url && hitKindLabel(hit) !== "pdf"
                     ? () => void copyText(`${hit.id}:url`, hit.url!)
                     : undefined
                 }
@@ -631,21 +632,21 @@ async function openLibraryHit(
   entries: LibraryMeta[],
   hit: CiteHit
 ): Promise<void> {
-  const entry = hit.libraryId
-    ? entries.find((item) => item.id === hit.libraryId)
-    : undefined;
-  if (entry?.kind === "link" && entry.url) {
-    openLinkPin({ url: entry.url, title: entry.name });
+  const target = await resolveLibraryOpenTarget(
+    entries,
+    hit,
+    resolveLibraryPdfSrc
+  );
+  if (!target) return;
+  if (target.kind === "pdf") {
+    openPdfPin({
+      src: target.src,
+      title: target.title,
+      revokeOnClose: false,
+    });
     return;
   }
-  if (hit.url) {
-    openLinkPin({ url: hit.url, title: hit.title });
-    return;
-  }
-  if (!entry) return;
-  const src = await resolveLibraryPdfSrc(entry);
-  if (!src) return;
-  openPdfPin({ src, title: entry.name, revokeOnClose: false });
+  openLinkPin({ url: target.url, title: target.title });
 }
 
 function CiteHitRow({
@@ -755,19 +756,20 @@ function CiteHitRow({
               </button>
             )}
             {onOpen && (
-              <button type="button" className="cite-action" onClick={onOpen}>
-                Open
+              <button
+                type="button"
+                className={`cite-action${kind === "pdf" ? " is-primary" : ""}`}
+                onClick={onOpen}
+              >
+                {kind === "pdf" ? "Open PDF" : "Open"}
               </button>
             )}
             {onAddToZotero && (
-              <button
-                type="button"
-                className="cite-action"
-                disabled={addingToZotero}
+              <CiteSaveChip
+                kind="zotero"
+                busy={addingToZotero}
                 onClick={onAddToZotero}
-              >
-                {addingToZotero ? "Adding…" : "Add to Zotero"}
-              </button>
+              />
             )}
             {zoteroHit && connected && (
               <a className="cite-zotero-link" href={zoteroSelectHref(zoteroHit)}>
@@ -787,6 +789,36 @@ function CiteHitRow({
         </>
       )}
     </li>
+  );
+}
+
+function CiteSaveChip({
+  kind,
+  busy,
+  onClick,
+}: {
+  kind: "library" | "zotero";
+  busy?: boolean;
+  onClick: () => void;
+}) {
+  const label = kind === "library" ? "+ Library" : "+ Zotero";
+  const idleTitle = kind === "library" ? "Add to Library" : "Add to Zotero";
+  return (
+    <button
+      type="button"
+      className="cite-action cite-save-chip"
+      disabled={busy}
+      title={busy ? "Adding…" : idleTitle}
+      aria-label={busy ? "Adding…" : idleTitle}
+      onClick={onClick}
+    >
+      {kind === "library" ? (
+        <BookmarkIcon className="cite-save-icon" />
+      ) : (
+        <ZoteroMarkIcon className="cite-save-icon" />
+      )}
+      <span>{busy ? "…" : label}</span>
+    </button>
   );
 }
 
@@ -936,14 +968,11 @@ function ThisEssayList({
                   </button>
                 )}
                 {onAddToZotero && url && row.citation.provider !== "zotero" && !zoteroHit && (
-                  <button
-                    type="button"
-                    className="cite-action"
-                    disabled={addingId === addId}
+                  <CiteSaveChip
+                    kind="zotero"
+                    busy={addingId === addId}
                     onClick={() => onAddToZotero(row)}
-                  >
-                    {addingId === addId ? "Adding…" : "Add to Zotero"}
-                  </button>
+                  />
                 )}
                 {zoteroHit && connected && (
                   <a className="cite-zotero-link" href={zoteroSelectHref(zoteroHit)}>
@@ -1052,23 +1081,17 @@ function EssayLinksList({
                       {copiedId === `${copyId}:url` ? "Copied URL" : "Copy URL"}
                     </button>
                     {!saved && (
-                      <button
-                        type="button"
-                        className="cite-action"
+                      <CiteSaveChip
+                        kind="library"
                         onClick={() => onAddToLibrary(row)}
-                      >
-                        Add to Library
-                      </button>
+                      />
                     )}
                     {onAddToZotero && !zoteroHit && (
-                      <button
-                        type="button"
-                        className="cite-action"
-                        disabled={addingId === copyId}
+                      <CiteSaveChip
+                        kind="zotero"
+                        busy={addingId === copyId}
                         onClick={() => onAddToZotero(row)}
-                      >
-                        {addingId === copyId ? "Adding…" : "Add to Zotero"}
-                      </button>
+                      />
                     )}
                     {zoteroHit && connected && (
                       <a

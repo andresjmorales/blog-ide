@@ -564,6 +564,18 @@ body {
   border-color: var(--accent);
   color: var(--accent);
 }
+.cite-save-chip {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.2rem;
+  padding: 0.12rem 0.3rem;
+}
+.cite-save-chip .cite-save-icon {
+  display: block;
+  flex-shrink: 0;
+  height: 12px;
+  width: 12px;
+}
 .cite-action-danger:hover {
   border-color: #b45309;
   color: #b45309;
@@ -1805,6 +1817,13 @@ html.app-shell-lock body {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
+}
+
+/* Essay pane: contain wheel bounce and stop overflow-anchor from
+   correcting scrollTop after highlights / sidenotes paint. */
+[data-blogide-editor-scroll] {
+  overflow-anchor: none;
+  overscroll-behavior: contain;
 }
 
 /* Placeholder-free empty doc: keep the caret visible */

@@ -115,21 +115,35 @@ export function SidenoteRail({
       window.clearTimeout(idleTimer);
       idleTimer = window.setTimeout(() => {
         driver = null;
-      }, 180);
+      }, 280);
       scheduleTick();
+    }
+
+    function armFromUser(next: "essay" | "rail") {
+      return () => {
+        if (!linkedRef.current) return;
+        markDriver(next);
+      };
     }
 
     function onEssayScroll() {
       if (!linkedRef.current) return;
       // Ignore scroll we caused while easing from the rail.
       if (driver === "rail") return;
-      markDriver("essay");
+      if (driver === "essay") {
+        scheduleTick();
+        return;
+      }
+      // Programmatic essay motion (Find, outline): snap the rail only.
+      // Never let a leftover rail `scroll` event drive the essay back —
+      // that is the opposite-direction jump after a long wheel flick.
+      setProgress(notesPane, progressOf(essayPane));
     }
 
     function onRailScroll() {
       if (!linkedRef.current) return;
       if (driver === "essay") return;
-      markDriver("rail");
+      if (driver === "rail") scheduleTick();
     }
 
     // Relink: snap rail to the essay immediately.
@@ -140,8 +154,20 @@ export function SidenoteRail({
       setProgress(notesPane, progressOf(essayPane));
     }
 
+    const armEssay = armFromUser("essay");
+    const armRail = armFromUser("rail");
+    const userOpts: AddEventListenerOptions = { passive: true, capture: true };
+
     essayPane.addEventListener("scroll", onEssayScroll, { passive: true });
     notesPane.addEventListener("scroll", onRailScroll, { passive: true });
+    essayPane.addEventListener("wheel", armEssay, userOpts);
+    essayPane.addEventListener("pointerdown", armEssay, userOpts);
+    essayPane.addEventListener("touchstart", armEssay, userOpts);
+    essayPane.addEventListener("keydown", armEssay, userOpts);
+    notesPane.addEventListener("wheel", armRail, userOpts);
+    notesPane.addEventListener("pointerdown", armRail, userOpts);
+    notesPane.addEventListener("touchstart", armRail, userOpts);
+    notesPane.addEventListener("keydown", armRail, userOpts);
     window.addEventListener("resize", onResize);
 
     return () => {
@@ -150,6 +176,14 @@ export function SidenoteRail({
       if (frame) window.cancelAnimationFrame(frame);
       essayPane.removeEventListener("scroll", onEssayScroll);
       notesPane.removeEventListener("scroll", onRailScroll);
+      essayPane.removeEventListener("wheel", armEssay, userOpts);
+      essayPane.removeEventListener("pointerdown", armEssay, userOpts);
+      essayPane.removeEventListener("touchstart", armEssay, userOpts);
+      essayPane.removeEventListener("keydown", armEssay, userOpts);
+      notesPane.removeEventListener("wheel", armRail, userOpts);
+      notesPane.removeEventListener("pointerdown", armRail, userOpts);
+      notesPane.removeEventListener("touchstart", armRail, userOpts);
+      notesPane.removeEventListener("keydown", armRail, userOpts);
       window.removeEventListener("resize", onResize);
     };
   }, [scrollRoot, linked]);
