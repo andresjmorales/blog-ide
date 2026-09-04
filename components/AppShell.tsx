@@ -87,6 +87,7 @@ import {
   loadDocumentTitles,
   setTitleFromMarkdown,
 } from "@/lib/workspace/docTitles";
+import { showErrorToast, showSuccessToast, showToast } from "@/lib/ui/toast";
 import { pickEssayImportFile } from "@/lib/export/document";
 import { downloadWorkspaceZip } from "@/lib/export/workspaceZip";
 import { importPandocFile } from "@/lib/pandoc/client";
@@ -1055,23 +1056,20 @@ function AppShellContent({
     try {
       const count = await downloadWorkspaceZip();
       if (count === 0) {
-        await dialog.confirm({
-          title: "Nothing to export",
+        showToast({
+          tone: "info",
           message: "No essays outside the Trash yet.",
-          confirmLabel: "OK",
-          cancelLabel: "Close",
+          replaceKey: "export-zip",
         });
+      } else {
+        showSuccessToast(
+          `Exported ${count} essay${count === 1 ? "" : "s"}.`,
+          undefined,
+          "export-zip"
+        );
       }
     } catch (error) {
-      await dialog.confirm({
-        title: "Export failed",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Could not build the export archive.",
-        confirmLabel: "OK",
-        cancelLabel: "Close",
-      });
+      showErrorToast(error, "Could not build the export archive.", "export-zip");
     }
   }
 
@@ -1102,9 +1100,7 @@ function AppShellContent({
       await refreshTree();
       setActiveNodeId(id);
     } catch (error) {
-      setTreeError(
-        error instanceof Error ? error.message : "Could not create document."
-      );
+      showErrorToast(error, "Could not create document.");
     }
   }
 
@@ -1112,7 +1108,10 @@ function AppShellContent({
     if (previewMode) return;
     const inboxId = getInboxNode(nodes)?.id;
     if (!inboxId) {
-      setTreeError("Notes folder is not ready yet.");
+      showToast({
+        tone: "error",
+        message: "Notes folder is not ready yet.",
+      });
       return;
     }
     const name = await dialog.prompt({
@@ -1135,9 +1134,7 @@ function AppShellContent({
       bumpShellRefresh();
       applyLayout(showPanel(panelLayout, "shell"));
     } catch (error) {
-      setTreeError(
-        error instanceof Error ? error.message : "Could not create channel."
-      );
+      showErrorToast(error, "Could not create channel.");
     }
   }
 
@@ -1166,9 +1163,7 @@ function AppShellContent({
       try {
         markdown = await importPandocFile(picked.file);
       } catch (error) {
-        setTreeError(
-          error instanceof Error ? error.message : "Could not import Word file."
-        );
+        showErrorToast(error, "Could not import Word file.", "import-essay");
         return;
       }
     } else {
@@ -1186,10 +1181,9 @@ function AppShellContent({
       });
       await refreshTree();
       setActiveNodeId(id);
+      showSuccessToast(`Imported “${title}”.`, undefined, "import-essay");
     } catch (error) {
-      setTreeError(
-        error instanceof Error ? error.message : "Could not import document."
-      );
+      showErrorToast(error, "Could not import document.", "import-essay");
     }
   }
 
@@ -1205,15 +1199,7 @@ function AppShellContent({
       });
       setGithubMapOpen(true);
     } catch (error) {
-      await dialog.confirm({
-        title: "GitHub mapping",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Could not load GitHub settings.",
-        confirmLabel: "OK",
-        cancelLabel: "Close",
-      });
+      showErrorToast(error, "Could not load GitHub settings.");
     }
   }
 
@@ -1226,27 +1212,18 @@ function AppShellContent({
       });
       setGithubEpoch((value) => value + 1);
     } catch (error) {
-      await dialog.confirm({
-        title: "Could not save mapping",
-        message:
-          error instanceof Error ? error.message : "GitHub settings failed.",
-        confirmLabel: "OK",
-        cancelLabel: "Close",
-      });
+      showErrorToast(error, "Could not save that GitHub mapping.");
     }
   }
 
   async function actuallyPush(scope: "workspace" | { nodeId: string }) {
     const results = await pushWorkspaceToGithubWithStatus({ scope });
     const files = results.reduce((n, r) => n + r.fileCount, 0);
-    await dialog.confirm({
-      title: "Pushed to GitHub",
-      message: `Wrote ${files} file${
-        files === 1 ? "" : "s"
-      }. Matching paths were overwritten; extra files in the repo were left alone.`,
-      confirmLabel: "OK",
-      cancelLabel: "Close",
-    });
+    showSuccessToast(
+      `Pushed ${files} file${files === 1 ? "" : "s"} to GitHub.`,
+      undefined,
+      "github-push"
+    );
     setGithubEpoch((value) => value + 1);
   }
 
@@ -1265,13 +1242,7 @@ function AppShellContent({
       }
       await actuallyPush(scope);
     } catch (error) {
-      await dialog.confirm({
-        title: "GitHub push failed",
-        message:
-          error instanceof Error ? error.message : "Could not push to GitHub.",
-        confirmLabel: "OK",
-        cancelLabel: "Close",
-      });
+      showErrorToast(error, "Could not push to GitHub.", "github-push");
     }
   }
 
@@ -1281,13 +1252,7 @@ function AppShellContent({
       setPushWarnOpen(false);
       await actuallyPush(pushScope);
     } catch (error) {
-      await dialog.confirm({
-        title: "GitHub push failed",
-        message:
-          error instanceof Error ? error.message : "Could not push to GitHub.",
-        confirmLabel: "OK",
-        cancelLabel: "Close",
-      });
+      showErrorToast(error, "Could not push to GitHub.", "github-push");
     } finally {
       setPushBusy(false);
     }
@@ -1304,13 +1269,7 @@ function AppShellContent({
       setPushWarnOpen(false);
       await actuallyPush(pushScope);
     } catch (error) {
-      await dialog.confirm({
-        title: "GitHub push failed",
-        message:
-          error instanceof Error ? error.message : "Could not push to GitHub.",
-        confirmLabel: "OK",
-        cancelLabel: "Close",
-      });
+      showErrorToast(error, "Could not push to GitHub.", "github-push");
     } finally {
       setPushBusy(false);
     }
@@ -1351,15 +1310,7 @@ function AppShellContent({
       setPullUnmapped(plan.unmapped);
       setPullOpen(true);
     } catch (error) {
-      await dialog.confirm({
-        title: "GitHub pull failed",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Could not read from GitHub.",
-        confirmLabel: "OK",
-        cancelLabel: "Close",
-      });
+      showErrorToast(error, "Could not read from GitHub.", "github-pull");
     }
   }
 
@@ -1420,9 +1371,7 @@ function AppShellContent({
       });
       await refreshTree();
     } catch (error) {
-      setTreeError(
-        error instanceof Error ? error.message : "Could not create folder."
-      );
+      showErrorToast(error, "Could not create folder.");
     }
   }
 
@@ -1432,9 +1381,7 @@ function AppShellContent({
       await moveWorkspaceNode(nodeId, parentId);
       await refreshTree();
     } catch (error) {
-      setTreeError(
-        error instanceof Error ? error.message : "Could not move item."
-      );
+      showErrorToast(error, "Could not move item.");
     }
   }
 
@@ -1444,7 +1391,7 @@ function AppShellContent({
     if (!node || isSystemFolder(node)) return;
     const trash = getTrashNode(nodes);
     if (!trash) {
-      setTreeError("Trash folder is missing. Re-run supabase/schema.sql.");
+      showErrorToast("Trash folder is missing. Re-run supabase/schema.sql.");
       return;
     }
     await handleMoveTo(nodeId, trash.id);
@@ -1527,9 +1474,7 @@ function AppShellContent({
         }
         await refreshTree();
       } catch (error) {
-        setTreeError(
-          error instanceof Error ? error.message : "Could not rename."
-        );
+        showErrorToast(error, "Could not rename.");
       }
       return;
     }
@@ -1544,9 +1489,7 @@ function AppShellContent({
       await renameWorkspaceNode(nodeId, newName);
       await refreshTree();
     } catch (error) {
-      setTreeError(
-        error instanceof Error ? error.message : "Could not rename."
-      );
+      showErrorToast(error, "Could not rename.");
     }
   }
 
@@ -1577,9 +1520,7 @@ function AppShellContent({
       await setWorkspaceNodePinned(nodeId, pinned);
       await refreshTree();
     } catch (error) {
-      setTreeError(
-        error instanceof Error ? error.message : "Could not update pin."
-      );
+      showErrorToast(error, "Could not update pin.");
     }
   }
 
@@ -1591,9 +1532,7 @@ function AppShellContent({
       await setWorkspaceNodeColor(nodeId, color);
       await refreshTree();
     } catch (error) {
-      setTreeError(
-        error instanceof Error ? error.message : "Could not update color."
-      );
+      showErrorToast(error, "Could not update color.");
     }
   }
 
@@ -1625,9 +1564,7 @@ function AppShellContent({
       }
       await refreshTree();
     } catch (error) {
-      setTreeError(
-        error instanceof Error ? error.message : "Could not delete item."
-      );
+      showErrorToast(error, "Could not delete item.");
     }
   }
 

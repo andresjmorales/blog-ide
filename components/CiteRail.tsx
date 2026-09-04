@@ -85,6 +85,7 @@ import {
   type LibraryMeta,
 } from "@/lib/library/sessionLibrary";
 import { openLinkPin, openPdfPin } from "@/lib/pins/pinStore";
+import { showErrorToast, showSuccessToast, showToast } from "@/lib/ui/toast";
 import { useSyncExternalStore } from "react";
 
 const SEARCH_DEBOUNCE_MS = 320;
@@ -195,7 +196,6 @@ export function CitePanel({
   const [zoteroHits, setZoteroHits] = useState<CiteHit[]>([]);
   const [sessionHits, setSessionHits] = useState<CiteHit[]>([]);
   const [searching, setSearching] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [pasteOpen, setPasteOpen] = useState(true);
   const [pasteSource, setPasteSource] = useState("");
@@ -277,9 +277,13 @@ export function CitePanel({
       const result = await addUrlToZotero(config, { url, title }, style);
       const key = canonicalizeLibraryUrl(url) ?? url.trim();
       setZoteroByUrl((prev) => ({ ...prev, [key]: result.hit }));
-      setError(null);
+      showSuccessToast(
+        result.created ? "Added to your Zotero library." : "Already in your Zotero library.",
+        undefined,
+        "cite-zotero-add"
+      );
     } catch (err) {
-      setError(zoteroErrorCopy(err, "write"));
+      showErrorToast(zoteroErrorCopy(err, "write"), "Could not add to Zotero.", "cite-zotero-add");
     } finally {
       setAddingId((current) => (current === id ? null : current));
     }
@@ -288,9 +292,9 @@ export function CitePanel({
   async function addToLibrary(url: string, title?: string) {
     try {
       await addLibraryLinkDurable({ url, title });
-      setError(null);
+      showSuccessToast("Saved to Library.", undefined, "cite-library-add");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not add that link.");
+      showErrorToast(err, "Could not add that link.", "cite-library-add");
     }
   }
 
@@ -304,12 +308,11 @@ export function CitePanel({
         .then((items) => {
           if (gen !== searchGen.current) return;
           setZoteroHits(items.map(hitFromZotero));
-          setError(null);
         })
         .catch((err) => {
           if (gen !== searchGen.current) return;
           setZoteroHits([]);
-          setError(zoteroErrorCopy(err));
+          showErrorToast(zoteroErrorCopy(err), "Zotero search failed.", "cite-zotero-search");
         })
         .finally(() => {
           if (gen === searchGen.current) setSearching(false);
@@ -335,10 +338,13 @@ export function CitePanel({
   function importBibtex(source: string) {
     const hits = hitsFromBibtex(source, style);
     if (hits.length === 0) {
-      setError("No BibTeX entries found. Paste an @article{…} or @book{…}.");
+      showToast({
+        tone: "error",
+        message: "No BibTeX entries found. Paste an @article{…} or @book{…}.",
+        replaceKey: "cite-bibtex",
+      });
       return [];
     }
-    setError(null);
     setSessionHits((prev) => mergeHits(hits, prev));
     setExpandedId(hits[0]?.id ?? null);
     return hits;
@@ -378,7 +384,7 @@ export function CitePanel({
   async function copyText(id: string, text: string) {
     const ok = await copyPlainText(text);
     if (ok) flashCopied(id);
-    else setError("Could not copy to the clipboard.");
+    else showErrorToast("Could not copy to the clipboard.", "Could not copy.", "cite-copy");
   }
 
   return (
@@ -525,7 +531,11 @@ export function CitePanel({
                 try {
                   const fresh = await getZoteroItem(config, row.citation.id, style);
                   if (!fresh?.citation) {
-                    setError("Zotero had no formatted citation for that item.");
+                    showToast({
+                      tone: "error",
+                      message: "Zotero had no formatted citation for that item.",
+                      replaceKey: "cite-zotero-refresh",
+                    });
                     return;
                   }
                   const next = citationFromHit(hitFromZotero(fresh), style);
@@ -540,9 +550,12 @@ export function CitePanel({
                       );
                     }
                   }
-                  setError(null);
                 } catch (err) {
-                  setError(zoteroErrorCopy(err));
+                  showErrorToast(
+                    zoteroErrorCopy(err),
+                    "Could not refresh that citation.",
+                    "cite-zotero-refresh"
+                  );
                 }
               }
             : undefined
@@ -610,7 +623,6 @@ export function CitePanel({
         )}
       </div>
 
-      {error && <p className="cite-error">{error}</p>}
     </div>
   );
 }

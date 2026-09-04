@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { LinkPin } from "@/lib/pins/pinStore";
 import { fetchReaderExtract } from "@/lib/preview/client";
+import { showErrorToast } from "@/lib/ui/toast";
 
 export function LinkPinBody({ pin }: { pin: LinkPin }) {
   const [text, setText] = useState<string | null>(null);
@@ -19,7 +20,10 @@ export function LinkPinBody({ pin }: { pin: LinkPin }) {
       const result = await fetchReaderExtract(pin.url);
       setText(result.text);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load extract");
+      const message =
+        err instanceof Error ? err.message : "Could not load the reader extract.";
+      setError(message);
+      showErrorToast(err, "Could not load the reader extract.", "reader-extract");
     } finally {
       setManualBusy(false);
     }
@@ -34,9 +38,12 @@ export function LinkPinBody({ pin }: { pin: LinkPin }) {
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(
-            err instanceof Error ? err.message : "Could not load extract"
-          );
+          const message =
+            err instanceof Error
+              ? err.message
+              : "Could not load the reader extract.";
+          setError(message);
+          showErrorToast(err, "Could not load the reader extract.", "reader-extract");
         }
       });
     return () => {
@@ -74,7 +81,6 @@ export function LinkPinBody({ pin }: { pin: LinkPin }) {
           {busy ? "Loading…" : text ? "Reload extract" : "Read extract"}
         </button>
       </div>
-      {error && <p className="popout-error">{error}</p>}
       {text && (
         <div className="link-pin-extract">
           <p className="link-pin-extract-note">
