@@ -5,6 +5,7 @@ import "./globals.css";
 import "katex/dist/katex.min.css";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { ThemeBoot } from "@/components/ThemeBoot";
+import { ToastHost } from "@/components/ToastHost";
 import { PRODUCT_DESCRIPTION, PRODUCT_NAME } from "@/lib/brand";
 
 const geistSans = Geist({
@@ -53,6 +54,7 @@ export default function RootLayout({
         <Script src="/theme-init.js" strategy="beforeInteractive" />
         <ThemeBoot />
         {children}
+        <ToastHost />
         <ServiceWorkerRegistration />
       </body>
     </html>

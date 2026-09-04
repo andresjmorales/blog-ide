@@ -13,7 +13,7 @@ import {
   listUsedEssaySources,
   pruneEssayCitations,
 } from "@/lib/citations/essaySources";
-import { listEssayLinkedUrls } from "@/lib/citations/essayLinks";
+import { hostOfUrl, listEssayLinkedUrls } from "@/lib/citations/essayLinks";
 
 const SAMPLE: EssayCitation = {
   id: "ABCD2345",
@@ -154,9 +154,39 @@ describe("essay citation trailers", () => {
       row.canonical.includes("example.com/a")
     );
     const news = links.find((row) => row.host.includes("news.example"));
-    expect(example?.count).toBeGreaterThanOrEqual(2);
+    expect(example?.count).toBe(3);
     expect(news).toBeTruthy();
     expect(links.some((row) => row.url.includes("cdn.example"))).toBe(false);
+    expect(example?.host).toBe("example.com");
+  });
+
+  it("does not count a markdown footnote link twice", () => {
+    const doc = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "Just a sentence." }],
+        },
+        {
+          type: "footnoteRef",
+          attrs: {
+            id: "fn-1",
+            content:
+              "Source: [paper](https://Example.com/a) and <https://news.ycombinator.com/item?id=1>",
+          },
+        },
+      ],
+    };
+    const links = listEssayLinkedUrls(doc);
+    expect(links).toHaveLength(2);
+    expect(links.find((row) => row.canonical.includes("example.com/a"))?.count).toBe(
+      1
+    );
+    expect(links.find((row) => row.host === "news.ycombinator.com")?.count).toBe(
+      1
+    );
+    expect(hostOfUrl("https://WWW.Example.COM/Path")).toBe("example.com");
   });
 
   it("round-trips a citation URL", () => {

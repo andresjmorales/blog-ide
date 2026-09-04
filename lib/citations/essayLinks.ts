@@ -27,9 +27,9 @@ function isHttpUrl(raw: string): string | null {
 
 export function hostOfUrl(url: string): string {
   try {
-    return new URL(url).hostname.replace(/^www\./i, "");
+    return new URL(url).hostname.replace(/^www\./i, "").toLowerCase();
   } catch {
-    return url;
+    return url.toLowerCase();
   }
 }
 
@@ -67,6 +67,14 @@ function addHit(
   });
 }
 
+function rangeOverlaps(
+  ranges: Array<[number, number]>,
+  start: number,
+  end: number
+): boolean {
+  return ranges.some(([from, to]) => start < to && end > from);
+}
+
 function collectMarkdownHttpLinks(
   text: string,
   pos: number,
@@ -74,13 +82,23 @@ function collectMarkdownHttpLinks(
   where: "body" | "footnote"
 ): void {
   if (!text) return;
+  const claimed: Array<[number, number]> = [];
   for (const match of text.matchAll(MARKDOWN_LINK_RE)) {
+    const start = match.index ?? 0;
+    claimed.push([start, start + match[0].length]);
     addHit(map, match[2] ?? "", match[1] ?? "", pos, where);
   }
   for (const match of text.matchAll(ANGLE_AUTOLINK_RE)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    if (rangeOverlaps(claimed, start, end)) continue;
+    claimed.push([start, end]);
     addHit(map, match[1] ?? "", "", pos, where);
   }
   for (const match of text.matchAll(BARE_URL_RE)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    if (rangeOverlaps(claimed, start, end)) continue;
     addHit(map, match[1] ?? "", "", pos, where);
   }
 }

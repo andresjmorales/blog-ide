@@ -167,6 +167,7 @@ lib/preview/          Publication HTML, SSRF helpers, OG helpers, reader extract
 lib/github/           One-way GitHub backup (PAT, maps, Git Data push)
 lib/zotero/           Zotero Web API client (search + optional write) and device-local key
 lib/citations/        BibTeX format, Library Cite helpers, clipboard copy
+lib/ui/               Session toasts (bottom-right action outcomes)
 lib/secrets/          Encrypted account vault for capture integrations
 lib/pushbullet/       Optional Pushbullet → Notes channel capture
 lib/ntfy/             Optional ntfy → Notes channel capture
