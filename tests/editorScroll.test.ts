@@ -3,10 +3,12 @@ import type { Editor } from "@tiptap/core";
 import { scrollMatchIntoView } from "@/lib/editor/findHighlight";
 import {
   EDITOR_SCROLL_SELECTOR,
+  FIND_IN_VIEW_PADDING,
   OUTLINE_HEADING_ALIGN,
   clampScrollTop,
   findEditorScroller,
   scrollHeadingIntoView,
+  scrollRectIntoScroller,
   scrollTopForAlignedTarget,
 } from "@/lib/editor/editorScroll";
 
@@ -239,11 +241,89 @@ describe("scrollMatchIntoView", () => {
 
     try {
       scrollMatchIntoView(editor, { from: 10, to: 20, text: "token" });
-      await nextFrames(2);
+      await nextFrames(3);
       const expected = 2100 - 100 - 800 * OUTLINE_HEADING_ALIGN;
       expect(pane.scrollTop).toBeCloseTo(expected, 0);
     } finally {
       pane.remove();
     }
+  });
+
+  it("prefers the painted current highlight over coordsAtPos", async () => {
+    const { pane, prose } = mockPane();
+    pane.scrollTop = 400;
+    const mark = document.createElement("span");
+    mark.className = "blogide-find-match is-current";
+    mark.getBoundingClientRect = () =>
+      ({
+        top: 40,
+        bottom: 58,
+        left: 0,
+        right: 80,
+        width: 80,
+        height: 18,
+        x: 0,
+        y: 40,
+        toJSON() {
+          return {};
+        },
+      }) as DOMRect;
+    prose.appendChild(mark);
+    const editor = {
+      isDestroyed: false,
+      view: {
+        dom: prose,
+        coordsAtPos: () => ({ top: 2100, bottom: 2118, left: 0, right: 80 }),
+      },
+    } as unknown as Editor;
+
+    try {
+      scrollMatchIntoView(editor, { from: 10, to: 20, text: "token" });
+      await nextFrames(3);
+      expect(pane.scrollTop).toBeCloseTo(400 - (FIND_IN_VIEW_PADDING - (40 - 100)), 0);
+    } finally {
+      pane.remove();
+    }
+  });
+});
+
+describe("scrollRectIntoScroller", () => {
+  function paneAt(scrollTop: number) {
+    const pane = document.createElement("div");
+    Object.defineProperty(pane, "clientHeight", { value: 800 });
+    Object.defineProperty(pane, "scrollHeight", { value: 4000 });
+    pane.scrollTop = scrollTop;
+    pane.getBoundingClientRect = () =>
+      ({
+        top: 100,
+        bottom: 900,
+        left: 0,
+        right: 600,
+        width: 600,
+        height: 800,
+        x: 0,
+        y: 100,
+        toJSON() {
+          return {};
+        },
+      }) as DOMRect;
+    pane.scrollTo = ((options?: ScrollToOptions | number) => {
+      if (typeof options === "object" && options?.top != null) {
+        pane.scrollTop = options.top;
+      }
+    }) as typeof pane.scrollTo;
+    return pane;
+  }
+
+  it("does nothing when the target is already padded into view", () => {
+    const pane = paneAt(200);
+    scrollRectIntoScroller(pane, { top: 300, height: 20 });
+    expect(pane.scrollTop).toBe(200);
+  });
+
+  it("nudges just enough for a nearby match", () => {
+    const pane = paneAt(0);
+    scrollRectIntoScroller(pane, { top: 880, height: 20 });
+    expect(pane.scrollTop).toBeCloseTo(880 + 20 - (900 - FIND_IN_VIEW_PADDING), 0);
   });
 });

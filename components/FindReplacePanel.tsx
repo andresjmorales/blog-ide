@@ -141,7 +141,7 @@ export function FindReplacePanel({
       activeFieldRef.current === "replace"
         ? replaceInputRef.current
         : findInputRef.current;
-    field?.focus();
+    field?.focus({ preventScroll: true });
     if (select && field === findInputRef.current) {
       field?.select();
     }
@@ -369,7 +369,7 @@ export function FindReplacePanel({
       caseSensitive,
     });
     scrollMatchIntoView(editor, matches[next]);
-    findInputRef.current?.focus();
+    findInputRef.current?.focus({ preventScroll: true });
   }
 
   function doReplace() {

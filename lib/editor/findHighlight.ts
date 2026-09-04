@@ -8,7 +8,7 @@ import {
   boxAtEditorPos,
   coordsBox,
   findEditorScroller,
-  scrollScrollerToTarget,
+  scrollRectIntoScroller,
 } from "@/lib/editor/editorScroll";
 
 export type FindHighlightState = {
@@ -309,10 +309,24 @@ export function clearFindHighlights(editor: Editor): void {
   setFindHighlights(editor, [], 0, null);
 }
 
+export const FIND_CURRENT_MATCH_SELECTOR = ".blogide-find-match.is-current";
+
+function paintedMatchBox(
+  editor: Editor
+): { top: number; height: number } | null {
+  const el = editor.view.dom.querySelector(FIND_CURRENT_MATCH_SELECTOR);
+  if (!(el instanceof HTMLElement)) return null;
+  const rect = el.getBoundingClientRect();
+  if (rect.width <= 0 && rect.height <= 0) return null;
+  return { top: rect.top, height: Math.max(1, rect.height) };
+}
+
 function matchBox(
   editor: Editor,
   match: FindMatch
 ): { top: number; height: number } | null {
+  const painted = paintedMatchBox(editor);
+  if (painted) return painted;
   if (match.footnotePos != null) {
     return (
       boxAtEditorPos(editor, match.footnotePos) ??
@@ -323,27 +337,20 @@ function matchBox(
 }
 
 /**
- * Scroll so the match sits in view inside the essay scroller only.
- * Avoids `Element.scrollIntoView`, which also yanks outer page/panels.
- * Uses the same aligned scroller math as outline headings. End-of-block
- * `coordsAtPos(to)` throws are ignored so Find Next still moves.
+ * Scroll so the painted Find highlight sits in the essay scroller.
+ * Prefers the live `.is-current` mark (coordsAtPos is flaky at block
+ * edges). Avoids `Element.scrollIntoView`, which yanks outer panels.
  */
 export function scrollMatchIntoView(editor: Editor, match: FindMatch): void {
-  const run = () => {
+  const attempt = (left: number) => {
     if (editor.isDestroyed) return;
     const scroller = findEditorScroller(editor);
-    if (!scroller) return;
     const box = matchBox(editor, match);
-    if (!box) return;
-    // Instant — smooth stacking on each keystroke feels broken.
-    scrollScrollerToTarget(
-      scroller,
-      { viewportTop: box.top, height: box.height },
-      { behavior: "auto" }
-    );
+    if (!scroller || !box) {
+      if (left > 0) requestAnimationFrame(() => attempt(left - 1));
+      return;
+    }
+    scrollRectIntoScroller(scroller, box, { behavior: "auto" });
   };
-  // Two frames: highlight decorations paint, then coords are trustworthy.
-  requestAnimationFrame(() => {
-    requestAnimationFrame(run);
-  });
+  requestAnimationFrame(() => attempt(5));
 }

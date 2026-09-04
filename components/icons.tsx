@@ -550,6 +550,28 @@ export function BookmarkIcon({ className = "" }: { className?: string }) {
   );
 }
 
+/**
+ * Compact Zotero “Z” mark for cite actions. The wordmark is open-source;
+ * this is a recognisable 14px stand-in, not the full brand lockup.
+ */
+export function ZoteroMarkIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width={14}
+      height={14}
+      viewBox="0 0 16 16"
+    >
+      <rect width="16" height="16" rx="2.2" fill="#cc2936" />
+      <path
+        d="M3.15 3.2h9.7v2.05L7.4 12.7h5.55V14.8H3.1v-2.1l5.5-7.45H3.15V3.2Z"
+        fill="#fff"
+      />
+    </svg>
+  );
+}
+
 /** Small check for “already in Library” overlay. */
 export function BookmarkCheckIcon({ className = "" }: { className?: string }) {
   return (

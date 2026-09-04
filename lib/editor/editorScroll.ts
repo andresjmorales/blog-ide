@@ -140,6 +140,62 @@ export function scrollScrollerToTarget(
   applyScrollTop(scroller, nextTop, options?.behavior ?? "auto");
 }
 
+/** Keep Find highlights a bit off the pane chrome (toolbar / find bar). */
+export const FIND_IN_VIEW_PADDING = 56;
+
+/**
+ * Bring a painted rect into the scroller. Nearby matches get a minimal
+ * nudge; far matches jump to the outline alignment. Instant — stacking
+ * smooth scrolls against the mouse wheel is what feels like a bounce.
+ */
+export function scrollRectIntoScroller(
+  scroller: HTMLElement,
+  target: { top: number; height: number },
+  options?: { padding?: number; behavior?: ScrollBehavior }
+): void {
+  const pane = scroller.getBoundingClientRect();
+  const padding = options?.padding ?? FIND_IN_VIEW_PADDING;
+  const behavior = options?.behavior ?? "auto";
+  const height = Math.max(1, target.height);
+  const bottom = target.top + height;
+  const visibleTop = pane.top + padding;
+  const visibleBottom = pane.bottom - padding;
+
+  if (target.top >= visibleTop && bottom <= visibleBottom) {
+    return;
+  }
+
+  const far =
+    bottom < pane.top - pane.height * 0.35 ||
+    target.top > pane.bottom + pane.height * 0.35;
+
+  if (far) {
+    scrollScrollerToTarget(
+      scroller,
+      { viewportTop: target.top, height },
+      { behavior }
+    );
+    return;
+  }
+
+  let delta = 0;
+  if (target.top < visibleTop) {
+    delta = target.top - visibleTop;
+  } else if (bottom > visibleBottom) {
+    delta = bottom - visibleBottom;
+  }
+  if (delta === 0) return;
+  applyScrollTop(
+    scroller,
+    clampScrollTop(
+      scroller.scrollTop + delta,
+      scroller.scrollHeight,
+      scroller.clientHeight
+    ),
+    behavior
+  );
+}
+
 export function boxAtEditorPos(
   editor: Editor,
   pos: number
