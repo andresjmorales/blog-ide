@@ -2,6 +2,11 @@ import { Extension } from "@tiptap/core";
 import { Plugin } from "@tiptap/pm/state";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import {
+  citationsSnapshotEqual,
+  pruneEssayCitations,
+} from "@/lib/citations/essaySources";
+import type { EssayCitation } from "@/lib/markdown/essayCitations";
+import {
   MAX_DELETED_FOOTNOTES,
   mergeDeletedFootnotes,
   type DeletedFootnote,
@@ -81,16 +86,27 @@ export const FootnoteDeletionTracker = Extension.create({
             }
           }
 
-          if (removed.length === 0) return null;
+          const citations = Array.isArray(newState.doc.attrs.essayCitations)
+            ? (newState.doc.attrs.essayCitations as EssayCitation[])
+            : [];
+          const pruned = pruneEssayCitations(citations, newState.doc);
+          const citationsChanged = !citationsSnapshotEqual(citations, pruned);
+
+          if (removed.length === 0 && !citationsChanged) return null;
 
           const merged = mergeDeletedFootnotes(
             readDeleted(newState.doc),
             removed
           ).slice(0, MAX_DELETED_FOOTNOTES);
 
-          return newState.tr
-            .setMeta("blogide-skip-footnote-delete", true)
-            .setDocAttribute("deletedFootnotes", merged);
+          let tr = newState.tr.setMeta("blogide-skip-footnote-delete", true);
+          if (removed.length > 0) {
+            tr = tr.setDocAttribute("deletedFootnotes", merged);
+          }
+          if (citationsChanged) {
+            tr = tr.setDocAttribute("essayCitations", pruned);
+          }
+          return tr;
         },
       }),
     ];

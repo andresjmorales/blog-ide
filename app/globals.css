@@ -516,11 +516,20 @@ body {
 .cite-essay-row {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 0.25rem;
   min-width: 0;
 }
 .cite-essay-row .cite-essay-item {
-  flex: 1;
+  flex: 1 1 10rem;
+  width: auto;
+}
+.cite-count {
+  color: var(--muted);
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.03em;
 }
 .cite-hit-preview {
   display: flex;

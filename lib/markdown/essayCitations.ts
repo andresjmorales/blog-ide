@@ -20,6 +20,7 @@ export type EssayCitation = {
   formatted: EssayCitationFormatted;
   bibtex?: string;
   footnoteIds?: string[];
+  url?: string;
 };
 
 export const CITATIONS_TRAILER_PREFIX = "blogide-citations";
@@ -72,6 +73,7 @@ export function parseEssayCitationsJson(payload: string): EssayCitation[] {
         formatted: parseFormatted(entry.formatted),
         bibtex: typeof entry.bibtex === "string" ? entry.bibtex : undefined,
         footnoteIds: footnoteIds?.length ? footnoteIds : undefined,
+        url: typeof entry.url === "string" && entry.url.trim() ? entry.url.trim() : undefined,
       });
     }
     return citations;
@@ -98,6 +100,7 @@ export function serializeEssayCitation(citation: EssayCitation): EssayCitation {
   };
   if (citation.bibtex) next.bibtex = citation.bibtex;
   if (citation.footnoteIds?.length) next.footnoteIds = citation.footnoteIds;
+  if (citation.url) next.url = citation.url;
   return next;
 }
 
@@ -187,6 +190,7 @@ export function mergeEssayCitation(
     formatted: { ...prior.formatted, ...incoming.formatted },
     footnoteIds: footnoteIds.length ? footnoteIds : undefined,
     bibtex: incoming.bibtex ?? prior.bibtex,
+    url: incoming.url ?? prior.url,
   });
   const copy = existing.slice();
   copy[index] = next;

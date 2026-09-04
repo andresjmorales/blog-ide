@@ -20,8 +20,14 @@ import {
 } from "@/lib/citations/citeStyle";
 import { copyPlainText } from "@/lib/citations/clipboard";
 import {
+  listEssayLinkedUrls,
+  type EssayLinkedUrl,
+} from "@/lib/citations/essayLinks";
+import {
+  citationsSnapshotEqual,
   displayFormatted,
   listUsedEssaySources,
+  pruneEssayCitations,
   worksCitedBlock,
   type UsedEssaySource,
 } from "@/lib/citations/essaySources";
@@ -32,6 +38,7 @@ import {
   rewriteFootnoteContent,
   scrollFootnoteIntoView,
   updateCitationSnapshot,
+  writeEssayCitations,
 } from "@/lib/citations/insertCitation";
 import {
   citationFromHit,
@@ -46,10 +53,12 @@ import {
   type CiteHit,
 } from "@/lib/citations/localHits";
 import {
+  addUrlToZotero,
   getZoteroItem,
   searchZoteroItems,
   zoteroErrorCopy,
   zoteroSelectHref,
+  type ZoteroSearchHit,
 } from "@/lib/zotero/client";
 import {
   isZoteroConnected,
@@ -64,7 +73,10 @@ import {
   subscribeEssayEditor,
 } from "@/lib/citations/essayEditor";
 import { OPEN_LIBRARY_CITE_EVENT } from "@/lib/citations/openLibraryCite";
+import { canonicalizeLibraryUrl } from "@/lib/library/urls";
 import {
+  addLibraryLinkDurable,
+  findLibraryLinkByUrl,
   getLibraryServerSnapshot,
   listLibraryEntries,
   removeLibraryEntryDurable,
@@ -189,6 +201,11 @@ export function CitePanel({
   const [pasteSource, setPasteSource] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [citationsTick, setCitationsTick] = useState(0);
+  const [linksOpen, setLinksOpen] = useState(false);
+  const [addingId, setAddingId] = useState<string | null>(null);
+  const [zoteroByUrl, setZoteroByUrl] = useState<Record<string, ZoteroSearchHit>>(
+    {}
+  );
   const searchGen = useRef(0);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const libraryEntries = useSyncExternalStore(
@@ -212,6 +229,14 @@ export function CitePanel({
   useEffect(() => {
     if (!editor) return;
     const bump = () => setCitationsTick((n) => n + 1);
+    const pruneIfNeeded = () => {
+      const current = readEssayCitations(editor);
+      const next = pruneEssayCitations(current, editor.state.doc);
+      if (!citationsSnapshotEqual(current, next)) {
+        writeEssayCitations(editor, next);
+      }
+    };
+    pruneIfNeeded();
     editor.on("update", bump);
     editor.on("transaction", bump);
     return () => {
@@ -233,10 +258,41 @@ export function CitePanel({
   const used = editor
     ? listUsedEssaySources(essayCitations, editor.state.doc, style)
     : [];
+  const linkedUrls = editor ? listEssayLinkedUrls(editor.state.doc) : [];
   const essayHits = essayCitations.map((citation) =>
     hitFromEssayCitation(citation, style)
   );
   const libraryHits = libraryEntries.map(hitFromLibraryEntry);
+
+  function zoteroHitForUrl(url: string | undefined): ZoteroSearchHit | undefined {
+    if (!url) return undefined;
+    const key = canonicalizeLibraryUrl(url) ?? url.trim();
+    return zoteroByUrl[key];
+  }
+
+  async function addToZotero(id: string, url: string, title?: string) {
+    if (!connected) return;
+    setAddingId(id);
+    try {
+      const result = await addUrlToZotero(config, { url, title }, style);
+      const key = canonicalizeLibraryUrl(url) ?? url.trim();
+      setZoteroByUrl((prev) => ({ ...prev, [key]: result.hit }));
+      setError(null);
+    } catch (err) {
+      setError(zoteroErrorCopy(err, "write"));
+    } finally {
+      setAddingId((current) => (current === id ? null : current));
+    }
+  }
+
+  async function addToLibrary(url: string, title?: string) {
+    try {
+      await addLibraryLinkDurable({ url, title });
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add that link.");
+    }
+  }
 
   useEffect(() => {
     const q = query.trim();
@@ -375,14 +431,19 @@ export function CitePanel({
         )}
         {results.length > 0 && (
           <ul className="cite-hit-list">
-            {results.map((hit) => (
+            {results.map((hit) => {
+              const zoteroHit = hit.zotero ?? zoteroHitForUrl(hit.url);
+              return (
               <CiteHitRow
                 key={hit.id}
                 hit={hit}
                 expanded={expandedId === hit.id}
                 copied={copiedId === hit.id}
+                copiedUrl={copiedId === `${hit.id}:url`}
                 connected={connected}
                 canCite={Boolean(editor) && hitCanCite(hit)}
+                addingToZotero={addingId === hit.id}
+                zoteroHit={zoteroHit}
                 onToggle={() =>
                   setExpandedId((current) => (current === hit.id ? null : hit.id))
                 }
@@ -403,9 +464,19 @@ export function CitePanel({
                   );
                 }}
                 onCopy={() => void copyText(hit.id, hit.formatted)}
+                onCopyUrl={
+                  hit.url
+                    ? () => void copyText(`${hit.id}:url`, hit.url!)
+                    : undefined
+                }
                 onCopyBibtex={() => void copyText(`${hit.id}:bib`, hit.bibtex)}
+                onAddToZotero={
+                  connected && hit.url && !zoteroHit
+                    ? () => void addToZotero(hit.id, hit.url!, hit.title)
+                    : undefined
+                }
                 onOpen={
-                  hit.libraryId
+                  hit.libraryId || hit.url
                     ? () => void openLibraryHit(libraryEntries, hit)
                     : undefined
                 }
@@ -415,7 +486,8 @@ export function CitePanel({
                     : undefined
                 }
               />
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>
@@ -431,9 +503,21 @@ export function CitePanel({
           if (editor) scrollFootnoteIntoView(editor, pos);
         }}
         onCopy={(id, text) => void copyText(id, text)}
+        onCopyUrl={(id, url) => void copyText(id, url)}
         onCopyWorksCited={() =>
           void copyText("works-cited", worksCitedBlock(used, style))
         }
+        onAddToZotero={
+          connected
+            ? (row) => {
+                const url = row.citation.url;
+                if (!url) return;
+                void addToZotero(`used:${row.citation.id}`, url, row.citation.title);
+              }
+            : undefined
+        }
+        addingId={addingId}
+        zoteroByUrl={zoteroByUrl}
         onRefresh={
           connected
             ? async (row) => {
@@ -463,6 +547,27 @@ export function CitePanel({
               }
             : undefined
         }
+      />
+
+      <EssayLinksList
+        rows={linkedUrls}
+        open={linksOpen}
+        onToggle={() => setLinksOpen((value) => !value)}
+        connected={connected}
+        copiedId={copiedId}
+        addingId={addingId}
+        zoteroByUrl={zoteroByUrl}
+        onJump={(pos) => {
+          if (editor) scrollFootnoteIntoView(editor, pos);
+        }}
+        onCopyUrl={(id, url) => void copyText(id, url)}
+        onAddToLibrary={(row) => void addToLibrary(row.url, row.title)}
+        onAddToZotero={
+          connected
+            ? (row) => void addToZotero(`link:${row.canonical}`, row.url, row.title)
+            : undefined
+        }
+        inLibrary={(url) => findLibraryLinkByUrl(url) != null}
       />
 
       <div className="cite-paste">
@@ -521,7 +626,7 @@ async function openLibraryHit(
     openLinkPin({ url: entry.url, title: entry.name });
     return;
   }
-  if (hit.url && hitKindLabel(hit) === "link") {
+  if (hit.url) {
     openLinkPin({ url: hit.url, title: hit.title });
     return;
   }
@@ -535,26 +640,36 @@ function CiteHitRow({
   hit,
   expanded,
   copied,
+  copiedUrl,
   connected,
   canCite,
+  addingToZotero,
+  zoteroHit,
   onToggle,
   onInsertFootnote,
   onInsertCaret,
   onCopy,
+  onCopyUrl,
   onCopyBibtex,
+  onAddToZotero,
   onOpen,
   onRemove,
 }: {
   hit: CiteHit;
   expanded: boolean;
   copied: boolean;
+  copiedUrl: boolean;
   connected: boolean;
   canCite: boolean;
+  addingToZotero: boolean;
+  zoteroHit?: ZoteroSearchHit;
   onToggle: () => void;
   onInsertFootnote: () => void;
   onInsertCaret: () => void;
   onCopy: () => void;
+  onCopyUrl?: () => void;
   onCopyBibtex: () => void;
+  onAddToZotero?: () => void;
   onOpen?: () => void;
   onRemove?: () => void;
 }) {
@@ -612,6 +727,11 @@ function CiteHitRow({
                 {copied ? "Copied" : "Copy"}
               </button>
             )}
+            {onCopyUrl && (
+              <button type="button" className="cite-action" onClick={onCopyUrl}>
+                {copiedUrl ? "Copied URL" : "Copy URL"}
+              </button>
+            )}
             {canCite && (
               <button type="button" className="cite-action" onClick={onInsertCaret}>
                 Insert at caret
@@ -627,8 +747,18 @@ function CiteHitRow({
                 Open
               </button>
             )}
-            {hit.zotero && connected && (
-              <a className="cite-zotero-link" href={zoteroSelectHref(hit.zotero)}>
+            {onAddToZotero && (
+              <button
+                type="button"
+                className="cite-action"
+                disabled={addingToZotero}
+                onClick={onAddToZotero}
+              >
+                {addingToZotero ? "Adding…" : "Add to Zotero"}
+              </button>
+            )}
+            {zoteroHit && connected && (
+              <a className="cite-zotero-link" href={zoteroSelectHref(zoteroHit)}>
                 Open in Zotero
               </a>
             )}
@@ -653,18 +783,26 @@ function ThisEssayList({
   style,
   connected,
   copiedId,
+  addingId,
+  zoteroByUrl,
   onJump,
   onCopy,
+  onCopyUrl,
   onCopyWorksCited,
+  onAddToZotero,
   onRefresh,
 }: {
   rows: UsedEssaySource[];
   style: CiteStyleId;
   connected: boolean;
   copiedId: string | null;
+  addingId: string | null;
+  zoteroByUrl: Record<string, ZoteroSearchHit>;
   onJump: (pos: number) => void;
   onCopy: (id: string, text: string) => void;
+  onCopyUrl: (id: string, url: string) => void;
   onCopyWorksCited: () => void;
+  onAddToZotero?: (row: UsedEssaySource) => void;
   onRefresh?: (row: UsedEssaySource) => void | Promise<void>;
 }) {
   return (
@@ -678,14 +816,24 @@ function ThisEssayList({
         )}
       </div>
       <p className="cite-empty">
-        Footnotes already in this essay. Copy list for a bibliography. The
-        Zotero key is read-only, so BlogIDE cannot add missing items back
-        to Zotero.
+        Footnotes still in this essay, or a citation pasted at the caret.
+        Deleted notes drop off. Copy list for a bibliography.
       </p>
       {rows.length > 0 && (
         <ul className="cite-essay-list">
           {rows.map((row) => {
             const text = displayFormatted(row.citation, style);
+            const url = row.citation.url;
+            const urlKey = url
+              ? canonicalizeLibraryUrl(url) ?? url.trim()
+              : "";
+            const zoteroHit =
+              row.citation.provider === "zotero"
+                ? undefined
+                : urlKey
+                  ? zoteroByUrl[urlKey]
+                  : undefined;
+            const addId = `used:${row.citation.id}`;
             return (
               <li key={row.citation.id} className="cite-essay-row">
                 <button
@@ -703,10 +851,19 @@ function ThisEssayList({
                 <button
                   type="button"
                   className="cite-action"
-                  onClick={() => onCopy(`used:${row.citation.id}`, text)}
+                  onClick={() => onCopy(addId, text)}
                 >
-                  {copiedId === `used:${row.citation.id}` ? "Copied" : "Copy"}
+                  {copiedId === addId ? "Copied" : "Copy"}
                 </button>
+                {url && (
+                  <button
+                    type="button"
+                    className="cite-action"
+                    onClick={() => onCopyUrl(`${addId}:url`, url)}
+                  >
+                    {copiedId === `${addId}:url` ? "Copied URL" : "Copy URL"}
+                  </button>
+                )}
                 {row.citation.bibtex && (
                   <button
                     type="button"
@@ -717,6 +874,21 @@ function ThisEssayList({
                   >
                     BibTeX
                   </button>
+                )}
+                {onAddToZotero && url && row.citation.provider !== "zotero" && !zoteroHit && (
+                  <button
+                    type="button"
+                    className="cite-action"
+                    disabled={addingId === addId}
+                    onClick={() => onAddToZotero(row)}
+                  >
+                    {addingId === addId ? "Adding…" : "Add to Zotero"}
+                  </button>
+                )}
+                {zoteroHit && connected && (
+                  <a className="cite-zotero-link" href={zoteroSelectHref(zoteroHit)}>
+                    Open in Zotero
+                  </a>
                 )}
                 {onRefresh && row.citation.provider === "zotero" && connected && (
                   <button
@@ -731,6 +903,126 @@ function ThisEssayList({
             );
           })}
         </ul>
+      )}
+    </section>
+  );
+}
+
+function EssayLinksList({
+  rows,
+  open,
+  onToggle,
+  connected,
+  copiedId,
+  addingId,
+  zoteroByUrl,
+  onJump,
+  onCopyUrl,
+  onAddToLibrary,
+  onAddToZotero,
+  inLibrary,
+}: {
+  rows: EssayLinkedUrl[];
+  open: boolean;
+  onToggle: () => void;
+  connected: boolean;
+  copiedId: string | null;
+  addingId: string | null;
+  zoteroByUrl: Record<string, ZoteroSearchHit>;
+  onJump: (pos: number) => void;
+  onCopyUrl: (id: string, url: string) => void;
+  onAddToLibrary: (row: EssayLinkedUrl) => void;
+  onAddToZotero?: (row: EssayLinkedUrl) => void;
+  inLibrary: (url: string) => boolean;
+}) {
+  const hosts = new Set(rows.map((row) => row.host)).size;
+  return (
+    <section className="cite-essay">
+      <div className="cite-essay-head">
+        <button
+          type="button"
+          className="cite-paste-toggle"
+          aria-expanded={open}
+          onClick={onToggle}
+        >
+          Links in this essay
+          {rows.length > 0 && (
+            <span className="cite-count">
+              {rows.length}
+              {hosts > 1 ? ` · ${hosts} sites` : ""}
+            </span>
+          )}
+        </button>
+      </div>
+      {open && (
+        <>
+          <p className="cite-empty">
+            Every hyperlink in the essay and footnotes, with a count if you
+            used it more than once. Add a BlogIDE-only URL to your Library or
+            Zotero.
+          </p>
+          {rows.length === 0 ? (
+            <p className="cite-empty">No http(s) links in this essay yet.</p>
+          ) : (
+            <ul className="cite-essay-list">
+              {rows.map((row) => {
+                const copyId = `link:${row.canonical}`;
+                const zoteroHit = zoteroByUrl[row.canonical];
+                const saved = inLibrary(row.url);
+                return (
+                  <li key={row.canonical} className="cite-essay-row">
+                    <button
+                      type="button"
+                      className="cite-essay-item"
+                      onClick={() => onJump(row.firstPos)}
+                      title={row.url}
+                    >
+                      <span className="cite-hit-kind">{row.host}</span>
+                      <span className="cite-essay-title">{row.title}</span>
+                      {row.count > 1 && (
+                        <span className="cite-count">×{row.count}</span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className="cite-action"
+                      onClick={() => onCopyUrl(`${copyId}:url`, row.url)}
+                    >
+                      {copiedId === `${copyId}:url` ? "Copied URL" : "Copy URL"}
+                    </button>
+                    {!saved && (
+                      <button
+                        type="button"
+                        className="cite-action"
+                        onClick={() => onAddToLibrary(row)}
+                      >
+                        Add to Library
+                      </button>
+                    )}
+                    {onAddToZotero && !zoteroHit && (
+                      <button
+                        type="button"
+                        className="cite-action"
+                        disabled={addingId === copyId}
+                        onClick={() => onAddToZotero(row)}
+                      >
+                        {addingId === copyId ? "Adding…" : "Add to Zotero"}
+                      </button>
+                    )}
+                    {zoteroHit && connected && (
+                      <a
+                        className="cite-zotero-link"
+                        href={zoteroSelectHref(zoteroHit)}
+                      >
+                        Open in Zotero
+                      </a>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
       )}
     </section>
   );

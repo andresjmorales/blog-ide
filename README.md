@@ -15,9 +15,11 @@ by design.
 - **Library + Cite** — one research panel (right dock, or pop it out).
   Saved links and PDFs share a compact list with Zotero search and pasted
   BibTeX. Expand a row for cite / open / remove. PDFs open and pin; they
-  are not formatted citations. Cited here is the essay’s used-sources
-  list (Copy list for a bibliography). Toolbar Cite opens this panel
-  (sheet on a phone).
+  are not formatted citations. Cited here is the essay’s still-used
+  sources (Copy list for a bibliography; deleted footnotes drop off).
+  Links in this essay lists every hyperlink with a use count. Library
+  links can Copy URL or Add to Zotero when the key can write. Toolbar
+  Cite opens this panel (sheet on a phone).
 - **Workspace** — folder/document/link tree, Trash, Notes channels, a seeded
   scratchpad you can rename or trash, phone terminal capture + desktop Shell,
   optional Pushbullet or ntfy capture into those channels (Pushbullet REST

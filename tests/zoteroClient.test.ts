@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  addUrlToZotero,
   citeKeyFromZotero,
   formatZoteroCreators,
   hitFromZoteroItem,
@@ -118,6 +119,76 @@ describe("zotero helpers", () => {
   it("explains a rejected key", () => {
     expect(zoteroErrorCopy(new ZoteroApiError(401, "Forbidden"))).toMatch(
       /rejected the key/i
+    );
+    expect(zoteroErrorCopy(new ZoteroApiError(403, "Forbidden"), "write")).toMatch(
+      /cannot add items/i
+    );
+  });
+
+  it("adds a webpage to Zotero and skips a URL that is already there", async () => {
+    const existing = {
+      key: "WEB1",
+      data: {
+        key: "WEB1",
+        itemType: "webpage",
+        title: "Essay",
+        url: "https://example.com/a",
+      },
+      citation: "Essay.",
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "POST") {
+        expect(url).toContain("/users/123/items");
+        expect(url).not.toContain("?");
+        const body = JSON.parse(String(init?.body)) as Array<{ url?: string }>;
+        expect(body[0]?.url).toBe("https://example.com/new");
+        return new Response(
+          JSON.stringify({ success: { "0": "NEW1" }, successful: {}, failed: {} }),
+          { status: 200 }
+        );
+      }
+      if (url.includes("q=https%3A%2F%2Fexample.com%2Fa")) {
+        return new Response(JSON.stringify([existing]), { status: 200 });
+      }
+      if (url.includes("/items/NEW1")) {
+        return new Response(
+          JSON.stringify({
+            key: "NEW1",
+            data: {
+              key: "NEW1",
+              itemType: "webpage",
+              title: "New page",
+              url: "https://example.com/new",
+            },
+            citation: "New page.",
+          }),
+          { status: 200 }
+        );
+      }
+      return new Response(JSON.stringify([]), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const already = await addUrlToZotero(
+      config,
+      { url: "https://example.com/a", title: "Essay" },
+      "chicago-note-bibliography"
+    );
+    expect(already.created).toBe(false);
+    expect(already.hit.key).toBe("WEB1");
+
+    const created = await addUrlToZotero(
+      config,
+      { url: "https://example.com/new", title: "New page" },
+      "chicago-note-bibliography"
+    );
+    expect(created.created).toBe(true);
+    expect(created.hit.key).toBe("NEW1");
+    expect(created.hit.url).toBe("https://example.com/new");
+    expect(fetchMock.mock.calls.some((call) => call[1]?.method === "POST")).toBe(
+      true
     );
   });
 });

@@ -9,7 +9,11 @@ import {
   type EssayCitation,
 } from "@/lib/markdown/essayCitations";
 import { parseBody, roundTrip, serializeBody } from "@/lib/markdown/pipeline";
-import { listUsedEssaySources } from "@/lib/citations/essaySources";
+import {
+  listUsedEssaySources,
+  pruneEssayCitations,
+} from "@/lib/citations/essaySources";
+import { listEssayLinkedUrls } from "@/lib/citations/essayLinks";
 
 const SAMPLE: EssayCitation = {
   id: "ABCD2345",
@@ -97,5 +101,72 @@ describe("essay citation trailers", () => {
     expect(rows.length).toBeGreaterThanOrEqual(1);
     const nussbaum = rows.find((row) => row.citation.id === "ABCD2345");
     expect(nussbaum).toBeTruthy();
+  });
+
+  it("omits a trailer citation whose footnote was deleted", () => {
+    const gone: EssayCitation = {
+      id: "GONE1",
+      provider: "library",
+      citeKey: "gone",
+      title: "Deleted link",
+      formatted: {
+        "chicago-note": "“Deleted link”, https://example.com/gone.",
+      },
+      url: "https://example.com/gone",
+      footnoteIds: ["missing-fn"],
+    };
+    const doc = parseBody("No notes here.\n");
+    doc.attrs = { ...doc.attrs, essayCitations: [gone] };
+    const rows = listUsedEssaySources(
+      [gone],
+      doc,
+      "chicago-note-bibliography"
+    );
+    expect(rows).toEqual([]);
+    expect(pruneEssayCitations([gone], doc)).toEqual([]);
+  });
+
+  it("keeps a caret-only insert while the formatted text is still in the body", () => {
+    const caret: EssayCitation = {
+      id: "CARET1",
+      provider: "bibtex",
+      citeKey: "caret",
+      title: "Caret source",
+      formatted: { "chicago-note": "Jane Doe, UniqueCaretToken (2024)." },
+    };
+    const doc = parseBody("See Jane Doe, UniqueCaretToken (2024).\n");
+    const rows = listUsedEssaySources(
+      [caret],
+      doc,
+      "chicago-note-bibliography"
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.footnote).toBeNull();
+    expect(pruneEssayCitations([caret], doc)).toHaveLength(1);
+  });
+
+  it("lists hyperlinks with a count and skips image destinations", () => {
+    const doc = parseBody(
+      "See [one](https://example.com/a) and [again](https://example.com/a/) plus [news](https://news.example/x).\n\n![skip](https://cdn.example/pic.png)\n\nNote.[^1]\n\n[^1]: Also <https://example.com/a>.\n"
+    );
+    const links = listEssayLinkedUrls(doc);
+    const example = links.find((row) =>
+      row.canonical.includes("example.com/a")
+    );
+    const news = links.find((row) => row.host.includes("news.example"));
+    expect(example?.count).toBeGreaterThanOrEqual(2);
+    expect(news).toBeTruthy();
+    expect(links.some((row) => row.url.includes("cdn.example"))).toBe(false);
+  });
+
+  it("round-trips a citation URL", () => {
+    const withUrl = serializeEssayCitation({
+      ...SAMPLE,
+      url: "https://example.com/book",
+    });
+    expect(withUrl.url).toBe("https://example.com/book");
+    expect(parseEssayCitationsJson(JSON.stringify([withUrl]))[0]?.url).toBe(
+      "https://example.com/book"
+    );
   });
 });

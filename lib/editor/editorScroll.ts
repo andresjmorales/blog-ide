@@ -122,6 +122,54 @@ function applyScrollTop(
   scroller.scrollTop = top;
 }
 
+export function scrollScrollerToTarget(
+  scroller: HTMLElement,
+  target: { viewportTop: number; height?: number },
+  options?: { align?: number; behavior?: ScrollBehavior }
+): void {
+  const rect = scroller.getBoundingClientRect();
+  const nextTop = scrollTopForAlignedTarget({
+    scrollerScrollTop: scroller.scrollTop,
+    scrollerClientHeight: scroller.clientHeight,
+    scrollerScrollHeight: scroller.scrollHeight,
+    scrollerViewportTop: rect.top,
+    targetViewportTop: target.viewportTop,
+    targetHeight: target.height ?? 0,
+    align: options?.align,
+  });
+  applyScrollTop(scroller, nextTop, options?.behavior ?? "auto");
+}
+
+export function boxAtEditorPos(
+  editor: Editor,
+  pos: number
+): { top: number; height: number } | null {
+  return headingBox(editor, pos);
+}
+
+export function coordsBox(
+  editor: Editor,
+  from: number,
+  to?: number
+): { top: number; height: number } | null {
+  try {
+    const start = editor.view.coordsAtPos(from);
+    let end = start;
+    if (to != null && to !== from) {
+      try {
+        end = editor.view.coordsAtPos(to);
+      } catch {
+        // End-of-block positions often throw; the start box is enough to scroll.
+      }
+    }
+    const top = Math.min(start.top, end.top);
+    const bottom = Math.max(start.bottom, end.bottom);
+    return { top, height: Math.max(1, bottom - top) };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Scroll the essay pane so the heading at `pos` sits near center-top.
  * Does not use `Element.scrollIntoView`, which also yanks outer panels and
@@ -134,15 +182,8 @@ export function scrollHeadingIntoView(editor: Editor, pos: number): void {
     if (!scroller) return;
     const box = headingBox(editor, pos);
     if (!box) return;
-    const rect = scroller.getBoundingClientRect();
-    const nextTop = scrollTopForAlignedTarget({
-      scrollerScrollTop: scroller.scrollTop,
-      scrollerClientHeight: scroller.clientHeight,
-      scrollerScrollHeight: scroller.scrollHeight,
-      scrollerViewportTop: rect.top,
-      targetViewportTop: box.top,
-      targetHeight: box.height,
+    scrollScrollerToTarget(scroller, { viewportTop: box.top, height: box.height }, {
+      behavior: "smooth",
     });
-    applyScrollTop(scroller, nextTop, "smooth");
   });
 }

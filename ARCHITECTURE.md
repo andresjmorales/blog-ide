@@ -59,11 +59,12 @@ markdown.
   second BlogIDE essay.
   Not required onboarding and not overflow media storage.
 - Anthropic / OpenAI are called with the user’s own key via the proxy above.
-- Zotero is an opt-in Cite integration (off until a read-only key is saved
+- Zotero is an opt-in Cite integration (off until a key is saved
   under Settings → Integrations). The browser calls `api.zotero.org`
   directly; the key stays in `localStorage` and is never written to
-  Supabase. Essays keep a small `<!--blogide-citations:…-->` snapshot of
-  sources actually inserted, not a mirrored library.
+  Supabase. Search works with library read. Add to Zotero (BlogIDE-only
+  links) needs write. Essays keep a small `<!--blogide-citations:…-->`
+  snapshot of sources still used, not a mirrored library.
 - fetch(bible) is an opt-in Integrations feature (off by default). The editor
   detects English references with `@gracious.tech/bible-references` and
   decorations only (no markdown rewrite). Verse HTML comes from
@@ -164,7 +165,7 @@ lib/supabase/         Browser, server, and service-role clients
 lib/pins/             Floating pin / pop-out session store
 lib/preview/          Publication HTML, SSRF helpers, OG helpers, reader extracts
 lib/github/           One-way GitHub backup (PAT, maps, Git Data push)
-lib/zotero/           Read-only Zotero Web API client and device-local key
+lib/zotero/           Zotero Web API client (search + optional write) and device-local key
 lib/citations/        BibTeX format, Library Cite helpers, clipboard copy
 lib/secrets/          Encrypted account vault for capture integrations
 lib/pushbullet/       Optional Pushbullet → Notes channel capture

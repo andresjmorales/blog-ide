@@ -94,4 +94,34 @@ describe("insert citation", () => {
       element.remove();
     }
   });
+
+  it("drops a citation snapshot when its footnote is deleted", () => {
+    const element = document.createElement("div");
+    document.body.appendChild(element);
+    const editor = new Editor({
+      element,
+      extensions: createExtensions({ typography: false }),
+      content: parseBody("Hello.\n"),
+    });
+    try {
+      const id = insertCitationFootnote(
+        editor,
+        {
+          id: "lib-gone",
+          provider: "library",
+          citeKey: "gone",
+          title: "Temporary",
+          formatted: { "chicago-note": "Temporary unique footnote body." },
+          url: "https://example.com/tmp",
+        },
+        "Temporary unique footnote body."
+      );
+      expect(readEssayCitations(editor)).toHaveLength(1);
+      expect(editor.commands.deleteFootnote(id)).toBe(true);
+      expect(readEssayCitations(editor)).toEqual([]);
+    } finally {
+      editor.destroy();
+      element.remove();
+    }
+  });
 });

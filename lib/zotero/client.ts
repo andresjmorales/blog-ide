@@ -1,9 +1,11 @@
 /**
- * Read-only Zotero Web API v3 client. Runs in the browser with the user's
- * key (CORS is enabled on api.zotero.org). Never log or persist the key.
+ * Zotero Web API v3 client. Runs in the browser with the user's key
+ * (CORS is enabled on api.zotero.org). Never log or persist the key.
+ * Search works with a read-only key. Creating items needs library write.
  */
 
 import type { CiteStyleId } from "@/lib/citations/citeStyle";
+import { canonicalizeLibraryUrl } from "@/lib/library/urls";
 import { citationHtmlToPlain } from "@/lib/zotero/citationHtml";
 import type { ZoteroConfig } from "@/lib/zotero/token";
 
@@ -46,6 +48,13 @@ export type ZoteroSearchHit = {
   bibtex: string;
   libraryType: "user" | "group";
   libraryId: string;
+  url?: string;
+};
+
+type ZoteroWriteResponse = {
+  success?: Record<string, string>;
+  successful?: Record<string, ZoteroItemResponse>;
+  failed?: Record<string, { message?: string; code?: number }>;
 };
 
 type ZoteroItemResponse = {
@@ -56,10 +65,15 @@ type ZoteroItemResponse = {
   bibtex?: string;
 };
 
-export function zoteroErrorCopy(error: unknown): string {
+export function zoteroErrorCopy(
+  error: unknown,
+  action: "read" | "write" = "read"
+): string {
   if (error instanceof ZoteroApiError) {
     if (error.status === 401 || error.status === 403) {
-      return "Zotero rejected the key. Create a read-only key at zotero.org/settings/keys and check the User ID (or Group ID).";
+      return action === "write"
+        ? "This Zotero key cannot add items. Create a key with library read and write at zotero.org/settings/keys."
+        : "Zotero rejected the key. Create a key at zotero.org/settings/keys and check the User ID (or Group ID).";
     }
     if (error.status === 404) {
       return "Zotero library not found. Check the User ID or Group ID.";
@@ -86,13 +100,17 @@ function libraryId(config: ZoteroConfig): string {
     : config.userId.trim();
 }
 
-async function zoteroFetch<T>(
+async function zoteroRequest<T>(
   config: ZoteroConfig,
   path: string,
-  params: Record<string, string>
+  options: {
+    params?: Record<string, string>;
+    method?: string;
+    body?: unknown;
+  } = {}
 ): Promise<T> {
   const url = new URL(`${API}${path}`);
-  for (const [key, value] of Object.entries(params)) {
+  for (const [key, value] of Object.entries(options.params ?? {})) {
     url.searchParams.set(key, value);
   }
   const headers = new Headers();
@@ -100,8 +118,13 @@ async function zoteroFetch<T>(
   headers.set("Authorization", `Bearer ${config.apiKey}`);
   headers.set("Zotero-API-Key", config.apiKey);
   headers.set("Zotero-API-Version", "3");
+  const init: RequestInit = { method: options.method ?? "GET", headers };
+  if (options.body !== undefined) {
+    headers.set("Content-Type", "application/json");
+    init.body = JSON.stringify(options.body);
+  }
 
-  const response = await fetch(url.toString(), { headers });
+  const response = await fetch(url.toString(), init);
   const text = await response.text();
   let body: unknown = null;
   if (text) {
@@ -119,6 +142,14 @@ async function zoteroFetch<T>(
     throw new ZoteroApiError(response.status, message);
   }
   return body as T;
+}
+
+async function zoteroFetch<T>(
+  config: ZoteroConfig,
+  path: string,
+  params: Record<string, string>
+): Promise<T> {
+  return zoteroRequest<T>(config, path, { params });
 }
 
 function yearFromDate(date: string | undefined): string {
@@ -201,6 +232,10 @@ export function hitFromZoteroItem(
     bibtex: typeof item.bibtex === "string" ? item.bibtex.trim() : "",
     libraryType: config.libraryType,
     libraryId: libraryId(config),
+    url:
+      typeof data.url === "string" && data.url.trim()
+        ? data.url.trim()
+        : undefined,
   };
 }
 
@@ -256,4 +291,100 @@ export async function getZoteroItem(
 export function zoteroSelectHref(hit: ZoteroSearchHit): string {
   const kind = hit.libraryType === "group" ? "groups" : "users";
   return `zotero://select/${kind}/${hit.libraryId}/items/${hit.key}`;
+}
+
+function urlsMatch(left: string, right: string): boolean {
+  const a = canonicalizeLibraryUrl(left) ?? left.trim();
+  const b = canonicalizeLibraryUrl(right) ?? right.trim();
+  return Boolean(a) && a === b;
+}
+
+export async function findZoteroItemByUrl(
+  config: ZoteroConfig,
+  url: string,
+  style: CiteStyleId
+): Promise<ZoteroSearchHit | null> {
+  const needle = url.trim();
+  if (!needle) return null;
+  const items = await zoteroFetch<ZoteroItemResponse[]>(
+    config,
+    `${libraryPath(config)}/items/top`,
+    {
+      q: needle,
+      qmode: "everything",
+      include: includeForStyle(style),
+      style,
+      limit: "10",
+    }
+  );
+  if (!Array.isArray(items)) return null;
+  for (const item of items) {
+    const hit = hitFromZoteroItem(item, config, style);
+    if (!hit) continue;
+    const itemUrl = typeof item.data?.url === "string" ? item.data.url : "";
+    if (itemUrl && urlsMatch(itemUrl, needle)) return hit;
+    if (hit.url && urlsMatch(hit.url, needle)) return hit;
+  }
+  return null;
+}
+
+export async function createZoteroWebpage(
+  config: ZoteroConfig,
+  input: { url: string; title?: string },
+  style: CiteStyleId
+): Promise<ZoteroSearchHit> {
+  const url = input.url.trim();
+  if (!url) throw new ZoteroApiError(400, "Missing URL.");
+  const title = (input.title || url).trim() || url;
+  const created = await zoteroRequest<ZoteroWriteResponse>(
+    config,
+    `${libraryPath(config)}/items`,
+    {
+      method: "POST",
+      body: [
+        {
+          itemType: "webpage",
+          title,
+          url,
+          accessDate: new Date().toISOString().slice(0, 10),
+        },
+      ],
+    }
+  );
+  const key =
+    created.success?.["0"] ||
+    created.successful?.["0"]?.key ||
+    created.successful?.["0"]?.data?.key;
+  if (!key) {
+    const fail = created.failed?.["0"];
+    throw new ZoteroApiError(
+      fail?.code ?? 400,
+      fail?.message || "Zotero did not create the item."
+    );
+  }
+  const hit = await getZoteroItem(config, key, style);
+  if (hit) return { ...hit, url: hit.url || url };
+  return {
+    key,
+    itemType: "webpage",
+    title,
+    creators: "",
+    year: "",
+    citeKey: citeKeyFromZotero({ title, key }),
+    citation: title,
+    bibtex: "",
+    libraryType: config.libraryType,
+    libraryId: libraryId(config),
+    url,
+  };
+}
+
+export async function addUrlToZotero(
+  config: ZoteroConfig,
+  input: { url: string; title?: string },
+  style: CiteStyleId
+): Promise<{ hit: ZoteroSearchHit; created: boolean }> {
+  const existing = await findZoteroItemByUrl(config, input.url, style);
+  if (existing) return { hit: existing, created: false };
+  return { hit: await createZoteroWebpage(config, input, style), created: true };
 }

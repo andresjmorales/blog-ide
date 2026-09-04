@@ -4,7 +4,12 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Editor } from "@tiptap/core";
 import type { FindMatch } from "@/lib/editor/findReplace";
 import type { DocRange } from "@/lib/editor/findReplaceInEditor";
-import { findEditorScroller } from "@/lib/editor/editorScroll";
+import {
+  boxAtEditorPos,
+  coordsBox,
+  findEditorScroller,
+  scrollScrollerToTarget,
+} from "@/lib/editor/editorScroll";
 
 export type FindHighlightState = {
   matches: FindMatch[];
@@ -229,8 +234,6 @@ export function mapFindHighlightState(
   };
 }
 
-const SCROLL_PAD_PX = 80;
-
 /**
  * Soft find highlights via decorations — does not move the selection or
  * steal focus from the find input.
@@ -306,39 +309,41 @@ export function clearFindHighlights(editor: Editor): void {
   setFindHighlights(editor, [], 0, null);
 }
 
+function matchBox(
+  editor: Editor,
+  match: FindMatch
+): { top: number; height: number } | null {
+  if (match.footnotePos != null) {
+    return (
+      boxAtEditorPos(editor, match.footnotePos) ??
+      coordsBox(editor, match.footnotePos)
+    );
+  }
+  return coordsBox(editor, match.from, match.to);
+}
+
 /**
  * Scroll so the match sits in view inside the essay scroller only.
  * Avoids `Element.scrollIntoView`, which also yanks outer page/panels.
+ * Uses the same aligned scroller math as outline headings. End-of-block
+ * `coordsAtPos(to)` throws are ignored so Find Next still moves.
  */
 export function scrollMatchIntoView(editor: Editor, match: FindMatch): void {
+  const run = () => {
+    if (editor.isDestroyed) return;
+    const scroller = findEditorScroller(editor);
+    if (!scroller) return;
+    const box = matchBox(editor, match);
+    if (!box) return;
+    // Instant — smooth stacking on each keystroke feels broken.
+    scrollScrollerToTarget(
+      scroller,
+      { viewportTop: box.top, height: box.height },
+      { behavior: "auto" }
+    );
+  };
+  // Two frames: highlight decorations paint, then coords are trustworthy.
   requestAnimationFrame(() => {
-    try {
-      const scroller = findEditorScroller(editor);
-      if (!scroller) return;
-
-      const pos = match.footnotePos ?? match.from;
-      const endPos =
-        match.footnotePos != null ? match.footnotePos : match.to;
-      const start = editor.view.coordsAtPos(pos);
-      const end = editor.view.coordsAtPos(endPos);
-      const matchTop = Math.min(start.top, end.top);
-      const matchBottom = Math.max(start.bottom, end.bottom);
-      const matchMid = (matchTop + matchBottom) / 2;
-
-      const rect = scroller.getBoundingClientRect();
-      const viewMid = (rect.top + rect.bottom) / 2;
-      const inView =
-        matchTop >= rect.top + SCROLL_PAD_PX &&
-        matchBottom <= rect.bottom - SCROLL_PAD_PX;
-
-      if (inView) {
-        return;
-      }
-
-      // Instant scroll — smooth stacking on each keystroke feels broken.
-      scroller.scrollTop += matchMid - viewMid;
-    } catch {
-      // ignore invalid positions
-    }
+    requestAnimationFrame(run);
   });
 }
