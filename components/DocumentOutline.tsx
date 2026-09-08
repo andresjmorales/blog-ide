@@ -9,12 +9,16 @@ import {
   type DocumentStats,
 } from "@/lib/editor/documentStats";
 import {
-  OUTLINE_REFRESH_MS,
   outlineSnapshotsEqual,
   takeOutlineSnapshot,
   type OutlineHeading,
   type OutlineSnapshot,
 } from "@/lib/editor/documentOutline";
+import {
+  EDITOR_WORK_MS,
+  cancelEditorWork,
+  scheduleEditorWork,
+} from "@/lib/editor/workSchedule";
 import { scrollHeadingIntoView } from "@/lib/editor/editorScroll";
 
 type Props = {
@@ -64,20 +68,19 @@ function DocumentOutlineLive({
   );
 
   useEffect(() => {
-    let timer = 0;
+    const workId = `outline-${editor.view.dom.id || "essay"}`;
     const refresh = () => {
       const next = takeOutlineSnapshot(editor.state.doc);
       setSnapshot((prev) => (outlineSnapshotsEqual(prev, next) ? prev : next));
     };
     const onUpdate = () => {
-      if (timer) window.clearTimeout(timer);
-      timer = window.setTimeout(refresh, OUTLINE_REFRESH_MS);
+      scheduleEditorWork(workId, EDITOR_WORK_MS.outlineStats, refresh);
     };
     refresh();
     editor.on("update", onUpdate);
     return () => {
       editor.off("update", onUpdate);
-      if (timer) window.clearTimeout(timer);
+      cancelEditorWork(workId);
     };
   }, [editor]);
 

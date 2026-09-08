@@ -20,6 +20,7 @@ import {
 } from "@/lib/citations/citeStyle";
 import { copyPlainText } from "@/lib/citations/clipboard";
 import {
+  essayLinkedUrlsEqual,
   listEssayLinkedUrls,
   type EssayLinkedUrl,
 } from "@/lib/citations/essayLinks";
@@ -28,6 +29,7 @@ import {
   displayFormatted,
   listUsedEssaySources,
   pruneEssayCitations,
+  usedEssaySourcesEqual,
   worksCitedBlock,
   type UsedEssaySource,
 } from "@/lib/citations/essaySources";
@@ -88,8 +90,14 @@ import { resolveLibraryOpenTarget } from "@/lib/library/openLibraryItem";
 import { openLinkPin, openPdfPin } from "@/lib/pins/pinStore";
 import { showErrorToast, showSuccessToast, showToast } from "@/lib/ui/toast";
 import { useSyncExternalStore } from "react";
+import type { EssayCitation } from "@/lib/markdown/essayCitations";
+import {
+  EDITOR_WORK_MS,
+  cancelEditorWork,
+  scheduleEditorWork,
+} from "@/lib/editor/workSchedule";
 
-const SEARCH_DEBOUNCE_MS = 320;
+const SEARCH_DEBOUNCE_MS = EDITOR_WORK_MS.citeInventory;
 
 type Props = {
   editor: Editor;
@@ -202,7 +210,9 @@ export function CitePanel({
   const [citedOpen, setCitedOpen] = useState(true);
   const [pasteSource, setPasteSource] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [citationsTick, setCitationsTick] = useState(0);
+  const [used, setUsed] = useState<UsedEssaySource[]>([]);
+  const [linkedUrls, setLinkedUrls] = useState<EssayLinkedUrl[]>([]);
+  const [essayCitations, setEssayCitations] = useState<EssayCitation[]>([]);
   const [linksOpen, setLinksOpen] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [zoteroByUrl, setZoteroByUrl] = useState<Record<string, ZoteroSearchHit>>(
@@ -230,22 +240,43 @@ export function CitePanel({
 
   useEffect(() => {
     if (!editor) return;
-    const bump = () => setCitationsTick((n) => n + 1);
-    const pruneIfNeeded = () => {
+    const workId = "cite-inventory";
+    const refresh = (includeLinks: boolean) => {
+      if (editor.isDestroyed) return;
       const current = readEssayCitations(editor);
       const next = pruneEssayCitations(current, editor.state.doc);
       if (!citationsSnapshotEqual(current, next)) {
         writeEssayCitations(editor, next);
       }
+      const citations = citationsSnapshotEqual(current, next) ? current : next;
+      setEssayCitations((prev) =>
+        citationsSnapshotEqual(prev, citations) ? prev : citations
+      );
+      const nextUsed = listUsedEssaySources(
+        citations,
+        editor.state.doc,
+        style
+      );
+      setUsed((prev) => (usedEssaySourcesEqual(prev, nextUsed) ? prev : nextUsed));
+      if (includeLinks) {
+        const nextLinks = listEssayLinkedUrls(editor.state.doc);
+        setLinkedUrls((prev) =>
+          essayLinkedUrlsEqual(prev, nextLinks) ? prev : nextLinks
+        );
+      }
     };
-    pruneIfNeeded();
-    editor.on("update", bump);
-    editor.on("transaction", bump);
+    refresh(linksOpen);
+    const onUpdate = () => {
+      scheduleEditorWork(workId, EDITOR_WORK_MS.citeInventory, () =>
+        refresh(linksOpen)
+      );
+    };
+    editor.on("update", onUpdate);
     return () => {
-      editor.off("update", bump);
-      editor.off("transaction", bump);
+      editor.off("update", onUpdate);
+      cancelEditorWork(workId);
     };
-  }, [editor]);
+  }, [editor, style, linksOpen]);
 
   useEffect(() => {
     function focusSearch() {
@@ -255,12 +286,6 @@ export function CitePanel({
     return () => window.removeEventListener(OPEN_LIBRARY_CITE_EVENT, focusSearch);
   }, []);
 
-  void citationsTick;
-  const essayCitations = editor ? readEssayCitations(editor) : [];
-  const used = editor
-    ? listUsedEssaySources(essayCitations, editor.state.doc, style)
-    : [];
-  const linkedUrls = editor ? listEssayLinkedUrls(editor.state.doc) : [];
   const essayHits = essayCitations.map((citation) =>
     hitFromEssayCitation(citation, style)
   );

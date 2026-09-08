@@ -46,6 +46,7 @@ import {
   syncDocument,
 } from "@/lib/sync/engine";
 import { restoreDocumentRevision } from "@/lib/workspace/api";
+import { EDITOR_WORK_MS } from "@/lib/editor/workSchedule";
 import { VersionHistoryPanel } from "@/components/VersionHistoryPanel";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
@@ -613,10 +614,10 @@ export function DocumentWorkspace({
                 }
                 onRequestTreeRefresh?.();
               });
-            }, 1500);
+            }, EDITOR_WORK_MS.cloudSync);
           }
         );
-      }, 1000);
+      }, EDITOR_WORK_MS.localPersist);
     },
     [
       persistEnabled,

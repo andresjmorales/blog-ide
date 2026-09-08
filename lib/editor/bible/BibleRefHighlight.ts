@@ -24,13 +24,50 @@ import {
 export type BibleRefHighlightState = {
   hits: BibleRefHit[];
   activeId: string | null;
+  decorations: DecorationSet;
 };
 
 export const bibleRefHighlightKey = new PluginKey<BibleRefHighlightState>(
   "blogideBibleRefHighlight"
 );
 
-const EMPTY: BibleRefHighlightState = { hits: [], activeId: null };
+const EMPTY: BibleRefHighlightState = {
+  hits: [],
+  activeId: null,
+  decorations: DecorationSet.empty,
+};
+
+function createBibleDecorations(
+  doc: Parameters<typeof DecorationSet.create>[0],
+  hits: BibleRefHit[],
+  activeId: string | null
+): DecorationSet {
+  if (hits.length === 0) return DecorationSet.empty;
+  return DecorationSet.create(
+    doc,
+    hits.map((hit) =>
+      Decoration.inline(hit.from, hit.to, {
+        class:
+          hit.id === activeId
+            ? "blogide-bible-ref is-active"
+            : "blogide-bible-ref",
+        "data-bible-ref-id": hit.id,
+      })
+    )
+  );
+}
+
+function withBibleDecorations(
+  doc: Parameters<typeof DecorationSet.create>[0],
+  hits: BibleRefHit[],
+  activeId: string | null
+): BibleRefHighlightState {
+  return {
+    hits,
+    activeId,
+    decorations: createBibleDecorations(doc, hits, activeId),
+  };
+}
 
 type BibleStorage = {
   enabled: boolean;
@@ -51,9 +88,14 @@ declare module "@tiptap/core" {
   }
 }
 
-function setState(editor: Editor, state: BibleRefHighlightState) {
+function setState(editor: Editor, state: Omit<BibleRefHighlightState, "decorations">) {
   if (editor.isDestroyed) return;
-  const tr = editor.state.tr.setMeta(bibleRefHighlightKey, state);
+  const next = withBibleDecorations(
+    editor.state.doc,
+    state.hits,
+    state.activeId
+  );
+  const tr = editor.state.tr.setMeta(bibleRefHighlightKey, next);
   tr.setMeta("addToHistory", false);
   editor.view.dispatch(tr);
 }
@@ -106,11 +148,14 @@ function applyDocChange(
     .map((hit) => mapHit(hit, tr.mapping))
     .filter((hit): hit is BibleRefHit => hit != null);
 
+  let decorations = value.decorations.map(tr.mapping, tr.doc);
+
   if (isAtomOnlyChange(tr.doc, changed.from, changed.to)) {
-    return {
-      hits: mappedHits,
-      activeId: preserveBibleActiveId(value, mappedHits),
-    };
+    const activeId = preserveBibleActiveId(value, mappedHits);
+    if (activeId !== value.activeId) {
+      return withBibleDecorations(tr.doc, mappedHits, activeId);
+    }
+    return { hits: mappedHits, activeId, decorations };
   }
 
   const bounds = bibleScanBounds(tr.doc, changed.from, changed.to);
@@ -121,7 +166,26 @@ function applyDocChange(
   const hits = [...kept, ...fresh].sort(
     (a, b) => a.from - b.from || a.to - b.to
   );
-  return { hits, activeId: preserveBibleActiveId(value, hits) };
+  const overlapping = decorations.find(bounds.from, bounds.to);
+  if (overlapping.length > 0) {
+    decorations = decorations.remove(overlapping);
+  }
+  if (fresh.length > 0) {
+    decorations = decorations.add(
+      tr.doc,
+      fresh.map((hit) =>
+        Decoration.inline(hit.from, hit.to, {
+          class: "blogide-bible-ref",
+          "data-bible-ref-id": hit.id,
+        })
+      )
+    );
+  }
+  const activeId = preserveBibleActiveId(value, hits);
+  if (activeId !== value.activeId) {
+    return withBibleDecorations(tr.doc, hits, activeId);
+  }
+  return { hits, activeId, decorations };
 }
 
 function markFromEvent(event: Event): HTMLElement | null {
@@ -206,8 +270,6 @@ export const BibleRefHighlight = Extension.create({
 
   addProseMirrorPlugins() {
     const extensionEditor = this.editor;
-    let lastDecoState: BibleRefHighlightState | null = null;
-    let lastDecoSet: DecorationSet | null = null;
     return [
       new Plugin<BibleRefHighlightState>({
         key: bibleRefHighlightKey,
@@ -216,13 +278,18 @@ export const BibleRefHighlight = Extension.create({
             if (!extensionEditor.storage.bibleRefHighlight.enabled) {
               return EMPTY;
             }
-            return { hits: scan(state.doc), activeId: null };
+            const hits = scan(state.doc);
+            return withBibleDecorations(state.doc, hits, null);
           },
           apply(tr, value) {
             const meta = tr.getMeta(bibleRefHighlightKey) as
               | BibleRefHighlightState
               | undefined;
-            if (meta) return meta;
+            if (meta) {
+              return meta.decorations
+                ? meta
+                : withBibleDecorations(tr.doc, meta.hits, meta.activeId);
+            }
             if (!extensionEditor.storage.bibleRefHighlight.enabled) {
               return EMPTY;
             }
@@ -234,21 +301,7 @@ export const BibleRefHighlight = Extension.create({
           decorations(state) {
             const pluginState = bibleRefHighlightKey.getState(state);
             if (!pluginState || pluginState.hits.length === 0) return null;
-            if (pluginState === lastDecoState && lastDecoSet) {
-              return lastDecoSet;
-            }
-            const decos = pluginState.hits.map((hit) =>
-              Decoration.inline(hit.from, hit.to, {
-                class:
-                  hit.id === pluginState.activeId
-                    ? "blogide-bible-ref is-active"
-                    : "blogide-bible-ref",
-                "data-bible-ref-id": hit.id,
-              })
-            );
-            lastDecoState = pluginState;
-            lastDecoSet = DecorationSet.create(state.doc, decos);
-            return lastDecoSet;
+            return pluginState.decorations;
           },
           handleClick(_view, _pos, event) {
             const mark = markFromEvent(event);

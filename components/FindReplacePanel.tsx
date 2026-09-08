@@ -19,6 +19,11 @@ import {
   syncFootnoteFindSession,
 } from "@/lib/editor/footnoteFindBridge";
 import {
+  EDITOR_WORK_MS,
+  cancelEditorWork,
+  scheduleEditorWork,
+} from "@/lib/editor/workSchedule";
+import {
   insertIntoTextControl,
   setTextInsertTarget,
 } from "@/lib/editor/textInsertTarget";
@@ -301,9 +306,9 @@ export function FindReplacePanel({
     return () => setTextInsertTarget(null);
   }, []);
 
-  // Re-scan when the essay changes so highlights track the live query
-  // instead of mapped (often wrong) ranges.
+  // Re-scan after typing settles. Mapped decorations stay during the wait.
   useEffect(() => {
+    const workId = "find-rescan";
     function onEditorUpdate() {
       if (ignoreNextUpdateRef.current) {
         ignoreNextUpdateRef.current = false;
@@ -321,22 +326,25 @@ export function FindReplacePanel({
         setIndex(0);
         return;
       }
-      applyScan(
-        args.query,
-        args.regex,
-        args.caseSensitive,
-        args.scope,
-        args.stickyRange,
-        {
-          scroll: false,
-          preferIndex: args.index,
-          focus: false,
-        }
-      );
+      scheduleEditorWork(workId, EDITOR_WORK_MS.findRescan, () => {
+        applyScan(
+          args.query,
+          args.regex,
+          args.caseSensitive,
+          args.scope,
+          args.stickyRange,
+          {
+            scroll: false,
+            preferIndex: args.index,
+            focus: false,
+          }
+        );
+      });
     }
     editor.on("update", onEditorUpdate);
     return () => {
       editor.off("update", onEditorUpdate);
+      cancelEditorWork(workId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);

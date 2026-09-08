@@ -263,7 +263,10 @@ export const FindHighlight = Extension.create({
         props: {
           decorations(state) {
             const pluginState = findHighlightKey.getState(state);
-            if (!pluginState || pluginState.decorations.find().length === 0) {
+            if (
+              !pluginState ||
+              (pluginState.matches.length === 0 && !pluginState.scopeRange)
+            ) {
               return null;
             }
             return pluginState.decorations;

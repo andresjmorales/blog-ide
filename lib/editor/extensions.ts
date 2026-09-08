@@ -26,6 +26,7 @@ import {
   MathInlineMarkdown,
 } from "@/lib/editor/math";
 import { FindHighlight } from "@/lib/editor/findHighlight";
+import { FootnoteIndexPlugin } from "@/lib/editor/footnoteNumbers";
 import { Subscript, Superscript } from "@/lib/editor/scriptMarks";
 import type { MarkdownTypingShortcuts } from "@/lib/settings";
 
@@ -92,6 +93,11 @@ function preserveAsLiteralText(tokenName: string): AnyExtension {
  *
  * Shared between the editor component and the round-trip test suite so the
  * schema under test is exactly the schema being edited.
+ *
+ * New editor features: read ARCHITECTURE.md → "Editor runtime" and use
+ * `lib/editor/workSchedule.ts`. Do not walk the whole document inside
+ * `Plugin.state.apply` or `editor.on("transaction")` except for a bounded
+ * changed range.
  */
 export function createExtensions(
   options: CreateExtensionsOptions = {}
@@ -163,6 +169,7 @@ export function createExtensions(
         ]
       : []),
     FindHighlight,
+    FootnoteIndexPlugin,
     Markdown,
     preserveAsLiteralText("def"),
   ];

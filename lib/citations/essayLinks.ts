@@ -172,3 +172,24 @@ export function listEssayLinkedUrls(
     return a.host.localeCompare(b.host);
   });
 }
+
+export function essayLinkedUrlsEqual(
+  left: EssayLinkedUrl[],
+  right: EssayLinkedUrl[]
+): boolean {
+  if (left === right) return true;
+  if (left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i++) {
+    const a = left[i];
+    const b = right[i];
+    if (
+      a.canonical !== b.canonical ||
+      a.count !== b.count ||
+      a.firstPos !== b.firstPos ||
+      a.title !== b.title
+    ) {
+      return false;
+    }
+  }
+  return true;
+}

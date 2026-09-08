@@ -8,6 +8,7 @@ import { DeletedFootnotesPanel } from "@/components/DeletedFootnotesPanel";
 import { PanelCaret } from "@/components/icons";
 import {
   collectRailNotes,
+  footnoteIndexKey,
   railNotesEqual,
 } from "@/lib/editor/footnoteNumbers";
 
@@ -48,7 +49,9 @@ export function SidenoteRail({
 
   const notes = useEditorState({
     editor,
-    selector: ({ editor: current }) => collectRailNotes(current.state.doc),
+    selector: ({ editor: current }) =>
+      footnoteIndexKey.getState(current.state)?.notes ??
+      collectRailNotes(current.state.doc),
     equalityFn: railNotesEqual,
   });
 
