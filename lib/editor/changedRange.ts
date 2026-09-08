@@ -77,3 +77,73 @@ export function isAtomOnlyChange(
   if (!node || !node.isAtom || node.isText) return false;
   return to <= from + node.nodeSize;
 }
+
+function rangeContainsNodeType(
+  doc: PMNode,
+  from: number,
+  to: number,
+  typeName: string
+): boolean {
+  const size = doc.content.size;
+  const start = Math.max(0, Math.min(from, size));
+  let end = Math.max(start, Math.min(to, size));
+  if (start === end) {
+    const node = doc.nodeAt(start) ?? (start > 0 ? doc.nodeAt(start - 1) : null);
+    if (node?.type.name === typeName) return true;
+    if (end < size) end += 1;
+    else if (start === size && size > 0) {
+      const prev = doc.nodeAt(size - 1);
+      return prev?.type.name === typeName;
+    }
+  }
+  if (start >= end) return false;
+  let found = false;
+  doc.nodesBetween(start, end, (node) => {
+    if (node.type.name === typeName) {
+      found = true;
+      return false;
+    }
+  });
+  return found;
+}
+
+/**
+ * True when a transaction inserts, deletes, or rewrites a node of `typeName`.
+ * Body typing next to other nodes returns false — do not walk the essay.
+ */
+export function transactionTouchesNodeType(
+  tr: Transaction,
+  oldDoc: PMNode,
+  newDoc: PMNode,
+  typeName: string
+): boolean {
+  if (!tr.docChanged) return false;
+  const changed = changedRangeInNewDoc(tr);
+  if (
+    changed &&
+    rangeContainsNodeType(newDoc, changed.from, changed.to, typeName)
+  ) {
+    return true;
+  }
+  let doc = oldDoc;
+  for (const step of tr.steps) {
+    const from =
+      "from" in step && typeof (step as { from: unknown }).from === "number"
+        ? (step as { from: number }).from
+        : null;
+    const to =
+      "to" in step && typeof (step as { to: unknown }).to === "number"
+        ? (step as { to: number }).to
+        : from;
+    if (
+      from != null &&
+      to != null &&
+      rangeContainsNodeType(doc, from, to, typeName)
+    ) {
+      return true;
+    }
+    const result = step.apply(doc);
+    if (result.doc) doc = result.doc;
+  }
+  return false;
+}

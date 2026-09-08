@@ -8,56 +8,33 @@ import {
   useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
-import type { Editor } from "@tiptap/core";
 import {
-  EditorContent,
   NodeViewWrapper,
-  useEditor,
   useEditorState,
   type NodeViewProps,
 } from "@tiptap/react";
-import {
-  openLinkEditor,
-} from "@/lib/editor/linkShortcut";
 import { PinIcon, TrashIcon } from "@/components/icons";
-import {
-  clearFindHighlights,
-  scrollMatchIntoView,
-  setFindHighlights,
-} from "@/lib/editor/findHighlight";
-import { findInEditor } from "@/lib/editor/findReplaceInEditor";
 import { FootnoteSidenote } from "@/components/FootnoteSidenote";
-import { FootnoteToolbar } from "@/components/FootnoteToolbar";
-import { footnoteNumberAt } from "@/lib/editor/footnoteNumbers";
+import { footnoteIndexKey, footnoteNumberAt } from "@/lib/editor/footnoteNumbers";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { useEssaySpellcheck } from "@/components/EssaySpellcheckContext";
 import { claimFloatZ } from "@/lib/pins/pinStore";
-import { applyEditorDomLang } from "@/lib/editor/domAttrs";
 import {
   getFootnoteFindSession,
   setFootnoteFindSession,
   subscribeFootnoteFindSession,
 } from "@/lib/editor/footnoteFindBridge";
 import { consumeFootnoteEditorOpen } from "@/lib/editor/footnoteOpen";
-import {
-  applyFootnoteHistoryKey,
-  footnoteHistoryAction,
-  isFootnoteHistoryTarget,
-} from "@/lib/editor/footnoteHistoryKeys";
-import { createFootnoteExtensions } from "@/lib/editor/footnoteSchema";
-import { firstImageFile } from "@/lib/editor/insertEssayImage";
+import { FootnoteNoteEditor } from "@/components/FootnoteNoteEditor";
 import { PinnedSurface } from "@/components/pins/PinnedSurface";
 import {
   FOOTNOTE_CARD_HEIGHT,
   FOOTNOTE_CARD_MIN_HEIGHT,
   FOOTNOTE_CARD_MIN_WIDTH,
   FOOTNOTE_CARD_WIDTH,
-  footnoteAttrSyncDelay,
   isDesktopFootnoteSurface,
   isFootnoteOutsidePointerTarget,
   placeFootnoteCard,
-  shouldApplyExternalFootnoteContent,
-  shouldCommitFootnoteAttrs,
   shouldFollowFootnoteRef,
   shouldRepositionFootnoteCard,
 } from "@/lib/editor/footnoteCard";
@@ -182,214 +159,23 @@ export function FootnoteNodeView({
       footnoteNumberAt(
         editor.state.doc,
         typeof getPos() === "number" ? getPos() : null,
-        footnoteId
+        footnoteId,
+        footnoteIndexKey.getState(editor.state)
       ),
   });
 
-  const noteEditor = useEditor(
-    {
-      extensions: createFootnoteExtensions({
-        typography: prefs.typography,
-      }),
-      content,
-      contentType: "markdown",
-      immediatelyRender: false,
-      editorProps: {
-        attributes: {
-          class: "footnote-card-editor outline-none",
-          "aria-label": `Footnote ${number} content`,
-          spellcheck: "false",
-          lang: spellLang,
-        },
-        handlePaste: (_view, event) => {
-          if (firstImageFile(event.clipboardData?.files)) {
-            event.preventDefault();
-            return true;
-          }
-          return false;
-        },
-        handleDrop: (_view, event) => {
-          if (firstImageFile(event.dataTransfer?.files)) {
-            event.preventDefault();
-            return true;
-          }
-          return false;
-        },
-      },
-    },
-    [prefs.typography]
-  );
-
+  const pendingFocusRef = useRef(autoOpenedFootnoteIds.has(footnoteId));
+  const commitRef = useRef<(() => void) | null>(null);
   useEffect(() => {
-    if (!noteEditor) return;
-    applyEditorDomLang(noteEditor.view.dom as HTMLElement, spellLang);
-  }, [noteEditor, spellLang]);
-
-  useEffect(() => {
-    if (!autoOpenedFootnoteIds.has(footnoteId) || !noteEditor || !cardOpen) {
-      return;
+    if (autoOpenedFootnoteIds.has(footnoteId)) {
+      autoOpenedFootnoteIds.delete(footnoteId);
+      pendingFocusRef.current = true;
     }
-    autoOpenedFootnoteIds.delete(footnoteId);
-    dragSuppressUntil.current = performance.now() + 280;
-    requestAnimationFrame(() => {
-      noteEditor.commands.focus("end");
-    });
-  }, [noteEditor, cardOpen, footnoteId]);
-
-  // Highlight inside the note while this footnote is the active find target.
-  // Re-scan on local edits without scrolling — a session-object refresh used
-  // to re-apply decorations and yank the nested caret.
-  useEffect(() => {
-    if (!noteEditor) return;
-    if (!cardOpen || !isFindTarget || !findSession) {
-      clearFindHighlights(noteEditor);
-      return;
-    }
-    const editor: Editor = noteEditor;
-    const session = findSession;
-
-    function applyNoteHighlights(scroll: boolean) {
-      let matches;
-      try {
-        matches = findInEditor(
-          editor,
-          {
-            query: session.query,
-            regex: session.regex,
-            caseSensitive: session.caseSensitive,
-          },
-          "document"
-        );
-      } catch {
-        clearFindHighlights(editor);
-        return;
-      }
-      if (matches.length === 0) {
-        clearFindHighlights(editor);
-        return;
-      }
-      const activeIndex = Math.min(session.occurrence, matches.length - 1);
-      setFindHighlights(editor, matches, activeIndex);
-      const active = matches[activeIndex];
-      if (scroll && active) {
-        requestAnimationFrame(() => {
-          scrollMatchIntoView(editor, active);
-        });
-      }
-    }
-
-    applyNoteHighlights(true);
-    function onNoteUpdate({
-      transaction,
-    }: {
-      transaction?: { docChanged?: boolean };
-    }) {
-      if (transaction && !transaction.docChanged) {
-        return;
-      }
-      applyNoteHighlights(false);
-    }
-    editor.on("update", onNoteUpdate);
-    return () => {
-      editor.off("update", onNoteUpdate);
-    };
-  }, [noteEditor, cardOpen, isFindTarget, findSession]);
-
-  useEffect(() => {
-    if (!noteEditor || !cardOpen) return;
-    const current = noteEditor;
-    function onClick(event: MouseEvent) {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const anchor = target.closest("a[href]");
-      if (!anchor || !current.view.dom.contains(anchor)) return;
-      const href = (anchor as HTMLAnchorElement).getAttribute("href") || "";
-      event.preventDefault();
-      window.requestAnimationFrame(() => {
-        openLinkEditor(current, { allowPreview: true, href });
-      });
-    }
-    const dom = current.view.dom;
-    dom.addEventListener("click", onClick);
-    return () => dom.removeEventListener("click", onClick);
-  }, [noteEditor, cardOpen]);
-
-  useEffect(() => {
-    if (!noteEditor) return;
-    if (
-      !shouldApplyExternalFootnoteContent({
-        incoming: content,
-        editorMarkdown: noteEditor.getMarkdown(),
-        isFocused: noteEditor.isFocused,
-      })
-    ) {
-      return;
-    }
-    noteEditor.chain()
-      .command(({ tr }) => {
-        tr.setMeta("addToHistory", false);
-        return true;
-      })
-      .setContent(content, {
-        contentType: "markdown",
-        emitUpdate: false,
-      })
-      .run();
-  }, [content, noteEditor]);
-
-  // Push edits into the node attrs so the margin sidenote stays live — debounced
-  // so each keystroke does not rewrite the parent document.
-  //
-  // Only sync while the card is open. The nested editor mounts for every
-  // footnote (even closed ones); an early empty getMarkdown() captured in the
-  // debounce closure used to overwrite good attrs.content after paste / mode
-  // switch — especially visible on the first link-heavy Substack note.
-  const contentRef = useRef(content);
-  const attrSyncTimer = useRef(0);
-  useEffect(() => {
-    contentRef.current = content;
-  }, [content]);
-  useEffect(() => {
-    if (!noteEditor || !cardOpen) return;
-    const sync = () => {
-      const snapshot = noteEditor.getMarkdown().trim();
-      if (snapshot === contentRef.current) return;
-      if (attrSyncTimer.current) window.clearTimeout(attrSyncTimer.current);
-      const delay = footnoteAttrSyncDelay(noteEditor.isFocused, snapshot);
-      const commit = () => {
-        attrSyncTimer.current = 0;
-        const latest = noteEditor.getMarkdown().trim();
-        if (
-          !shouldCommitFootnoteAttrs({
-            next: latest,
-            current: contentRef.current,
-            isFocused: noteEditor.isFocused,
-          })
-        ) {
-          return;
-        }
-        updateAttributes({ content: latest });
-      };
-      if (delay === 0) {
-        commit();
-        return;
-      }
-      attrSyncTimer.current = window.setTimeout(commit, delay);
-    };
-    noteEditor.on("update", sync);
-    return () => {
-      noteEditor.off("update", sync);
-      if (attrSyncTimer.current) window.clearTimeout(attrSyncTimer.current);
-    };
-  }, [noteEditor, cardOpen, updateAttributes]);
+  }, [footnoteId]);
 
   const commitContent = useCallback(() => {
-    if (!noteEditor) return;
-    const next = noteEditor.getMarkdown().trim();
-    if (next !== content) {
-      updateAttributes({ content: next });
-    }
-  }, [content, noteEditor, updateAttributes]);
+    commitRef.current?.();
+  }, []);
 
   const cancelHoverOpen = useCallback(() => {
     if (hoverOpenTimer.current) {
@@ -517,12 +303,10 @@ export function FootnoteNodeView({
         });
       }
       if (options?.focusEditor !== false) {
-        requestAnimationFrame(() => {
-          if (!noteEditor?.isFocused) noteEditor?.commands.focus("end");
-        });
+        pendingFocusRef.current = true;
       }
     },
-    [cancelHoverClose, cancelHoverOpen, footnoteId, isDesktop, noteEditor]
+    [cancelHoverClose, cancelHoverOpen, footnoteId, isDesktop]
   );
 
   /** Freeze the floating card at its current viewport spot (pin or drag). */
@@ -622,21 +406,6 @@ export function FootnoteNodeView({
       window.removeEventListener("scroll", positionCard, true);
     };
   }, [cardOpen, hasUserPlacedPosition, pinned]);
-
-  useEffect(() => {
-    if (!noteEditor || !cardOpen) return;
-    const historyEditor = noteEditor;
-    function onKeyDown(event: KeyboardEvent) {
-      const action = footnoteHistoryAction(event);
-      if (!action) return;
-      if (!isFootnoteHistoryTarget(event.target, footnoteId)) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      applyFootnoteHistoryKey(historyEditor, action);
-    }
-    document.addEventListener("keydown", onKeyDown, true);
-    return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [noteEditor, cardOpen, footnoteId]);
 
   useEffect(() => {
     if (!cardOpen) return;
@@ -812,15 +581,21 @@ export function FootnoteNodeView({
     [footnoteId]
   );
 
-  const editorBody = (
-    <>
-      {noteEditor && <FootnoteToolbar editor={noteEditor} />}
-      <EditorContent
-        editor={noteEditor}
-        className="footnote-card-editor-shell"
-      />
-    </>
-  );
+  const editorBody = cardOpen ? (
+    <FootnoteNoteEditor
+      content={content}
+      number={number}
+      footnoteId={footnoteId}
+      typography={prefs.typography}
+      spellLang={spellLang}
+      updateAttributes={updateAttributes}
+      isFindTarget={isFindTarget}
+      findSession={findSession}
+      pendingFocusRef={pendingFocusRef}
+      commitRef={commitRef}
+      dragSuppressUntilRef={dragSuppressUntil}
+    />
+  ) : null;
 
   return (
     <NodeViewWrapper
@@ -870,18 +645,20 @@ export function FootnoteNodeView({
         {number}
       </button>
 
-      <FootnoteSidenote
-        number={number}
-        markdown={content}
-        rootRef={sidenoteRef}
-        onActivate={() =>
-          openCard({
-            scrollToAnchor: true,
-            sticky: true,
-            anchorEl: sidenoteRef.current,
-          })
-        }
-      />
+      {!prefs.sidenotes && (
+        <FootnoteSidenote
+          number={number}
+          markdown={content}
+          rootRef={sidenoteRef}
+          onActivate={() =>
+            openCard({
+              scrollToAnchor: true,
+              sticky: true,
+              anchorEl: sidenoteRef.current,
+            })
+          }
+        />
+      )}
 
       {cardOpen &&
         typeof document !== "undefined" &&

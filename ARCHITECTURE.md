@@ -178,3 +178,111 @@ supabase/schema.sql   Database bootstrap, RLS, and RPCs
 supabase/migrations/  Timestamped copies for db push workflows
 tests/                Round-trip and focused behavior tests
 ```
+
+## Editor runtime
+
+Typing must stay snappy on long essays (thousands of words, dozens of
+footnotes, Find / Harper / fetch(bible) / Cite / Outline / footnote rail
+open). The contract is in `lib/editor/workSchedule.ts`.
+
+### Lanes
+
+| Lane | Delay | What runs |
+| --- | --- | --- |
+| **Hot path** (same tick as the key) | 0 | ProseMirror `apply`, incremental decoration mapping, toolbar `isActive` |
+| **after typing** | 160–320ms after last key | Markdown serialize, outline/stats, Find rescan, Cite inventory |
+| **after idle** | 400ms | Harper WASM lint of dirty textblocks |
+| **persist** | 1s local, then 1.5s cloud | IndexedDB, then Supabase |
+
+Constants live in `EDITOR_WORK_MS`. Use `scheduleEditorWork(id, delay, fn)`
+so a second keystroke resets the timer. Flush on blur / unmount / doc switch
+(DocumentEditor already flushes serialize; DocumentWorkspace flushes persist).
+
+### What happens on each keystroke (worst case, everything open)
+
+A letter in the essay body, not inside a footnote:
+
+1. TipTap input rules / smart quotes (cheap, local to the caret).
+2. **Footnote index plugin** — `transactionTouchesNodeType` on the changed
+   span. Body typing returns false; previous index is reused (no
+   `doc.descendants`).
+3. **Footnote deletion tracker** — same touch check. No archival. Citation
+   prune is *scheduled* (`citeInventory`), not run.
+4. **Find decorations** — `DecorationSet.map` of existing marks. No rescan.
+5. **Harper underlines** — map decorations; drop squiggles on the edited word.
+   WASM lint is *scheduled* (`harperLint`).
+6. **Bible refs** (if enabled) — remap hits; rescan only the edited text node.
+   Map decorations instead of rebuilding the set.
+7. **36 footnote node views** — numbers come from plugin state (`byId`).
+   Nested TipTap editors exist only for *open* cards, not every mark.
+   Inline sidenote HTML is not mounted while the footnote rail is on.
+8. React listeners: FormattingToolbar `useEditorState` (mark actives),
+   Harper/Bible hover cards (cheap if nothing is active), TableControls only
+   while the caret is in a table.
+
+**Must not run on this tick:** `serializeBody`, outline/stats walk, Find
+`findInEditor`, `listEssayLinkedUrls`, `listUsedEssaySources`,
+`pruneEssayCitations`, Harper `extractLintBlocks` / `linter.lint`,
+IndexedDB, Supabase.
+
+### After typing settles
+
+| Delay | Owner | Work |
+| --- | --- | --- |
+| 160ms | `DocumentEditor.onUpdate` | `serializeBody` → parent `persistMarkdown` |
+| 180ms | Outline | Headings + word counts (`takeOutlineSnapshot`) |
+| 250ms | Find (if open) | Full `findInEditor` + replace mapped highlights |
+| 320ms | Cite rail (if mounted) | Used sources. Link inventory **only while "Links in this essay" is expanded** |
+| 320ms | Deletion tracker | `pruneEssayCitations` if the trailer might be stale |
+| 400ms | Harper | Extract textblocks, lint dirty ones (block cache), rebuild underlines |
+| 1s | `persistMarkdown` | IndexedDB `saveLocal` |
+| +1.5s | sync engine | Supabase optimistic save |
+
+Closing Find, collapsing Cite sections, or turning Harper / bible / sidenotes
+off removes that lane's work.
+
+### Worst-case traps (fixed here, do not reintroduce)
+
+- **Cite `editor.on("transaction")`** plus `listEssayLinkedUrls` during render
+  walked every text node and 36 footnote bodies on caret moves, Harper
+  results, and Find highlight writes. Cite now listens to `update` only and
+  debounces; links are not counted until that section is open.
+- **Find `update` handler** rescanned the whole essay and dispatched highlight
+  transactions on every keystroke (which retriggered Cite). Find maps marks
+  while typing and rescans at 250ms.
+- **`FootnoteDeletionTracker.appendTransaction`** called `pruneEssayCitations`
+  (full-doc text join + `includes` for every citation) on every body edit.
+  Prune is idle; archival still runs immediately when a footnote atom is
+  removed.
+- **Harper / Bible `DecorationSet.create` on every remap** rebuilt all marks.
+  They now `map` the existing set, like Find.
+- **Nested footnote editors** used to mount for every mark. They mount when
+  the card opens.
+
+### Adding a connection, panel, or decoration
+
+Checklist for future agents:
+
+1. **Hot path:** only incremental `Plugin.state.apply` over
+   `changedRangeInNewDoc` (see Bible refs, Find, Harper map, footnote index).
+   Never `doc.descendants` / `nodesBetween(0, doc.content.size)` / regex over
+   the essay / `serializeBody`.
+2. **Do not** subscribe to `editor.on("transaction")` to rebuild inventories.
+   That fires for selection and decoration-only writes. Use `update` +
+   `scheduleEditorWork`, or read plugin state.
+3. **Do not** dispatch a decoration transaction from an `update` listener
+   without coalescing — it re-enters every other transaction listener.
+4. Prefer `DecorationSet.map` over `DecorationSet.create` while typing.
+5. Cache per immutable `doc` (`WeakMap`) or keep a plugin index if the
+   value is needed on the hot path (footnote numbers).
+6. Gate expensive inventories on the UI that needs them (collapsed "Links
+   in this essay" must not count hrefs).
+7. Put new delays in `EDITOR_WORK_MS` and document them in this table.
+8. Add a test that body typing does not walk footnotes / links when your
+   feature is idle (see `tests/editorHotPath.test.ts`).
+
+### Sync (after persist, not typing)
+
+See Persistence model above. `saveLocal` and `syncDocument` never run from
+the keystroke itself. Blur, tab-hide, doc switch, and unmount flush the
+serialize debounce, then the IndexedDB debounce, then push the queue.

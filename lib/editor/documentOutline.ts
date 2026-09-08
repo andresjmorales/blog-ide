@@ -3,6 +3,7 @@ import {
   type DocumentStats,
   type StatsNode,
 } from "@/lib/editor/documentStats";
+import { EDITOR_WORK_MS } from "@/lib/editor/workSchedule";
 
 export type OutlineHeading = {
   level: number;
@@ -63,4 +64,4 @@ export function outlineSnapshotsEqual(
 }
 
 /** Pause after the last keystroke before walking the essay for outline/stats. */
-export const OUTLINE_REFRESH_MS = 180;
+export const OUTLINE_REFRESH_MS = EDITOR_WORK_MS.outlineStats;

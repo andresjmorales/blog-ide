@@ -18,10 +18,12 @@ import {
 import {
   cacheGet,
   cacheSet,
+  dropRangeForChange,
   issuesFingerprint,
   mapHarperState,
   preserveActiveId,
 } from "@/lib/editor/harper/mapIssues";
+import { changedRangeInNewDoc } from "@/lib/editor/changedRange";
 import {
   fromHarperSuggestion,
   keepHarperSuggestion,
@@ -33,13 +35,13 @@ import {
   type HarperHighlightState,
   type HarperIssue,
 } from "@/lib/editor/harper/types";
+import {
+  EDITOR_WORK_MS,
+} from "@/lib/editor/workSchedule";
 
 export const harperHighlightKey = new PluginKey<HarperHighlightState>(
   "blogideHarperHighlight"
 );
-
-/** Pause after the last keystroke before talking to Harper. Squiggles stay. */
-const LINT_DEBOUNCE_MS = 400;
 
 type HarperStorage = {
   enabled: boolean;
@@ -80,6 +82,45 @@ function underlineClass(kind: string): string {
     : "blogide-harper-lint is-grammar";
 }
 
+type HarperPluginState = HarperHighlightState & {
+  decorations: DecorationSet;
+};
+
+const EMPTY_PLUGIN: HarperPluginState = {
+  ...EMPTY_HARPER_STATE,
+  decorations: DecorationSet.empty,
+};
+
+function createHarperDecorations(
+  doc: Parameters<typeof DecorationSet.create>[0],
+  issues: HarperIssue[],
+  activeId: string | null
+): DecorationSet {
+  if (issues.length === 0) return DecorationSet.empty;
+  return DecorationSet.create(
+    doc,
+    issues.map((issue) =>
+      Decoration.inline(issue.from, issue.to, {
+        class:
+          issue.id === activeId
+            ? `${underlineClass(issue.kind)} is-active`
+            : underlineClass(issue.kind),
+        "data-harper-id": issue.id,
+      })
+    )
+  );
+}
+
+function withHarperDecorations(
+  doc: Parameters<typeof DecorationSet.create>[0],
+  state: HarperHighlightState
+): HarperPluginState {
+  return {
+    ...state,
+    decorations: createHarperDecorations(doc, state.issues, state.activeId),
+  };
+}
+
 function sameStringSet(left: Set<string>, right: Iterable<string>): boolean {
   const next = right instanceof Set ? right : new Set(right);
   if (left.size !== next.size) return false;
@@ -101,7 +142,7 @@ function scheduleLint(editor: Editor) {
       return;
     }
     void runLint(editor);
-  }, LINT_DEBOUNCE_MS);
+  }, EDITOR_WORK_MS.harperLint);
 }
 
 function shouldKeepIssue(
@@ -419,20 +460,40 @@ export const HarperHighlight = Extension.create({
 
   addProseMirrorPlugins() {
     const extensionEditor = this.editor;
-    let lastDecoState: HarperHighlightState | null = null;
-    let lastDecoSet: DecorationSet | null = null;
     return [
-      new Plugin<HarperHighlightState>({
+      new Plugin<HarperPluginState>({
         key: harperHighlightKey,
         state: {
-          init: () => EMPTY_HARPER_STATE,
+          init: () => EMPTY_PLUGIN,
           apply(tr, value) {
             const meta = tr.getMeta(harperHighlightKey) as
               | HarperHighlightState
               | undefined;
-            if (meta) return meta;
+            if (meta) return withHarperDecorations(tr.doc, meta);
             if (!tr.docChanged) return value;
-            return mapHarperState(value, tr);
+            const mapped = mapHarperState(value, tr);
+            const changed = changedRangeInNewDoc(tr);
+            const drop = changed
+              ? dropRangeForChange(tr.doc, changed)
+              : null;
+            let decorations = value.decorations.map(tr.mapping, tr.doc);
+            if (drop) {
+              const overlapping = decorations.find(drop.from, drop.to);
+              if (overlapping.length > 0) {
+                decorations = decorations.remove(overlapping);
+              }
+            }
+            if (mapped.activeId !== value.activeId) {
+              decorations = createHarperDecorations(
+                tr.doc,
+                mapped.issues,
+                mapped.activeId
+              );
+            }
+            if (mapped === value && decorations === value.decorations) {
+              return value;
+            }
+            return { ...mapped, decorations };
           },
         },
         view() {
@@ -445,23 +506,13 @@ export const HarperHighlight = Extension.create({
         },
         props: {
           decorations(state) {
-            const pluginState = harperHighlightKey.getState(state);
-            if (!pluginState || pluginState.issues.length === 0) return null;
-            if (pluginState === lastDecoState && lastDecoSet) {
-              return lastDecoSet;
+            const pluginState = harperHighlightKey.getState(
+              state
+            ) as HarperPluginState | undefined;
+            if (!pluginState || pluginState.issues.length === 0) {
+              return null;
             }
-            const decos = pluginState.issues.map((issue) =>
-              Decoration.inline(issue.from, issue.to, {
-                class:
-                  issue.id === pluginState.activeId
-                    ? `${underlineClass(issue.kind)} is-active`
-                    : underlineClass(issue.kind),
-                "data-harper-id": issue.id,
-              })
-            );
-            lastDecoState = pluginState;
-            lastDecoSet = DecorationSet.create(state.doc, decos);
-            return lastDecoSet;
+            return pluginState.decorations;
           },
           handleClick(view, _pos, event) {
             const target = event.target;

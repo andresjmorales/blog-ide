@@ -139,6 +139,28 @@ export function citationStillInEssay(
   return formattedStillInDoc(citation, docText);
 }
 
+export function usedEssaySourcesEqual(
+  left: UsedEssaySource[],
+  right: UsedEssaySource[]
+): boolean {
+  if (left === right) return true;
+  if (left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i++) {
+    const a = left[i];
+    const b = right[i];
+    if (
+      a.citation.id !== b.citation.id ||
+      a.edited !== b.edited ||
+      a.footnote?.id !== b.footnote?.id ||
+      a.footnote?.pos !== b.footnote?.pos ||
+      a.footnote?.number !== b.footnote?.number
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function citationsSnapshotEqual(
   left: EssayCitation[],
   right: EssayCitation[]

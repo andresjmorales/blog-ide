@@ -1,4 +1,4 @@
-import { Extension } from "@tiptap/core";
+import { Extension, type Editor } from "@tiptap/core";
 import { Plugin } from "@tiptap/pm/state";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import {
@@ -11,6 +11,11 @@ import {
   mergeDeletedFootnotes,
   type DeletedFootnote,
 } from "@/lib/markdown/deletedFootnotes";
+import { transactionTouchesNodeType } from "@/lib/editor/changedRange";
+import {
+  EDITOR_WORK_MS,
+  scheduleEditorWork,
+} from "@/lib/editor/workSchedule";
 
 /** Suppress archival during full document reloads (setContent / source toggle). */
 let suppressFootnoteDeletion = 0;
@@ -46,14 +51,37 @@ function readDeleted(doc: ProseMirrorNode): DeletedFootnote[] {
   return Array.isArray(raw) ? (raw as DeletedFootnote[]) : [];
 }
 
+function readCitations(doc: ProseMirrorNode): EssayCitation[] {
+  return Array.isArray(doc.attrs.essayCitations)
+    ? (doc.attrs.essayCitations as EssayCitation[])
+    : [];
+}
+
+function pruneCitationsNow(editor: Editor): void {
+  if (editor.isDestroyed) return;
+  const citations = readCitations(editor.state.doc);
+  if (citations.length === 0) return;
+  const pruned = pruneEssayCitations(citations, editor.state.doc);
+  if (citationsSnapshotEqual(citations, pruned)) return;
+  editor.view.dispatch(
+    editor.state.tr
+      .setMeta("blogide-skip-footnote-delete", true)
+      .setDocAttribute("essayCitations", pruned)
+  );
+}
+
 /**
  * When footnoteRef atoms disappear from the document, archive them on
  * doc.attrs.deletedFootnotes for later restore from the sidenote rail.
+ *
+ * Citation prune walks the whole essay (footnote bodies + searchable text).
+ * Body typing schedules that on the cite-inventory lane instead.
  */
 export const FootnoteDeletionTracker = Extension.create({
   name: "footnoteDeletionTracker",
 
   addProseMirrorPlugins() {
+    const editor = this.editor;
     return [
       new Plugin({
         appendTransaction(transactions, oldState, newState) {
@@ -68,6 +96,29 @@ export const FootnoteDeletionTracker = Extension.create({
               transaction.getMeta("blogide-skip-footnote-delete")
             )
           ) {
+            return null;
+          }
+
+          const touchedFootnotes = transactions.some(
+            (transaction) =>
+              transaction.docChanged &&
+              transactionTouchesNodeType(
+                transaction,
+                oldState.doc,
+                newState.doc,
+                "footnoteRef"
+              )
+          );
+
+          const citations = readCitations(newState.doc);
+          if (!touchedFootnotes) {
+            if (citations.length > 0) {
+              scheduleEditorWork(
+                "prune-citations",
+                EDITOR_WORK_MS.citeInventory,
+                () => pruneCitationsNow(editor)
+              );
+            }
             return null;
           }
 
@@ -86,27 +137,31 @@ export const FootnoteDeletionTracker = Extension.create({
             }
           }
 
-          const citations = Array.isArray(newState.doc.attrs.essayCitations)
-            ? (newState.doc.attrs.essayCitations as EssayCitation[])
-            : [];
+          if (removed.length === 0) {
+            if (citations.length > 0) {
+              scheduleEditorWork(
+                "prune-citations",
+                EDITOR_WORK_MS.citeInventory,
+                () => pruneCitationsNow(editor)
+              );
+            }
+            return null;
+          }
+
           const pruned = pruneEssayCitations(citations, newState.doc);
           const citationsChanged = !citationsSnapshotEqual(citations, pruned);
-
-          if (removed.length === 0 && !citationsChanged) return null;
 
           const merged = mergeDeletedFootnotes(
             readDeleted(newState.doc),
             removed
           ).slice(0, MAX_DELETED_FOOTNOTES);
 
-          let tr = newState.tr.setMeta("blogide-skip-footnote-delete", true);
-          if (removed.length > 0) {
-            tr = tr.setDocAttribute("deletedFootnotes", merged);
-          }
+          let next = newState.tr.setMeta("blogide-skip-footnote-delete", true);
+          next = next.setDocAttribute("deletedFootnotes", merged);
           if (citationsChanged) {
-            tr = tr.setDocAttribute("essayCitations", pruned);
+            next = next.setDocAttribute("essayCitations", pruned);
           }
-          return tr;
+          return next;
         },
       }),
     ];

@@ -43,6 +43,7 @@ import { BibleRefHighlight } from "@/lib/editor/bible/BibleRefHighlight";
 import { dialectFromLang } from "@/lib/editor/harper/dialect";
 import { applyEditorDomLang } from "@/lib/editor/domAttrs";
 import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
+import { EDITOR_WORK_MS } from "@/lib/editor/workSchedule";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 import { transformPastedFootnoteHtml } from "@/lib/import/footnotePaste";
 import {
@@ -240,7 +241,7 @@ export function DocumentEditor({
           const next = serializeBody(current.getJSON());
           lastEmittedRef.current = next;
           onChangeRef.current(next);
-        }, 160);
+        }, EDITOR_WORK_MS.markdownSerialize);
       },
     },
     [markdownTypingShortcuts, typography]
@@ -457,11 +458,15 @@ export function DocumentEditor({
 
   useEffect(() => {
     if (!editor || !onDeletedFootnotesChange) return;
+    let previousList: unknown = undefined;
     let previous = "";
-    const sync = () => {
+    const sync = (event?: { transaction?: { docChanged?: boolean } }) => {
+      if (event?.transaction && !event.transaction.docChanged) return;
       const list = Array.isArray(editor.state.doc.attrs.deletedFootnotes)
         ? (editor.state.doc.attrs.deletedFootnotes as DeletedFootnote[])
         : [];
+      if (list === previousList) return;
+      previousList = list;
       const key = JSON.stringify(list);
       if (key === previous) return;
       previous = key;

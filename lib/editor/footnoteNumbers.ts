@@ -1,52 +1,7 @@
+import { Extension } from "@tiptap/core";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
 import type { Node as PMNode } from "@tiptap/pm/model";
-
-type FootnoteIndex = {
-  byId: Map<string, number>;
-  byPos: Map<number, number>;
-};
-
-const cache = new WeakMap<PMNode, FootnoteIndex>();
-
-function indexFootnotes(doc: PMNode): FootnoteIndex {
-  const hit = cache.get(doc);
-  if (hit) return hit;
-
-  const byId = new Map<string, number>();
-  const byPos = new Map<number, number>();
-  let number = 0;
-  doc.descendants((node, pos) => {
-    if (node.type.name !== "footnoteRef") return;
-    number += 1;
-    const id = String(node.attrs.id ?? "");
-    if (id) byId.set(id, number);
-    byPos.set(pos, number);
-  });
-  const next = { byId, byPos };
-  cache.set(doc, next);
-  return next;
-}
-
-/**
- * 1-based footnote number for the atom at `pos` / `id`.
- * Cached per immutable ProseMirror doc so N footnote node views do not each
- * walk a long essay on every transaction.
- */
-export function footnoteNumberAt(
-  doc: PMNode,
-  pos: number | null | undefined,
-  id?: string
-): number {
-  const index = indexFootnotes(doc);
-  if (id) {
-    const fromId = index.byId.get(id);
-    if (fromId) return fromId;
-  }
-  if (typeof pos === "number") {
-    const fromPos = index.byPos.get(pos);
-    if (fromPos) return fromPos;
-  }
-  return 1;
-}
+import { transactionTouchesNodeType } from "@/lib/editor/changedRange";
 
 export type RailNote = {
   id: string;
@@ -54,26 +9,73 @@ export type RailNote = {
   number: number;
 };
 
-const railCache = new WeakMap<PMNode, RailNote[]>();
+export type FootnoteIndex = {
+  byId: Map<string, number>;
+  byPos: Map<number, number>;
+  notes: RailNote[];
+};
+
+export const footnoteIndexKey = new PluginKey<FootnoteIndex>(
+  "blogideFootnoteIndex"
+);
+
+const cache = new WeakMap<PMNode, FootnoteIndex>();
+
+export function emptyFootnoteIndex(): FootnoteIndex {
+  return {
+    byId: new Map(),
+    byPos: new Map(),
+    notes: [],
+  };
+}
+
+export function indexFootnotes(doc: PMNode): FootnoteIndex {
+  const hit = cache.get(doc);
+  if (hit) return hit;
+
+  const byId = new Map<string, number>();
+  const byPos = new Map<number, number>();
+  const notes: RailNote[] = [];
+  let number = 0;
+  doc.descendants((node, pos) => {
+    if (node.type.name !== "footnoteRef") return;
+    number += 1;
+    const id = String(node.attrs.id ?? "");
+    const content = String(node.attrs.content ?? "");
+    if (id) byId.set(id, number);
+    byPos.set(pos, number);
+    notes.push({ id, content, number });
+  });
+  const next = { byId, byPos, notes };
+  cache.set(doc, next);
+  return next;
+}
+
+/**
+ * 1-based footnote number for the atom at `pos` / `id`.
+ * Prefer plugin state (no walk on body typing). WeakMap is the fallback.
+ */
+export function footnoteNumberAt(
+  doc: PMNode,
+  pos: number | null | undefined,
+  id?: string,
+  index?: FootnoteIndex | null
+): number {
+  const resolved = index ?? indexFootnotes(doc);
+  if (id) {
+    const fromId = resolved.byId.get(id);
+    if (fromId) return fromId;
+  }
+  if (typeof pos === "number") {
+    const fromPos = resolved.byPos.get(pos);
+    if (fromPos) return fromPos;
+  }
+  return 1;
+}
 
 /** Footnote list for the sidenote rail, cached per doc identity. */
 export function collectRailNotes(doc: PMNode): RailNote[] {
-  const hit = railCache.get(doc);
-  if (hit) return hit;
-
-  const list: RailNote[] = [];
-  let number = 0;
-  doc.descendants((node) => {
-    if (node.type.name !== "footnoteRef") return;
-    number += 1;
-    list.push({
-      id: String(node.attrs.id ?? ""),
-      content: String(node.attrs.content ?? ""),
-      number,
-    });
-  });
-  railCache.set(doc, list);
-  return list;
+  return indexFootnotes(doc).notes;
 }
 
 export function railNotesEqual(
@@ -96,3 +98,35 @@ export function railNotesEqual(
   }
   return true;
 }
+
+/**
+ * Incremental footnote index. Body typing does not walk the essay.
+ */
+export const FootnoteIndexPlugin = Extension.create({
+  name: "footnoteIndex",
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin<FootnoteIndex>({
+        key: footnoteIndexKey,
+        state: {
+          init: (_, state) => indexFootnotes(state.doc),
+          apply(tr, value, oldState, newState) {
+            if (!tr.docChanged) return value;
+            if (
+              !transactionTouchesNodeType(
+                tr,
+                oldState.doc,
+                newState.doc,
+                "footnoteRef"
+              )
+            ) {
+              return value;
+            }
+            return indexFootnotes(newState.doc);
+          },
+        },
+      }),
+    ];
+  },
+});
