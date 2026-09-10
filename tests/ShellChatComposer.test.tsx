@@ -78,12 +78,20 @@ describe("ShellChat composer", () => {
     host = null;
   });
 
-  function render() {
+  function render(withManager = false) {
     host = document.createElement("div");
     document.body.appendChild(host);
     root = createRoot(host);
+    const extra = withManager
+      ? {
+          onNewChannel: () => {},
+          onOpenChannelDoc: () => {},
+          onRenameChannel: () => {},
+          onTrashChannel: () => {},
+        }
+      : {};
     act(() => {
-      root!.render(<ShellChat nodes={fixtureNodes()} />);
+      root!.render(<ShellChat nodes={fixtureNodes()} {...extra} />);
     });
   }
 
@@ -104,6 +112,7 @@ describe("ShellChat composer", () => {
     );
     expect(channel).toBeTruthy();
     expect(channel!.className).toContain("font-sans");
+    expect(channel!.querySelector("[data-select-caret]")).toBeTruthy();
 
     const filter = host!.querySelector<HTMLButtonElement>(
       'button[aria-label="Viewing channel"]'
@@ -111,52 +120,62 @@ describe("ShellChat composer", () => {
     expect(filter).toBeTruthy();
     expect(filter!.className).toContain("font-sans");
 
+    const append = host!.querySelector<HTMLButtonElement>(
+      'button[aria-label="Append"]'
+    );
+    expect(append).toBeTruthy();
+    expect(append!.textContent).toBe("Append");
+    expect(append!.parentElement?.className).toContain("ml-auto");
     expect(
-      host!.querySelector('button[aria-label="Also append to a document"]')
-    ).toBeTruthy();
-    expect(
-      host!.querySelector('button[aria-label="Also append to document"]')
+      host!.querySelector('button[aria-label="Append to document"]')
     ).toBeNull();
   });
 
-  it("toggles the append dropdown from the doc-plus icon and clears it with ×", () => {
+  it("pins refresh to the right of the header, beside the manager", () => {
+    render(true);
+    const refresh = [...host!.querySelectorAll("button")].find(
+      (btn) => btn.textContent === "refresh"
+    );
+    expect(refresh).toBeTruthy();
+    expect(refresh!.parentElement?.className).toContain("ml-auto");
+    expect(
+      host!.querySelector('button[aria-label="Notes manager"]')
+    ).toBeTruthy();
+    expect(refresh!.parentElement?.contains(
+      host!.querySelector('button[aria-label="Notes manager"]')
+    )).toBe(true);
+  });
+
+  it("toggles the append dropdown from Append and clears it with ×", () => {
     render();
     const toggle = host!.querySelector<HTMLButtonElement>(
-      'button[aria-label="Also append to a document"]'
+      'button[aria-label="Append"]'
     )!;
 
     act(() => {
       toggle.click();
     });
-    expect(
-      host!.querySelector('button[aria-label="Also append to document"]')
-    ).toBeTruthy();
+    const picker = host!.querySelector<HTMLButtonElement>(
+      'button[aria-label="Append to document"]'
+    );
+    expect(picker).toBeTruthy();
+    expect(picker!.textContent).toContain("Append to…");
+    expect(picker!.querySelector("[data-select-caret]")).toBeTruthy();
     expect(
       host!.querySelector('button[aria-label="Cancel append to document"]')
     ).toBeTruthy();
     expect(toggle.getAttribute("aria-pressed")).toBe("true");
 
     act(() => {
-      host!
-        .querySelector<HTMLButtonElement>(
-          'button[aria-label="Hide append to document"]'
-        )!
-        .click();
+      toggle.click();
     });
     expect(
-      host!.querySelector('button[aria-label="Also append to document"]')
+      host!.querySelector('button[aria-label="Append to document"]')
     ).toBeNull();
-    expect(
-      host!.querySelector('button[aria-label="Also append to a document"]')
-        ?.getAttribute("aria-pressed")
-    ).toBe("false");
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
 
     act(() => {
-      host!
-        .querySelector<HTMLButtonElement>(
-          'button[aria-label="Also append to a document"]'
-        )!
-        .click();
+      toggle.click();
     });
     act(() => {
       host!
@@ -166,7 +185,7 @@ describe("ShellChat composer", () => {
         .click();
     });
     expect(
-      host!.querySelector('button[aria-label="Also append to document"]')
+      host!.querySelector('button[aria-label="Append to document"]')
     ).toBeNull();
   });
 
@@ -180,5 +199,18 @@ describe("ShellChat composer", () => {
     expect(list!.className).toContain("font-sans");
     expect(list!.textContent).toContain("vegan");
     expect(list!.textContent).toContain("All channels");
+  });
+
+  it("uses the app sans font for the Notes manager menu", () => {
+    render(true);
+    act(() => {
+      host!
+        .querySelector<HTMLButtonElement>('button[aria-label="Notes manager"]')!
+        .click();
+    });
+    const menu = host!.querySelector('[role="menu"]');
+    expect(menu).toBeTruthy();
+    expect(menu!.className).toContain("font-sans");
+    expect(menu!.textContent).toContain("New channel");
   });
 });

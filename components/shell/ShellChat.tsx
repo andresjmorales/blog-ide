@@ -289,7 +289,7 @@ export function ShellChat({
 
   const appendDocOptions = useMemo(
     () => [
-      { value: "", label: "Select…" },
+      { value: "", label: "Append to…" },
       ...essayDocs.map((doc) => ({
         value: doc.id,
         label: doc.name.replace(/\.md$/i, ""),
@@ -314,41 +314,43 @@ export function ShellChat({
           title="Viewing channel"
           className="w-max max-w-[12rem]"
         />
-        <button
-          type="button"
-          className="rounded px-1.5 py-0.5 text-muted hover:text-foreground disabled:opacity-40"
-          onClick={() => {
-            if (pulling) return;
-            void (async () => {
-              setPulling(true);
-              try {
-                await requestCaptureRefresh();
-                await loadNotes();
-                showSuccessToast("Refreshed notes.", undefined, "notes-refresh");
-              } catch (err) {
-                showErrorToast(err, "Could not refresh notes.", "notes-refresh");
-              } finally {
-                setPulling(false);
-              }
-            })();
-          }}
-          disabled={pulling}
-          title="Pull from Pushbullet and ntfy, then reload this list"
-        >
-          {pulling ? "pulling…" : "refresh"}
-        </button>
-        {onNewChannel &&
-          onOpenChannelDoc &&
-          onRenameChannel &&
-          onTrashChannel && (
-            <NotesManagerMenu
-              nodes={nodes}
-              onNewChannel={onNewChannel}
-              onOpenChannelDoc={onOpenChannelDoc}
-              onRenameChannel={onRenameChannel}
-              onTrashChannel={onTrashChannel}
-            />
-          )}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            className="rounded px-1.5 py-0.5 text-muted hover:text-foreground disabled:opacity-40"
+            onClick={() => {
+              if (pulling) return;
+              void (async () => {
+                setPulling(true);
+                try {
+                  await requestCaptureRefresh();
+                  await loadNotes();
+                  showSuccessToast("Refreshed notes.", undefined, "notes-refresh");
+                } catch (err) {
+                  showErrorToast(err, "Could not refresh notes.", "notes-refresh");
+                } finally {
+                  setPulling(false);
+                }
+              })();
+            }}
+            disabled={pulling}
+            title="Pull from Pushbullet and ntfy, then reload this list"
+          >
+            {pulling ? "pulling…" : "refresh"}
+          </button>
+          {onNewChannel &&
+            onOpenChannelDoc &&
+            onRenameChannel &&
+            onTrashChannel && (
+              <NotesManagerMenu
+                nodes={nodes}
+                onNewChannel={onNewChannel}
+                onOpenChannelDoc={onOpenChannelDoc}
+                onRenameChannel={onRenameChannel}
+                onTrashChannel={onTrashChannel}
+              />
+            )}
+        </div>
       </div>
 
       <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
@@ -458,29 +460,25 @@ export function ShellChat({
             className="w-max max-w-[9.5rem] shrink-0"
           />
           {essayDocs.length > 0 && (
-            <>
+            <div className="ml-auto flex min-w-0 items-center gap-1.5">
               <button
                 type="button"
                 aria-pressed={appendOpen}
                 aria-expanded={appendOpen}
-                aria-label={
-                  appendOpen
-                    ? "Hide append to document"
-                    : "Also append to a document"
-                }
+                aria-label="Append"
                 title={
                   appendOpen
                     ? "Hide append to document"
                     : "Also append to a document"
                 }
-                className={`inline-flex size-7 shrink-0 items-center justify-center rounded border ${
+                className={`shrink-0 rounded px-1.5 py-0.5 font-sans text-[0.7rem] ${
                   appendOpen
-                    ? "border-accent text-accent"
-                    : "border-border text-muted hover:border-accent/60 hover:text-accent"
+                    ? "text-accent"
+                    : "text-muted hover:text-foreground"
                 }`}
                 onClick={toggleAppend}
               >
-                <DocPlusIcon />
+                Append
               </button>
               {appendOpen && (
                 <>
@@ -488,10 +486,10 @@ export function ShellChat({
                     value={appendDocId}
                     onChange={setAppendDocId}
                     options={appendDocOptions}
-                    aria-label="Also append to document"
-                    title="Also append to document"
+                    aria-label="Append to document"
+                    title="Append to document"
                     placement="up"
-                    className="min-w-0 flex-1"
+                    className="min-w-0 w-[8.5rem]"
                   />
                   <button
                     type="button"
@@ -504,7 +502,7 @@ export function ShellChat({
                   </button>
                 </>
               )}
-            </>
+            </div>
           )}
           <button type="submit" className="sr-only" disabled={!canSend}>
             Send note
@@ -512,24 +510,5 @@ export function ShellChat({
         </div>
       </form>
     </div>
-  );
-}
-
-function DocPlusIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path
-        d="M4 1.5h5.5L13 5v9.5H4V1.5z"
-        stroke="currentColor"
-        strokeWidth="1.2"
-      />
-      <path d="M9.5 1.5V5H13" stroke="currentColor" strokeWidth="1.2" />
-      <path
-        d="M8 8v4M6 10h4"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-      />
-    </svg>
   );
 }

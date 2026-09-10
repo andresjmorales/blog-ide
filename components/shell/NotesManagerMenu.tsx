@@ -67,7 +67,7 @@ export function NotesManagerMenu({
   }
 
   return (
-    <div className="relative ml-auto" ref={rootRef}>
+    <div className="relative" ref={rootRef}>
       <button
         type="button"
         className="explorer-toolbar-btn"
@@ -87,7 +87,7 @@ export function NotesManagerMenu({
         <div
           id={menuId}
           role="menu"
-          className="absolute right-0 top-full z-50 mt-1 max-h-[min(22rem,calc(100dvh-6rem))] w-[min(14rem,calc(100vw-2rem))] overflow-y-auto rounded-md border border-border bg-background py-1 text-sm shadow-md"
+          className="absolute right-0 top-full z-50 mt-1 max-h-[min(22rem,calc(100dvh-6rem))] w-[min(14rem,calc(100vw-2rem))] overflow-y-auto rounded-md border border-border bg-background py-1 font-sans text-sm shadow-md"
         >
           <button
             type="button"
