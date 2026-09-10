@@ -17,7 +17,7 @@ type Props = {
 };
 
 /**
- * Compact listbox for the Notes pane. Native &lt;select&gt; option menus ignore
+ * Compact listbox for the Notes pane. Native select option menus ignore
  * CSS on many browsers and fall back to a serif face that the rest of BlogIDE
  * never uses.
  */
