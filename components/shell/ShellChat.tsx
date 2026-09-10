@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { collapseBroadcastNotes, type ChannelCaptureNote } from "@/lib/capture/broadcastNotes";
 import { appendQuickNote } from "@/lib/capture/appendQuickNote";
 import { requestCaptureRefresh } from "@/lib/capture/refresh";
@@ -13,6 +20,7 @@ import { removeQuickNote } from "@/lib/capture/removeQuickNote";
 import { markShellSeen } from "@/lib/capture/seen";
 import { openDocument } from "@/lib/sync/engine";
 import { NotesManagerMenu } from "@/components/shell/NotesManagerMenu";
+import { ShellSelect } from "@/components/shell/ShellSelect";
 import {
   channelDisplayName,
   getInboxNode,
@@ -77,6 +85,7 @@ export function ShellChat({
   /** Null = use default notes channel when available. */
   const [composeChannelId, setComposeChannelId] = useState<string | null>(null);
   const [appendDocId, setAppendDocId] = useState<string>("");
+  const [appendOpen, setAppendOpen] = useState(false);
   const [notes, setNotes] = useState<ListedNote[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +94,7 @@ export function ShellChat({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [pulling, setPulling] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
   const sendToAll = composeChannelId === ALL_CHANNELS;
   const composeChannel = sendToAll
@@ -177,7 +187,7 @@ export function ShellChat({
       for (const channel of targets) {
         await appendQuickNote({ channelNodeId: channel.id, text, at });
       }
-      if (appendDocId) {
+      if (appendOpen && appendDocId) {
         await appendQuickNote({ channelNodeId: appendDocId, text, at });
       }
       setInput("");
@@ -232,6 +242,62 @@ export function ShellChat({
     !busy &&
     (sendToAll ? channels.length > 0 : Boolean(composeChannel));
 
+  const fitComposer = useCallback(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    el.style.height = "0px";
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, 72), 176)}px`;
+  }, []);
+
+  useLayoutEffect(() => {
+    fitComposer();
+  }, [input, fitComposer]);
+
+  function hideAppend() {
+    setAppendOpen(false);
+    setAppendDocId("");
+  }
+
+  function toggleAppend() {
+    if (appendOpen) hideAppend();
+    else setAppendOpen(true);
+  }
+
+  const composeChannelOptions = useMemo(
+    () => [
+      ...channels.map((ch) => ({
+        value: ch.id,
+        label: channelDisplayName(ch),
+      })),
+      ...(channels.length > 1
+        ? [{ value: ALL_CHANNELS, label: "All channels" }]
+        : []),
+    ],
+    [channels]
+  );
+
+  const filterOptions = useMemo(
+    () => [
+      { value: "all", label: "All channels" },
+      ...channels.map((ch) => ({
+        value: ch.id,
+        label: channelDisplayName(ch),
+      })),
+    ],
+    [channels]
+  );
+
+  const appendDocOptions = useMemo(
+    () => [
+      { value: "", label: "Select…" },
+      ...essayDocs.map((doc) => ({
+        value: doc.id,
+        label: doc.name.replace(/\.md$/i, ""),
+      })),
+    ],
+    [essayDocs]
+  );
+
   return (
     <div
       className={`flex min-h-0 flex-1 flex-col bg-panel/40 font-mono text-[0.8rem] ${className}`}
@@ -240,18 +306,14 @@ export function ShellChat({
         <span className="text-accent" aria-hidden>
           $
         </span>
-        <select
+        <ShellSelect
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="rounded border border-border bg-background px-1.5 py-0.5 outline-none focus:border-accent"
-        >
-          <option value="all">All channels</option>
-          {channels.map((ch) => (
-            <option key={ch.id} value={ch.id}>
-              {channelDisplayName(ch)}
-            </option>
-          ))}
-        </select>
+          onChange={setFilter}
+          options={filterOptions}
+          aria-label="Viewing channel"
+          title="Viewing channel"
+          className="w-max max-w-[12rem]"
+        />
         <button
           type="button"
           className="rounded px-1.5 py-0.5 text-muted hover:text-foreground disabled:opacity-40"
@@ -362,58 +424,112 @@ export function ShellChat({
           void send();
         }}
       >
-        <div className="flex items-center gap-2">
-          <select
-            value={sendToAll ? ALL_CHANNELS : (composeChannel?.id ?? "")}
-            onChange={(e) => setComposeChannelId(e.target.value || null)}
-            className="shrink-0 rounded border border-border bg-background px-1.5 py-1 text-[0.7rem] outline-none focus:border-accent"
-            disabled={channels.length === 0}
-            title="Channel"
-          >
-            {channels.map((ch) => (
-              <option key={ch.id} value={ch.id}>
-                {channelDisplayName(ch)}
-              </option>
-            ))}
-            {channels.length > 1 && (
-              <option value={ALL_CHANNELS}>All channels</option>
-            )}
-          </select>
-          <span className="shrink-0 text-accent" aria-hidden>
+        <div className="flex items-start gap-2">
+          <span className="mt-1.5 shrink-0 text-accent" aria-hidden>
             &gt;
           </span>
-          <input
+          <textarea
+            ref={composerRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="note to self…"
-            className="min-w-0 flex-1 border-0 bg-transparent py-1 outline-none placeholder:text-muted"
+            rows={3}
+            aria-label="Note"
+            title="Enter to send, Shift+Enter for a new line"
+            className="min-h-[4.5rem] min-w-0 flex-1 resize-none border-0 bg-transparent py-1.5 leading-relaxed outline-none placeholder:text-muted"
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) {
+                return;
+              }
+              e.preventDefault();
+              void send();
+            }}
           />
-          <button
-            type="submit"
-            disabled={!canSend}
-            className="shrink-0 rounded border border-border px-2 py-1 text-[0.7rem] text-muted hover:border-accent hover:text-accent disabled:opacity-40"
-          >
-            enter
+        </div>
+        <div className="flex items-center gap-1.5">
+          <ShellSelect
+            value={sendToAll ? ALL_CHANNELS : (composeChannel?.id ?? "")}
+            onChange={(v) => setComposeChannelId(v || null)}
+            options={composeChannelOptions}
+            disabled={channels.length === 0}
+            aria-label="Channel"
+            title="Channel"
+            placement="up"
+            className="w-max max-w-[9.5rem] shrink-0"
+          />
+          {essayDocs.length > 0 && (
+            <>
+              <button
+                type="button"
+                aria-pressed={appendOpen}
+                aria-expanded={appendOpen}
+                aria-label={
+                  appendOpen
+                    ? "Hide append to document"
+                    : "Also append to a document"
+                }
+                title={
+                  appendOpen
+                    ? "Hide append to document"
+                    : "Also append to a document"
+                }
+                className={`inline-flex size-7 shrink-0 items-center justify-center rounded border ${
+                  appendOpen
+                    ? "border-accent text-accent"
+                    : "border-border text-muted hover:border-accent/60 hover:text-accent"
+                }`}
+                onClick={toggleAppend}
+              >
+                <DocPlusIcon />
+              </button>
+              {appendOpen && (
+                <>
+                  <ShellSelect
+                    value={appendDocId}
+                    onChange={setAppendDocId}
+                    options={appendDocOptions}
+                    aria-label="Also append to document"
+                    title="Also append to document"
+                    placement="up"
+                    className="min-w-0 flex-1"
+                  />
+                  <button
+                    type="button"
+                    aria-label="Cancel append to document"
+                    title="Cancel append to document"
+                    className="inline-flex size-7 shrink-0 items-center justify-center rounded border border-transparent text-lg leading-none text-muted hover:border-border hover:text-foreground"
+                    onClick={hideAppend}
+                  >
+                    ×
+                  </button>
+                </>
+              )}
+            </>
+          )}
+          <button type="submit" className="sr-only" disabled={!canSend}>
+            Send note
           </button>
         </div>
-        {essayDocs.length > 0 && (
-          <label className="flex items-center gap-2 text-[0.65rem] text-muted">
-            <span className="shrink-0">Also append to…</span>
-            <select
-              value={appendDocId}
-              onChange={(e) => setAppendDocId(e.target.value)}
-              className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 outline-none focus:border-accent"
-            >
-              <option value="">Select…</option>
-              {essayDocs.map((doc) => (
-                <option key={doc.id} value={doc.id}>
-                  {doc.name.replace(/\.md$/i, "")}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
       </form>
     </div>
+  );
+}
+
+function DocPlusIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M4 1.5h5.5L13 5v9.5H4V1.5z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
+      <path d="M9.5 1.5V5H13" stroke="currentColor" strokeWidth="1.2" />
+      <path
+        d="M8 8v4M6 10h4"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
