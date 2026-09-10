@@ -68,9 +68,7 @@ export function ShellSelect({
         <span className="min-w-0 flex-1 truncate text-left">
           {selected?.label ?? ""}
         </span>
-        <span className="shrink-0 text-[0.6rem] text-muted" aria-hidden>
-          {open ? "▴" : "▾"}
-        </span>
+        <SelectCaret open={open} />
       </button>
       {open && (
         <ul
@@ -101,5 +99,21 @@ export function ShellSelect({
         </ul>
       )}
     </div>
+  );
+}
+
+function SelectCaret({ open }: { open: boolean }) {
+  return (
+    <svg
+      aria-hidden
+      data-select-caret=""
+      className={`shrink-0 text-muted ${open ? "rotate-180" : ""}`}
+      width="8"
+      height="6"
+      viewBox="0 0 8 6"
+      fill="currentColor"
+    >
+      <path d="M0.8 1.1h6.4L4 5.2 0.8 1.1z" />
+    </svg>
   );
 }
