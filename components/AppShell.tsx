@@ -88,6 +88,10 @@ import {
   setTitleFromMarkdown,
 } from "@/lib/workspace/docTitles";
 import { showErrorToast, showSuccessToast, showToast } from "@/lib/ui/toast";
+import {
+  workspaceDeleteToastMessage,
+  workspaceMoveToastMessage,
+} from "@/lib/workspace/actionToast";
 import { pickEssayImportFile } from "@/lib/export/document";
 import { downloadWorkspaceZip } from "@/lib/export/workspaceZip";
 import { importPandocFile } from "@/lib/pandoc/client";
@@ -1377,9 +1381,25 @@ function AppShellContent({
 
   async function handleMoveTo(nodeId: string, parentId: string | null) {
     if (previewMode) return;
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+    const trash = getTrashNode(nodes);
+    const wasInTrash = isInTrash(nodeId, nodes);
     try {
       await moveWorkspaceNode(nodeId, parentId);
       await refreshTree();
+      showSuccessToast(
+        workspaceMoveToastMessage({
+          node,
+          parentId,
+          trashId: trash?.id,
+          wasInTrash,
+          nodes,
+          titles: docTitles,
+        }),
+        undefined,
+        "workspace-move"
+      );
     } catch (error) {
       showErrorToast(error, "Could not move item.");
     }
@@ -1563,6 +1583,11 @@ function AppShellContent({
         setActiveNodeId(null);
       }
       await refreshTree();
+      showSuccessToast(
+        workspaceDeleteToastMessage(node, docTitles),
+        undefined,
+        "workspace-delete"
+      );
     } catch (error) {
       showErrorToast(error, "Could not delete item.");
     }

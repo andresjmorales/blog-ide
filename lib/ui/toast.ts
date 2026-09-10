@@ -90,6 +90,11 @@ export function showSuccessToast(
   return showToast({ tone: "success", message, title, replaceKey });
 }
 
+/** Clipboard copies share one slot so rapid copies do not stack. */
+export function showCopiedToast(message: string): number {
+  return showSuccessToast(message, undefined, "clipboard-copy");
+}
+
 export function showErrorToast(
   error: unknown,
   fallback = "Something went wrong",

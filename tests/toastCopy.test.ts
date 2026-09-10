@@ -4,10 +4,12 @@ import {
   clearToasts,
   dismissToast,
   getToasts,
+  showCopiedToast,
   showErrorToast,
   showSuccessToast,
   showToast,
 } from "@/lib/ui/toast";
+import { citeCopyToastMessage } from "@/lib/citations/clipboard";
 
 afterEach(() => {
   clearToasts();
@@ -82,5 +84,24 @@ describe("toast store", () => {
     expect(err?.detail).toMatch(/Failed to fetch/);
     dismissToast(ok);
     expect(getToasts()).toHaveLength(1);
+  });
+
+  it("replaces clipboard copies instead of stacking them", () => {
+    showCopiedToast("Copied markdown.");
+    showCopiedToast("Copied bracketed numbers [1].");
+    const items = getToasts();
+    expect(items).toHaveLength(1);
+    expect(items[0]?.tone).toBe("success");
+    expect(items[0]?.message).toBe("Copied bracketed numbers [1].");
+  });
+});
+
+describe("citeCopyToastMessage", () => {
+  it("names citation, URL, BibTeX, and bibliography copies", () => {
+    expect(citeCopyToastMessage("hit-1")).toBe("Copied citation.");
+    expect(citeCopyToastMessage("hit-1:url")).toBe("Copied URL.");
+    expect(citeCopyToastMessage("hit-1:bib")).toBe("Copied BibTeX.");
+    expect(citeCopyToastMessage("used-bib:abc")).toBe("Copied BibTeX.");
+    expect(citeCopyToastMessage("works-cited")).toBe("Copied bibliography.");
   });
 });

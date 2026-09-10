@@ -1,3 +1,10 @@
+export function citeCopyToastMessage(id: string): string {
+  if (id === "works-cited") return "Copied bibliography.";
+  if (id.endsWith(":url")) return "Copied URL.";
+  if (id.endsWith(":bib") || id.startsWith("used-bib:")) return "Copied BibTeX.";
+  return "Copied citation.";
+}
+
 export async function copyPlainText(text: string): Promise<boolean> {
   if (!text) return false;
   if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {

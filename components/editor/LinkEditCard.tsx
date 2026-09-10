@@ -13,6 +13,7 @@ import { fetchLinkPreview } from "@/lib/preview/client";
 import type { LinkPreview } from "@/lib/preview/openGraph";
 import { openLinkPin } from "@/lib/pins/pinStore";
 import { claimFloatZ } from "@/lib/pins/pinStore";
+import { showCopiedToast, showErrorToast } from "@/lib/ui/toast";
 import { LinkPreviewSnippet } from "@/components/editor/LinkPreviewSnippet";
 import { ClipboardIcon } from "@/components/icons";
 import {
@@ -380,8 +381,9 @@ export function LinkEditCard({
     if (!value) return;
     try {
       await navigator.clipboard.writeText(value);
-    } catch {
-      // ignore clipboard failures
+      showCopiedToast("Copied URL.");
+    } catch (err) {
+      showErrorToast(err, "Could not copy to the clipboard.", "clipboard-copy");
     }
   }
 
@@ -390,8 +392,9 @@ export function LinkEditCard({
     if (!value) return;
     try {
       await navigator.clipboard.writeText(value);
-    } catch {
-      // ignore clipboard failures
+      showCopiedToast("Copied link text.");
+    } catch (err) {
+      showErrorToast(err, "Could not copy to the clipboard.", "clipboard-copy");
     }
   }
 

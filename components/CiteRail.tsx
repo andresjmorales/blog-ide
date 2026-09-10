@@ -18,7 +18,7 @@ import {
   citeStyleFromDashPref,
   type CiteStyleId,
 } from "@/lib/citations/citeStyle";
-import { copyPlainText } from "@/lib/citations/clipboard";
+import { copyPlainText, citeCopyToastMessage } from "@/lib/citations/clipboard";
 import {
   essayLinkedUrlsEqual,
   listEssayLinkedUrls,
@@ -88,7 +88,7 @@ import {
 } from "@/lib/library/sessionLibrary";
 import { resolveLibraryOpenTarget } from "@/lib/library/openLibraryItem";
 import { openLinkPin, openPdfPin } from "@/lib/pins/pinStore";
-import { showErrorToast, showSuccessToast, showToast } from "@/lib/ui/toast";
+import { showCopiedToast, showErrorToast, showSuccessToast, showToast } from "@/lib/ui/toast";
 import { useSyncExternalStore } from "react";
 import type { EssayCitation } from "@/lib/markdown/essayCitations";
 import {
@@ -410,8 +410,10 @@ export function CitePanel({
 
   async function copyText(id: string, text: string) {
     const ok = await copyPlainText(text);
-    if (ok) flashCopied(id);
-    else showErrorToast("Could not copy to the clipboard.", "Could not copy.", "cite-copy");
+    if (ok) {
+      flashCopied(id);
+      showCopiedToast(citeCopyToastMessage(id));
+    } else showErrorToast("Could not copy to the clipboard.", "Could not copy.", "cite-copy");
   }
 
   return (
@@ -615,6 +617,11 @@ export function CitePanel({
                         fresh.citation
                       );
                     }
+                    showSuccessToast(
+                      "Updated citation from Zotero.",
+                      undefined,
+                      "cite-zotero-refresh"
+                    );
                   }
                 } catch (err) {
                   showErrorToast(

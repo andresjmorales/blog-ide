@@ -91,7 +91,7 @@ import {
   type AiSelection,
 } from "@/lib/ai/selection";
 import { useAppDialog } from "@/components/AppDialog";
-import { showErrorToast, showSuccessToast } from "@/lib/ui/toast";
+import { showCopiedToast, showErrorToast, showSuccessToast } from "@/lib/ui/toast";
 import {
   copyDocumentForPaste,
   copyMarkdownToClipboard,
@@ -1405,6 +1405,7 @@ export function DocumentWorkspace({
   async function copyForExport() {
     try {
       await copyMarkdownToClipboard(currentMarkdown());
+      showCopiedToast("Copied markdown.");
     } catch {
       showErrorToast(
         "Could not write to the clipboard. Try downloading .md instead.",
@@ -1422,6 +1423,7 @@ export function DocumentWorkspace({
           ? richTextFromEditor(editor)
           : richTextFromMarkdown(currentMarkdown());
       await copyDocumentForPaste({ html, plain });
+      showCopiedToast("Copied rich text.");
     } catch {
       showErrorToast(
         "Could not write to the clipboard. Try Copy → Markdown or Export → HTML.",
@@ -1436,6 +1438,13 @@ export function DocumentWorkspace({
     const { html, plain } = htmlForPublishTarget(markdown, target);
     try {
       await copyDocumentForPaste({ html, plain });
+      showCopiedToast(
+        target === "html"
+          ? "Copied HTML."
+          : target === "markers"
+            ? "Copied bracketed numbers [1]."
+            : "Copied superscript numbers."
+      );
     } catch {
       showErrorToast(
         "Could not write to the clipboard. Try downloading .md or HTML instead.",
