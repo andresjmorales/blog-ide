@@ -3892,7 +3892,8 @@ body.is-dragging-footnote-ref.is-footnote-drop-blocked {
   pointer-events: none;
   position: fixed;
   right: 1.15rem;
-  z-index: 220;
+  /* Above pins, Cleanup, Cite sheet, and dialogs (claimFloatZ climbs from 40). */
+  z-index: 10000;
 }
 .blogide-toast {
   background: var(--background);

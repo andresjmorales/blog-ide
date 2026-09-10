@@ -5,6 +5,7 @@ import { appendQuickNote } from "@/lib/capture/appendQuickNote";
 import { collapseBroadcastNotes, type ChannelCaptureNote } from "@/lib/capture/broadcastNotes";
 import { parseCaptureNotes } from "@/lib/capture/format";
 import { requestCaptureRefresh } from "@/lib/capture/refresh";
+import { showErrorToast, showSuccessToast } from "@/lib/ui/toast";
 import {
   loadLastCaptureChannelId,
   saveLastCaptureChannelId,
@@ -289,6 +290,9 @@ export function TerminalCapture({
                 try {
                   await requestCaptureRefresh();
                   await loadHistory();
+                  showSuccessToast("Refreshed notes.", undefined, "notes-refresh");
+                } catch (err) {
+                  showErrorToast(err, "Could not refresh notes.", "notes-refresh");
                 } finally {
                   setPulling(false);
                 }

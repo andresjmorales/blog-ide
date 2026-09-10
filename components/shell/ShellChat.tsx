@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { collapseBroadcastNotes, type ChannelCaptureNote } from "@/lib/capture/broadcastNotes";
 import { appendQuickNote } from "@/lib/capture/appendQuickNote";
 import { requestCaptureRefresh } from "@/lib/capture/refresh";
+import { showCopiedToast, showErrorToast, showSuccessToast } from "@/lib/ui/toast";
 import {
   captureNoteKey,
   parseCaptureNotes,
@@ -195,8 +196,10 @@ export function ShellChat({
       await navigator.clipboard.writeText(note.text);
       setCopiedKey(key);
       window.setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1200);
+      showCopiedToast("Copied note.");
     } catch {
       setError("Could not copy to clipboard.");
+      showErrorToast("Could not copy to the clipboard.", "Could not copy.", "clipboard-copy");
     }
   }
 
@@ -259,6 +262,9 @@ export function ShellChat({
               try {
                 await requestCaptureRefresh();
                 await loadNotes();
+                showSuccessToast("Refreshed notes.", undefined, "notes-refresh");
+              } catch (err) {
+                showErrorToast(err, "Could not refresh notes.", "notes-refresh");
               } finally {
                 setPulling(false);
               }

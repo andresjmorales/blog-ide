@@ -11,6 +11,7 @@ import {
   NTFY_SECRETS_EVENT,
   saveNtfySecrets,
 } from "@/lib/ntfy/settings";
+import { showCopiedToast, showErrorToast } from "@/lib/ui/toast";
 
 type Props = {
   previewMode?: boolean;
@@ -172,9 +173,18 @@ export function NtfySettingsSection({
                     type="button"
                     className="settings-link-btn"
                     onClick={() => {
-                      void navigator.clipboard.writeText(url).then(() => {
-                        setMessage(`Copied ${name} URL.`);
-                      });
+                      void navigator.clipboard.writeText(url).then(
+                        () => {
+                          showCopiedToast(`Copied ${name} URL.`);
+                        },
+                        (err) => {
+                          showErrorToast(
+                            err,
+                            "Could not copy to the clipboard.",
+                            "clipboard-copy"
+                          );
+                        }
+                      );
                     }}
                   >
                     Copy

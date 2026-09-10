@@ -17,6 +17,7 @@ import {
   type PublishCopyTarget,
 } from "@/lib/export/clipboardHtml";
 import { copyDocumentForPaste, copyMarkdownToClipboard } from "@/lib/export/document";
+import { showCopiedToast, showErrorToast } from "@/lib/ui/toast";
 import {
   SUBSTACK_FOOTNOTE_HELPER,
   substackFootnoteBookmarklet,
@@ -460,7 +461,6 @@ function PublishTab({
   const [busy, setBusy] = useState(true);
   const [report, setReport] = useState<PrePublishReport | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [copyBusy, setCopyBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -492,16 +492,19 @@ function PublishTab({
   async function copyFor(target: PublishCopyTarget) {
     const spec = PUBLISH_COPY_TARGETS.find((item) => item.id === target);
     setCopyBusy(target);
-    setCopyStatus(null);
     try {
       const markdown = getMarkdown();
       const { html, plain } = htmlForPublishTarget(markdown, target);
       await copyDocumentForPaste({ html, plain });
-      setCopyStatus(
+      showCopiedToast(
         `Copied ${spec?.label ?? "HTML"}. Paste into the other editor.`
       );
-    } catch {
-      setCopyStatus("Copy failed. Try the essay menu → Export → HTML.");
+    } catch (err) {
+      showErrorToast(
+        err,
+        "Copy failed. Try the essay menu → Export → HTML.",
+        "clipboard-copy"
+      );
     } finally {
       setCopyBusy(null);
     }
@@ -509,20 +512,19 @@ function PublishTab({
 
   async function copyHelper(kind: "script" | "bookmarklet") {
     setCopyBusy(kind);
-    setCopyStatus(null);
     try {
       const text =
         kind === "bookmarklet"
           ? substackFootnoteBookmarklet()
           : SUBSTACK_FOOTNOTE_HELPER;
       await copyMarkdownToClipboard(text);
-      setCopyStatus(
+      showCopiedToast(
         kind === "bookmarklet"
           ? "Bookmarklet copied. Create a bookmark and paste this as the URL."
           : "Helper copied. In the Substack editor, open the console (F12) and paste."
       );
-    } catch {
-      setCopyStatus("Could not copy the helper.");
+    } catch (err) {
+      showErrorToast(err, "Could not copy the helper.", "clipboard-copy");
     } finally {
       setCopyBusy(null);
     }
@@ -600,11 +602,6 @@ function PublishTab({
           </div>
         </li>
       </ol>
-      {copyStatus && (
-        <p className="mb-3 text-xs text-muted" role="status">
-          {copyStatus}
-        </p>
-      )}
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="blogide-cleanup-hint mb-0">
           Check http(s) links and images before you publish.
