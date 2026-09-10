@@ -76,7 +76,7 @@ export function ShellSelect({
         <ul
           id={listId}
           role="listbox"
-          className={`absolute left-0 z-50 max-h-48 min-w-full overflow-y-auto rounded-md border border-border bg-background py-0.5 font-sans text-[0.75rem] shadow-md ${
+          className={`absolute left-0 z-50 max-h-48 min-w-full w-max overflow-y-auto rounded-md border border-border bg-background py-0.5 font-sans text-[0.75rem] shadow-md ${
             placement === "up" ? "bottom-full mb-0.5" : "top-full mt-0.5"
           }`}
         >
@@ -86,7 +86,7 @@ export function ShellSelect({
                 type="button"
                 role="option"
                 aria-selected={opt.value === value}
-                className={`flex w-full items-center px-2.5 py-1 text-left font-sans hover:bg-panel ${
+                className={`flex w-full min-w-max items-center whitespace-nowrap px-2.5 py-1 text-left font-sans hover:bg-panel ${
                   opt.value === value ? "text-accent" : "text-foreground"
                 }`}
                 onClick={() => {
