@@ -619,7 +619,7 @@ export function CitePanel({
         onCopyWorksCited={() =>
           void copyText("works-cited", worksCitedBlock(used, style))
         }
-        onOpenUrl={(url, title) => openLinkPin({ url, title })}
+        onOpenUrl={(url, title) => openLinkPin({ url, title: title || url })}
         onAddToLibrary={(row) => {
           const url = row.citation.url;
           if (!url) return;
@@ -696,7 +696,7 @@ export function CitePanel({
           if (editor) scrollFootnoteIntoView(editor, pos);
         }}
         onCopyUrl={(id, url) => void copyText(id, url)}
-        onOpenUrl={(url, title) => openLinkPin({ url, title })}
+        onOpenUrl={(url, title) => openLinkPin({ url, title: title || url })}
         onAddToLibrary={(row) => void addToLibrary(row.url, row.title)}
         onAddToZotero={
           connected
