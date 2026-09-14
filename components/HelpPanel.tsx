@@ -85,11 +85,13 @@ export function HelpPanel({ open, onClose }: Props) {
             link (or Ctrl+K) for the link menu with Open Graph preview, Open,
             Pin, and Library. The{" "}
             <strong>Library</strong> panel (right dock, or pop it out) is
-            one list of saved links, PDFs, Zotero hits, and pasted BibTeX.
-            Expand a row to cite, open, Copy URL, or remove it. Cited here
-            is the bibliography for footnotes still in the essay (Copy list).
+            one list of saved links, PDFs, Zotero hits, and BibTeX
+            (paste or upload a .bib into the Library). Expand a row to
+            cite, open, Copy URL, or remove it. Cited here is the
+            bibliography for footnotes still in the essay (Copy list).
             Links in this essay lists every hyperlink, with a count if you
-            used it more than once, and can Add to Library or Zotero.
+            used it more than once; expand a row to open it or add it to
+            Library or Zotero.
             Toolbar Cite opens that panel (or a sheet on a phone). Use the essay
             menu → Preview in new tab for
             publication-style HTML. Copy → Rich text is the same formatted
@@ -159,7 +161,7 @@ export function HelpPanel({ open, onClose }: Props) {
               code, superscript, subscript, code block, convert case) and is
               customizable under Settings → Editor; Cite opens the
               Library panel (or a sheet on a phone) to search Zotero,
-              saved items, or paste BibTeX, insert a footnote, Copy URL, or
+              saved items, or paste BibTeX into the Library, insert a footnote, Copy URL, or
               Add to Zotero
             </li>
             <li>

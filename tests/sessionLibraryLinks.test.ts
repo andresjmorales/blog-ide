@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  addLibraryBibtex,
   addLibraryLink,
   canonicalizeLibraryUrl,
   findLibraryLinkByUrl,
@@ -43,5 +44,30 @@ describe("session Library links", () => {
     const links = listLibraryEntries().filter((e) => e.kind === "link");
     expect(links).toHaveLength(1);
     expect(links[0].name).toBe("A2");
+  });
+
+  it("saves BibTeX into the Library and dedupes by cite key", () => {
+    addLibraryBibtex({
+      citeKey: "doe2024",
+      title: "An Example",
+      bibtex: `@book{doe2024,
+  title = {An Example},
+  year = {2024}
+}`,
+      url: "https://example.com/doe",
+    });
+    addLibraryBibtex({
+      citeKey: "doe2024",
+      title: "An Example (revised)",
+      bibtex: `@book{doe2024,
+  title = {An Example (revised)},
+  year = {2024}
+}`,
+    });
+    const rows = listLibraryEntries().filter((e) => e.kind === "bibtex");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.citeKey).toBe("doe2024");
+    expect(rows[0]?.name).toBe("An Example (revised)");
+    expect(rows[0]?.bibtex).toContain("revised");
   });
 });

@@ -43,4 +43,24 @@ describe("open library item", () => {
       title: "Essay",
     });
   });
+
+  it("opens a BibTeX row that has a URL", async () => {
+    const entry: LibraryMeta = {
+      id: "bib-1",
+      kind: "bibtex",
+      name: "Creating Capabilities",
+      citeKey: "nussbaum2011",
+      bibtex: `@book{nussbaum2011,
+  title = {Creating Capabilities}
+}`,
+      url: "https://example.com/nussbaum",
+    };
+    const hit = hitFromLibraryEntry(entry);
+    const target = await resolveLibraryOpenTarget([entry], hit, async () => null);
+    expect(target).toEqual({
+      kind: "link",
+      url: "https://example.com/nussbaum",
+      title: "Creating Capabilities",
+    });
+  });
 });

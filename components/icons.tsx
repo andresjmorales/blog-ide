@@ -551,8 +551,8 @@ export function BookmarkIcon({ className = "" }: { className?: string }) {
 }
 
 /**
- * Compact Zotero “Z” mark for cite actions. The wordmark is open-source;
- * this is a recognisable 14px stand-in, not the full brand lockup.
+ * Compact Zotero “Z” for cite actions. Outline in currentColor so it
+ * follows the theme instead of the red app icon.
  */
 export function ZoteroMarkIcon({ className = "" }: { className?: string }) {
   return (
@@ -562,11 +562,13 @@ export function ZoteroMarkIcon({ className = "" }: { className?: string }) {
       width={14}
       height={14}
       viewBox="0 0 16 16"
+      fill="none"
     >
-      <rect width="16" height="16" rx="2.2" fill="#cc2936" />
       <path
-        d="M3.15 3.2h9.7v2.05L7.4 12.7h5.55V14.8H3.1v-2.1l5.5-7.45H3.15V3.2Z"
-        fill="#fff"
+        d="M3.2 3.35h9.6v1.7L7.55 12.45h5.25v1.85H3.15v-1.75l5.35-7.35H3.2V3.35Z"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinejoin="round"
       />
     </svg>
   );

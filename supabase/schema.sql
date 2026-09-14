@@ -1273,19 +1273,31 @@ grant select on user_assets to authenticated;
 create table if not exists library_items (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  kind text not null check (kind in ('pdf', 'link')),
+  kind text not null check (kind in ('pdf', 'link', 'bibtex')),
   title text not null,
   url text,
   asset_path text,
   byte_size bigint not null default 0 check (byte_size >= 0),
+  bibtex text,
+  cite_key text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Existing projects that created library_items before BibTeX rows.
+alter table library_items drop constraint if exists library_items_kind_check;
+alter table library_items add constraint library_items_kind_check
+  check (kind in ('pdf', 'link', 'bibtex'));
+alter table library_items add column if not exists bibtex text;
+alter table library_items add column if not exists cite_key text;
 
 create index if not exists library_items_user_id_idx on library_items (user_id);
 create unique index if not exists library_items_user_link_url_uidx
   on library_items (user_id, url)
   where kind = 'link' and url is not null;
+create unique index if not exists library_items_user_bibtex_key_uidx
+  on library_items (user_id, cite_key)
+  where kind = 'bibtex' and cite_key is not null;
 
 alter table library_items enable row level security;
 drop policy if exists "library_items owner select" on library_items;

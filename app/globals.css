@@ -569,12 +569,67 @@ body {
   display: inline-flex;
   gap: 0.2rem;
   padding: 0.12rem 0.3rem;
+  position: relative;
+}
+.cite-save-chip.is-compact {
+  height: 1.35rem;
+  justify-content: center;
+  min-width: 1.35rem;
+  padding: 0.1rem;
+}
+.cite-save-chip.is-saved {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .cite-save-chip .cite-save-icon {
   display: block;
   flex-shrink: 0;
   height: 12px;
   width: 12px;
+}
+.cite-save-mark {
+  display: inline-grid;
+  place-items: center;
+  position: relative;
+}
+.cite-save-check {
+  align-items: center;
+  background: var(--accent);
+  border-radius: 999px;
+  bottom: -4px;
+  color: var(--background);
+  display: inline-flex;
+  height: 0.65rem;
+  justify-content: center;
+  position: absolute;
+  right: -5px;
+  width: 0.65rem;
+}
+.cite-save-check svg {
+  display: block;
+  height: 0.42rem;
+  width: 0.42rem;
+}
+.cite-hit-head {
+  align-items: center;
+  display: flex;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.cite-hit-head .cite-hit-main {
+  flex: 1;
+  min-width: 0;
+}
+.cite-hit-save {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.15rem;
+  padding-right: 0.1rem;
+}
+.cite-link-url {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .cite-action-danger:hover {
   border-color: #b45309;

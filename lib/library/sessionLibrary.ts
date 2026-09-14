@@ -11,6 +11,7 @@ import {
   fetchCloudLibraryItems,
   publicUrlForAssetPath,
   uploadCloudLibraryPdf,
+  upsertCloudLibraryBibtex,
   upsertCloudLibraryLink,
 } from "@/lib/library/cloudLibrary";
 import { canonicalizeLibraryUrl } from "@/lib/library/urls";
@@ -22,16 +23,27 @@ import { classifyStorageError } from "@/lib/assets/errors";
 
 export { canonicalizeLibraryUrl };
 
-export type LibraryKind = "pdf" | "link";
+export type LibraryKind = "pdf" | "link" | "bibtex";
 
 export type LibraryMeta = {
   id: string;
   kind: LibraryKind;
   name: string;
-  /** Present for kind === "link" (and sometimes pdf public URL). */
+  /** Present for kind === "link" (and sometimes pdf public URL or a BibTeX url). */
   url?: string;
   assetPath?: string;
   byteSize?: number;
+  /** Raw BibTeX entry when kind === "bibtex". */
+  bibtex?: string;
+  /** Cite key when kind === "bibtex". */
+  citeKey?: string;
+};
+
+export type LibraryBibtexInput = {
+  citeKey: string;
+  title: string;
+  bibtex: string;
+  url?: string;
 };
 
 type LibraryPdfEntry = LibraryMeta & {
@@ -59,6 +71,27 @@ function normalizeMeta(raw: unknown): LibraryMeta[] {
     const id = typeof record.id === "string" ? record.id : "";
     const name = typeof record.name === "string" ? record.name : "";
     if (!id || !name) continue;
+    if (record.kind === "bibtex") {
+      const bibtex = typeof record.bibtex === "string" ? record.bibtex.trim() : "";
+      if (!bibtex) continue;
+      out.push({
+        id,
+        kind: "bibtex",
+        name,
+        url:
+          typeof record.url === "string" && record.url.trim()
+            ? record.url.trim()
+            : undefined,
+        bibtex,
+        citeKey:
+          typeof record.citeKey === "string" && record.citeKey.trim()
+            ? record.citeKey.trim()
+            : undefined,
+        byteSize:
+          typeof record.byteSize === "number" ? record.byteSize : undefined,
+      });
+      continue;
+    }
     if (record.kind === "link" || (typeof record.url === "string" && record.url)) {
       const url =
         typeof record.url === "string" && record.url.trim()
@@ -280,6 +313,63 @@ export function addLibraryLink(input: {
   saveMeta(meta);
   emit();
   return entry;
+}
+
+function replaceMetaEntry(entry: LibraryMeta, sameAs: (item: LibraryMeta) => boolean) {
+  meta = [...meta.filter((item) => item.id !== entry.id && !sameAs(item)), entry];
+  saveMeta(meta);
+  emit();
+}
+
+function sameBibtexKey(citeKey: string) {
+  return (item: LibraryMeta) =>
+    item.kind === "bibtex" &&
+    (item.citeKey === citeKey || item.id === `lib-bibtex:${citeKey}`);
+}
+
+export function addLibraryBibtex(input: LibraryBibtexInput): LibraryMeta {
+  const citeKey = input.citeKey.trim();
+  const bibtex = input.bibtex.trim();
+  const title = (input.title || citeKey).trim() || citeKey;
+  const url = input.url?.trim() || undefined;
+  const id = `lib-bibtex:${citeKey}`;
+  const existing = meta.find(sameBibtexKey(citeKey));
+  const entry: LibraryMeta = {
+    id: existing?.id ?? id,
+    kind: "bibtex",
+    name: title,
+    url,
+    bibtex,
+    citeKey,
+    byteSize: new TextEncoder().encode(bibtex).length,
+  };
+  replaceMetaEntry(entry, sameBibtexKey(citeKey));
+  return entry;
+}
+
+export async function addLibraryBibtexDurable(
+  input: LibraryBibtexInput
+): Promise<LibraryMeta> {
+  const optimistic = addLibraryBibtex(input);
+  if (await signedIn()) {
+    const row = await upsertCloudLibraryBibtex(input);
+    const entry = cloudRowToMeta(row);
+    replaceMetaEntry(entry, (item) =>
+      item.id === optimistic.id || sameBibtexKey(input.citeKey.trim())(item)
+    );
+    return entry;
+  }
+  return optimistic;
+}
+
+export async function addLibraryBibtexEntriesDurable(
+  inputs: LibraryBibtexInput[]
+): Promise<LibraryMeta[]> {
+  const out: LibraryMeta[] = [];
+  for (const input of inputs) {
+    out.push(await addLibraryBibtexDurable(input));
+  }
+  return out;
 }
 
 export async function addLibraryLinkDurable(input: {
