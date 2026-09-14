@@ -37,11 +37,9 @@ export async function resolveLibraryOpenTarget(
     return { kind: "pdf", src, title: entry?.name ?? hit.title };
   }
 
-  if (entry?.kind === "link" && entry.url) {
-    return { kind: "link", url: entry.url, title: entry.name };
-  }
-  if (hit.url) {
-    return { kind: "link", url: hit.url, title: hit.title };
+  const url = entry?.url || hit.url;
+  if (url) {
+    return { kind: "link", url, title: entry?.name ?? hit.title };
   }
   return null;
 }

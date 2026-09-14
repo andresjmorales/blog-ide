@@ -126,7 +126,9 @@ practical storage limit.
 
 **Library vs essay images:** same Storage bucket, different `user_assets.kind`
 (`essay_image` vs `library_pdf`) and `library_items` rows for research pins /
-bookmarks. Essay images are referenced from markdown; Library binaries are not.
+bookmarks / BibTeX. Essay images are referenced from markdown; Library
+binaries are not. Pasted or uploaded BibTeX is a `library_items` row
+(`kind = 'bibtex'`), not a Storage object.
 
 ## Workspace model
 

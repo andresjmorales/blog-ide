@@ -9,20 +9,25 @@ import { assetPathFromUrl } from "@/lib/assets/paths";
 import { canonicalizeLibraryUrl } from "@/lib/library/urls";
 import type { LibraryMeta } from "@/lib/library/sessionLibrary";
 
+const LIBRARY_ITEM_COLUMNS =
+  "id, kind, title, url, asset_path, byte_size, bibtex, cite_key";
+
 export type CloudLibraryRow = {
   id: string;
-  kind: "pdf" | "link";
+  kind: "pdf" | "link" | "bibtex";
   title: string;
   url: string | null;
   asset_path: string | null;
   byte_size: number;
+  bibtex: string | null;
+  cite_key: string | null;
 };
 
 export async function fetchCloudLibraryItems(): Promise<CloudLibraryRow[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("library_items")
-    .select("id, kind, title, url, asset_path, byte_size")
+    .select(LIBRARY_ITEM_COLUMNS)
     .order("updated_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as CloudLibraryRow[];
@@ -36,6 +41,8 @@ export function cloudRowToMeta(row: CloudLibraryRow): LibraryMeta {
     url: row.url ?? undefined,
     assetPath: row.asset_path ?? undefined,
     byteSize: row.byte_size,
+    bibtex: row.bibtex ?? undefined,
+    citeKey: row.cite_key ?? undefined,
   };
 }
 
@@ -66,7 +73,7 @@ export async function upsertCloudLibraryLink(input: {
 
   const { data: existing } = await supabase
     .from("library_items")
-    .select("id, kind, title, url, asset_path, byte_size")
+    .select(LIBRARY_ITEM_COLUMNS)
     .eq("kind", "link")
     .eq("url", url)
     .maybeSingle();
@@ -76,7 +83,7 @@ export async function upsertCloudLibraryLink(input: {
       .from("library_items")
       .update({ title, updated_at: new Date().toISOString() })
       .eq("id", existing.id)
-      .select("id, kind, title, url, asset_path, byte_size")
+      .select(LIBRARY_ITEM_COLUMNS)
       .single();
     if (error) throw error;
     return data as CloudLibraryRow;
@@ -92,7 +99,7 @@ export async function upsertCloudLibraryLink(input: {
       asset_path: null,
       byte_size: 0,
     })
-    .select("id, kind, title, url, asset_path, byte_size")
+    .select(LIBRARY_ITEM_COLUMNS)
     .single();
   if (error) throw error;
   return data as CloudLibraryRow;
@@ -141,7 +148,7 @@ export async function uploadCloudLibraryPdf(
       asset_path: assetPath,
       byte_size: file.size,
     })
-    .select("id, kind, title, url, asset_path, byte_size")
+    .select(LIBRARY_ITEM_COLUMNS)
     .single();
 
   if (error) {
@@ -150,6 +157,67 @@ export async function uploadCloudLibraryPdf(
   }
 
   return { row: data as CloudLibraryRow, src };
+}
+
+export async function upsertCloudLibraryBibtex(input: {
+  citeKey: string;
+  title: string;
+  bibtex: string;
+  url?: string;
+}): Promise<CloudLibraryRow> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Sign in to save Library BibTeX");
+
+  const citeKey = input.citeKey.trim();
+  if (!citeKey) throw new Error("Missing BibTeX cite key.");
+  const title = (input.title || citeKey).trim() || citeKey;
+  const bibtex = input.bibtex.trim();
+  const url = input.url?.trim() || null;
+  const byteSize = new TextEncoder().encode(bibtex).length;
+
+  const { data: existing } = await supabase
+    .from("library_items")
+    .select(LIBRARY_ITEM_COLUMNS)
+    .eq("kind", "bibtex")
+    .eq("cite_key", citeKey)
+    .maybeSingle();
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from("library_items")
+      .update({
+        title,
+        bibtex,
+        url,
+        byte_size: byteSize,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existing.id)
+      .select(LIBRARY_ITEM_COLUMNS)
+      .single();
+    if (error) throw error;
+    return data as CloudLibraryRow;
+  }
+
+  const { data, error } = await supabase
+    .from("library_items")
+    .insert({
+      user_id: user.id,
+      kind: "bibtex",
+      title,
+      url,
+      asset_path: null,
+      byte_size: byteSize,
+      bibtex,
+      cite_key: citeKey,
+    })
+    .select(LIBRARY_ITEM_COLUMNS)
+    .single();
+  if (error) throw error;
+  return data as CloudLibraryRow;
 }
 
 export async function deleteCloudLibraryItem(id: string): Promise<void> {

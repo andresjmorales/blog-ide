@@ -13,13 +13,15 @@ by design.
   pin/drag cards, delete from the note popup, deleted-note archive,
   Substack-style paste repair
 - **Library + Cite** — one research panel (right dock, or pop it out).
-  Saved links and PDFs share a compact list with Zotero search and pasted
-  BibTeX. Expand a row for cite / open / remove. PDFs open and pin; they
-  are not formatted citations. Cited here is the essay’s still-used
-  sources (Copy list for a bibliography; deleted footnotes drop off).
-  Links in this essay lists every hyperlink with a use count. Library
-  links can Copy URL or Add to Zotero when the key can write. Toolbar
-  Cite opens this panel (sheet on a phone).
+  Saved links, PDFs, and BibTeX share a compact list with Zotero search.
+  Paste or upload `.bib` to add entries to the Library (they persist like
+  a PDF or site link). Expand a row for cite / open / remove. PDFs open
+  and pin; they are not formatted citations. Cited here is the essay’s
+  still-used sources (Copy list for a bibliography; deleted footnotes
+  drop off). Links in this essay lists every hyperlink with a use count;
+  expand a row to open or copy. Library links can Copy URL or Add to
+  Zotero when the key can write. Toolbar Cite opens this panel (sheet
+  on a phone).
 - **Workspace** — folder/document/link tree, Trash, Notes channels, a seeded
   scratchpad you can rename or trash, phone terminal capture + desktop Shell,
   optional Pushbullet or ntfy capture into those channels (Pushbullet REST

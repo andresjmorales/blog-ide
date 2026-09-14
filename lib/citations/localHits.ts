@@ -26,7 +26,7 @@ export type CiteHit = {
 /** Compact kind chip: zotero / bibtex / link / pdf. */
 export function hitKindLabel(hit: CiteHit): string {
   if (hit.provider === "zotero") return "zotero";
-  if (hit.provider === "bibtex") return "bibtex";
+  if (hit.provider === "bibtex" || hit.itemType === "bibtex") return "bibtex";
   if (hit.itemType === "pdf") return "pdf";
   if (hit.itemType === "link" || hit.url) return "link";
   return hit.itemType || "item";
@@ -36,24 +36,20 @@ export function hitCanCite(hit: CiteHit): boolean {
   return hitKindLabel(hit) !== "pdf";
 }
 
-/** Idle Library list: saved items + pasted BibTeX, not essay snapshots. */
-export function listBrowseHits(
-  sessionHits: CiteHit[],
-  libraryHits: CiteHit[]
-): CiteHit[] {
-  return mergeHits(sessionHits, libraryHits);
+/** Idle Library list: saved PDFs, links, and BibTeX. */
+export function listBrowseHits(libraryHits: CiteHit[]): CiteHit[] {
+  return mergeHits(libraryHits);
 }
 
 export function listSearchHits(
   remoteHits: CiteHit[],
-  sessionHits: CiteHit[],
   essayHits: CiteHit[],
   libraryHits: CiteHit[],
   query: string
 ): CiteHit[] {
   return mergeHits(
     remoteHits,
-    filterHits([...sessionHits, ...libraryHits, ...essayHits], query)
+    filterHits([...libraryHits, ...essayHits], query)
   );
 }
 
@@ -65,6 +61,15 @@ function yearFromFields(fields: Record<string, string>): string {
 
 function creatorsFromFields(fields: Record<string, string>): string {
   return (fields.author ?? fields.editor ?? "").replace(/\s+and\s+/gi, " and ");
+}
+
+function urlFromFields(fields: Record<string, string>): string | undefined {
+  const raw = fields.url?.trim();
+  if (raw && /^https?:\/\//i.test(raw)) return raw;
+  const doi = fields.doi?.trim();
+  if (!doi) return undefined;
+  const cleaned = doi.replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, "");
+  return cleaned ? `https://doi.org/${cleaned}` : undefined;
 }
 
 export function hitsFromBibtex(source: string, style: CiteStyleId): CiteHit[] {
@@ -83,6 +88,7 @@ export function hitsFromBibtex(source: string, style: CiteStyleId): CiteHit[] {
       bibtex: source.includes(`@${entry.type}`)
         ? sliceBibtexEntry(source, entry.key) || rawEntryFallback(entry)
         : rawEntryFallback(entry),
+      url: urlFromFields(entry.fields),
     };
   });
 }
