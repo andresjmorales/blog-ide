@@ -10,6 +10,7 @@ import {
   recoveryConfirmSegment,
 } from "@/lib/vault/recovery";
 import { createVault } from "@/lib/vault/session";
+import { useArmedWhenOpen } from "@/lib/ui/useArmedWhenOpen";
 
 type Props = {
   open: boolean;
@@ -19,6 +20,7 @@ type Props = {
 
 export function VaultCreateDialog({ open, onClose, onCreated }: Props) {
   const titleId = useId();
+  const armed = useArmedWhenOpen(open);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [passphrase, setPassphrase] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -50,6 +52,7 @@ export function VaultCreateDialog({ open, onClose, onCreated }: Props) {
   if (!open) return null;
 
   async function handleCreate() {
+    if (!armed) return;
     setError(null);
     if (passphrase.length < 8) {
       setError("Use at least 8 characters.");
@@ -132,7 +135,7 @@ export function VaultCreateDialog({ open, onClose, onCreated }: Props) {
               <button type="button" className="app-dialog-btn" onClick={onClose}>
                 Cancel
               </button>
-              <button type="submit" className="app-dialog-btn is-primary" disabled={busy}>
+              <button type="submit" className="app-dialog-btn is-primary" disabled={busy || !armed}>
                 {busy ? "Creating…" : "Create vault"}
               </button>
             </div>

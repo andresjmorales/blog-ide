@@ -169,7 +169,7 @@ export function VaultSettingsSection({
                     try {
                       const code = await regenerateVaultRecovery();
                       setRecovery(formatRecoveryCode(code));
-                      setStatus("New recovery code — store it, the old one no longer works.");
+                      setStatus("New recovery code. Store it; the old one no longer works.");
                     } catch (err) {
                       setStatus(
                         err instanceof Error

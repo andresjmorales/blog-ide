@@ -332,7 +332,7 @@ export async function lockVaultNow(input: LockVaultInput): Promise<void> {
     .filter((n) => vaultId && isInVault(n.id, input.nodes, vaultId))
     .map((n) => n.id);
   if (await vaultHasUnsyncedEdits(vaultIds)) {
-    throw new Error("Save vault essays before locking — unsaved edits would be dropped.");
+    throw new Error("Save vault essays before locking. Unsaved edits would be dropped.");
   }
   await deleteLocalDocs(vaultIds.filter((id) => {
     const node = input.nodes.find((n) => n.id === id);

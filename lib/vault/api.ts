@@ -2,6 +2,13 @@ import { createClient } from "@/lib/supabase/client";
 import { byteaToBytes, bytesToByteaParam } from "@/lib/vault/bytes";
 import { VAULT_KDF, type VaultKdfParams } from "@/lib/vault/crypto";
 import { requestTimeoutSignal, SYNC_WRITE_TIMEOUT_MS } from "@/lib/net/timeout";
+import {
+  isRetryableVaultRpcError,
+  parseCreateVaultResult,
+  type CreateVaultResult,
+} from "@/lib/vault/rpcResult";
+
+export type { CreateVaultResult };
 
 export type UserVaultRow = {
   user_id: string;
@@ -16,10 +23,6 @@ export type UserVaultRow = {
   created_at: string;
   updated_at: string;
 };
-
-export type CreateVaultResult =
-  | { ok: true; nodeId: string }
-  | { ok: false; reason: "exists" | string };
 
 export type UpdateVaultWrapsInput = {
   dekWrappedPass: Uint8Array;
@@ -90,7 +93,7 @@ export async function createVaultRemote(input: {
   kdf?: string;
   kdfParams?: VaultKdfParams;
 }): Promise<CreateVaultResult> {
-  const { data, error } = await client().rpc("create_vault", {
+  const payload = {
     p_dek_wrapped_pass: bytesToByteaParam(input.dekWrappedPass),
     p_salt_pass: bytesToByteaParam(input.saltPass),
     p_dek_wrapped_recovery: bytesToByteaParam(input.dekWrappedRecovery),
@@ -98,9 +101,13 @@ export async function createVaultRemote(input: {
     p_verifier: bytesToByteaParam(input.verifier),
     p_kdf: input.kdf ?? VAULT_KDF,
     p_kdf_params: input.kdfParams ?? { iterations: 600000 },
-  });
+  };
+  let { data, error } = await client().rpc("create_vault", payload);
+  if (error && isRetryableVaultRpcError(error)) {
+    ({ data, error } = await client().rpc("create_vault", payload));
+  }
   if (error) throw error;
-  return data as CreateVaultResult;
+  return parseCreateVaultResult(data);
 }
 
 export async function updateVaultWraps(
