@@ -100,7 +100,10 @@ export function HelpPanel({ open, onClose }: Props) {
             opens Cleanup → Publish
             for footnote copy formats (bracketed [1], superscripts, linked
             endnotes) and Substack native-footnote steps. Export Word when Pandoc is
-            installed, or Push to GitHub. Edits save locally first, then sync
+            installed, or Push to GitHub. An optional Vault folder (Settings →
+            Vault) encrypts titles and essay bodies in this browser before they
+            are stored; it is free and the passphrase is not your sign-in
+            password. Edits save locally first, then sync
             online.
           </p>
         </section>

@@ -16,5 +16,5 @@ export const AVATAR_ZOOM_MIN = 1;
 export const AVATAR_ZOOM_MAX = 3;
 export const AVATAR_ZOOM_STEP = 0.01;
 
-/** Fixed object key under `{userId}/` in the public assets bucket. */
+/** Fixed object key under `{userId}/` in the assets bucket. */
 export const AVATAR_OBJECT_NAME = "avatar.webp";

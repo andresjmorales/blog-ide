@@ -14,6 +14,7 @@ import type {
   GithubResolvedBinding,
   GithubSyncMap,
 } from "@/lib/github/types";
+import { getVaultNode } from "@/lib/vault/membership";
 import {
   collectSubtreeIds,
   folderPathLabel,
@@ -85,6 +86,8 @@ export type GithubPushPlanInput = {
   defaultPath: string;
   maps: GithubSyncMap[];
   scope: "workspace" | { nodeId: string };
+  /** Off by default. Vault essays stay out of GitHub unless this is on. */
+  includeVault?: boolean;
 };
 
 /** Split a plan that spans multiple repos into separate commits. */
@@ -98,6 +101,9 @@ export function buildGithubPushPlans(
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const trash = getTrashNode(nodes);
   const trashIds = new Set(trash ? collectSubtreeIds(trash.id, nodes) : []);
+  const vault = getVaultNode(nodes);
+  const vaultIds = new Set(vault ? collectSubtreeIds(vault.id, nodes) : []);
+  const includeVault = Boolean(input.includeVault);
   const mapByNode = new Map(maps.map((m) => [m.nodeId, m]));
 
   const buckets = new Map<string, GithubTarget>();
@@ -114,6 +120,7 @@ export function buildGithubPushPlans(
 
   const consider = (node: WorkspaceNode) => {
     if (node.kind !== "document" || trashIds.has(node.id)) return;
+    if (!includeVault && vaultIds.has(node.id)) return;
     const mapped = mapByNode.get(node.id);
     if (mapped) {
       add(
@@ -155,6 +162,11 @@ export function buildGithubPushPlans(
     const root = byId.get(input.scope.nodeId);
     if (!root) throw new Error("That folder or document is gone.");
     if (trashIds.has(root.id)) throw new Error("Trash is not pushed to GitHub.");
+    if (!includeVault && vaultIds.has(root.id)) {
+      throw new Error(
+        "Vault essays are skipped unless Include vault is on in Settings, and the repo is private."
+      );
+    }
     const mapped = mapByNode.get(root.id);
     const repo = (mapped?.repo || defaultRepo).trim();
     const branch = (mapped?.branch || defaultBranch).trim() || "main";
@@ -169,6 +181,7 @@ export function buildGithubPushPlans(
     } else {
       for (const node of nodes) {
         if (node.kind !== "document" || trashIds.has(node.id)) continue;
+        if (!includeVault && vaultIds.has(node.id)) continue;
         const rel = relativePathUnder(node.id, root.id, nodes);
         if (!rel) continue;
         const docMap = mapByNode.get(node.id);
@@ -193,7 +206,9 @@ export function buildGithubPushPlans(
 
   const used = [...buckets.values()].filter((b) => b.files.length > 0);
   if (used.length === 0) {
-    throw new Error("No documents to push (Trash is skipped).");
+    throw new Error(
+      "No documents to push (Trash is skipped, and vault essays unless Include vault is on)."
+    );
   }
   return used;
 }

@@ -134,6 +134,51 @@ describe("buildGithubPushPlans", () => {
       })
     ).toThrow(/Trash/i);
   });
+
+  it("skips the vault subtree unless includeVault is on", () => {
+    const f = fixture();
+    const vault = node({ kind: "folder", name: "Vault", system_key: "vault" });
+    const secret = node({ name: "secret.md", parent_id: vault.id });
+    const nodes = [...f.all, vault, secret];
+    const bodies = new Map(f.bodies);
+    bodies.set(secret.id, "# Secret\n");
+    const skipped = buildGithubPushPlans({
+      nodes,
+      bodies,
+      defaultRepo: "me/site",
+      defaultBranch: "main",
+      defaultPath: "content",
+      maps: [],
+      scope: "workspace",
+    });
+    expect(skipped[0].files.some((file) => file.nodeId === secret.id)).toBe(
+      false
+    );
+    const included = buildGithubPushPlans({
+      nodes,
+      bodies,
+      defaultRepo: "me/site",
+      defaultBranch: "main",
+      defaultPath: "content",
+      maps: [],
+      scope: "workspace",
+      includeVault: true,
+    });
+    expect(included[0].files.some((file) => file.nodeId === secret.id)).toBe(
+      true
+    );
+    expect(() =>
+      buildGithubPushPlans({
+        nodes,
+        bodies,
+        defaultRepo: "me/site",
+        defaultBranch: "main",
+        defaultPath: "content",
+        maps: [],
+        scope: { nodeId: vault.id },
+      })
+    ).toThrow(/Include vault/i);
+  });
 });
 
 describe("listGithubMapNodes", () => {

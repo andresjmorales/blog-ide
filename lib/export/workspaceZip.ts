@@ -2,6 +2,9 @@ import { getLocalDoc } from "@/lib/db/indexed";
 import { bundleOwnedAssetsInMarkdown } from "@/lib/export/bundleAssets";
 import { buildZip, type ZipEntry } from "@/lib/export/zip";
 import { createClient } from "@/lib/supabase/client";
+import { decryptTreeNames, nodesWithDisplayNames } from "@/lib/vault/names";
+import { getVaultNode } from "@/lib/vault/membership";
+import { getVaultKeys } from "@/lib/vault/session";
 import { listAllDocumentBodies, listWorkspaceNodes } from "@/lib/workspace/api";
 import { collectSubtreeIds, getTrashNode } from "@/lib/workspace/tree";
 import type { WorkspaceNode } from "@/lib/workspace/types";
@@ -15,10 +18,14 @@ function sanitizeSegment(name: string): string {
  * Archive path for every document outside the Trash: folder chain + file
  * name, `.md` enforced, name collisions deduped with " (n)".
  */
-export function exportPathsFor(nodes: WorkspaceNode[]): Map<string, string> {
+export function exportPathsFor(
+  nodes: WorkspaceNode[],
+  options?: { excludeIds?: Iterable<string> }
+): Map<string, string> {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const trash = getTrashNode(nodes);
   const excluded = new Set(trash ? collectSubtreeIds(trash.id, nodes) : []);
+  for (const id of options?.excludeIds ?? []) excluded.add(id);
 
   const paths = new Map<string, string>();
   const used = new Set<string>();
@@ -60,7 +67,15 @@ export async function exportWorkspaceZip(): Promise<{
   fileCount: number;
 }> {
   const nodes = await listWorkspaceNodes();
-  const paths = exportPathsFor(nodes);
+  const vault = getVaultNode(nodes);
+  const keys = getVaultKeys();
+  const excludeIds = new Set<string>();
+  if (vault && !keys) {
+    for (const id of collectSubtreeIds(vault.id, nodes)) excludeIds.add(id);
+  }
+  const names = keys ? await decryptTreeNames(nodes, keys.dek) : new Map();
+  const displayNodes = nodesWithDisplayNames(nodes, names);
+  const paths = exportPathsFor(displayNodes, { excludeIds });
   const remote = await listAllDocumentBodies();
   const encoder = new TextEncoder();
   const entries: ZipEntry[] = [];

@@ -3,16 +3,16 @@ import {
   updateUploadStatus,
 } from "@/lib/assets/uploadStatus";
 import { getLocalDoc } from "@/lib/db/indexed";
-import {
-  githubErrorCopy,
-  fetchGithubTreeIndex,
-  pushFilesToGithub,
-} from "@/lib/github/client";
+import { githubErrorCopy, fetchGithubTreeIndex, githubRepoIsPrivate, pushFilesToGithub } from "@/lib/github/client";
 import { buildGithubPushPlans } from "@/lib/github/files";
 import { inspectPushFiles, type GithubPushIssue } from "@/lib/github/status";
 import { loadGithubSettings } from "@/lib/github/settings";
 import { loadGithubToken } from "@/lib/github/token";
 import type { GithubPushResult } from "@/lib/github/types";
+import { decryptTreeNames, nodesWithDisplayNames } from "@/lib/vault/names";
+import { getVaultNode, vaultSubtreeIds } from "@/lib/vault/membership";
+import { loadGithubIncludeVault } from "@/lib/vault/prefs";
+import { getVaultKeys } from "@/lib/vault/session";
 import { listAllDocumentBodies, listWorkspaceNodes } from "@/lib/workspace/api";
 import type { WorkspaceNode } from "@/lib/workspace/types";
 
@@ -39,36 +39,65 @@ export async function collectGithubDocumentBodies(
   return bodies;
 }
 
-export async function pushWorkspaceToGithub(input: {
-  scope: "workspace" | { nodeId: string };
-  onProgress?: (progress: GithubPushProgress) => void;
-}): Promise<GithubPushResult[]> {
+async function prepareGithubPush(scope: "workspace" | { nodeId: string }) {
   const token = loadGithubToken();
   if (!token) {
     throw new Error(
       "Add a GitHub personal access token in Settings. It stays on this device."
     );
   }
-
-  input.onProgress?.({
-    phase: "collect",
-    message: "Collecting essays…",
-  });
-
   const [settings, nodes] = await Promise.all([
     loadGithubSettings(),
     listWorkspaceNodes(),
   ]);
-  const bodies = await collectGithubDocumentBodies(nodes);
+  const includeVault = loadGithubIncludeVault();
+  const vault = getVaultNode(nodes);
+  const keys = getVaultKeys();
+  if (includeVault && vault && !keys) {
+    throw new Error("Unlock the vault before pushing vault essays.");
+  }
+  const names = keys ? await decryptTreeNames(nodes, keys.dek) : new Map();
+  const displayNodes = nodesWithDisplayNames(nodes, names);
+  const bodies = await collectGithubDocumentBodies(displayNodes);
   const plans = buildGithubPushPlans({
-    nodes,
+    nodes: displayNodes,
     bodies,
     defaultRepo: settings.repo,
     defaultBranch: settings.branch,
     defaultPath: settings.path,
     maps: settings.maps,
-    scope: input.scope,
+    scope,
+    includeVault,
   });
+  if (includeVault && vault) {
+    const vaultIds = vaultSubtreeIds(nodes, vault.id);
+    const usesVault = plans.some((plan) =>
+      plan.files.some((file) => Boolean(file.nodeId && vaultIds.has(file.nodeId)))
+    );
+    if (usesVault) {
+      for (const plan of plans) {
+        const isPrivate = await githubRepoIsPrivate(token, plan.repo);
+        if (!isPrivate) {
+          throw new Error(
+            `Vault essays can only be pushed to a private repo (${plan.repo} is public).`
+          );
+        }
+      }
+    }
+  }
+  return { token, settings, nodes: displayNodes, plans };
+}
+
+export async function pushWorkspaceToGithub(input: {
+  scope: "workspace" | { nodeId: string };
+  onProgress?: (progress: GithubPushProgress) => void;
+}): Promise<GithubPushResult[]> {
+  input.onProgress?.({
+    phase: "collect",
+    message: "Collecting essays…",
+  });
+
+  const { token, plans } = await prepareGithubPush(input.scope);
 
   const results: GithubPushResult[] = [];
   for (const plan of plans) {
@@ -113,26 +142,7 @@ export type GithubPushInspection = {
 export async function inspectGithubPush(input: {
   scope: "workspace" | { nodeId: string };
 }): Promise<GithubPushInspection> {
-  const token = loadGithubToken();
-  if (!token) {
-    throw new Error(
-      "Add a GitHub personal access token in Settings. It stays on this device."
-    );
-  }
-  const [settings, nodes] = await Promise.all([
-    loadGithubSettings(),
-    listWorkspaceNodes(),
-  ]);
-  const bodies = await collectGithubDocumentBodies(nodes);
-  const plans = buildGithubPushPlans({
-    nodes,
-    bodies,
-    defaultRepo: settings.repo,
-    defaultBranch: settings.branch,
-    defaultPath: settings.path,
-    maps: settings.maps,
-    scope: input.scope,
-  });
+  const { token, plans } = await prepareGithubPush(input.scope);
 
   const issues: GithubPushIssue[] = [];
   for (const plan of plans) {

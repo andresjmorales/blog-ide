@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { ASSETS_BUCKET } from "@/lib/assets/paths";
 import { classifyStorageError, isBrowserOffline } from "@/lib/assets/errors";
+import { createAssetSignedUrl } from "@/lib/assets/signedUrls";
 
 export type AssetKind = "essay_image" | "library_pdf";
 
@@ -95,17 +96,15 @@ export async function uploadUserAsset(
     throw new Error(classifyStorageError(uploadError));
   }
 
-  const { data } = supabase.storage.from(ASSETS_BUCKET).getPublicUrl(fullPath);
-  if (data?.publicUrl) return data.publicUrl;
-
-  const signed = await supabase.storage
-    .from(ASSETS_BUCKET)
-    .createSignedUrl(fullPath, 60 * 60 * 24 * 365);
-  if (signed.data?.signedUrl) return signed.data.signedUrl;
-
-  await supabase.storage.from(ASSETS_BUCKET).remove([fullPath]);
-  await supabase.rpc("release_asset_path", { p_path: fullPath });
-  throw new Error("Upload succeeded but no URL was returned");
+  try {
+    return await createAssetSignedUrl(fullPath);
+  } catch (urlError) {
+    await supabase.storage.from(ASSETS_BUCKET).remove([fullPath]);
+    await supabase.rpc("release_asset_path", { p_path: fullPath });
+    throw new Error(
+      urlError instanceof Error ? urlError.message : "Upload succeeded but no URL was returned"
+    );
+  }
 }
 
 async function uploadWithProgress(

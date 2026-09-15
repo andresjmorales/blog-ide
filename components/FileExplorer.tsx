@@ -5,7 +5,7 @@ import {
   ExplorerContextMenu,
   type ContextMenuItem,
 } from "@/components/ExplorerContextMenu";
-import { GithubMark, TreeCaret } from "@/components/icons";
+import { GithubMark, LockIcon, TreeCaret } from "@/components/icons";
 import { githubActionMenuItems } from "@/lib/github/menu";
 import { NODE_COLOR_PALETTE } from "@/lib/workspace/nodeColors";
 import {
@@ -22,6 +22,8 @@ import {
   sameNamedDocumentTwins,
   systemFolderDisplayName,
 } from "@/lib/workspace/tree";
+import { getVaultNode, isInVault, isVaultFolder } from "@/lib/vault/membership";
+import { overlayVaultName } from "@/lib/vault/names";
 import type { WorkspaceNode } from "@/lib/workspace/types";
 import type { GithubMapStatus } from "@/lib/github/types";
 import { githubStatusTitle, unimportedGithubNoticePaths } from "@/lib/github/status";
@@ -53,6 +55,13 @@ type Props = {
   /** Overrides the default "Loading workspace…" copy (retry countdown, etc.). */
   loadingLabel?: string;
   error?: string | null;
+  vaultUnlocked?: boolean;
+  vaultNames?: Map<string, string>;
+  onCreateVault?: () => void;
+  onUnlockVault?: () => void;
+  onLockVault?: () => void;
+  onMoveToVault?: (nodeId: string) => void;
+  onMoveOutOfVault?: (nodeId: string) => void;
 };
 
 type MenuState = {
@@ -81,8 +90,11 @@ function fileStem(node: WorkspaceNode): string {
 /** Explorer label: frontmatter title when it differs from the filename stem. */
 function displayName(
   node: WorkspaceNode,
-  docTitles?: Map<string, string>
+  docTitles?: Map<string, string>,
+  vaultNames?: Map<string, string>
 ): string {
+  if (node.system_key === "vault") return "Vault";
+  if (vaultNames?.has(node.id)) return overlayVaultName(node, vaultNames);
   if (node.kind === "document" && docTitles) {
     const title = docTitles.get(node.id)?.trim();
     const stem = fileStem(node);
@@ -115,9 +127,10 @@ function explorerLabel(
   node: WorkspaceNode,
   nodes: WorkspaceNode[],
   docTitles: Map<string, string> | undefined,
-  ambiguous: Set<string>
+  ambiguous: Set<string>,
+  vaultNames?: Map<string, string>
 ): string {
-  const label = displayName(node, docTitles);
+  const label = displayName(node, docTitles, vaultNames);
   if (node.kind !== "document" || !ambiguous.has(label.trim().toLowerCase())) {
     return label;
   }
@@ -148,9 +161,17 @@ export function FileExplorer({
   loading,
   loadingLabel,
   error,
+  vaultUnlocked = false,
+  vaultNames,
+  onCreateVault,
+  onUnlockVault,
+  onLockVault,
+  onMoveToVault,
+  onMoveOutOfVault,
 }: Props) {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [trashOpen, setTrashOpen] = useState(true);
+  const [vaultOpen, setVaultOpen] = useState(true);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 
   function toggleCollapse(id: string) {
@@ -164,11 +185,14 @@ export function FileExplorer({
 
   const trash = getTrashNode(nodes);
   const trashId = trash?.id ?? null;
+  const vault = getVaultNode(nodes);
+  const vaultId = vault?.id ?? null;
 
   const mainRoots = childrenOf(nodes, null).filter(
     (n) =>
       n.system_key !== "trash" &&
       n.system_key !== "inbox" &&
+      n.system_key !== "vault" &&
       !isInTrash(n.id, nodes, trashId)
   );
   const trashChildren = trashId ? childrenOf(nodes, trashId) : [];
@@ -188,6 +212,40 @@ export function FileExplorer({
     const inTrash = isInTrash(node.id, nodes, trashId);
     const systemFolder = isSystemFolder(node);
     const items: ContextMenuItem[] = [];
+    const inVault = Boolean(vaultId && isInVault(node.id, nodes, vaultId));
+
+    if (isVaultFolder(node)) {
+      const vaultItems: ContextMenuItem[] = [];
+      if (vaultUnlocked) {
+        vaultItems.push({
+          kind: "action",
+          id: "new-doc",
+          label: "New document",
+          onSelect: () => onNewDocument(node.id),
+        });
+        vaultItems.push({
+          kind: "action",
+          id: "new-folder",
+          label: "New folder",
+          onSelect: () => onNewFolder(node.id),
+        });
+        vaultItems.push({ kind: "separator", id: "sep-vault" });
+        vaultItems.push({
+          kind: "action",
+          id: "lock-vault",
+          label: "Lock now",
+          onSelect: () => onLockVault?.(),
+        });
+      } else {
+        vaultItems.push({
+          kind: "action",
+          id: "unlock-vault",
+          label: "Unlock…",
+          onSelect: () => onUnlockVault?.(),
+        });
+      }
+      return vaultItems;
+    }
 
     if (systemFolder) {
       return [
@@ -311,6 +369,7 @@ export function FileExplorer({
         includeTrash: false,
         // Allow restoring a Notes channel back under Notes.
         includeInbox: true,
+        includeVault: true,
       });
       items.push({
         kind: "submenu",
@@ -332,6 +391,7 @@ export function FileExplorer({
     } else {
       const moveFolders = eligibleMoveFolders(nodes, node.id, {
         includeTrash: false,
+        vaultOnly: inVault,
       }).filter((folder) => folder.id !== node.parent_id);
 
       items.push({
@@ -339,7 +399,7 @@ export function FileExplorer({
         id: "move",
         label: "Move to…",
         items: [
-          ...(node.parent_id != null
+          ...(!inVault && node.parent_id != null
             ? [
                 {
                   id: "move-root",
@@ -355,6 +415,25 @@ export function FileExplorer({
           })),
         ],
       });
+
+      if (!inVault && vault && onMoveToVault) {
+        items.push({
+          kind: "action",
+          id: "move-vault",
+          label: "Move to vault…",
+          disabled: !vaultUnlocked,
+          onSelect: () => onMoveToVault(node.id),
+        });
+      }
+      if (inVault && node.id !== vaultId && onMoveOutOfVault) {
+        items.push({
+          kind: "action",
+          id: "move-out-vault",
+          label: "Move out of vault…",
+          disabled: !vaultUnlocked,
+          onSelect: () => onMoveOutOfVault(node.id),
+        });
+      }
 
       items.push({
         kind: "action",
@@ -414,6 +493,17 @@ export function FileExplorer({
               <DownloadIcon />
             </button>
           )}
+          {!vault && onCreateVault && (
+            <button
+              type="button"
+              title="Create vault"
+              aria-label="Create vault"
+              className={`explorer-toolbar-btn ${onExportAll ? "" : "ml-auto"}`}
+              onClick={onCreateVault}
+            >
+              <LockIcon size={14} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -435,6 +525,8 @@ export function FileExplorer({
             depth={0}
             activeNodeId={activeNodeId}
             trashId={trashId}
+            vaultId={vaultId}
+            vaultNames={vaultNames}
             docTitles={docTitles}
             ambiguousTitles={ambiguousTitles}
             nameTwins={nameTwins}
@@ -457,6 +549,58 @@ export function FileExplorer({
           {unimportedGithub.length > 3 ? ", …" : ""}). BlogIDE did not import
           {unimportedGithub.length === 1 ? " a second essay" : " extra essays"}.
         </p>
+      )}
+
+      {vault && (
+        <div className="mt-4 border-t border-border pt-3">
+          <button
+            type="button"
+            className="flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-xs font-mono uppercase tracking-wider text-muted hover:bg-panel hover:text-foreground"
+            onClick={() => {
+              if (!vaultUnlocked) {
+                onUnlockVault?.();
+                return;
+              }
+              setVaultOpen((o) => !o);
+            }}
+            onContextMenu={(e) => openMenu(e, vault)}
+          >
+            <TreeCaret expanded={vaultUnlocked && vaultOpen} />
+            <LockIcon open={vaultUnlocked} />
+            Vault
+          </button>
+          {vaultUnlocked && vaultOpen && (
+            <ul className="mt-0.5 space-y-0.5 text-sm">
+              {childrenOf(nodes, vault.id).length === 0 ? (
+                <li className="px-2 py-1 text-xs text-muted">Empty</li>
+              ) : (
+                childrenOf(nodes, vault.id).map((node) => (
+                  <TreeNode
+                    key={node.id}
+                    node={node}
+                    nodes={nodes}
+                    depth={0}
+                    activeNodeId={activeNodeId}
+                    trashId={trashId}
+                    vaultId={vaultId}
+                    vaultNames={vaultNames}
+                    docTitles={docTitles}
+                    ambiguousTitles={ambiguousTitles}
+                    nameTwins={nameTwins}
+                    githubByNode={githubByNode}
+                    onOpen={onOpen}
+                    onNewDocument={onNewDocument}
+                    onNewFolder={onNewFolder}
+                    onContextMenu={openMenu}
+                    collapsedIds={collapsedIds}
+                    onToggleCollapse={toggleCollapse}
+                    onReviewConflict={onReviewConflict}
+                  />
+                ))
+              )}
+            </ul>
+          )}
+        </div>
       )}
 
       {trash && (
@@ -488,6 +632,8 @@ export function FileExplorer({
                     depth={0}
                     activeNodeId={activeNodeId}
                     trashId={trashId}
+                    vaultId={vaultId}
+                    vaultNames={vaultNames}
                     docTitles={docTitles}
                     ambiguousTitles={ambiguousTitles}
                     nameTwins={nameTwins}
@@ -635,12 +781,16 @@ function TreeNode({
   collapsedIds,
   onToggleCollapse,
   onReviewConflict,
+  vaultId,
+  vaultNames,
 }: {
   node: WorkspaceNode;
   nodes: WorkspaceNode[];
   depth: number;
   activeNodeId: string | null;
   trashId: string | null;
+  vaultId?: string | null;
+  vaultNames?: Map<string, string>;
   docTitles?: Map<string, string>;
   ambiguousTitles: Set<string>;
   nameTwins: Map<string, Array<{ nodeId: string; label: string }>>;
@@ -655,14 +805,15 @@ function TreeNode({
 }) {
   // System folders are rendered separately; never nest them in the main tree.
   const visibleKids = childrenOf(nodes, node.id).filter(
-    (c) => c.system_key !== "trash" && c.system_key !== "inbox"
+    (c) => c.system_key !== "trash" && c.system_key !== "inbox" && c.system_key !== "vault"
   );
 
   const paddingLeft = 8 + depth * 12;
-  const label = explorerLabel(node, nodes, docTitles, ambiguousTitles);
-  const stem = fileStem(node);
-  const tip = label !== stem ? `${label} (${node.name})` : node.name;
+  const label = explorerLabel(node, nodes, docTitles, ambiguousTitles, vaultNames);
+  const stem = fileStem({ ...node, name: vaultNames?.get(node.id) ?? node.name });
+  const tip = label !== stem ? `${label} (${vaultNames?.get(node.id) ?? node.name})` : label;
   const twins = nameTwins.get(node.id) ?? [];
+  const showLock = Boolean(vaultId && isInVault(node.id, nodes, vaultId));
 
   if (node.kind === "folder") {
     const expanded = !collapsedIds.has(node.id);
@@ -683,6 +834,7 @@ function TreeNode({
             <TreeCaret expanded={expanded} />
             <ColorDot color={node.color} />
             <span className="truncate">{label}/</span>
+            {showLock && <LockIcon size={11} />}
             <GithubMappingIcon status={githubByNode?.get(node.id)} />
             {node.pinned && (
               <span className="ml-0.5 inline-flex shrink-0 text-muted" title="Pinned">
@@ -740,6 +892,8 @@ function TreeNode({
                 depth={depth + 1}
                 activeNodeId={activeNodeId}
                 trashId={trashId}
+                vaultId={vaultId}
+                vaultNames={vaultNames}
                 docTitles={docTitles}
                 ambiguousTitles={ambiguousTitles}
                 nameTwins={nameTwins}
@@ -822,6 +976,7 @@ function TreeNode({
         >
           <ColorDot color={node.color} />
           <span className="truncate">{label}</span>
+          {showLock && <LockIcon size={11} />}
           <GithubMappingIcon status={githubByNode?.get(node.id)} />
           {twins.length > 0 && (
             <SameNameCopyChip twins={twins} />

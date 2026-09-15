@@ -37,6 +37,7 @@ type Props = {
   onOpenCitation: () => void;
   cleanupOpen: boolean;
   onOpenCleanup?: () => void;
+  inVault?: boolean;
 };
 
 export function FormattingToolbar({
@@ -46,6 +47,7 @@ export function FormattingToolbar({
   onOpenCitation,
   cleanupOpen,
   onOpenCleanup,
+  inVault = false,
 }: Props) {
   const { prefs } = useEditorPrefs();
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -75,6 +77,7 @@ export function FormattingToolbar({
     onOpenCitation,
     cleanupOpen,
     onOpenCleanup,
+    inVault,
   };
 
   const hiddenSlotIds = overflow
@@ -162,6 +165,7 @@ type ToolHandlers = {
   onOpenCitation: () => void;
   cleanupOpen: boolean;
   onOpenCleanup?: () => void;
+  inVault?: boolean;
 };
 
 function needsHiddenSlot(id: ToolbarItemId, handlers: ToolHandlers): boolean {
@@ -359,7 +363,7 @@ function ToolbarItem({
     case "image":
       return (
         <span data-toolbar-slot="image">
-          <ImageInsertMenu editor={editor} />
+          <ImageInsertMenu editor={editor} inVault={handlers.inVault} />
         </span>
       );
     case "hr":

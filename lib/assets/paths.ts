@@ -1,4 +1,4 @@
-/** Storage bucket for essay images and Library PDFs (public-by-URL). */
+/** Storage bucket for essay images and Library PDFs (private; signed URLs). */
 export const ASSETS_BUCKET = "assets";
 
 /**

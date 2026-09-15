@@ -81,6 +81,12 @@ by design.
   the active match into view;   regex and headings-only scope; Ω special
   characters insert into the focused field (title, subtitle, metadata,
   find/replace)
+- **Optional vault** — one free encrypted folder per account. Titles and
+  essay bodies are encrypted in the browser before they are stored. The
+  passphrase is not your sign-in password; a recovery code is shown once
+  at create. Images in vault essays are stored unencrypted. GitHub and zip
+  skip vault essays while locked (GitHub can include them only when
+  unlocked, the toggle is on, and the repo is private).
 - **Cleanup** (broom) — pinnable tabbed panel: Import (fix footnotes), Text,
   Punctuation, and Publish (footnote copy formats, Substack native footnote
   helper, link/image check); Clean whitespace joins Shift-Enter /

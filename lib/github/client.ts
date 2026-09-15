@@ -79,6 +79,21 @@ export async function githubWhoAmI(
   return githubFetch(token, "/user");
 }
 
+export async function githubRepoIsPrivate(
+  token: string,
+  repo: string
+): Promise<boolean> {
+  const parsed = parseGithubRepo(repo);
+  if (!parsed) {
+    throw new Error('Repo must look like "owner/repo".');
+  }
+  const info = await githubFetch<{ private?: boolean }>(
+    token,
+    `/repos/${parsed.owner}/${parsed.repo}`
+  );
+  return Boolean(info.private);
+}
+
 const TREE_TTL_MS = 20_000;
 const treeCache = new Map<
   string,

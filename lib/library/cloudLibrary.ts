@@ -5,6 +5,7 @@ import {
   deleteUserAsset,
   type UploadProgress,
 } from "@/lib/assets/upload";
+import { createAssetSignedUrl } from "@/lib/assets/signedUrls";
 import { assetPathFromUrl } from "@/lib/assets/paths";
 import { canonicalizeLibraryUrl } from "@/lib/library/urls";
 import type { LibraryMeta } from "@/lib/library/sessionLibrary";
@@ -47,14 +48,7 @@ export function cloudRowToMeta(row: CloudLibraryRow): LibraryMeta {
 }
 
 export async function publicUrlForAssetPath(path: string): Promise<string> {
-  const supabase = createClient();
-  const { data } = supabase.storage.from("assets").getPublicUrl(path);
-  if (data?.publicUrl) return data.publicUrl;
-  const signed = await supabase.storage
-    .from("assets")
-    .createSignedUrl(path, 60 * 60 * 24 * 7);
-  if (signed.data?.signedUrl) return signed.data.signedUrl;
-  throw new Error("Could not resolve Library PDF URL");
+  return createAssetSignedUrl(path);
 }
 
 export async function upsertCloudLibraryLink(input: {

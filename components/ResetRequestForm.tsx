@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getPublicSiteUrl } from "@/lib/siteUrl";
+import { VAULT_PASSWORD_RESET_NOTE } from "@/lib/vault/copy";
 
 export function ResetRequestForm() {
   const [email, setEmail] = useState("");
@@ -42,6 +43,9 @@ export function ResetRequestForm() {
           If an account exists for {email}, a password reset link is on its
           way. The link opens a page to choose a new password.
         </p>
+        <p className="mt-4 text-sm text-muted">
+          {VAULT_PASSWORD_RESET_NOTE}
+        </p>
         <p className="mt-6 text-sm text-muted">
           <Link
             href="/login"
@@ -57,6 +61,7 @@ export function ResetRequestForm() {
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-sm">
       <h1 className="text-2xl font-semibold mb-8">Reset your password</h1>
+      <p className="mb-6 text-sm text-muted">{VAULT_PASSWORD_RESET_NOTE}</p>
 
       <label className="block mb-6">
         <span className="block text-sm mb-1.5">Email</span>

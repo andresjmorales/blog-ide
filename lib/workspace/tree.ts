@@ -36,11 +36,16 @@ export function getNotesChannel(
 export function systemFolderDisplayName(node: WorkspaceNode): string {
   if (node.system_key === "inbox") return "Notes";
   if (node.system_key === "trash") return "Trash";
+  if (node.system_key === "vault") return "Vault";
   return node.name;
 }
 
 export function isSystemFolder(node: WorkspaceNode): boolean {
-  return node.system_key === "trash" || node.system_key === "inbox";
+  return (
+    node.system_key === "trash" ||
+    node.system_key === "inbox" ||
+    node.system_key === "vault"
+  );
 }
 
 /** True if node is the Trash folder or nested under it. */
@@ -193,10 +198,17 @@ export function documentIdsInSubtree(
 export function eligibleMoveFolders(
   nodes: WorkspaceNode[],
   movingId: string,
-  options?: { includeTrash?: boolean; includeInbox?: boolean }
+  options?: {
+    includeTrash?: boolean;
+    includeInbox?: boolean;
+    includeVault?: boolean;
+    vaultOnly?: boolean;
+  }
 ): WorkspaceNode[] {
   const trashId = getTrashNode(nodes)?.id;
   const inboxId = getInboxNode(nodes)?.id;
+  const vaultId = nodes.find((n) => n.system_key === "vault")?.id;
+  const vaultIds = vaultId ? new Set(collectSubtreeIds(vaultId, nodes)) : new Set<string>();
   const blocked = new Set(collectSubtreeIds(movingId, nodes));
   return nodes
     .filter((n) => {
@@ -206,6 +218,10 @@ export function eligibleMoveFolders(
       // Notes channels are managed from the Notes panel, not the Files tree.
       // Restore may still target Notes via includeInbox.
       if (!options?.includeInbox && n.id === inboxId) return false;
+      if (options?.vaultOnly) {
+        return Boolean(vaultId && vaultIds.has(n.id));
+      }
+      if (!options?.includeVault && vaultId && vaultIds.has(n.id)) return false;
       return true;
     })
     .sort((a, b) => a.name.localeCompare(b.name));

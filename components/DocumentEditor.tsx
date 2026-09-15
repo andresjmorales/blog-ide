@@ -86,6 +86,8 @@ type Props = {
   shellDock?: ReactNode;
   cleanupOpen?: boolean;
   onOpenCleanup?: () => void;
+  /** When true, skip Open Graph / reader requests (vault essays). */
+  inVault?: boolean;
   /** Controlled outline rail (split mode snapshots / restores this). */
   outlineOpen?: boolean;
   onOutlineOpenChange?: (open: boolean) => void;
@@ -148,6 +150,7 @@ export function DocumentEditor({
   onOpenCleanup,
   outlineOpen: outlineOpenProp,
   onOutlineOpenChange,
+  inVault = false,
 }: Props) {
   const { prefs, updatePrefs } = useEditorPrefs();
   const dialog = useAppDialog();
@@ -512,6 +515,7 @@ export function DocumentEditor({
             }}
             cleanupOpen={cleanupOpen}
             onOpenCleanup={onOpenCleanup}
+            inVault={inVault}
           />
         )}
         {editor && findOpen && (
@@ -583,7 +587,7 @@ export function DocumentEditor({
               </div>
             </div>
             {shellDock}
-            <LinkEditCard editor={editor} showPreviews />
+            <LinkEditCard editor={editor} showPreviews={!inVault} />
             <HarperLintCard editor={editor} />
             {prefs.fetchBibleEnabled ? (
               <Suspense fallback={null}>

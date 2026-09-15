@@ -54,6 +54,8 @@ type Props = {
   onAiCleanup?: () => void | Promise<void>;
   /** Full document markdown for the Publish tab. */
   getMarkdown: () => string;
+  /** When false, skip link/image fetch (vault essays). */
+  allowServerChecks?: boolean;
 };
 
 /**
@@ -68,6 +70,7 @@ export function CleanupDialog({
   onFixFootnotes,
   onAiCleanup,
   getMarkdown,
+  allowServerChecks = true,
 }: Props) {
   if (!open) return null;
 
@@ -80,6 +83,7 @@ export function CleanupDialog({
       onFixFootnotes={onFixFootnotes}
       onAiCleanup={onAiCleanup}
       getMarkdown={getMarkdown}
+      allowServerChecks={allowServerChecks}
     />
   );
 }
@@ -91,6 +95,7 @@ function CleanupPanel({
   onFixFootnotes,
   onAiCleanup,
   getMarkdown,
+  allowServerChecks = true,
 }: {
   onClose: () => void;
   editor: Editor | null;
@@ -98,6 +103,7 @@ function CleanupPanel({
   onFixFootnotes?: () => void | Promise<void>;
   onAiCleanup?: () => void | Promise<void>;
   getMarkdown: () => string;
+  allowServerChecks?: boolean;
 }) {
   const titleId = useId();
   const { prefs, updatePrefs } = useEditorPrefs();
@@ -360,6 +366,7 @@ function CleanupPanel({
               key={publishRunId}
               getMarkdown={getMarkdown}
               onRerun={() => setPublishRunId((id) => id + 1)}
+              allowServerChecks={allowServerChecks}
             />
           )}
         </div>
@@ -454,16 +461,23 @@ function PunctuationTab({
 function PublishTab({
   getMarkdown,
   onRerun,
+  allowServerChecks = true,
 }: {
   getMarkdown: () => string;
   onRerun: () => void;
+  allowServerChecks?: boolean;
 }) {
-  const [busy, setBusy] = useState(true);
+  const [busy, setBusy] = useState(allowServerChecks);
   const [report, setReport] = useState<PrePublishReport | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() =>
+    allowServerChecks
+      ? null
+      : "Unavailable in the vault — this would send URLs from the essay to the server."
+  );
   const [copyBusy, setCopyBusy] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!allowServerChecks) return;
     let cancelled = false;
     void runPrePublishCheck(getMarkdown())
       .then((next) => {
