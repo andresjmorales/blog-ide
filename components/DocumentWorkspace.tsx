@@ -116,6 +116,7 @@ import {
   type ConflictPresentation,
 } from "@/lib/workspace/conflicts";
 import { VAULT_SERVER_FEATURE_REASON } from "@/lib/vault/copy";
+import { isVaultNamePlaceholder } from "@/lib/vault/names";
 
 const SAMPLE_DOC = `---
 title: Welcome to BlogIDE
@@ -575,6 +576,9 @@ export function DocumentWorkspace({
       }
       const title = parseTitle(splitFrontmatter(fullMarkdown).frontmatter);
       if (!title || !documentName) return;
+      if (isVaultNamePlaceholder(documentName) || isVaultNamePlaceholder(title)) {
+        return;
+      }
       if (fileNameMatchesTitle(documentName, title)) return;
       const desired = titleToFileName(title);
       syncingNameRef.current = true;
@@ -874,8 +878,18 @@ export function DocumentWorkspace({
     ) {
       return;
     }
+    if (isVaultNamePlaceholder(documentName)) return;
     if (prevDocumentNameRef.current === documentName) return;
+    const prev = prevDocumentNameRef.current;
     prevDocumentNameRef.current = documentName;
+    // Vault overlay arriving is not a Files rename. Do not copy "encrypted"
+    // into the title, and do not copy the filename stem over a real title.
+    if (
+      inVault &&
+      (prev == null || prev === "" || isVaultNamePlaceholder(prev))
+    ) {
+      return;
+    }
     const fromFile = fileNameToTitle(documentName);
     const timer = window.setTimeout(() => {
       if (loading) return;
@@ -906,7 +920,7 @@ export function DocumentWorkspace({
       });
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [documentName, loading, conflict?.unresolved]);
+      }, [documentName, loading, conflict?.unresolved, inVault]);
 
   const setDocumentLanguages = useCallback((languages: string[]) => {
     setDoc((current) => {
@@ -1003,6 +1017,8 @@ export function DocumentWorkspace({
           !conflict?.unresolved &&
           onRenameRef.current &&
           documentNameRef.current &&
+          !isVaultNamePlaceholder(documentNameRef.current) &&
+          !isVaultNamePlaceholder(cleaned) &&
           !fileNameMatchesTitle(documentNameRef.current, cleaned)
         ) {
           const desired = titleToFileName(cleaned);
