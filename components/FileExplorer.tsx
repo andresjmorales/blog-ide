@@ -27,6 +27,7 @@ import {
   fileStem,
   explorerDisplayName,
 } from "@/lib/workspace/explorerDisplay";
+import { nodesWithDisplayNames } from "@/lib/vault/names";
 import type { WorkspaceNode } from "@/lib/workspace/types";
 import type { GithubMapStatus } from "@/lib/github/types";
 import { githubStatusTitle, unimportedGithubNoticePaths } from "@/lib/github/status";
@@ -165,26 +166,27 @@ export function FileExplorer({
     });
   }
 
-  const trash = getTrashNode(nodes);
+  const labeled = nodesWithDisplayNames(nodes, vaultNames ?? new Map());
+  const trash = getTrashNode(labeled);
   const trashId = trash?.id ?? null;
-  const vault = getVaultNode(nodes);
+  const vault = getVaultNode(labeled);
   const vaultId = vault?.id ?? null;
 
-  const mainRoots = childrenOf(nodes, null).filter(
+  const mainRoots = childrenOf(labeled, null).filter(
     (n) =>
       n.system_key !== "trash" &&
       n.system_key !== "inbox" &&
       n.system_key !== "vault" &&
-      !isInTrash(n.id, nodes, trashId)
+      !isInTrash(n.id, labeled, trashId)
   );
-  const trashChildren = trashId ? childrenOf(nodes, trashId) : [];
+  const trashChildren = trashId ? childrenOf(labeled, trashId) : [];
   const ambiguousTitles = ambiguousDisplayTitles(
-    nodes,
+    labeled,
     trashId,
     docTitles,
     vaultNames
   );
-  const nameTwins = sameNamedDocumentTwins(nodes);
+  const nameTwins = sameNamedDocumentTwins(labeled);
   const unimportedGithub = unimportedGithubNoticePaths(
     githubByNode?.values() ?? []
   );
@@ -196,10 +198,10 @@ export function FileExplorer({
   }
 
   function buildMenuItems(node: WorkspaceNode): ContextMenuItem[] {
-    const inTrash = isInTrash(node.id, nodes, trashId);
+    const inTrash = isInTrash(node.id, labeled, trashId);
     const systemFolder = isSystemFolder(node);
     const items: ContextMenuItem[] = [];
-    const inVault = Boolean(vaultId && isInVault(node.id, nodes, vaultId));
+    const inVault = Boolean(vaultId && isInVault(node.id, labeled, vaultId));
 
     if (isVaultFolder(node)) {
       const vaultItems: ContextMenuItem[] = [];
@@ -352,7 +354,7 @@ export function FileExplorer({
     }
 
     if (inTrash) {
-      const restoreFolders = eligibleMoveFolders(nodes, node.id, {
+      const restoreFolders = eligibleMoveFolders(labeled, node.id, {
         includeTrash: false,
         // Allow restoring a Notes channel back under Notes.
         includeInbox: true,
@@ -370,13 +372,13 @@ export function FileExplorer({
           },
           ...restoreFolders.map((folder) => ({
             id: `restore-${folder.id}`,
-            label: folderPathLabel(folder.id, nodes),
+            label: folderPathLabel(folder.id, labeled),
             onSelect: () => onRestore(node.id, folder.id),
           })),
         ],
       });
     } else {
-      const moveFolders = eligibleMoveFolders(nodes, node.id, {
+      const moveFolders = eligibleMoveFolders(labeled, node.id, {
         includeTrash: false,
         vaultOnly: inVault,
       }).filter((folder) => folder.id !== node.parent_id);
@@ -397,7 +399,7 @@ export function FileExplorer({
             : []),
           ...moveFolders.map((folder) => ({
             id: `move-${folder.id}`,
-            label: folderPathLabel(folder.id, nodes),
+            label: folderPathLabel(folder.id, labeled),
             onSelect: () => onMoveTo(node.id, folder.id),
           })),
         ],
@@ -508,7 +510,7 @@ export function FileExplorer({
           <TreeNode
             key={node.id}
             node={node}
-            nodes={nodes}
+            nodes={labeled}
             depth={0}
             activeNodeId={activeNodeId}
             trashId={trashId}
@@ -558,14 +560,14 @@ export function FileExplorer({
           </button>
           {vaultUnlocked && vaultOpen && (
             <ul className="mt-0.5 space-y-0.5 text-sm">
-              {childrenOf(nodes, vault.id).length === 0 ? (
+              {childrenOf(labeled, vault.id).length === 0 ? (
                 <li className="px-2 py-1 text-xs text-muted">Empty</li>
               ) : (
-                childrenOf(nodes, vault.id).map((node) => (
+                childrenOf(labeled, vault.id).map((node) => (
                   <TreeNode
                     key={node.id}
                     node={node}
-                    nodes={nodes}
+                    nodes={labeled}
                     depth={0}
                     activeNodeId={activeNodeId}
                     trashId={trashId}
@@ -615,7 +617,7 @@ export function FileExplorer({
                   <TreeNode
                     key={node.id}
                     node={node}
-                    nodes={nodes}
+                    nodes={labeled}
                     depth={0}
                     activeNodeId={activeNodeId}
                     trashId={trashId}

@@ -1,4 +1,5 @@
 import type { WorkspaceNode } from "@/lib/workspace/types";
+import { isVaultNamePlaceholder } from "@/lib/vault/names";
 
 export function getTrashNode(
   nodes: WorkspaceNode[]
@@ -261,6 +262,10 @@ export function documentFileKey(name: string): string {
  * Live documents that share a file name (Trash excluded), keyed by node id.
  * Used to spot a second BlogIDE copy after a git mv / import, without
  * creating anything from GitHub.
+ *
+ * Vault rows share the public placeholder `encrypted`; callers should pass
+ * `nodesWithDisplayNames` so unlocked twins use decrypted filenames. Locked
+ * placeholders are skipped so every vault essay is not flagged as a copy.
  */
 export function sameNamedDocumentTwins(
   nodes: WorkspaceNode[]
@@ -271,7 +276,7 @@ export function sameNamedDocumentTwins(
     if (node.kind !== "document") continue;
     if (isInTrash(node.id, nodes, trash?.id)) continue;
     const key = documentFileKey(node.name);
-    if (!key) continue;
+    if (!key || isVaultNamePlaceholder(node.name)) continue;
     const list = groups.get(key) ?? [];
     list.push(node);
     groups.set(key, list);
