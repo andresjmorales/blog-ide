@@ -1,6 +1,42 @@
 import { byteaToBytes } from "@/lib/vault/bytes";
-import { decryptUtf8 } from "@/lib/vault/crypto";
+import { decryptUtf8, VAULT_NAME_PLACEHOLDER } from "@/lib/vault/crypto";
+import { titleToFileName } from "@/lib/markdown/titleFrontmatter";
 import type { WorkspaceNode } from "@/lib/workspace/types";
+
+/** Public placeholder, plus uniquified forms the filename sync used to write. */
+const PLACEHOLDER_NAME_RE = new RegExp(
+  `^${VAULT_NAME_PLACEHOLDER}(?: \\(\\d+\\))?(?:\\.md)?$`
+);
+
+export function isVaultNamePlaceholder(
+  name: string | null | undefined
+): boolean {
+  if (!name) return false;
+  return PLACEHOLDER_NAME_RE.test(name.trim());
+}
+
+/** Filename the editor may treat as a real name. Never the vault placeholder. */
+export function editorFileNameForNode(
+  node: WorkspaceNode,
+  vaultNames: Map<string, string>,
+  inVault: boolean
+): string | null {
+  const overlay = vaultNames.get(node.id);
+  if (overlay && !isVaultNamePlaceholder(overlay)) return overlay;
+  if (inVault) return null;
+  return node.name;
+}
+
+/** If `name_enc` was stomped to the placeholder, rebuild a filename from the title. */
+export function restoredVaultFileName(
+  storedName: string,
+  title: string | null | undefined
+): string | null {
+  if (!isVaultNamePlaceholder(storedName)) return null;
+  const trimmed = title?.trim() ?? "";
+  if (!trimmed || isVaultNamePlaceholder(trimmed)) return null;
+  return titleToFileName(trimmed);
+}
 
 export async function decryptTreeNames(
   nodes: WorkspaceNode[],

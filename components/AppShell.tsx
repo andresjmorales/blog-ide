@@ -97,7 +97,14 @@ import {
   reconcileVault,
   renameVaultDisplay,
 } from "@/lib/vault/move";
-import { decryptTreeNames, decryptTreeUrls, nodesWithDisplayNames } from "@/lib/vault/names";
+import {
+  decryptTreeNames,
+  decryptTreeUrls,
+  editorFileNameForNode,
+  isVaultNamePlaceholder,
+  nodesWithDisplayNames,
+  restoredVaultFileName,
+} from "@/lib/vault/names";
 import {
   getVaultKeys,
   isVaultUnlocked,
@@ -149,6 +156,7 @@ import {
 } from "@/components/GitHubPushWarningDialog";
 import {
   documentIdsInSubtree,
+  collectSubtreeIds,
   getInboxNode,
   getTrashNode,
   isInTrash,
@@ -817,6 +825,53 @@ function AppShellContent({
       setTreeStale,
     ]
   );
+
+  const restoringVaultNamesRef = useRef(false);
+  useEffect(() => {
+    if (previewMode || !vaultUnlocked) return;
+    if (restoringVaultNamesRef.current) return;
+    const overlay = new Map(vaultNames);
+    const work: Array<{ node: WorkspaceNode; fileName: string }> = [];
+    for (const item of nodes) {
+      if (!isInVault(item.id, nodes) || item.system_key === "vault") continue;
+      const stored = overlay.get(item.id) ?? item.name;
+      const recovered = restoredVaultFileName(stored, docTitles.get(item.id));
+      if (!recovered) continue;
+      const named = nodesWithDisplayNames(nodes, overlay);
+      const fileName = uniqueSiblingName(
+        named,
+        item.parent_id,
+        recovered,
+        item.id
+      );
+      work.push({ node: item, fileName });
+      overlay.set(item.id, fileName);
+    }
+    if (work.length === 0) return;
+    restoringVaultNamesRef.current = true;
+    let cancelled = false;
+    void (async () => {
+      try {
+        for (const item of work) {
+          if (cancelled) return;
+          await renameVaultDisplay(item.node, item.fileName, item.node.url);
+        }
+        if (!cancelled) await refreshTree();
+      } finally {
+        restoringVaultNamesRef.current = false;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    previewMode,
+    vaultUnlocked,
+    vaultNames,
+    docTitles,
+    nodes,
+    refreshTree,
+  ]);
 
   const vaultReconcileRef = useRef(false);
   useEffect(() => {
@@ -1635,8 +1690,11 @@ function AppShellContent({
     });
     if (!ok) return;
     const names = new Map(vaultNames);
-    for (const [id, title] of docTitles) {
-      if (!names.has(id)) names.set(id, title);
+    for (const id of collectSubtreeIds(nodeId, nodes)) {
+      const current = names.get(id);
+      if (current && !isVaultNamePlaceholder(current)) continue;
+      const moving = nodes.find((item) => item.id === id);
+      if (moving) names.set(id, moving.name);
     }
     try {
       await moveSubtreeToVault({ nodeId, nodes, names });
@@ -1795,6 +1853,7 @@ function AppShellContent({
     fileName: string
   ): Promise<string | void> {
     if (previewMode) return;
+    if (isVaultNamePlaceholder(fileName)) return;
     const node = nodes.find((n) => n.id === nodeId);
     if (!node) return;
     const named = nodesWithDisplayNames(nodes, vaultNames);
@@ -2215,7 +2274,11 @@ function AppShellContent({
                 nodeId={previewMode ? null : activeNodeId}
                 documentName={
                   activeNode
-                    ? vaultNames.get(activeNode.id) ?? activeNode.name
+                    ? editorFileNameForNode(
+                        activeNode,
+                        vaultNames,
+                        isInVault(activeNode.id, nodes)
+                      )
                     : null
                 }
                 inVault={Boolean(
