@@ -512,9 +512,13 @@ begin
   values (uid)
   on conflict (user_id) do nothing;
 
+  -- Look anywhere in the tree, including Trash. Boot used to require
+  -- parent_id is null, so moving essays/ or drafts/ to Trash minted a
+  -- twin at the workspace root on the next page load.
   select id into essays_id
   from workspace_nodes
-  where user_id = uid and parent_id is null and kind = 'folder' and name = 'essays'
+  where user_id = uid and kind = 'folder' and lower(name) = 'essays'
+  order by case when parent_id is null then 0 else 1 end, created_at asc
   limit 1;
 
   if essays_id is null then
@@ -525,7 +529,8 @@ begin
 
   select id into drafts_id
   from workspace_nodes
-  where user_id = uid and parent_id is null and kind = 'folder' and name = 'drafts'
+  where user_id = uid and kind = 'folder' and lower(name) = 'drafts'
+  order by case when parent_id is null then 0 else 1 end, created_at asc
   limit 1;
 
   if drafts_id is null then
@@ -557,8 +562,9 @@ begin
     end if;
   end if;
 
-  -- Seed once for brand-new workspaces. Deleting it is permanent;
-  -- essays/, drafts/, Notes, and Trash still keep the Files panel populated.
+  -- Seed once for brand-new workspaces. Deleting it is permanent.
+  -- Notes and Trash always remain. essays/ and drafts/ are reseeded only
+  -- when no folder with that name exists anywhere, including Trash.
   if scratch_id is null and is_fresh then
     insert into workspace_nodes (user_id, parent_id, kind, name, position, pinned, system_key)
     values (uid, null, 'document', 'scratchpad.md', 2, true, 'scratchpad')
