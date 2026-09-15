@@ -23,7 +23,10 @@ import {
   systemFolderDisplayName,
 } from "@/lib/workspace/tree";
 import { getVaultNode, isInVault, isVaultFolder } from "@/lib/vault/membership";
-import { overlayVaultName } from "@/lib/vault/names";
+import {
+  fileStem,
+  explorerDisplayName,
+} from "@/lib/workspace/explorerDisplay";
 import type { WorkspaceNode } from "@/lib/workspace/types";
 import type { GithubMapStatus } from "@/lib/github/types";
 import { githubStatusTitle, unimportedGithubNoticePaths } from "@/lib/github/status";
@@ -79,40 +82,19 @@ function childrenOf(
     .sort(compareSiblings);
 }
 
-/** Filename stem — hide the .md extension; storage still uses it. */
-function fileStem(node: WorkspaceNode): string {
-  if (node.kind === "document") {
-    return node.name.replace(/\.md$/i, "");
-  }
-  return node.name;
-}
-
-/** Explorer label: frontmatter title when it differs from the filename stem. */
-function displayName(
-  node: WorkspaceNode,
-  docTitles?: Map<string, string>,
-  vaultNames?: Map<string, string>
-): string {
-  if (node.system_key === "vault") return "Vault";
-  if (vaultNames?.has(node.id)) return overlayVaultName(node, vaultNames);
-  if (node.kind === "document" && docTitles) {
-    const title = docTitles.get(node.id)?.trim();
-    const stem = fileStem(node);
-    if (title && title !== stem) return title;
-  }
-  return fileStem(node);
-}
-
 function ambiguousDisplayTitles(
   nodes: WorkspaceNode[],
   trashId: string | null,
-  docTitles?: Map<string, string>
+  docTitles?: Map<string, string>,
+  vaultNames?: Map<string, string>
 ): Set<string> {
   const counts = new Map<string, number>();
   for (const node of nodes) {
     if (node.kind !== "document") continue;
     if (isInTrash(node.id, nodes, trashId)) continue;
-    const key = displayName(node, docTitles).trim().toLowerCase();
+    const key = explorerDisplayName(node, docTitles, vaultNames)
+      .trim()
+      .toLowerCase();
     if (!key) continue;
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
@@ -130,7 +112,7 @@ function explorerLabel(
   ambiguous: Set<string>,
   vaultNames?: Map<string, string>
 ): string {
-  const label = displayName(node, docTitles, vaultNames);
+  const label = explorerDisplayName(node, docTitles, vaultNames);
   if (node.kind !== "document" || !ambiguous.has(label.trim().toLowerCase())) {
     return label;
   }
@@ -196,7 +178,12 @@ export function FileExplorer({
       !isInTrash(n.id, nodes, trashId)
   );
   const trashChildren = trashId ? childrenOf(nodes, trashId) : [];
-  const ambiguousTitles = ambiguousDisplayTitles(nodes, trashId, docTitles);
+  const ambiguousTitles = ambiguousDisplayTitles(
+    nodes,
+    trashId,
+    docTitles,
+    vaultNames
+  );
   const nameTwins = sameNamedDocumentTwins(nodes);
   const unimportedGithub = unimportedGithubNoticePaths(
     githubByNode?.values() ?? []
