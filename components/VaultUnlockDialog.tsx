@@ -11,6 +11,7 @@ import {
   unlockWithPassphrase,
   unlockWithRecovery,
 } from "@/lib/vault/session";
+import { useArmedWhenOpen } from "@/lib/ui/useArmedWhenOpen";
 
 type Props = {
   open: boolean;
@@ -29,6 +30,7 @@ export function VaultUnlockDialog({ open, row, onClose, onUnlocked }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needNewPass, setNeedNewPass] = useState(false);
+  const armed = useArmedWhenOpen(open);
 
   useEffect(() => {
     if (open) return;
@@ -48,7 +50,7 @@ export function VaultUnlockDialog({ open, row, onClose, onUnlocked }: Props) {
   if (!open || !row) return null;
 
   async function handleUnlock() {
-    if (!row) return;
+    if (!armed || !row) return;
     setError(null);
     setBusy(true);
     try {
@@ -70,6 +72,7 @@ export function VaultUnlockDialog({ open, row, onClose, onUnlocked }: Props) {
   }
 
   async function handleNewPassphrase() {
+    if (!armed) return;
     setError(null);
     if (newPass.length < 8) {
       setError("Use at least 8 characters.");
@@ -142,7 +145,7 @@ export function VaultUnlockDialog({ open, row, onClose, onUnlocked }: Props) {
               </p>
             )}
             <div className="app-dialog-actions">
-              <button type="submit" className="app-dialog-btn is-primary" disabled={busy}>
+              <button type="submit" className="app-dialog-btn is-primary" disabled={busy || !armed}>
                 {busy ? "Saving…" : "Save passphrase"}
               </button>
             </div>
@@ -206,7 +209,7 @@ export function VaultUnlockDialog({ open, row, onClose, onUnlocked }: Props) {
               <button type="button" className="app-dialog-btn" onClick={onClose}>
                 Cancel
               </button>
-              <button type="submit" className="app-dialog-btn is-primary" disabled={busy || !secret.trim()}>
+              <button type="submit" className="app-dialog-btn is-primary" disabled={busy || !armed || !secret.trim()}>
                 {busy ? "Unlocking…" : "Unlock"}
               </button>
             </div>

@@ -547,6 +547,11 @@ function AppShellContent({
     }
   }, [userEmail, setDocTitles, setActiveNodeId]);
 
+  const openCreateVault = useCallback(() => {
+    setSettingsOpen(false);
+    window.setTimeout(() => setCreateVaultOpen(true), 0);
+  }, [setSettingsOpen, setCreateVaultOpen]);
+
   useEffect(() => {
     if (!vaultUnlocked) return;
     return startVaultIdleWatch(() => {
@@ -1603,14 +1608,15 @@ function AppShellContent({
 
   async function handleUnlockVault() {
     if (previewMode) return;
+    setSettingsOpen(false);
     try {
       const row = await fetchUserVault();
       if (!row) {
-        setCreateVaultOpen(true);
+        window.setTimeout(() => setCreateVaultOpen(true), 0);
         return;
       }
       setVaultRow(row);
-      setUnlockVaultOpen(true);
+      window.setTimeout(() => setUnlockVaultOpen(true), 0);
     } catch (error) {
       showErrorToast(error, "Could not open the vault.");
     }
@@ -1936,7 +1942,7 @@ function AppShellContent({
       }
       vaultUnlocked={vaultUnlocked}
       vaultNames={vaultNames}
-      onCreateVault={() => setCreateVaultOpen(true)}
+      onCreateVault={openCreateVault}
       onUnlockVault={() => void handleUnlockVault()}
       onLockVault={() => void handleLockVault()}
       onMoveToVault={(id) => void handleMoveToVault(id)}
@@ -2341,7 +2347,7 @@ function AppShellContent({
                 : () => void handlePullFromGithub("workspace")
             }
             pushbulletChannels={notesChannels}
-            onCreateVault={() => setCreateVaultOpen(true)}
+            onCreateVault={openCreateVault}
             onUnlockVault={() => void handleUnlockVault()}
             onLockVault={() => void handleLockVault()}
           />

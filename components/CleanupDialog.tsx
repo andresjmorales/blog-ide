@@ -18,6 +18,7 @@ import {
 } from "@/lib/export/clipboardHtml";
 import { copyDocumentForPaste, copyMarkdownToClipboard } from "@/lib/export/document";
 import { showCopiedToast, showErrorToast } from "@/lib/ui/toast";
+import { VAULT_SERVER_FEATURE_REASON } from "@/lib/vault/copy";
 import {
   SUBSTACK_FOOTNOTE_HELPER,
   substackFootnoteBookmarklet,
@@ -472,7 +473,7 @@ function PublishTab({
   const [error, setError] = useState<string | null>(() =>
     allowServerChecks
       ? null
-      : "Unavailable in the vault — this would send URLs from the essay to the server."
+      : VAULT_SERVER_FEATURE_REASON
   );
   const [copyBusy, setCopyBusy] = useState<string | null>(null);
 
