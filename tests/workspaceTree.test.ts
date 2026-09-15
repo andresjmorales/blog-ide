@@ -15,6 +15,7 @@ import {
   systemFolderDisplayName,
   uniqueSiblingName,
 } from "@/lib/workspace/tree";
+import { nodesWithDisplayNames } from "@/lib/vault/names";
 import type { WorkspaceNode } from "@/lib/workspace/types";
 
 let seq = 0;
@@ -329,5 +330,75 @@ describe("listSameNamedDocuments", () => {
     expect(sameNamedDocumentTwins(all).get(twin.id)).toEqual([
       { nodeId: original.id, label: "drafts/two.md" },
     ]);
+  });
+});
+
+describe("vault overlay names", () => {
+  function vaultFixture() {
+    const vault = node({
+      kind: "folder",
+      name: "Vault",
+      system_key: "vault",
+    });
+    const folder = node({
+      kind: "folder",
+      name: "encrypted",
+      parent_id: vault.id,
+    });
+    const secretDoc = node({
+      name: "encrypted",
+      parent_id: folder.id,
+    });
+    const other = node({
+      name: "encrypted",
+      parent_id: vault.id,
+    });
+    const overlay = new Map([
+      [folder.id, "Secret Folder"],
+      [secretDoc.id, "Secret Doc.md"],
+      [other.id, "Other.md"],
+    ]);
+    return { vault, folder, secretDoc, other, overlay };
+  }
+
+  it("does not treat the public encrypted placeholder as a same-name twin", () => {
+    const f = vaultFixture();
+    const all = [f.vault, f.folder, f.secretDoc, f.other];
+    expect(sameNamedDocumentTwins(all).size).toBe(0);
+    expect(listSameNamedDocuments(all, f.other.id)).toEqual([]);
+  });
+
+  it("uses decrypted names for vault folder paths and real twins", () => {
+    const f = vaultFixture();
+    const labeled = nodesWithDisplayNames(
+      [f.vault, f.folder, f.secretDoc, f.other],
+      f.overlay
+    );
+    expect(folderPathLabel(f.folder.id, labeled)).toBe("Vault/Secret Folder");
+    expect(sameNamedDocumentTwins(labeled).size).toBe(0);
+
+    const colliding = labeled.map((n) =>
+      n.id === f.other.id ? { ...n, name: "Secret Doc.md" } : n
+    );
+    expect(sameNamedDocumentTwins(colliding).get(f.other.id)).toEqual([
+      {
+        nodeId: f.secretDoc.id,
+        label: "Vault/Secret Folder/Secret Doc.md",
+      },
+    ]);
+  });
+
+  it("uniquifies new vault essays against overlay names, not encrypted", () => {
+    const f = vaultFixture();
+    const labeled = nodesWithDisplayNames(
+      [f.vault, f.folder, f.secretDoc, f.other],
+      f.overlay
+    );
+    expect(uniqueSiblingName(labeled, f.vault.id, "Other.md")).toBe(
+      "Other (2).md"
+    );
+    expect(uniqueSiblingName(labeled, f.vault.id, "New essay.md")).toBe(
+      "New essay.md"
+    );
   });
 });

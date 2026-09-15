@@ -1650,7 +1650,7 @@ function AppShellContent({
           parentId,
           trashId: trash?.id,
           wasInTrash,
-          nodes,
+          nodes: nodesWithDisplayNames(nodes, vaultNames),
           titles: docTitles,
         }),
         undefined,
