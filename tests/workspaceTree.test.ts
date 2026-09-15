@@ -100,6 +100,20 @@ describe("eligibleMoveFolders", () => {
     });
     expect(targets.map((t) => t.id)).toContain(f.inbox.id);
   });
+
+  it("excludes the vault unless includeVault or vaultOnly", () => {
+    const f = fixture();
+    const vault = node({ kind: "folder", name: "Vault", system_key: "vault" });
+    const inner = node({ kind: "folder", name: "secret", parent_id: vault.id });
+    const all = [...f.all, vault, inner];
+    const outside = eligibleMoveFolders(all, f.doc1.id);
+    expect(outside.map((t) => t.id)).not.toContain(vault.id);
+    expect(outside.map((t) => t.id)).not.toContain(inner.id);
+    const onlyVault = eligibleMoveFolders(all, inner.id, { vaultOnly: true });
+    expect(onlyVault.map((t) => t.id)).toEqual([vault.id]);
+    const withVault = eligibleMoveFolders(all, f.doc1.id, { includeVault: true });
+    expect(withVault.map((t) => t.id)).toContain(vault.id);
+  });
 });
 
 describe("compareSiblings", () => {
@@ -269,6 +283,8 @@ describe("getNotesChannel / systemFolderDisplayName", () => {
   it("displays the system inbox folder as Notes", () => {
     const inbox = node({ kind: "folder", name: "Inbox", system_key: "inbox" });
     expect(systemFolderDisplayName(inbox)).toBe("Notes");
+    const vault = node({ kind: "folder", name: "Vault", system_key: "vault" });
+    expect(systemFolderDisplayName(vault)).toBe("Vault");
   });
 });
 

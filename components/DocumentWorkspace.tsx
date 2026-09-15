@@ -115,6 +115,7 @@ import {
   formatConflictTimestamp,
   type ConflictPresentation,
 } from "@/lib/workspace/conflicts";
+import { VAULT_SERVER_FEATURE_REASON } from "@/lib/vault/copy";
 
 const SAMPLE_DOC = `---
 title: Welcome to BlogIDE
@@ -225,6 +226,8 @@ type Props = {
   registerFlushDocument?: (flush: () => Promise<void>) => void;
   /** Docked under the prose column (between Outline and sidenotes). */
   shellDock?: ReactNode;
+  /** Vault essays skip server features (Pandoc, AI cleanup, link check). */
+  inVault?: boolean;
 };
 
 export function DocumentWorkspace({
@@ -252,6 +255,7 @@ export function DocumentWorkspace({
   registerApplySelectionForAi,
   registerFlushDocument,
   shellDock,
+  inVault = false,
 }: Props) {
   const dialog = useAppDialog();
   const [{ frontmatter, subtitle, author, publication, body }, setDoc] =
@@ -761,6 +765,15 @@ export function DocumentWorkspace({
   }, [registerApplySelectionForAi, applySelectionForAi]);
 
   const runAiImportCleanup = useCallback(async () => {
+    if (inVault) {
+      await dialog.confirm({
+        title: "Unavailable in the vault",
+        message: VAULT_SERVER_FEATURE_REASON,
+        confirmLabel: "OK",
+        cancelLabel: "Close",
+      });
+      return;
+    }
     const full = isMarkdownCanonical(mode)
       ? sourceText
       : packDocument(frontmatter, subtitle, author, publication, body);
@@ -799,6 +812,7 @@ export function DocumentWorkspace({
     body,
     applyMarkdown,
     dialog,
+    inVault,
   ]);
 
   const convertFootnoteLinks = useCallback(async () => {
@@ -1479,6 +1493,10 @@ export function DocumentWorkspace({
   }
 
   async function exportPdfPandoc() {
+    if (inVault) {
+      showErrorToast(VAULT_SERVER_FEATURE_REASON, undefined, "export-file");
+      return;
+    }
     try {
       await exportMarkdownAsPdf(currentMarkdown(), essayTitle);
       showSuccessToast("Downloaded PDF.", undefined, "export-file");
@@ -1488,6 +1506,10 @@ export function DocumentWorkspace({
   }
 
   async function exportDocx() {
+    if (inVault) {
+      showErrorToast(VAULT_SERVER_FEATURE_REASON, undefined, "export-file");
+      return;
+    }
     try {
       await exportMarkdownAsDocx(currentMarkdown(), essayTitle);
       showSuccessToast("Downloaded Word file.", undefined, "export-file");
@@ -1668,6 +1690,7 @@ export function DocumentWorkspace({
         {
           id: "export-docx",
           label: "Word (.docx)",
+          disabled: inVault,
           onSelect: () => {
             void exportDocx();
           },
@@ -1675,6 +1698,7 @@ export function DocumentWorkspace({
         {
           id: "export-pdf-pandoc",
           label: "PDF (Pandoc)",
+          disabled: inVault,
           onSelect: () => {
             void exportPdfPandoc();
           },
@@ -1865,7 +1889,8 @@ export function DocumentWorkspace({
         initialTab={cleanupTab}
         getMarkdown={currentMarkdown}
         onFixFootnotes={() => void convertFootnoteLinks()}
-        onAiCleanup={() => void runAiImportCleanup()}
+        onAiCleanup={inVault ? undefined : () => void runAiImportCleanup()}
+        allowServerChecks={!inVault}
       />
     </>
   );
@@ -2005,6 +2030,7 @@ export function DocumentWorkspace({
         onOpenCleanup={() => openCleanup("import")}
         outlineOpen={outlineOpen}
         onOutlineOpenChange={setOutlineOpen}
+        inVault={inVault}
       />
       <EssaySettingsPanel
         open={essaySettingsOpen}
@@ -2038,7 +2064,8 @@ export function DocumentWorkspace({
         initialTab={cleanupTab}
         getMarkdown={currentMarkdown}
         onFixFootnotes={() => void convertFootnoteLinks()}
-        onAiCleanup={() => void runAiImportCleanup()}
+        onAiCleanup={inVault ? undefined : () => void runAiImportCleanup()}
+        allowServerChecks={!inVault}
       />
     </>
   );

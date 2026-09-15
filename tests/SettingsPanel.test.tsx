@@ -47,6 +47,7 @@ describe("SettingsPanel", () => {
       "Editor",
       "Markdown",
       "Storage",
+      "Vault",
       "Integrations",
     ]);
     expect(host!.textContent).not.toContain("Preferences");

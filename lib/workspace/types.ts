@@ -14,6 +14,10 @@ export type WorkspaceNode = {
   system_key: string | null;
   /** Optional accent color (CSS color string) shown in the Files explorer. */
   color: string | null;
+  /** Encrypted display name when the node is in the vault. */
+  name_enc?: string | null;
+  /** Encrypted URL when a vault link is stored. */
+  url_enc?: string | null;
   conflict_of?: string | null;
   conflict_base_version?: number | null;
   conflict_key?: string | null;
@@ -32,6 +36,8 @@ export type RemoteDocument = {
   version: number;
   size_bytes: number;
   updated_at: string;
+  enc?: number;
+  ciphertext?: string | null;
 };
 
 export type DefaultWorkspaceIds = {
@@ -50,6 +56,8 @@ export type SaveDocumentResult =
       reason: "conflict" | "not_found" | "quota" | string;
       remoteVersion?: number;
       remoteMarkdown?: string;
+      remoteEnc?: number;
+      remoteCiphertext?: string | null;
     };
 
 export type CreateDocumentConflictCopyResult =

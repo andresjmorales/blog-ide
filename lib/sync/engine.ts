@@ -16,6 +16,9 @@ import {
   fetchRemoteDocument,
   saveDocumentRemote,
 } from "@/lib/workspace/api";
+import { plaintextFromConflictPayload, plaintextFromRemote } from "@/lib/vault/document";
+import { refreshOwnedAssetUrls } from "@/lib/assets/signedUrls";
+import { createClient } from "@/lib/supabase/client";
 
 export type SyncStatus = {
   /** Document the status bar is describing (editor focus). */
@@ -198,9 +201,21 @@ export async function openDocument(nodeId: string): Promise<OpenedDocument> {
   }
 
   if (remote) {
+    let markdown = await plaintextFromRemote(remote);
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        markdown = await refreshOwnedAssetUrls(markdown, user.id);
+      }
+    } catch {
+      // signed URL refresh is best-effort
+    }
     const next: LocalDoc = {
       nodeId,
-      markdown: remote.markdown,
+      markdown,
       updatedAt: remote.updated_at,
       dirty: false,
       baseVersion: Number(remote.version),
@@ -214,7 +229,7 @@ export async function openDocument(nodeId: string): Promise<OpenedDocument> {
     });
     return {
       nodeId,
-      markdown: remote.markdown,
+      markdown,
       baseVersion: Number(remote.version),
       dirty: false,
     };
@@ -264,12 +279,14 @@ export async function saveLocal(
 async function createConflictCopy(
   nodeId: string,
   baseVersion: number,
-  localMarkdown: string
+  localMarkdown: string,
+  enc = 0
 ): Promise<string> {
   const result = await createDocumentConflictCopy(
     nodeId,
     baseVersion,
-    localMarkdown
+    localMarkdown,
+    { enc }
   );
   if (result.ok) return result.copyId;
   if (result.reason === "quota") {
@@ -321,18 +338,20 @@ async function handleSaveConflict(
     { ok: false }
   >
 ): Promise<boolean> {
-  if (result.remoteMarkdown == null) return false;
+  if (result.remoteMarkdown == null && result.remoteEnc !== 1) return false;
 
   const remoteVersion = Number(
     result.remoteVersion ?? attempted.baseVersion + 1
   );
+  const remotePlain = await plaintextFromConflictPayload(result);
+  if (remotePlain == null) return false;
 
   // Same bytes (or whitespace-normalized): just catch up — no copy.
-  if (normalize(attempted.markdown) === normalize(result.remoteMarkdown)) {
+  if (normalize(attempted.markdown) === normalize(remotePlain)) {
     await catchUpToRemote(
       nodeId,
       attempted.markdown,
-      result.remoteMarkdown,
+      remotePlain,
       remoteVersion
     );
     return true;
@@ -341,15 +360,16 @@ async function handleSaveConflict(
   // Re-read: a concurrent keystroke/sync may have already aligned versions.
   const remote = await fetchRemoteDocument(nodeId);
   const fresh = await getLocalDoc(nodeId);
+  const remoteBody = remote ? await plaintextFromRemote(remote) : remotePlain;
   if (
     remote &&
     fresh &&
-    normalize(fresh.markdown) === normalize(remote.markdown)
+    normalize(fresh.markdown) === normalize(remoteBody)
   ) {
     await catchUpToRemote(
       nodeId,
       fresh.markdown,
-      remote.markdown,
+      remoteBody,
       Number(remote.version)
     );
     return true;
@@ -359,9 +379,10 @@ async function handleSaveConflict(
   const copyId = await createConflictCopy(
     nodeId,
     attempted.baseVersion,
-    localMarkdown
+    localMarkdown,
+    remote?.enc === 1 || result.remoteEnc === 1 ? 1 : 0
   );
-  const resolvedRemote = remote?.markdown ?? result.remoteMarkdown;
+  const resolvedRemote = remoteBody;
   const resolvedVersion = Number(remote?.version ?? remoteVersion);
   await catchUpToRemote(
     nodeId,
@@ -402,12 +423,15 @@ async function syncDocumentOnce(nodeId: string): Promise<void> {
 
   try {
     const previousRemote = await fetchRemoteDocument(nodeId);
-    const previousMarkdown = previousRemote?.markdown ?? "";
+    const previousMarkdown = previousRemote
+      ? await plaintextFromRemote(previousRemote)
+      : "";
 
     const result = await saveDocumentRemote(
       nodeId,
       latest.markdown,
-      latest.baseVersion
+      latest.baseVersion,
+      { enc: previousRemote?.enc === 1 ? 1 : 0 }
     );
 
     if (result.ok) {
@@ -453,7 +477,10 @@ async function syncDocumentOnce(nodeId: string): Promise<void> {
       return;
     }
 
-    if (result.reason === "conflict" && result.remoteMarkdown != null) {
+    if (
+      result.reason === "conflict" &&
+      (result.remoteMarkdown != null || result.remoteEnc === 1)
+    ) {
       const handled = await handleSaveConflict(nodeId, latest, result);
       if (handled) return;
     }
@@ -511,9 +538,10 @@ export async function fastForwardDocument(
   const fresh = await getLocalDoc(nodeId);
   if (fresh?.dirty) return null;
 
+  const markdown = await plaintextFromRemote(remote);
   await putLocalDoc({
     nodeId,
-    markdown: remote.markdown,
+    markdown,
     updatedAt: remote.updated_at,
     dirty: false,
     baseVersion: remoteVersion,
@@ -526,7 +554,7 @@ export async function fastForwardDocument(
   });
   return {
     nodeId,
-    markdown: remote.markdown,
+    markdown,
     baseVersion: remoteVersion,
     dirty: false,
   };

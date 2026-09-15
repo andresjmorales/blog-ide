@@ -8,11 +8,18 @@ import { useAppDialog } from "@/components/AppDialog";
 import { pickImageFile } from "@/lib/assets/imagePipeline";
 import { insertEssayImageFromFile } from "@/lib/editor/insertEssayImage";
 import { ImageIcon } from "@/components/icons";
+import { VAULT_IMAGE_WARNING } from "@/lib/vault/copy";
 
 /**
  * Toolbar image control: dropdown under the button (Upload / Use URL).
  */
-export function ImageInsertMenu({ editor }: { editor: Editor }) {
+export function ImageInsertMenu({
+  editor,
+  inVault = false,
+}: {
+  editor: Editor;
+  inVault?: boolean;
+}) {
   const dialog = useAppDialog();
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(
@@ -67,6 +74,14 @@ export function ImageInsertMenu({ editor }: { editor: Editor }) {
 
   async function uploadImage() {
     setOpen(false);
+    if (inVault) {
+      const ok = await dialog.confirm({
+        title: "Images are not encrypted",
+        message: VAULT_IMAGE_WARNING,
+        confirmLabel: "Insert anyway",
+      });
+      if (!ok) return;
+    }
     const file = await pickImageFile();
     if (!file) return;
     await insertEssayImageFromFile(editor, file, {
@@ -106,6 +121,14 @@ export function ImageInsertMenu({ editor }: { editor: Editor }) {
       confirmLabel: "Next",
     });
     if (!src) return;
+    if (inVault) {
+      const ok = await dialog.confirm({
+        title: "Images are not encrypted",
+        message: VAULT_IMAGE_WARNING,
+        confirmLabel: "Insert anyway",
+      });
+      if (!ok) return;
+    }
     await finishInsert(src);
   }
 

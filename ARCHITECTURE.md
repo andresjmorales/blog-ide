@@ -20,12 +20,16 @@ markdown.
   metadata, user settings, optimistic versions, and quota accounting.
 - Server-side revision history: every save snapshots the replaced version
   (last 20 per document), restorable via `restore_document_revision`.
-- Storage bucket for images (objects are world-readable by URL so embedded
-  images work in exported/published essays; paths are user-scoped and
-  uploads are capped and image-only). Profile photos use a fixed
-  `{userId}/avatar.webp` object in the same public `assets` bucket and
-  store the URL in auth `user_metadata.avatar_url` (not counted in essay
-  quota inventory).
+- Storage bucket for images and Library PDFs (private; the client fetches
+  time-limited signed URLs). Paths are user-scoped and uploads are capped
+  and image-only. Profile photos use a fixed `{userId}/avatar.webp` object
+  in the same `assets` bucket and store the URL in auth
+  `user_metadata.avatar_url` (not counted in essay quota inventory).
+- Optional vault folder (`system_key = 'vault'`): essay bodies, titles, and
+  link URLs are encrypted in the browser (AES-256-GCM) before they reach
+  Postgres. The operator sees sizes, timestamps, and tree shape, not
+  titles or prose. Images stay unencrypted. The vault is free on every
+  account; the passphrase is not the sign-in password.
 - Row-level security on every user-owned table and object path. Writes that
   carry invariants (document versions, quota counters, tree structure) are
   revoked for direct table access and must go through definer RPCs.
@@ -117,8 +121,8 @@ Storage objects tracked in `user_assets` (essay images + Library PDFs). Default
 limits live in `lib/billing/plans.ts`. `recompute_used_bytes` sums both.
 Uploads call `register_user_asset` before Storage write; deletes release via
 `release_asset_path`. Authoritative accounting stays in definer RPCs, never
-client-provided counters. The `assets` bucket is **public-by-URL** so published
-embeds work; private + signed URLs remain deferred. Shared hosted deploys may
+client-provided counters. The `assets` bucket is **private**; essay images
+and Library PDFs are served with signed URLs. Shared hosted deploys may
 raise per-user `quota_bytes` via optional Stripe wiring — operator notes in
 [docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md). Self-host omits billing UI,
 skips beta codes at signup, and uses a large soft quota so Supabase is the
@@ -166,6 +170,7 @@ lib/workspace/        Workspace tree + document RPC clients
 lib/supabase/         Browser, server, and service-role clients
 lib/pins/             Floating pin / pop-out session store
 lib/preview/          Publication HTML, SSRF helpers, OG helpers, reader extracts
+lib/vault/            Optional E2EE vault (WebCrypto, session, move/reconcile)
 lib/github/           One-way GitHub backup (PAT, maps, Git Data push)
 lib/zotero/           Zotero Web API client (search + optional write) and device-local key
 lib/citations/        BibTeX format, Library Cite helpers, clipboard copy

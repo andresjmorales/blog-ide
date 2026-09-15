@@ -193,6 +193,22 @@ export async function deleteLocalDoc(nodeId: string): Promise<void> {
   await db.delete("syncQueue", nodeId);
 }
 
+export async function listLocalDocs(): Promise<LocalDoc[]> {
+  const db = await getDb();
+  return db.getAll("docs");
+}
+
+export async function deleteLocalDocs(nodeIds: string[]): Promise<void> {
+  if (nodeIds.length === 0) return;
+  const db = await getDb();
+  const tx = db.transaction(["docs", "syncQueue"], "readwrite");
+  for (const nodeId of nodeIds) {
+    await tx.objectStore("docs").delete(nodeId);
+    await tx.objectStore("syncQueue").delete(nodeId);
+  }
+  await tx.done;
+}
+
 export async function enqueueSync(
   nodeId: string,
   op: "put" | "delete" = "put"

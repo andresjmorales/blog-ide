@@ -18,6 +18,11 @@ import { GitHubMapDialog } from "@/components/GitHubMapDialog";
 import { GithubMark } from "@/components/icons";
 import { SettingsInfo } from "@/components/SettingsInfo";
 import { githubStatusTitle } from "@/lib/github/status";
+import { VAULT_GITHUB_INCLUDE } from "@/lib/vault/copy";
+import {
+  loadGithubIncludeVault,
+  saveGithubIncludeVault,
+} from "@/lib/vault/prefs";
 
 export type GithubMapNode = {
   id: string;
@@ -56,6 +61,7 @@ export function GitHubSettingsSection({
   const [busy, setBusy] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [editingMap, setEditingMap] = useState<GithubSyncMap | null>(null);
+  const [includeVault, setIncludeVault] = useState(false);
 
   useEffect(() => {
     if (previewMode) return;
@@ -63,6 +69,7 @@ export function GitHubSettingsSection({
       void loadGithubSettings()
         .then(setSettings)
         .catch(() => {});
+      setIncludeVault(loadGithubIncludeVault());
     }, 0);
     return () => window.clearTimeout(timer);
   }, [previewMode, settingsEpoch]);
@@ -204,6 +211,25 @@ export function GitHubSettingsSection({
           >
             Save repo settings
           </button>
+
+          <label className="settings-row mt-3">
+            <span>Include vault essays</span>
+            <input
+              type="checkbox"
+              checked={includeVault}
+              onChange={(e) => {
+                const next = e.target.checked;
+                setIncludeVault(next);
+                saveGithubIncludeVault(next);
+                setStatus(
+                  next
+                    ? "Vault essays will be included. The repo must be private."
+                    : "Vault essays stay out of GitHub pushes."
+                );
+              }}
+            />
+          </label>
+          <p className="settings-help">{VAULT_GITHUB_INCLUDE}</p>
 
           <h4 className="settings-section-subhead">
             Folder maps

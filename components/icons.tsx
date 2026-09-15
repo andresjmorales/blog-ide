@@ -763,3 +763,49 @@ export function GithubMark({
     </svg>
   );
 }
+
+export function LockIcon({
+  className = "",
+  size = 12,
+  open = false,
+}: {
+  className?: string;
+  size?: number;
+  open?: boolean;
+}) {
+  return (
+    <svg
+      aria-hidden
+      className={`shrink-0 ${className}`}
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <rect
+        x="3.5"
+        y="7.5"
+        width="9"
+        height="6.5"
+        rx="1.2"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
+      {open ? (
+        <path
+          d="M5.5 7.5V5.2a2.5 2.5 0 0 1 4.8-1"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+        />
+      ) : (
+        <path
+          d="M5.5 7.5V5.2a2.5 2.5 0 0 1 5 0V7.5"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+        />
+      )}
+    </svg>
+  );
+}

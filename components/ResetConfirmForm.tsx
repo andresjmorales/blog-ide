@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { VAULT_PASSWORD_RESET_NOTE } from "@/lib/vault/copy";
 
 type Stage = "verifying" | "ready" | "invalid";
 
@@ -120,6 +121,7 @@ export function ResetConfirmForm() {
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-sm">
       <h1 className="text-2xl font-semibold mb-8">Choose a new password</h1>
+      <p className="mb-6 text-sm text-muted">{VAULT_PASSWORD_RESET_NOTE}</p>
 
       <label className="block mb-4">
         <span className="block text-sm mb-1.5">New password</span>

@@ -43,6 +43,8 @@ import { DocumentSessionProvider } from "@/components/DocumentSessionContext";
 import { FileExplorer } from "@/components/FileExplorer";
 import { UploadStatusBar } from "@/components/UploadStatusBar";
 import { GitHubMapDialog } from "@/components/GitHubMapDialog";
+import { VaultCreateDialog } from "@/components/VaultCreateDialog";
+import { VaultUnlockDialog } from "@/components/VaultUnlockDialog";
 import {
   ConflictResolverPanel,
   type ConflictResolutionSuccess,
@@ -83,6 +85,28 @@ import {
   setWorkspaceNodeColor,
   setWorkspaceNodePinned,
 } from "@/lib/workspace/api";
+import { fetchUserVault, type UserVaultRow } from "@/lib/vault/api";
+import { VAULT_HISTORY_PURGE, VAULT_SERVER_FEATURE_REASON } from "@/lib/vault/copy";
+import {
+  crossesVaultBoundary,
+  isInVault,
+} from "@/lib/vault/membership";
+import {
+  moveSubtreeOutOfVault,
+  moveSubtreeToVault,
+  reconcileVault,
+  renameVaultDisplay,
+} from "@/lib/vault/move";
+import { decryptTreeNames, decryptTreeUrls, nodesWithDisplayNames } from "@/lib/vault/names";
+import {
+  getVaultKeys,
+  isVaultUnlocked,
+  lockVaultNow,
+  markVaultActivity,
+  startVaultIdleWatch,
+  subscribeVaultSession,
+  tryRestoreVaultSession,
+} from "@/lib/vault/session";
 import {
   loadDocumentTitles,
   setTitleFromMarkdown,
@@ -361,7 +385,24 @@ function AppShellContent({
   const dismissRef = useRef<(id: string) => void>(() => {});
 
   const [nodes, setNodes] = useState<WorkspaceNode[]>([]);
-  const githubMapNodes = useMemo(() => listGithubMapNodes(nodes), [nodes]);
+  const vaultUnlocked = useSyncExternalStore(
+    subscribeVaultSession,
+    isVaultUnlocked,
+    () => false
+  );
+  const [vaultNames, setVaultNames] = useState<Map<string, string>>(
+    () => new Map()
+  );
+  const [vaultUrls, setVaultUrls] = useState<Map<string, string>>(
+    () => new Map()
+  );
+  const [createVaultOpen, setCreateVaultOpen] = useState(false);
+  const [unlockVaultOpen, setUnlockVaultOpen] = useState(false);
+  const [vaultRow, setVaultRow] = useState<UserVaultRow | null>(null);
+  const githubMapNodes = useMemo(
+    () => listGithubMapNodes(nodesWithDisplayNames(nodes, vaultNames)),
+    [nodes, vaultNames]
+  );
   const notesChannels = useMemo(
     () =>
       listInboxChannels(nodes).map((node) => ({
@@ -445,6 +486,86 @@ function AppShellContent({
   useEffect(() => {
     nodesRef.current = nodes;
   }, [nodes]);
+
+  useEffect(() => {
+    if (previewMode) return;
+    void tryRestoreVaultSession();
+  }, [previewMode]);
+
+  useEffect(() => {
+    if (!vaultUnlocked) {
+      const id = window.setTimeout(() => {
+        setVaultNames(new Map());
+        setVaultUrls(new Map());
+      }, 0);
+      return () => window.clearTimeout(id);
+    }
+    const keys = getVaultKeys();
+    if (!keys) return;
+    let cancelled = false;
+    void Promise.all([
+      decryptTreeNames(nodes, keys.dek),
+      decryptTreeUrls(nodes, keys.dek),
+    ]).then(([names, urls]) => {
+      if (cancelled) return;
+      setVaultNames(names);
+      setVaultUrls(urls);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [vaultUnlocked, nodes]);
+
+  const handleLockVault = useCallback(async () => {
+    try {
+      await lockVaultNow({
+        nodes: nodesRef.current,
+        email: userEmail,
+        clearTitles: (ids) => {
+          setDocTitles((prev) => {
+            const next = new Map(prev);
+            for (const id of ids) next.delete(id);
+            return next;
+          });
+        },
+      });
+      setVaultNames(new Map());
+      setVaultUrls(new Map());
+      const list = nodesRef.current;
+      setActiveNodeId((current) => {
+        if (!current || !isInVault(current, list)) return current;
+        const visible = list.filter(
+          (n) =>
+            n.kind === "document" &&
+            !isInVault(n.id, list) &&
+            !isInTrash(n.id, list)
+        );
+        return pickDefaultOpenDocument(visible) ?? null;
+      });
+    } catch (error) {
+      showErrorToast(error, "Could not lock the vault.");
+    }
+  }, [userEmail, setDocTitles, setActiveNodeId]);
+
+  useEffect(() => {
+    if (!vaultUnlocked) return;
+    return startVaultIdleWatch(() => {
+      void handleLockVault();
+    });
+  }, [vaultUnlocked, handleLockVault]);
+
+  useEffect(() => {
+    if (!vaultUnlocked) return;
+    function onAct() {
+      markVaultActivity();
+    }
+    window.addEventListener("pointerdown", onAct);
+    window.addEventListener("keydown", onAct);
+    return () => {
+      window.removeEventListener("pointerdown", onAct);
+      window.removeEventListener("keydown", onAct);
+    };
+  }, [vaultUnlocked]);
 
   useEffect(() => {
     if (previewMode) return;
@@ -692,6 +813,33 @@ function AppShellContent({
     ]
   );
 
+  const vaultReconcileRef = useRef(false);
+  useEffect(() => {
+    if (!vaultUnlocked) {
+      vaultReconcileRef.current = false;
+      return;
+    }
+    if (previewMode || vaultReconcileRef.current) return;
+    if (nodes.length === 0) return;
+    vaultReconcileRef.current = true;
+    void (async () => {
+      const keys = getVaultKeys();
+      if (!keys) return;
+      try {
+        const names = await decryptTreeNames(nodesRef.current, keys.dek);
+        const messages = await reconcileVault(nodesRef.current, names);
+        if (messages.length > 0) {
+          await refreshTree();
+          for (const message of messages.slice(0, 3)) {
+            showToast({ tone: "info", message, replaceKey: "vault-reconcile" });
+          }
+        }
+      } catch {
+        vaultReconcileRef.current = false;
+      }
+    })();
+  }, [vaultUnlocked, previewMode, nodes.length, refreshTree]);
+
   function handleReviewConflict(copyId: string) {
     setResolverCopyId(copyId);
   }
@@ -773,12 +921,16 @@ function AppShellContent({
           (node) =>
             node.id === remembered &&
             node.kind === "document" &&
-            !isInTrash(node.id, list)
+            !isInTrash(node.id, list) &&
+            (isVaultUnlocked() || !isInVault(node.id, list))
         );
+      const openList = isVaultUnlocked()
+        ? list
+        : list.filter((n) => !isInVault(n.id, list));
       setActiveNodeId((current) => {
         if (current) return current;
         if (rememberedOk) return remembered;
-        return pickDefaultOpenDocument(list, { scratchpadId });
+        return pickDefaultOpenDocument(openList, { scratchpadId });
       });
     },
     [setActiveNodeId]
@@ -1092,7 +1244,13 @@ function AppShellContent({
     }
     if (!name?.trim()) return;
     const title = name.trim().replace(/\.md$/i, "");
-    const fileName = uniqueSiblingName(nodes, parentId, titleToFileName(title));
+    const named = nodesWithDisplayNames(nodes, vaultNames);
+    const fileName = uniqueSiblingName(named, parentId, titleToFileName(title));
+    const encrypt = Boolean(parentId && isInVault(parentId, nodes));
+    if (encrypt && !isVaultUnlocked()) {
+      showErrorToast("Unlock the vault to create an essay there.");
+      return;
+    }
     try {
       const id = await createWorkspaceNode({
         kind: "document",
@@ -1100,6 +1258,7 @@ function AppShellContent({
         parentId,
         // Title lives in frontmatter + the Title field — not as Heading 1.
         markdown: newEssayFrontmatter(title),
+        encrypt,
       });
       await refreshTree();
       setActiveNodeId(id);
@@ -1150,7 +1309,10 @@ function AppShellContent({
   function handlePopOutDocument(nodeId: string) {
     const node = nodes.find((n) => n.id === nodeId);
     if (!node || node.kind !== "document") return;
-    openPopOut(nodeId, fileNameToTitle(node.name));
+    openPopOut(
+      nodeId,
+      fileNameToTitle(vaultNames.get(nodeId) ?? docTitles.get(nodeId) ?? node.name)
+    );
   }
 
   async function handleImportDocument(parentId: string | null) {
@@ -1161,9 +1323,19 @@ function AppShellContent({
       .replace(/\.(md|markdown|txt|docx|odt)$/i, "")
       .trim();
     const title = baseName || "Imported";
-    const fileName = uniqueSiblingName(nodes, parentId, titleToFileName(title));
+    const named = nodesWithDisplayNames(nodes, vaultNames);
+    const fileName = uniqueSiblingName(named, parentId, titleToFileName(title));
+    const encrypt = Boolean(parentId && isInVault(parentId, nodes));
+    if (encrypt && !isVaultUnlocked()) {
+      showErrorToast("Unlock the vault to import there.", undefined, "import-essay");
+      return;
+    }
     let markdown: string;
     if (picked.kind === "office") {
+      if (encrypt) {
+        showErrorToast(VAULT_SERVER_FEATURE_REASON, undefined, "import-essay");
+        return;
+      }
       try {
         markdown = await importPandocFile(picked.file);
       } catch (error) {
@@ -1182,6 +1354,7 @@ function AppShellContent({
         name: fileName,
         parentId,
         markdown,
+        encrypt,
       });
       await refreshTree();
       setActiveNodeId(id);
@@ -1367,11 +1540,18 @@ function AppShellContent({
       confirmLabel: "Create",
     });
     if (!name?.trim()) return;
+    const named = nodesWithDisplayNames(nodes, vaultNames);
+    const encrypt = Boolean(parentId && isInVault(parentId, nodes));
+    if (encrypt && !isVaultUnlocked()) {
+      showErrorToast("Unlock the vault to create a folder there.");
+      return;
+    }
     try {
       await createWorkspaceNode({
         kind: "folder",
-        name: uniqueSiblingName(nodes, parentId, name.trim()),
+        name: uniqueSiblingName(named, parentId, name.trim()),
         parentId,
+        encrypt,
       });
       await refreshTree();
     } catch (error) {
@@ -1385,6 +1565,22 @@ function AppShellContent({
     if (!node) return;
     const trash = getTrashNode(nodes);
     const wasInTrash = isInTrash(nodeId, nodes);
+    const toTrash = Boolean(parentId && trash && isInTrash(parentId, nodes));
+    const fromTrash = wasInTrash;
+    const toVault = Boolean(parentId && isInVault(parentId, nodes));
+    const fromVault = isInVault(nodeId, nodes);
+    if (crossesVaultBoundary(nodeId, parentId, nodes)) {
+      const allowed =
+        (fromVault && toTrash) || (fromTrash && toVault);
+      if (!allowed) {
+        showErrorToast(
+          fromVault
+            ? "Use Move out of vault to decrypt this item first."
+            : "Use Move to vault to encrypt this item first."
+        );
+        return;
+      }
+    }
     try {
       await moveWorkspaceNode(nodeId, parentId);
       await refreshTree();
@@ -1402,6 +1598,71 @@ function AppShellContent({
       );
     } catch (error) {
       showErrorToast(error, "Could not move item.");
+    }
+  }
+
+  async function handleUnlockVault() {
+    if (previewMode) return;
+    try {
+      const row = await fetchUserVault();
+      if (!row) {
+        setCreateVaultOpen(true);
+        return;
+      }
+      setVaultRow(row);
+      setUnlockVaultOpen(true);
+    } catch (error) {
+      showErrorToast(error, "Could not open the vault.");
+    }
+  }
+
+  async function handleMoveToVault(nodeId: string) {
+    if (previewMode) return;
+    if (!isVaultUnlocked()) {
+      await handleUnlockVault();
+      return;
+    }
+    const ok = await dialog.confirm({
+      title: "Move to vault?",
+      message: VAULT_HISTORY_PURGE,
+      confirmLabel: "Move to vault",
+    });
+    if (!ok) return;
+    const names = new Map(vaultNames);
+    for (const [id, title] of docTitles) {
+      if (!names.has(id)) names.set(id, title);
+    }
+    try {
+      await moveSubtreeToVault({ nodeId, nodes, names });
+      await refreshTree();
+    } catch (error) {
+      showErrorToast(error, "Could not move into the vault.");
+    }
+  }
+
+  async function handleMoveOutOfVault(nodeId: string) {
+    if (previewMode) return;
+    if (!isVaultUnlocked()) {
+      await handleUnlockVault();
+      return;
+    }
+    const ok = await dialog.confirm({
+      title: "Move out of the vault?",
+      message: `${VAULT_HISTORY_PURGE} The essay will be stored as plaintext again.`,
+      confirmLabel: "Move out",
+    });
+    if (!ok) return;
+    try {
+      await moveSubtreeOutOfVault({
+        nodeId,
+        nodes,
+        names: vaultNames,
+        urls: vaultUrls,
+        targetParentId: null,
+      });
+      await refreshTree();
+    } catch (error) {
+      showErrorToast(error, "Could not move out of the vault.");
     }
   }
 
@@ -1426,10 +1687,12 @@ function AppShellContent({
     const node = nodes.find((n) => n.id === nodeId);
     if (!node || isSystemFolder(node)) return;
 
+    const named = nodesWithDisplayNames(nodes, vaultNames);
     const currentTitle =
       node.kind === "document"
-        ? docTitles.get(nodeId)?.trim() || fileNameToTitle(node.name)
-        : node.name.replace(/\/$/, "");
+        ? docTitles.get(nodeId)?.trim() ||
+          fileNameToTitle(vaultNames.get(nodeId) ?? node.name)
+        : (vaultNames.get(nodeId) ?? node.name).replace(/\/$/, "");
     const next = await dialog.prompt({
       title: "Rename",
       message:
@@ -1445,7 +1708,7 @@ function AppShellContent({
 
     if (node.kind === "document") {
       const newName = uniqueSiblingName(
-        nodes,
+        named,
         node.parent_id,
         titleToFileName(typedTitle),
         node.id
@@ -1489,8 +1752,12 @@ function AppShellContent({
           nextMap.set(nodeId, typedTitle);
           return nextMap;
         });
-        if (node.name !== newName) {
-          await renameWorkspaceNode(nodeId, newName);
+        if (node.name !== newName || isInVault(nodeId, nodes)) {
+          if (isInVault(nodeId, nodes)) {
+            await renameVaultDisplay(node, newName, node.url);
+          } else {
+            await renameWorkspaceNode(nodeId, newName);
+          }
         }
         await refreshTree();
       } catch (error) {
@@ -1500,13 +1767,17 @@ function AppShellContent({
     }
 
     const newName = uniqueSiblingName(
-      nodes,
+      named,
       node.parent_id,
       next.trim(),
       node.id
     );
     try {
-      await renameWorkspaceNode(nodeId, newName);
+      if (isInVault(nodeId, nodes)) {
+        await renameVaultDisplay(node, newName, node.url);
+      } else {
+        await renameWorkspaceNode(nodeId, newName);
+      }
       await refreshTree();
     } catch (error) {
       showErrorToast(error, "Could not rename.");
@@ -1520,14 +1791,19 @@ function AppShellContent({
     if (previewMode) return;
     const node = nodes.find((n) => n.id === nodeId);
     if (!node) return;
+    const named = nodesWithDisplayNames(nodes, vaultNames);
     const finalName = uniqueSiblingName(
-      nodes,
+      named,
       node.parent_id,
       fileName,
       node.id
     );
-    if (node.name === finalName) return finalName;
-    await renameWorkspaceNode(nodeId, finalName);
+    if (node.name === finalName && !isInVault(nodeId, nodes)) return finalName;
+    if (isInVault(nodeId, nodes)) {
+      await renameVaultDisplay(node, finalName, node.url);
+    } else {
+      await renameWorkspaceNode(nodeId, finalName);
+    }
     await refreshTree();
     return finalName;
   }
@@ -1658,6 +1934,13 @@ function AppShellContent({
       error={
         treeError && nodes.length === 0 ? null : treeError
       }
+      vaultUnlocked={vaultUnlocked}
+      vaultNames={vaultNames}
+      onCreateVault={() => setCreateVaultOpen(true)}
+      onUnlockVault={() => void handleUnlockVault()}
+      onLockVault={() => void handleLockVault()}
+      onMoveToVault={(id) => void handleMoveToVault(id)}
+      onMoveOutOfVault={(id) => void handleMoveOutOfVault(id)}
     />
   );
 
@@ -1670,7 +1953,10 @@ function AppShellContent({
 
   const aiPanel = (
     <AiSidebar
-      essayAvailable={Boolean(previewMode || activeNodeId)}
+      essayAvailable={Boolean(
+        (previewMode || activeNodeId) &&
+          !(activeNodeId && isInVault(activeNodeId, nodes))
+      )}
       getDocumentMarkdown={() => getMarkdownForAiRef.current()}
       getSelection={() => getSelectionForAiRef.current()}
       onApplyMarkdown={(markdown) => applyMarkdownRef.current(markdown)}
@@ -1921,7 +2207,14 @@ function AppShellContent({
               <DocumentWorkspace
                 key={`${previewMode ? "preview" : activeNodeId}-${documentReloadKey}`}
                 nodeId={previewMode ? null : activeNodeId}
-                documentName={activeNode?.name ?? null}
+                documentName={
+                  activeNode
+                    ? vaultNames.get(activeNode.id) ?? activeNode.name
+                    : null
+                }
+                inVault={Boolean(
+                  activeNodeId && isInVault(activeNodeId, nodes)
+                )}
                 githubMapped={Boolean(
                   activeNodeId && githubByNode.has(activeNodeId)
                 )}
@@ -2048,6 +2341,9 @@ function AppShellContent({
                 : () => void handlePullFromGithub("workspace")
             }
             pushbulletChannels={notesChannels}
+            onCreateVault={() => setCreateVaultOpen(true)}
+            onUnlockVault={() => void handleUnlockVault()}
+            onLockVault={() => void handleLockVault()}
           />
           <WorkspaceConnectionDialog
             open={connectionBlocked}
@@ -2108,6 +2404,21 @@ function AppShellContent({
             }}
             onRemapAndPush={(updates) => {
               void handleRemapAndPush(updates);
+            }}
+          />
+          <VaultCreateDialog
+            open={createVaultOpen}
+            onClose={() => setCreateVaultOpen(false)}
+            onCreated={() => {
+              void refreshTree();
+            }}
+          />
+          <VaultUnlockDialog
+            open={unlockVaultOpen}
+            row={vaultRow}
+            onClose={() => setUnlockVaultOpen(false)}
+            onUnlocked={() => {
+              void refreshTree();
             }}
           />
           <UploadStatusBar />

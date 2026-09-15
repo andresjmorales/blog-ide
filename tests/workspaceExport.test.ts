@@ -69,4 +69,15 @@ describe("exportPathsFor", () => {
     const paths = exportPathsFor([folder, link]);
     expect(paths.size).toBe(0);
   });
+
+  it("can exclude a locked vault subtree", () => {
+    const vault = node({ kind: "folder", name: "Vault", system_key: "vault" });
+    const secret = node({ name: "secret.md", parent_id: vault.id });
+    const kept = node({ name: "kept.md" });
+    const paths = exportPathsFor([vault, secret, kept], {
+      excludeIds: [vault.id, secret.id],
+    });
+    expect(paths.has(secret.id)).toBe(false);
+    expect(paths.get(kept.id)).toBe("kept.md");
+  });
 });

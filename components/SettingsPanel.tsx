@@ -31,9 +31,10 @@ import {
 } from "@/lib/billing/plans";
 import { ProfilePhotoField } from "@/components/avatar/ProfilePhotoField";
 import { GitHubSettingsSection } from "@/components/GitHubSettingsSection";
+import { PushbulletSettingsSection } from "@/components/PushbulletSettingsSection";
 import { ZoteroSettingsSection } from "@/components/ZoteroSettingsSection";
 import { NtfySettingsSection } from "@/components/NtfySettingsSection";
-import { PushbulletSettingsSection } from "@/components/PushbulletSettingsSection";
+import { VaultSettingsSection } from "@/components/VaultSettingsSection";
 import { closeBiblePin } from "@/lib/pins/pinStore";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -51,6 +52,9 @@ type GithubSettingsProps = {
   onPushWorkspace?: () => void;
   onPullMapped?: () => void;
   pushbulletChannels?: Array<{ id: string; name: string }>;
+  onCreateVault?: () => void;
+  onUnlockVault?: () => void;
+  onLockVault?: () => void;
 };
 
 export type SettingsTab =
@@ -58,6 +62,7 @@ export type SettingsTab =
   | "editor"
   | "markdown"
   | "storage"
+  | "vault"
   | "integrations";
 
 type Props = {
@@ -77,6 +82,7 @@ const TABS: { id: SettingsTab; label: string }[] = [
   { id: "editor", label: "Editor" },
   { id: "markdown", label: "Markdown" },
   { id: "storage", label: "Storage" },
+  { id: "vault", label: "Vault" },
   { id: "integrations", label: "Integrations" },
 ];
 
@@ -97,6 +103,9 @@ export function SettingsPanel({
   onPushWorkspace,
   onPullMapped,
   pushbulletChannels,
+  onCreateVault,
+  onUnlockVault,
+  onLockVault,
 }: Props) {
   useEffect(() => {
     if (!open) return;
@@ -128,6 +137,9 @@ export function SettingsPanel({
       onPushWorkspace={onPushWorkspace}
       onPullMapped={onPullMapped}
       pushbulletChannels={pushbulletChannels}
+      onCreateVault={onCreateVault}
+      onUnlockVault={onUnlockVault}
+      onLockVault={onLockVault}
     />
   );
 }
@@ -148,6 +160,9 @@ function SettingsDialog({
   onPushWorkspace,
   onPullMapped,
   pushbulletChannels,
+  onCreateVault,
+  onUnlockVault,
+  onLockVault,
 }: {
   onClose: () => void;
   initialTab: SettingsTab;
@@ -238,8 +253,8 @@ function SettingsDialog({
   }
 
   const storageInfo = selfHost
-    ? "Combined usage for essay markdown and Storage (images + Library PDFs). The assets bucket is public-by-URL so published embeds work. Self-host: BlogIDE does not apply a small SaaS cap; your Supabase project is the real limit."
-    : `Combined usage for essay markdown and Storage (images + Library PDFs). The assets bucket is public-by-URL so published embeds work. Plan: ${HOSTED_PLANS[plan].label}${
+    ? "Combined usage for essay markdown and Storage (images + Library PDFs). Images and PDFs are served with time-limited signed URLs. Self-host: BlogIDE does not apply a small SaaS cap; your Supabase project is the real limit."
+    : `Combined usage for essay markdown and Storage (images + Library PDFs). Images and PDFs are served with time-limited signed URLs. Plan: ${HOSTED_PLANS[plan].label}${
         plan === "pro"
           ? ` (${formatQuotaMib(HOSTED_PLANS.pro.quotaBytes)})`
           : ` (${formatQuotaMib(HOSTED_PLANS.free.quotaBytes)})`
@@ -366,6 +381,9 @@ function SettingsDialog({
               {signedIn && (
                 <section className="settings-section">
                   <h3>Password</h3>
+                  <p className="settings-help">
+                    This is your sign-in password, not a vault passphrase.
+                  </p>
                   <label className="settings-row settings-row-stack">
                     <span>New password</span>
                     <input
@@ -437,6 +455,15 @@ function SettingsDialog({
           {tab === "editor" && <EditorPrefsSection />}
 
           {tab === "markdown" && <MarkdownPrefsSection />}
+
+          {tab === "vault" && (
+            <VaultSettingsSection
+              previewMode={previewMode}
+              onCreate={onCreateVault}
+              onUnlock={onUnlockVault}
+              onLock={onLockVault}
+            />
+          )}
 
           {tab === "storage" && (
             <section className="settings-section">

@@ -38,5 +38,13 @@ Anyone who holds both the database and `SECRETS_ENCRYPTION_KEY` /
 `SUPABASE_SERVICE_ROLE_KEY` can decrypt them. That is the same operator-trust
 model as encrypting secrets in your own Supabase project.
 
+The optional vault is different: document bodies, names, and link URLs are
+encrypted in the browser with a key derived from a passphrase the operator
+never sees. The wrapped key and ciphertext live in Postgres. Losing both
+the passphrase and the recovery code makes those documents unreadable.
+The vault is available on every account.
+Vault images are not encrypted. Stay-unlocked stores the key in IndexedDB
+on that device.
+
 The Supabase service-role key is server-only and must never use a
 `NEXT_PUBLIC_` environment variable.

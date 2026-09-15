@@ -268,7 +268,9 @@ describe("syncDocument", () => {
     await syncDocument(nodeId);
 
     expect(mockCreateConflict).toHaveBeenCalledOnce();
-    expect(mockCreateConflict).toHaveBeenCalledWith(nodeId, 1, "local essay");
+    expect(mockCreateConflict).toHaveBeenCalledWith(nodeId, 1, "local essay", {
+      enc: 0,
+    });
     expect(await getLocalDoc(nodeId)).toMatchObject({
       markdown: "cloud essay",
       dirty: false,
