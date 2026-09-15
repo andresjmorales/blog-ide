@@ -2006,6 +2006,7 @@ function AppShellContent({
       onLockVault={() => void handleLockVault()}
       onMoveToVault={(id) => void handleMoveToVault(id)}
       onMoveOutOfVault={(id) => void handleMoveOutOfVault(id)}
+      accountEmail={previewMode ? null : userEmail}
     />
   );
 

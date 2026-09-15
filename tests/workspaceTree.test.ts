@@ -72,6 +72,31 @@ describe("isInTrash", () => {
     expect(isInTrash(f.trashed.id, f.all)).toBe(true);
     expect(isInTrash(f.doc1.id, f.all)).toBe(false);
   });
+
+  it("treats a trashed folder's descendants as in trash without reparenting them", () => {
+    const trash = node({
+      kind: "folder",
+      name: "Trash",
+      system_key: "trash",
+    });
+    const folder = node({
+      kind: "folder",
+      name: "drafts",
+      parent_id: trash.id,
+    });
+    const nested = node({
+      kind: "folder",
+      name: "wip",
+      parent_id: folder.id,
+    });
+    const doc = node({ name: "note.md", parent_id: nested.id });
+    const all = [trash, folder, nested, doc];
+    expect(folder.parent_id).toBe(trash.id);
+    expect(nested.parent_id).toBe(folder.id);
+    expect(isInTrash(folder.id, all)).toBe(true);
+    expect(isInTrash(nested.id, all)).toBe(true);
+    expect(isInTrash(doc.id, all)).toBe(true);
+  });
 });
 
 describe("eligibleMoveFolders", () => {
