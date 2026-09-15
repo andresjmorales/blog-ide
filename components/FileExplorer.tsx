@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type MouseEvent } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import {
   ExplorerContextMenu,
   type ContextMenuItem,
@@ -30,6 +30,12 @@ import {
 import type { WorkspaceNode } from "@/lib/workspace/types";
 import type { GithubMapStatus } from "@/lib/github/types";
 import { githubStatusTitle, unimportedGithubNoticePaths } from "@/lib/github/status";
+import {
+  DEFAULT_EXPLORER_FOLD,
+  loadExplorerFold,
+  pruneCollapsedIds,
+  saveExplorerFold,
+} from "@/lib/workspace/explorerFold";
 
 type Props = {
   nodes: WorkspaceNode[];
@@ -65,6 +71,8 @@ type Props = {
   onLockVault?: () => void;
   onMoveToVault?: (nodeId: string) => void;
   onMoveOutOfVault?: (nodeId: string) => void;
+  /** Account email; used to remember expanded/collapsed folders across refresh. */
+  accountEmail?: string | null;
 };
 
 type MenuState = {
@@ -150,11 +158,31 @@ export function FileExplorer({
   onLockVault,
   onMoveToVault,
   onMoveOutOfVault,
+  accountEmail,
 }: Props) {
   const [menu, setMenu] = useState<MenuState | null>(null);
-  const [trashOpen, setTrashOpen] = useState(true);
-  const [vaultOpen, setVaultOpen] = useState(true);
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  const [fold] = useState(() =>
+    accountEmail ? loadExplorerFold(accountEmail) : DEFAULT_EXPLORER_FOLD
+  );
+  const [trashOpen, setTrashOpen] = useState(fold.trashOpen);
+  const [vaultOpen, setVaultOpen] = useState(fold.vaultOpen);
+  const [collapsedIds, setCollapsedIds] = useState(
+    () => new Set(fold.collapsedIds)
+  );
+
+  useEffect(() => {
+    if (!accountEmail) return;
+    const folderIds = nodes
+      .filter((node) => node.kind === "folder")
+      .map((node) => node.id);
+    saveExplorerFold(accountEmail, {
+      collapsedIds: nodes.length
+        ? pruneCollapsedIds(collapsedIds, folderIds)
+        : [...collapsedIds],
+      trashOpen,
+      vaultOpen,
+    });
+  }, [accountEmail, collapsedIds, trashOpen, vaultOpen, nodes]);
 
   function toggleCollapse(id: string) {
     setCollapsedIds((prev) => {
