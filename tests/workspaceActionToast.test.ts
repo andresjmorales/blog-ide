@@ -105,4 +105,33 @@ describe("workspace action toasts", () => {
       "Deleted “clips/” permanently."
     );
   });
+
+  it("labels vault move targets with decrypted folder names", () => {
+    const vault = node({
+      kind: "folder",
+      name: "Vault",
+      system_key: "vault",
+    });
+    const folder = node({
+      kind: "folder",
+      name: "Secret Folder",
+      parent_id: vault.id,
+    });
+    const doc = node({
+      id: "vault-doc",
+      kind: "document",
+      name: "Other.md",
+      parent_id: vault.id,
+    });
+    expect(
+      workspaceMoveToastMessage({
+        node: doc,
+        parentId: folder.id,
+        trashId: undefined,
+        wasInTrash: false,
+        nodes: [vault, folder, doc],
+        titles: new Map([["vault-doc", "Other"]]),
+      })
+    ).toBe("Moved “Other” to Vault/Secret Folder.");
+  });
 });
