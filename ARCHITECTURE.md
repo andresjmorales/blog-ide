@@ -136,6 +136,11 @@ binaries are not. Pasted or uploaded BibTeX is a `library_items` row
 
 ## Workspace model
 
+On first sign-in, `ensure_default_workspace` creates `user_settings`, a starter
+Files tree (`essays/`, `drafts/`, `welcome.md`, `scratchpad.md`), Notes, and
+Trash. Later boots only keep the Notes and Trash system sections (and a Notes
+channel if none remain). Starter folders and essays are never recreated by name.
+
 The explorer is a tree of stable UUID-backed nodes:
 
 - `folder` contains and orders child nodes;

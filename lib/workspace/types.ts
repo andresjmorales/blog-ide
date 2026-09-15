@@ -41,8 +41,8 @@ export type RemoteDocument = {
 };
 
 export type DefaultWorkspaceIds = {
-  essaysId: string;
-  draftsId: string;
+  essaysId?: string | null;
+  draftsId?: string | null;
   scratchpadId?: string | null;
   inboxId?: string;
   notesChannelId?: string;

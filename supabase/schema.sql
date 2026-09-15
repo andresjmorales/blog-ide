@@ -390,6 +390,10 @@ end;
 $$;
 
 -- Bootstrap default IDE tree for the current user.
+-- First sign-in: seed a starter Files tree (essays/, drafts/, welcome.md,
+-- scratchpad.md) plus Notes and Trash.
+-- Later boots: keep system sections (Notes, Trash) and a Notes channel if
+-- the inbox has none. Never recreate starter folders or essays by name.
 create or replace function public.ensure_default_workspace()
 returns jsonb
 language plpgsql
@@ -432,7 +436,7 @@ canonical:
 
 BlogIDE is a local-first writing IDE for essays that publish as clean markdown. Everything you type autosaves to this browser instantly and syncs to the cloud a moment later. Watch the check mark next to your avatar.
 
-This page is a regular essay. So is the pinned scratchpad.md next to it. Rename, move, unpin, or trash either of them whenever you want; the Files panel still has essays/, drafts/, Notes, and Trash.
+This page is a regular essay. So is the pinned scratchpad.md next to it. Rename, move, unpin, or trash any starter file or folder whenever you want. Notes and Trash stay as system sections.
 
 ## The panels
 
@@ -512,28 +516,13 @@ begin
   values (uid)
   on conflict (user_id) do nothing;
 
-  -- Look anywhere in the tree, including Trash. Boot used to require
-  -- parent_id is null, so moving essays/ or drafts/ to Trash minted a
-  -- twin at the workspace root on the next page load.
-  select id into essays_id
-  from workspace_nodes
-  where user_id = uid and kind = 'folder' and lower(name) = 'essays'
-  order by case when parent_id is null then 0 else 1 end, created_at asc
-  limit 1;
-
-  if essays_id is null then
+  -- Starter folders exist only for a brand-new account. After that they
+  -- are ordinary folders: trashing or renaming them must not mint twins.
+  if is_fresh then
     insert into workspace_nodes (user_id, parent_id, kind, name, position)
     values (uid, null, 'folder', 'essays', 0)
     returning id into essays_id;
-  end if;
 
-  select id into drafts_id
-  from workspace_nodes
-  where user_id = uid and kind = 'folder' and lower(name) = 'drafts'
-  order by case when parent_id is null then 0 else 1 end, created_at asc
-  limit 1;
-
-  if drafts_id is null then
     insert into workspace_nodes (user_id, parent_id, kind, name, position)
     values (uid, null, 'folder', 'drafts', 1)
     returning id into drafts_id;
@@ -563,8 +552,6 @@ begin
   end if;
 
   -- Seed once for brand-new workspaces. Deleting it is permanent.
-  -- Notes and Trash always remain. essays/ and drafts/ are reseeded only
-  -- when no folder with that name exists anywhere, including Trash.
   if scratch_id is null and is_fresh then
     insert into workspace_nodes (user_id, parent_id, kind, name, position, pinned, system_key)
     values (uid, null, 'document', 'scratchpad.md', 2, true, 'scratchpad')
@@ -612,8 +599,7 @@ begin
   select id into notes_id
   from workspace_nodes
   where user_id = uid and parent_id = inbox_id and kind = 'document'
-    and lower(name) in ('general.md', 'notes.md')
-  order by case when lower(name) = 'general.md' then 0 else 1 end
+  order by position asc, created_at asc
   limit 1;
 
   if notes_id is null then

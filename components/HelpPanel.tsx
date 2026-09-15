@@ -72,7 +72,9 @@ export function HelpPanel({ open, onClose }: Props) {
           <p className="settings-help">
             Use the icon buttons (new document / new folder) or hover a folder
             for the same actions. New document can also Import from .md / .txt /
-            .docx (Word needs Pandoc on the server). Nest folders (e.g.
+            .docx (Word needs Pandoc on the server). A new account starts with
+            essays/, drafts/, welcome.md, and scratchpad.md; those are ordinary
+            items, so trashing them does not bring them back. Nest folders (e.g.
             essays/Veganism/). Pop out any document to keep a scratchpad
             floating. Right-click a folder or essay and use GitHub → Map,
             Pull, or Push (token stays on this device).

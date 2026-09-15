@@ -174,9 +174,10 @@ npm run dev
 ```
 
 Open http://localhost:3000 → **Sign up** → create an account (no beta code on
-self-host). On first editor load, BlogIDE bootstraps `essays/`, `drafts/`,
-a pinned `scratchpad.md` (a regular essay you can rename, move, or trash), and a
-`Notes/` folder (default `general.md` channel; legacy `notes.md` still works).
+self-host). On first editor load, BlogIDE seeds `essays/`, `drafts/`,
+`welcome.md`, and a pinned `scratchpad.md`. Those are ordinary files: rename
+or trash them and they stay gone. Later loads only keep the `Notes` and
+`Trash` sections (and a Notes channel if none remain).
 Edits save to IndexedDB immediately and sync to
 Supabase. On a phone, you land in a terminal-style quick-capture screen; on
 desktop, open **Shell** for the same Notes stream. Optional: Settings →
