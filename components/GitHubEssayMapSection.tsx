@@ -15,6 +15,11 @@ import {
 } from "@/lib/github/settings";
 import { githubMapLooksBroken, githubStatusTitle, githubStatusToneClass } from "@/lib/github/status";
 import type { GithubMapStatus, GithubRemoteSettings } from "@/lib/github/types";
+import {
+  SETTINGS_TOAST,
+  showSettingsError,
+  showSettingsSuccess,
+} from "@/lib/ui/settingsToast";
 
 type Props = {
   nodeId: string;
@@ -55,8 +60,10 @@ export function GitHubEssayMapSection({
       })
       .catch((error) => {
         if (cancelled) return;
-        setMessage(
-          error instanceof Error ? error.message : "Could not load GitHub settings."
+        showSettingsError(
+          error,
+          "Could not load GitHub settings.",
+          SETTINGS_TOAST.essayGithub
         );
       });
     return () => {
@@ -84,11 +91,13 @@ export function GitHubEssayMapSection({
       const next = { ...settings, maps };
       await saveGithubSettings(next);
       setSettings(next);
-      setMessage(okMessage);
+      showSettingsSuccess(okMessage, SETTINGS_TOAST.essayGithub);
       onSettingsChanged?.();
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Could not save GitHub mapping."
+      showSettingsError(
+        error,
+        "Could not save GitHub mapping.",
+        SETTINGS_TOAST.essayGithub
       );
     } finally {
       setBusy(false);

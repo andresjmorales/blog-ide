@@ -4,6 +4,7 @@ import { act } from "react";
 import { EditorPrefsProvider } from "@/components/EditorPrefsContext";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { mergePrefs } from "@/lib/settings";
+import { clearToasts, getToasts } from "@/lib/ui/toast";
 
 describe("SettingsPanel", () => {
   let root: Root | null = null;
@@ -18,6 +19,7 @@ describe("SettingsPanel", () => {
     }
     host?.remove();
     host = null;
+    clearToasts();
   });
 
   function render(initialTab?: "account" | "editor" | "markdown" | "integrations") {
@@ -114,5 +116,18 @@ describe("SettingsPanel", () => {
     expect(
       host!.querySelector('input[aria-label="Add a word to the dictionary"]')
     ).toBeTruthy();
+  });
+
+  it("toasts Zotero save instead of muted inline copy", () => {
+    render("integrations");
+    const save = [...host!.querySelectorAll("button")].find(
+      (button) => button.textContent === "Save Zotero"
+    ) as HTMLButtonElement;
+    act(() => {
+      save.click();
+    });
+    expect(getToasts()[0]?.tone).toBe("success");
+    expect(getToasts()[0]?.message).toBe("Saved on this device.");
+    expect(host!.textContent).not.toContain("Saved on this device.");
   });
 });

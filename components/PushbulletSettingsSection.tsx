@@ -7,6 +7,12 @@ import {
   pushbulletWhoAmI,
 } from "@/lib/pushbullet/client";
 import { formatPushbulletUserError, PUSHBULLET_TROUBLESHOOTING } from "@/lib/pushbullet/errors";
+import {
+  SETTINGS_TOAST,
+  showSettingsError,
+  showSettingsInfo,
+  showSettingsSuccess,
+} from "@/lib/ui/settingsToast";
 import { deviceNickname } from "@/lib/pushbullet/devices";
 import {
   loadPushbulletStatus,
@@ -42,7 +48,6 @@ export function PushbulletSettingsSection({
   const [status, setStatus] = useState<PushbulletRuntimeStatus>(() =>
     loadPushbulletStatus()
   );
-  const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -115,11 +120,17 @@ export function PushbulletSettingsSection({
               const ok = await savePushbulletToken(tokenDraft.trim());
               setSavedToken(tokenDraft.trim());
               setTokenDraft("");
-              setMessage(
-                ok
-                  ? "Token saved to your account."
-                  : "Saved on this device. Account sync failed; try again while online."
-              );
+              if (ok) {
+                showSettingsSuccess(
+                  "Token saved to your account.",
+                  SETTINGS_TOAST.pushbullet
+                );
+              } else {
+                showSettingsInfo(
+                  "Saved on this device. Account sync failed; try again while online.",
+                  SETTINGS_TOAST.pushbullet
+                );
+              }
             })();
           }}
         >
@@ -134,7 +145,10 @@ export function PushbulletSettingsSection({
                 await clearPushbulletToken();
                 setSavedToken("");
                 setTokenDraft("");
-                setMessage("Token removed from your account.");
+                showSettingsSuccess(
+                  "Token removed from your account.",
+                  SETTINGS_TOAST.pushbullet
+                );
               })();
             }}
           >
@@ -148,22 +162,20 @@ export function PushbulletSettingsSection({
           onClick={() => {
             void (async () => {
               setBusy(true);
-              setMessage(null);
               try {
                 const me = await pushbulletWhoAmI(loadPushbulletToken());
                 if (me.email) {
                   savePushbulletStatus({ email: me.email, lastError: null });
                 }
-                setMessage(
-                  me.email
-                    ? `Token works as ${me.email}.`
-                    : "Token works."
+                showSettingsSuccess(
+                  me.email ? `Token works as ${me.email}.` : "Token works.",
+                  SETTINGS_TOAST.pushbullet
                 );
               } catch (err) {
-                setMessage(
-                  formatPushbulletUserError(
-                    err instanceof Error ? err : "Could not verify token."
-                  )
+                showSettingsError(
+                  formatPushbulletUserError(err),
+                  "Could not verify the Pushbullet token.",
+                  SETTINGS_TOAST.pushbullet
                 );
               } finally {
                 setBusy(false);
@@ -180,22 +192,22 @@ export function PushbulletSettingsSection({
           onClick={() => {
             void (async () => {
               setBusy(true);
-              setMessage(null);
               try {
                 const plan = await syncPushbulletDevices(
                   loadPushbulletToken(),
                   channels
                 );
-                setMessage(
+                showSettingsSuccess(
                   `Devices ready (${plan.map.length} Notes channel${
                     plan.map.length === 1 ? "" : "s"
-                  }).`
+                  }).`,
+                  SETTINGS_TOAST.pushbullet
                 );
               } catch (err) {
-                setMessage(
-                  formatPushbulletUserError(
-                    err instanceof Error ? err : "Could not sync devices."
-                  )
+                showSettingsError(
+                  formatPushbulletUserError(err),
+                  "Could not sync devices.",
+                  SETTINGS_TOAST.pushbullet
                 );
               } finally {
                 setBusy(false);
@@ -245,7 +257,6 @@ export function PushbulletSettingsSection({
               : null}
         </p>
       ) : null}
-      {message ? <p className="mt-2 text-xs text-muted">{message}</p> : null}
     </section>
   );
 }

@@ -38,6 +38,11 @@ import { VaultSettingsSection } from "@/components/VaultSettingsSection";
 import { closeBiblePin } from "@/lib/pins/pinStore";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import {
+  SETTINGS_TOAST,
+  showSettingsError,
+  showSettingsSuccess,
+} from "@/lib/ui/settingsToast";
 import type { GithubMapStatus } from "@/lib/github/types";
 
 type GithubSettingsProps = {
@@ -177,16 +182,13 @@ function SettingsDialog({
   const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [aiKeys, setAiKeys] = useState<AiKeys>(() => loadAiKeys());
   const [keyDraft, setKeyDraft] = useState("");
-  const [keysSaved, setKeysSaved] = useState(false);
   const [nameDraft, setNameDraft] = useState(displayName);
-  const [nameStatus, setNameStatus] = useState<string | null>(null);
   const [nameBusy, setNameBusy] = useState(false);
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [passwordStatus, setPasswordStatus] = useState<string | null>(null);
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [quota, setQuota] = useState<QuotaUsage | null>(null);
-  const [quotaStatus, setQuotaStatus] = useState<string | null>(null);
   const [quotaBusy, setQuotaBusy] = useState(false);
   /** From /api/billing/status — deployment mode, not inferred from quota size. */
   const [selfHost, setSelfHost] = useState(false);
@@ -196,7 +198,6 @@ function SettingsDialog({
     null
   );
   const [billingBusy, setBillingBusy] = useState(false);
-  const [billingStatus, setBillingStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (previewMode || !isSupabaseConfigured()) return;
@@ -243,13 +244,17 @@ function SettingsDialog({
     const next = saveAiKeys({ ...aiKeys, [provider]: keyDraft.trim() });
     setAiKeys(next);
     setKeyDraft("");
-    setKeysSaved(true);
+    showSettingsSuccess("Keys saved on this device.", SETTINGS_TOAST.ai);
   }
 
   function clearProviderKey() {
     const next = saveAiKeys({ ...aiKeys, [provider]: "" });
     setAiKeys(next);
     setKeyDraft("");
+    showSettingsSuccess(
+      `Removed ${providerLabel} key from this device.`,
+      SETTINGS_TOAST.ai
+    );
   }
 
   const storageInfo = selfHost
@@ -343,7 +348,6 @@ function SettingsDialog({
                       onClick={() => {
                         void (async () => {
                           setNameBusy(true);
-                          setNameStatus(null);
                           try {
                             const supabase = createClient();
                             const trimmed = nameDraft.trim();
@@ -356,12 +360,15 @@ function SettingsDialog({
                             });
                             if (error) throw error;
                             onDisplayNameChange?.(trimmed);
-                            setNameStatus("Name saved.");
+                            showSettingsSuccess(
+                              "Name saved.",
+                              SETTINGS_TOAST.account
+                            );
                           } catch (err) {
-                            setNameStatus(
-                              err instanceof Error
-                                ? err.message
-                                : "Could not update name."
+                            showSettingsError(
+                              err,
+                              "Could not update name.",
+                              SETTINGS_TOAST.account
                             );
                           } finally {
                             setNameBusy(false);
@@ -371,9 +378,6 @@ function SettingsDialog({
                     >
                       Save name
                     </button>
-                    {nameStatus && (
-                      <p className="mt-2 text-xs text-muted">{nameStatus}</p>
-                    )}
                   </>
                 )}
               </section>
@@ -415,12 +419,14 @@ function SettingsDialog({
                         setPasswordStatus(null);
                         try {
                           if (password.length < 8) {
-                            throw new Error(
+                            setPasswordStatus(
                               "Password must be at least 8 characters."
                             );
+                            return;
                           }
                           if (password !== passwordConfirm) {
-                            throw new Error("Passwords do not match.");
+                            setPasswordStatus("Passwords do not match.");
+                            return;
                           }
                           const supabase = createClient();
                           const { error } = await supabase.auth.updateUser({
@@ -429,12 +435,15 @@ function SettingsDialog({
                           if (error) throw error;
                           setPassword("");
                           setPasswordConfirm("");
-                          setPasswordStatus("Password updated.");
+                          showSettingsSuccess(
+                            "Password updated.",
+                            SETTINGS_TOAST.password
+                          );
                         } catch (err) {
-                          setPasswordStatus(
-                            err instanceof Error
-                              ? err.message
-                              : "Could not update password."
+                          showSettingsError(
+                            err,
+                            "Could not update password.",
+                            SETTINGS_TOAST.password
                           );
                         } finally {
                           setPasswordBusy(false);
@@ -512,23 +521,23 @@ function SettingsDialog({
                       onClick={() => {
                         void (async () => {
                           setQuotaBusy(true);
-                          setQuotaStatus(null);
                           try {
                             const result = await cleanUnusedEssayImages();
                             const usage = await fetchQuotaUsage();
                             setQuota(usage);
-                            setQuotaStatus(
+                            showSettingsSuccess(
                               result.removed === 0
                                 ? "No unused images found."
                                 : `Removed ${result.removed} unused image${
                                     result.removed === 1 ? "" : "s"
-                                  } (${formatBytes(result.freedBytes)} freed).`
+                                  } (${formatBytes(result.freedBytes)} freed).`,
+                              SETTINGS_TOAST.storage
                             );
                           } catch (err) {
-                            setQuotaStatus(
-                              err instanceof Error
-                                ? err.message
-                                : "Could not clean unused images."
+                            showSettingsError(
+                              err,
+                              "Could not clean unused images.",
+                              SETTINGS_TOAST.storage
                             );
                           } finally {
                             setQuotaBusy(false);
@@ -546,14 +555,13 @@ function SettingsDialog({
                         onClick={() => {
                           void (async () => {
                             setBillingBusy(true);
-                            setBillingStatus(null);
                             try {
                               await startHostedProCheckout();
                             } catch (err) {
-                              setBillingStatus(
-                                err instanceof Error
-                                  ? err.message
-                                  : "Could not start checkout."
+                              showSettingsError(
+                                err,
+                                "Could not start checkout.",
+                                SETTINGS_TOAST.billing
                               );
                               setBillingBusy(false);
                             }
@@ -573,14 +581,13 @@ function SettingsDialog({
                         onClick={() => {
                           void (async () => {
                             setBillingBusy(true);
-                            setBillingStatus(null);
                             try {
                               await openBillingPortal();
                             } catch (err) {
-                              setBillingStatus(
-                                err instanceof Error
-                                  ? err.message
-                                  : "Could not open billing portal."
+                              showSettingsError(
+                                err,
+                                "Could not open billing portal.",
+                                SETTINGS_TOAST.billing
                               );
                               setBillingBusy(false);
                             }
@@ -596,12 +603,6 @@ function SettingsDialog({
                       {subscriptionLabel}
                     </p>
                   ) : null}
-                  {quotaStatus && (
-                    <p className="mt-2 text-xs text-muted">{quotaStatus}</p>
-                  )}
-                  {billingStatus && (
-                    <p className="mt-2 text-xs text-muted">{billingStatus}</p>
-                  )}
                 </>
               )}
             </section>
@@ -668,11 +669,6 @@ function SettingsDialog({
                 >
                   Save API keys
                 </button>
-                {keysSaved && (
-                  <p className="mt-2 text-xs text-muted">
-                    Keys saved on this device.
-                  </p>
-                )}
               </section>
 
               <ZoteroSettingsSection />

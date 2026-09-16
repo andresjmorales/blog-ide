@@ -31,8 +31,10 @@ by design.
   copies, hard per-user quota (default 10 MiB combined)
 - **Toasts** — short action outcomes appear bottom-right: clipboard copies
   (Publish check, essay Copy, Cite, Notes), Files move/restore/delete,
-  Notes refresh, Cite/Zotero, import/export, reader extract, and GitHub
-  push. Technical dumps hide behind Details.
+  Notes refresh, Cite/Zotero, import/export, reader extract, GitHub
+  push, and Settings actions (token tests, saves, storage cleanup).
+  Technical dumps hide behind Details. Field validation in Settings
+  stays next to the control.
 - **Research surfaces** — pop-out documents, link hover/Pin, cloud Library
   (PDFs + site bookmarks under quota; bookmark or cite from hover/pin),
   publication Preview, pre-publish link/image check, image compress +

@@ -1,3 +1,5 @@
+import { PushbulletApiError } from "@/lib/pushbullet/client";
+
 const BLOCKED_FETCH =
   /networkerror|failed to fetch|load failed|network request failed/i;
 
@@ -9,6 +11,9 @@ export function isPushbulletBlockedError(err: unknown): boolean {
 export function formatPushbulletUserError(err: unknown): string {
   if (isPushbulletBlockedError(err)) {
     return "Could not reach Pushbullet. Ad blockers (uBlock Origin) often block it. Open the ? next to Pushbullet for how to allow this page.";
+  }
+  if (err instanceof PushbulletApiError && err.status === 401) {
+    return "Pushbullet rejected the token. Create a new access token on your Pushbullet account page and paste it here.";
   }
   if (err instanceof Error) return err.message;
   if (typeof err === "string" && err.trim()) return err;

@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { githubWhoAmI } from "@/lib/github/client";
+import { githubErrorCopy, githubWhoAmI } from "@/lib/github/client";
 import { pushWorkspaceToGithubWithStatus } from "@/lib/github/push";
+import {
+  SETTINGS_TOAST,
+  showSettingsError,
+  showSettingsInfo,
+  showSettingsSuccess,
+} from "@/lib/ui/settingsToast";
 import {
   loadGithubSettings,
   saveGithubSettings,
@@ -57,7 +63,6 @@ export function GitHubSettingsSection({
     path: "",
     maps: [],
   });
-  const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [editingMap, setEditingMap] = useState<GithubSyncMap | null>(null);
@@ -74,11 +79,21 @@ export function GitHubSettingsSection({
     return () => window.clearTimeout(timer);
   }, [previewMode, settingsEpoch]);
 
-  async function persistSettings(next: GithubRemoteSettings) {
+  async function persistSettings(
+    next: GithubRemoteSettings,
+    okMessage?: string
+  ): Promise<boolean> {
     setSettings(next);
-    if (previewMode) return;
-    await saveGithubSettings(next);
-    onSettingsChanged?.();
+    if (previewMode) return true;
+    try {
+      await saveGithubSettings(next);
+      onSettingsChanged?.();
+      if (okMessage) showSettingsSuccess(okMessage, SETTINGS_TOAST.github);
+      return true;
+    } catch (err) {
+      showSettingsError(err, "Could not save GitHub settings.", SETTINGS_TOAST.github);
+      return false;
+    }
   }
 
   return (
@@ -115,7 +130,10 @@ export function GitHubSettingsSection({
                 saveGithubToken(tokenDraft.trim());
                 setSavedToken(tokenDraft.trim());
                 setTokenDraft("");
-                setStatus("Token saved on this device.");
+                showSettingsSuccess(
+                  "Token saved on this device.",
+                  SETTINGS_TOAST.github
+                );
               }}
             >
               Save token
@@ -128,7 +146,10 @@ export function GitHubSettingsSection({
                   clearGithubToken();
                   setSavedToken("");
                   setTokenDraft("");
-                  setStatus("Token removed from this device.");
+                  showSettingsSuccess(
+                    "Token removed from this device.",
+                    SETTINGS_TOAST.github
+                  );
                 }}
               >
                 Remove token
@@ -141,15 +162,17 @@ export function GitHubSettingsSection({
               onClick={() => {
                 void (async () => {
                   setBusy(true);
-                  setStatus(null);
                   try {
                     const me = await githubWhoAmI(loadGithubToken());
-                    setStatus(`Token works as @${me.login}.`);
+                    showSettingsSuccess(
+                      `Token works as @${me.login}.`,
+                      SETTINGS_TOAST.github
+                    );
                   } catch (err) {
-                    setStatus(
-                      err instanceof Error
-                        ? err.message
-                        : "Could not verify token."
+                    showSettingsError(
+                      githubErrorCopy(err),
+                      "Could not verify the GitHub token.",
+                      SETTINGS_TOAST.github
                     );
                   } finally {
                     setBusy(false);
@@ -198,15 +221,7 @@ export function GitHubSettingsSection({
             type="button"
             className="rounded border border-border px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent"
             onClick={() => {
-              void persistSettings(settings)
-                .then(() => setStatus("GitHub settings saved."))
-                .catch((err) =>
-                  setStatus(
-                    err instanceof Error
-                      ? err.message
-                      : "Could not save GitHub settings."
-                  )
-                );
+              void persistSettings(settings, "GitHub settings saved.");
             }}
           >
             Save repo settings
@@ -221,11 +236,12 @@ export function GitHubSettingsSection({
                 const next = e.target.checked;
                 setIncludeVault(next);
                 saveGithubIncludeVault(next);
-                setStatus(
-                  next
-                    ? "Vault essays will be included. The repo must be private."
-                    : "Vault essays stay out of GitHub pushes."
-                );
+                if (next) {
+                  showSettingsInfo(
+                    "Vault essays will be included. The repo must be private.",
+                    SETTINGS_TOAST.github
+                  );
+                }
               }}
             />
           </label>
@@ -277,12 +293,15 @@ export function GitHubSettingsSection({
                       type="button"
                       className="settings-link-btn"
                       onClick={() => {
-                        void persistSettings({
-                          ...settings,
-                          maps: settings.maps.filter(
-                            (m) => m.nodeId !== map.nodeId
-                          ),
-                        });
+                        void persistSettings(
+                          {
+                            ...settings,
+                            maps: settings.maps.filter(
+                              (m) => m.nodeId !== map.nodeId
+                            ),
+                          },
+                          "Mapping removed."
+                        );
                       }}
                     >
                       Remove
@@ -308,25 +327,28 @@ export function GitHubSettingsSection({
               className="rounded border border-accent px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/10 disabled:opacity-40"
               disabled={busy}
               onClick={() => {
-                void persistSettings(settings).then(() => {
+                void persistSettings(settings).then((ok) => {
+                  if (!ok) return;
                   if (onPushWorkspace) {
                     onPushWorkspace();
                     return;
                   }
                   void (async () => {
                     setBusy(true);
-                    setStatus(null);
                     try {
                       const results = await pushWorkspaceToGithubWithStatus({
                         scope: "workspace",
                       });
                       const files = results.reduce((n, r) => n + r.fileCount, 0);
-                      setStatus(
-                        `Pushed ${files} file${files === 1 ? "" : "s"} to GitHub.`
+                      showSettingsSuccess(
+                        `Pushed ${files} file${files === 1 ? "" : "s"} to GitHub.`,
+                        SETTINGS_TOAST.github
                       );
                     } catch (err) {
-                      setStatus(
-                        err instanceof Error ? err.message : "Push failed."
+                      showSettingsError(
+                        githubErrorCopy(err),
+                        "Could not push to GitHub.",
+                        SETTINGS_TOAST.github
                       );
                     } finally {
                       setBusy(false);
@@ -343,14 +365,15 @@ export function GitHubSettingsSection({
                 className="rounded border border-border px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-40"
                 disabled={busy || settings.maps.length === 0}
                 onClick={() => {
-                  void persistSettings(settings).then(() => onPullMapped());
+                  void persistSettings(settings).then((ok) => {
+                    if (ok) onPullMapped();
+                  });
                 }}
               >
                 Pull mapped files…
               </button>
             )}
           </div>
-          {status && <p className="mt-2 text-xs text-muted">{status}</p>}
         </>
       )}
       <GitHubMapDialog
@@ -368,7 +391,7 @@ export function GitHubSettingsSection({
             ...settings.maps.filter((m) => m.nodeId !== map.nodeId),
             map,
           ];
-          void persistSettings({ ...settings, maps });
+          void persistSettings({ ...settings, maps }, "Mapping saved.");
         }}
       />
     </section>
