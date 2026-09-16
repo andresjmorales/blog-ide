@@ -3,6 +3,12 @@
 import { useEffect, useId, useState } from "react";
 import { GitHubMapFields } from "@/components/GitHubMapFields";
 import type { GithubSyncMap } from "@/lib/github/types";
+import {
+  GITHUB_DOCUMENT_PATH_HINT,
+  GITHUB_FOLDER_PATH_HINT,
+  normalizeGithubPath,
+  requireGithubDocumentPath,
+} from "@/lib/github/repo";
 
 type FolderOption = {
   id: string;
@@ -70,12 +76,13 @@ function GitHubMapForm({
   const [repo, setRepo] = useState(existing?.repo ?? "");
   const [branch, setBranch] = useState(existing?.branch ?? "");
   const [path, setPath] = useState(existing?.path ?? "");
+  const [error, setError] = useState<string | null>(null);
 
   const selected = nodes.find((n) => n.id === nodeId);
   const pathHint =
     selected?.kind === "document"
-      ? "Exact file in the repo, e.g. README.md"
-      : "Directory prefix, e.g. content/essays";
+      ? GITHUB_DOCUMENT_PATH_HINT
+      : GITHUB_FOLDER_PATH_HINT;
 
   return (
     <div className="settings-overlay" role="presentation">
@@ -102,7 +109,9 @@ function GitHubMapForm({
             One-way by default: BlogIDE overwrites matching files in the repo.
             Extra files are left alone. If you moved a mapped file in git, pull
             or remap before pushing — otherwise the old path is recreated.
-            The token stays on this device.
+            Essay maps must end in .md so a folder is never replaced by a file.
+            A missing .md path is created on first push. The token stays on this
+            device.
           </p>
           <label className="settings-row settings-row-stack">
             <span>Folder or document</span>
@@ -129,24 +138,43 @@ function GitHubMapForm({
             pathHint={pathHint}
             onRepoChange={setRepo}
             onBranchChange={setBranch}
-            onPathChange={setPath}
+            onPathChange={(value) => {
+              setError(null);
+              setPath(value);
+            }}
           />
           <button
             type="button"
             className="rounded border border-border px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-40"
             disabled={!nodeId || !path.trim()}
             onClick={() => {
-              onSave({
-                nodeId,
-                repo: repo.trim(),
-                branch: branch.trim(),
-                path: path.trim().replace(/^\/+/, ""),
-              });
-              onClose();
+              try {
+                const nextPath =
+                  selected?.kind === "document"
+                    ? requireGithubDocumentPath(path)
+                    : normalizeGithubPath(path);
+                if (selected?.kind === "document" && !nextPath) {
+                  throw new Error(
+                    "Enter a file path ending in .md, for example drafts/new-essay.md."
+                  );
+                }
+                onSave({
+                  nodeId,
+                  repo: repo.trim(),
+                  branch: branch.trim(),
+                  path: nextPath,
+                });
+                onClose();
+              } catch (err) {
+                setError(
+                  err instanceof Error ? err.message : "Could not save mapping."
+                );
+              }
             }}
           >
             Save mapping
           </button>
+          {error && <p className="mt-2 text-xs text-muted">{error}</p>}
         </section>
       </div>
     </div>

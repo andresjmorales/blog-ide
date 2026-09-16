@@ -5,7 +5,9 @@
 
 import {
   githubBasename,
+  isMarkdownGithubPath,
   normalizeGithubPath,
+  requireGithubDocumentPath,
 } from "@/lib/github/repo";
 import type {
   GithubMapStatus,
@@ -29,9 +31,45 @@ export function prefixExists(
   const normalized = normalizeGithubPath(path);
   if (!normalized) return true;
   if (index.trees.includes(normalized)) return true;
-  return index.blobs.some(
-    (blob) => blob === normalized || blob.startsWith(`${normalized}/`)
-  );
+  return index.blobs.some((blob) => blob.startsWith(`${normalized}/`));
+}
+
+/** Parent path that is already a file, so `a/b.md` cannot be created under it. */
+export function githubAncestorBlob(
+  path: string,
+  blobs: string[]
+): string | null {
+  const parts = normalizeGithubPath(path).split("/").filter(Boolean);
+  let prefix = "";
+  for (let i = 0; i < parts.length - 1; i++) {
+    prefix = prefix ? `${prefix}/${parts[i]}` : parts[i];
+    if (blobs.includes(prefix)) return prefix;
+  }
+  return null;
+}
+
+/**
+ * Refuse pushes that would replace a GitHub folder with a file, or write
+ * under a path that is already a file.
+ */
+export function assertSafeGithubPushFiles(
+  files: Array<{ path: string }>,
+  index: GithubTreeIndex
+): void {
+  for (const file of files) {
+    const path = requireGithubDocumentPath(file.path);
+    if (index.trees.includes(path)) {
+      throw new Error(
+        `"${path}" is a folder on GitHub. Pushing an essay there would replace that folder and delete its files. Map to a .md file such as ${path}/your-essay.md instead.`
+      );
+    }
+    const blocked = githubAncestorBlob(path, index.blobs);
+    if (blocked) {
+      throw new Error(
+        `Cannot create "${path}" because "${blocked}" is already a file on GitHub.`
+      );
+    }
+  }
 }
 
 export function findBasenameCandidates(
@@ -75,6 +113,23 @@ export function assessGithubBinding(
       detail: extra.detail,
     };
   }
+
+  const path = normalizeGithubPath(binding.path);
+  if (binding.kind === "document" && !isMarkdownGithubPath(path)) {
+    const treeHit = Boolean(index?.trees.includes(path));
+    return {
+      ...binding,
+      health: "error",
+      candidates: [],
+      stale,
+      replacesFolder: treeHit,
+      ...copySignals,
+      detail: treeHit
+        ? `"${path}" is a folder on GitHub. Mapping an essay there would replace that folder and its files.`
+        : "Essay mappings must be a .md file, not a folder.",
+    };
+  }
+
   if (!index) {
     return {
       ...binding,
@@ -85,13 +140,56 @@ export function assessGithubBinding(
     };
   }
 
+  if (binding.kind === "document" && index.trees.includes(path)) {
+    return {
+      ...binding,
+      health: "error",
+      candidates: [],
+      stale,
+      replacesFolder: true,
+      ...copySignals,
+      detail: `"${path}" is a folder on GitHub. Mapping an essay there would replace that folder and its files.`,
+    };
+  }
+
+  if (binding.kind === "document") {
+    const blocked = githubAncestorBlob(path, index.blobs);
+    if (blocked) {
+      return {
+        ...binding,
+        health: "error",
+        candidates: [],
+        stale,
+        ...copySignals,
+        detail: `Cannot create this file because "${blocked}" is already a file on GitHub.`,
+      };
+    }
+  }
+
+  if (
+    binding.kind === "folder" &&
+    path &&
+    index.blobs.includes(path) &&
+    !index.trees.includes(path) &&
+    !index.blobs.some((blob) => blob.startsWith(`${path}/`))
+  ) {
+    return {
+      ...binding,
+      health: "error",
+      candidates: [],
+      stale,
+      ...copySignals,
+      detail: `"${path}" is a file on GitHub, not a folder.`,
+    };
+  }
+
   const present =
     binding.kind === "document"
-      ? index.blobs.includes(binding.path)
-      : prefixExists(binding.path, index);
+      ? index.blobs.includes(path)
+      : prefixExists(path, index);
   const candidates = present
     ? []
-    : findBasenameCandidates(binding.path, index.blobs);
+    : findBasenameCandidates(path, index.blobs);
 
   return {
     ...binding,
@@ -103,7 +201,9 @@ export function assessGithubBinding(
       ? undefined
       : candidates.length > 0
         ? `Mapped path is missing; found ${candidates.join(", ")}`
-        : "Mapped path is missing on GitHub",
+        : binding.kind === "document"
+          ? "Not on GitHub yet; first push will create this file"
+          : "Mapped path is missing on GitHub",
   };
 }
 
@@ -313,20 +413,38 @@ export function githubStatusTitle(status: GithubMapStatus): string {
   if (status.stale) {
     return `GitHub mapping lost. ${repoPath}`;
   }
+  if (status.replacesFolder) {
+    return `GitHub: ${repoPath} is a folder. Mapping an essay there would replace that folder and its files. Use a .md path such as ${status.path}/your-essay.md.`;
+  }
   if (status.health === "ok") {
     return `GitHub: ${repoPath}.${copySignalSuffix(status)}`;
   }
   if (status.health === "missing") {
-    const extra =
-      status.candidates.length > 0
-        ? ` Found ${status.candidates.join(", ")}.`
-        : "";
-    return `GitHub mapping broken: ${repoPath} is missing.${extra}${copySignalSuffix(status)}`;
+    if (status.candidates.length > 0) {
+      return `GitHub mapping broken: ${repoPath} is missing. Found ${status.candidates.join(", ")}.${copySignalSuffix(status)}`;
+    }
+    return `GitHub: ${repoPath} is not on GitHub yet. First push will create it.${copySignalSuffix(status)}`;
   }
   if (status.health === "error") {
     return `GitHub: could not check ${repoPath}. ${status.detail ?? ""}`.trim();
   }
   return `GitHub: ${repoPath} (not checked)${copySignalSuffix(status)}`;
+}
+
+/** Orange slash badge: lost, git-moved, folder collision, or check failed. */
+export function githubMapLooksBroken(status: GithubMapStatus): boolean {
+  if (status.stale || status.health === "error" || status.replacesFolder) {
+    return true;
+  }
+  return status.health === "missing" && status.candidates.length > 0;
+}
+
+export function githubStatusToneClass(status: GithubMapStatus): string {
+  if (status.health === "ok") return "explorer-github-ok";
+  if (status.health === "missing" || githubMapLooksBroken(status)) {
+    return "explorer-github-missing";
+  }
+  return "explorer-github-unchecked";
 }
 
 export function unimportedGithubNoticePaths(

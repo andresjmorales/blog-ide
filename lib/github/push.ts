@@ -5,7 +5,11 @@ import {
 import { getLocalDoc } from "@/lib/db/indexed";
 import { githubErrorCopy, fetchGithubTreeIndex, githubRepoIsPrivate, pushFilesToGithub } from "@/lib/github/client";
 import { buildGithubPushPlans } from "@/lib/github/files";
-import { inspectPushFiles, type GithubPushIssue } from "@/lib/github/status";
+import {
+  assertSafeGithubPushFiles,
+  inspectPushFiles,
+  type GithubPushIssue,
+} from "@/lib/github/status";
 import { loadGithubSettings } from "@/lib/github/settings";
 import { loadGithubToken } from "@/lib/github/token";
 import type { GithubPushResult } from "@/lib/github/types";
@@ -110,6 +114,12 @@ export async function pushWorkspaceToGithub(input: {
       fileCount: plan.files.length,
     });
     try {
+      const index = await fetchGithubTreeIndex({
+        token,
+        repo: plan.repo,
+        branch: plan.branch,
+      });
+      assertSafeGithubPushFiles(plan.files, index);
       const result = await pushFilesToGithub({
         token,
         repo: plan.repo,
@@ -152,6 +162,7 @@ export async function inspectGithubPush(input: {
         repo: plan.repo,
         branch: plan.branch,
       });
+      assertSafeGithubPushFiles(plan.files, index);
       issues.push(
         ...inspectPushFiles(plan.files, plan.repo, plan.branch, index)
       );

@@ -7,6 +7,7 @@ import {
   ensureMarkdownFileName,
   joinGithubPath,
   normalizeGithubPath,
+  requireGithubDocumentPath,
   sanitizeGithubFileName,
 } from "@/lib/github/repo";
 import type {
@@ -126,7 +127,7 @@ export function buildGithubPushPlans(
       add(
         (mapped.repo || defaultRepo).trim(),
         (mapped.branch || defaultBranch).trim() || "main",
-        mapped.path.replace(/^\/+/, ""),
+        requireGithubDocumentPath(mapped.path),
         node.id
       );
       return;
@@ -174,9 +175,9 @@ export function buildGithubPushPlans(
       throw new Error("Set a GitHub repo on this item or in Settings.");
     }
     if (root.kind === "document") {
-      const path =
-        mapped?.path?.replace(/^\/+/, "") ||
-        joinGithubPath(defaultPath, ensureMarkdownFileName(root.name));
+      const path = mapped?.path?.trim()
+        ? requireGithubDocumentPath(mapped.path)
+        : joinGithubPath(defaultPath, ensureMarkdownFileName(root.name));
       add(repo, branch, path, root.id);
     } else {
       for (const node of nodes) {
@@ -189,7 +190,7 @@ export function buildGithubPushPlans(
           add(
             (docMap.repo || repo).trim(),
             (docMap.branch || branch).trim() || "main",
-            docMap.path.replace(/^\/+/, ""),
+            requireGithubDocumentPath(docMap.path),
             node.id
           );
         } else {

@@ -4,12 +4,16 @@ import { useEffect, useState } from "react";
 import { GitHubMapFields } from "@/components/GitHubMapFields";
 import { GithubMark } from "@/components/icons";
 import { SettingsInfo } from "@/components/SettingsInfo";
-import { ensureMarkdownFileName } from "@/lib/github/repo";
+import {
+  ensureMarkdownFileName,
+  GITHUB_DOCUMENT_PATH_HINT,
+  requireGithubDocumentPath,
+} from "@/lib/github/repo";
 import {
   loadGithubSettings,
   saveGithubSettings,
 } from "@/lib/github/settings";
-import { githubStatusTitle } from "@/lib/github/status";
+import { githubMapLooksBroken, githubStatusTitle, githubStatusToneClass } from "@/lib/github/status";
 import type { GithubMapStatus, GithubRemoteSettings } from "@/lib/github/types";
 
 type Props = {
@@ -60,18 +64,14 @@ export function GitHubEssayMapSection({
     };
   }, [previewMode, nodeId, settingsEpoch]);
 
-  const pathHint = "Exact file in the repo, e.g. README.md";
+  const pathHint = GITHUB_DOCUMENT_PATH_HINT;
   const existing = settings?.maps.find((map) => map.nodeId === nodeId);
   const pathPlaceholder =
     existing?.path ||
     status?.path ||
     (documentName ? ensureMarkdownFileName(documentName) : pathHint);
   const inherited = status?.source === "inherited" && !existing;
-  const broken =
-    status &&
-    (status.health === "missing" ||
-      status.health === "error" ||
-      status.stale);
+  const broken = status && githubMapLooksBroken(status);
 
   async function persistMaps(
     maps: GithubRemoteSettings["maps"],
@@ -108,17 +108,11 @@ export function GitHubEssayMapSection({
     <>
       <h3>
         Mapping
-        <SettingsInfo text="Map this essay to a file in your backup repo. Push overwrites that path and leaves extra files alone. Pull shows a diff before replacing the editor. Token and default repo live in Settings → Integrations." />
+        <SettingsInfo text="Map this essay to a .md file in your backup repo. First push creates that file if it is missing; later pushes overwrite it. Extra files in the repo are left alone. Pull shows a diff before replacing the editor. Token and default repo live in Settings → Integrations. Do not map to a folder name; that would replace the folder on GitHub." />
       </h3>
       {status && (
         <p
-          className={
-            status.health === "ok"
-              ? "explorer-github-ok"
-              : broken
-                ? "explorer-github-missing"
-                : "explorer-github-unchecked"
-          }
+          className={githubStatusToneClass(status)}
           title={githubStatusTitle(status)}
         >
           <GithubMark size={12} struck={Boolean(broken)} />{" "}
@@ -155,18 +149,27 @@ export function GitHubEssayMapSection({
           className="rounded border border-border px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-40"
           disabled={busy || !settings || !path.trim()}
           onClick={() => {
-            void persistMaps(
-              [
-                ...(settings?.maps.filter((map) => map.nodeId !== nodeId) ?? []),
-                {
-                  nodeId,
-                  repo: repo.trim(),
-                  branch: branch.trim(),
-                  path: path.trim().replace(/^\/+/, ""),
-                },
-              ],
-              "Mapping saved."
-            );
+            try {
+              const nextPath = requireGithubDocumentPath(path);
+              void persistMaps(
+                [
+                  ...(settings?.maps.filter((map) => map.nodeId !== nodeId) ?? []),
+                  {
+                    nodeId,
+                    repo: repo.trim(),
+                    branch: branch.trim(),
+                    path: nextPath,
+                  },
+                ],
+                "Mapping saved."
+              );
+            } catch (error) {
+              setMessage(
+                error instanceof Error
+                  ? error.message
+                  : "Could not save GitHub mapping."
+              );
+            }
           }}
         >
           {existing ? "Save mapping" : "Add mapping"}

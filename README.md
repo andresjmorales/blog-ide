@@ -66,11 +66,15 @@ by design.
   breaks) and punctuation normalize (Chicago/MLA dashes, smart quotes)
   handle messy pastes.
 - **GitHub backup** — optional push (device-local PAT). Map a folder to a
-  repo path or a document to `README.md` from Files → GitHub, or map the open
-  essay under Essay settings → GitHub. Matching files are overwritten,
-  extras in the repo are left alone. Pull is explicit: you review a diff and
+  repo path or a document to a `.md` file (`README.md`, `drafts/new-essay.md`)
+  from Files → GitHub, or map the open essay under Essay settings → GitHub.
+  Essay maps must end in `.md` so a folder is never replaced by a file.
+  If the `.md` path does not exist yet, the first push creates it; later
+  pushes overwrite that file. Matching files are overwritten, extras in
+  the repo are left alone. Pull is explicit: you review a diff and
   confirm before the editor is replaced. Mapped items show a GitHub badge
-  (green if the path exists, orange with a slash if it was moved or deleted).
+  (green if the path exists, orange if it is new or git moved it, slash if
+  it was moved or deleted).
   If you `git mv` a mapped file outside BlogIDE, push warns instead of
   silently recreating the old path (which would duplicate it). Refreshing
   BlogIDE never imports a second essay from GitHub; if two Files entries

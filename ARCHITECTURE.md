@@ -55,6 +55,10 @@ markdown.
 - GitHub is a backup/export target (browser PAT, Git Data API).
   Folder and document maps live in `user_settings`; the token is never stored
   in Supabase. Pushes overwrite matching files and never delete extras.
+  A document map must be a `.md` file path; mapping an essay to a folder
+  name is refused because GitHub would replace that directory with a file.
+  A missing `.md` path is created on the first push, then overwritten on
+  later pushes.
   Pull is opt-in: the client fetches the mapped file (or a same-name candidate
   if the path moved), shows a diff, and only then writes the editor copy.
   Pull never creates a workspace node. Mapping badges in Files reflect whether

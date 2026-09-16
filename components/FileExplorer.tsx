@@ -30,7 +30,7 @@ import {
 import { nodesWithDisplayNames } from "@/lib/vault/names";
 import type { WorkspaceNode } from "@/lib/workspace/types";
 import type { GithubMapStatus } from "@/lib/github/types";
-import { githubStatusTitle, unimportedGithubNoticePaths } from "@/lib/github/status";
+import { githubMapLooksBroken, githubStatusTitle, githubStatusToneClass, unimportedGithubNoticePaths } from "@/lib/github/status";
 import {
   DEFAULT_EXPLORER_FOLD,
   loadExplorerFold,
@@ -1085,14 +1085,8 @@ function GithubMappingIcon({
   status?: GithubMapStatus;
 }) {
   if (!status) return null;
-  const broken =
-    status.health === "missing" || status.health === "error" || status.stale;
-  const healthClass =
-    status.health === "ok"
-      ? "explorer-github-ok"
-      : broken
-        ? "explorer-github-missing"
-        : "explorer-github-unchecked";
+  const broken = githubMapLooksBroken(status);
+  const healthClass = githubStatusToneClass(status);
   return (
     <span
       className={`explorer-github-icon ${healthClass}`}

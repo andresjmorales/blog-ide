@@ -14,7 +14,9 @@ export type GithubSyncMap = {
   branch?: string;
   /**
    * Folder: directory prefix in the repo (e.g. `content/essays`).
-   * Document: exact file path (e.g. `README.md`).
+   * Document: exact `.md` file path (e.g. `README.md` or `drafts/new-essay.md`).
+   * A document must not be mapped to a folder name. GitHub would replace
+   * that directory with a file.
    */
   path: string;
 };
@@ -35,6 +37,11 @@ export type GithubMapStatus = GithubResolvedBinding & {
   health: GithubMapHealth;
   /** Same filename at another repo path (likely `git mv`). */
   candidates: string[];
+  /**
+   * Document map points at an existing GitHub directory. Pushing a file
+   * there would replace the folder and its contents.
+   */
+  replacesFolder?: boolean;
   /** Mapped node is missing from the workspace or in Trash. */
   stale: boolean;
   /** Other BlogIDE documents with the same filename (not created from GitHub). */
