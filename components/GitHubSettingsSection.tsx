@@ -17,7 +17,7 @@ import type { GithubMapStatus, GithubRemoteSettings, GithubSyncMap } from "@/lib
 import { GitHubMapDialog } from "@/components/GitHubMapDialog";
 import { GithubMark } from "@/components/icons";
 import { SettingsInfo } from "@/components/SettingsInfo";
-import { githubStatusTitle } from "@/lib/github/status";
+import { githubMapLooksBroken, githubStatusTitle, githubStatusToneClass } from "@/lib/github/status";
 import { VAULT_GITHUB_INCLUDE } from "@/lib/vault/copy";
 import {
   loadGithubIncludeVault,
@@ -85,7 +85,7 @@ export function GitHubSettingsSection({
     <section className="settings-section">
       <h3>
         GitHub backup
-        <SettingsInfo text="One-way by default: BlogIDE overwrites matching files and leaves extras in the repo. Pull is explicit: you will see a diff and confirm before anything in the editor is replaced. If you move a mapped file in git, BlogIDE will not follow it automatically; the mapping badge turns orange so you can remap or pull from the new path. Refreshing Files never creates a second essay from GitHub. The open essay can also be mapped under Essay settings → GitHub. The personal access token is stored only in this browser (Contents: Read and write)." />
+        <SettingsInfo text="One-way by default: BlogIDE overwrites matching files and leaves extras in the repo. Map an essay to a .md file (first push creates it if missing). Mapping an essay to a folder name would replace that folder on GitHub, so it is refused. Pull is explicit: you will see a diff and confirm before anything in the editor is replaced. If you move a mapped file in git, BlogIDE will not follow it automatically; the mapping badge turns orange so you can remap or pull from the new path. Refreshing Files never creates a second essay from GitHub. The open essay can also be mapped under Essay settings → GitHub. The personal access token is stored only in this browser (Contents: Read and write)." />
       </h3>
       {previewMode ? (
         <p className="settings-help">Sign in to configure GitHub backup.</p>
@@ -233,7 +233,7 @@ export function GitHubSettingsSection({
 
           <h4 className="settings-section-subhead">
             Folder maps
-            <SettingsInfo text="Map a folder to a path in a site repo, or a document to a file such as README.md. Right-click in Files also works." />
+            <SettingsInfo text="Map a folder to a path in a site repo, or a document to a .md file such as README.md or drafts/new-essay.md. Right-click in Files also works." />
           </h4>
           {settings.maps.length === 0 ? (
             <p className="settings-help">No folder maps yet.</p>
@@ -244,11 +244,7 @@ export function GitHubSettingsSection({
                   mapNodes.find((n) => n.id === map.nodeId)?.label ??
                   map.nodeId.slice(0, 8);
                 const status = mapStatuses.find((s) => s.nodeId === map.nodeId);
-                const broken =
-                  status &&
-                  (status.health === "missing" ||
-                    status.health === "error" ||
-                    status.stale);
+                const broken = status && githubMapLooksBroken(status);
                 return (
                   <li
                     key={map.nodeId}
@@ -256,13 +252,7 @@ export function GitHubSettingsSection({
                   >
                     {status && (
                       <span
-                        className={
-                          status.health === "ok"
-                            ? "explorer-github-ok"
-                            : broken
-                              ? "explorer-github-missing"
-                              : "explorer-github-unchecked"
-                        }
+                        className={githubStatusToneClass(status)}
                         title={githubStatusTitle(status)}
                       >
                         <GithubMark size={12} struck={Boolean(broken)} />

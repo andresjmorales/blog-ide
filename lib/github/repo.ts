@@ -50,6 +50,35 @@ export function ensureMarkdownFileName(name: string): string {
   return safe.toLowerCase().endsWith(".md") ? safe : `${safe}.md`;
 }
 
+export const GITHUB_DOCUMENT_PATH_HINT =
+  "Exact .md file, e.g. drafts/new-essay.md. First push creates it if missing.";
+
+export const GITHUB_FOLDER_PATH_HINT =
+  "Directory prefix, e.g. content/essays. Essays inside keep their file names.";
+
+export function isMarkdownGithubPath(path: string): boolean {
+  return normalizeGithubPath(path).toLowerCase().endsWith(".md");
+}
+
+/**
+ * Document maps must be a markdown file, never a folder prefix.
+ * Mapping `drafts` as a file would replace that GitHub directory.
+ */
+export function requireGithubDocumentPath(path: string): string {
+  const normalized = normalizeGithubPath(path);
+  if (!normalized) {
+    throw new Error(
+      "Enter a file path ending in .md, for example drafts/new-essay.md."
+    );
+  }
+  if (!isMarkdownGithubPath(normalized)) {
+    throw new Error(
+      "Essay mappings must be a .md file, not a folder. Use a path like drafts/new-essay.md. First push creates the file if it does not exist yet."
+    );
+  }
+  return normalized;
+}
+
 /** Repo-relative path without a leading or trailing slash. */
 export function normalizeGithubPath(path: string): string {
   return path.replace(/^\/+|\/+$/g, "");

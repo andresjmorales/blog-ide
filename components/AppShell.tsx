@@ -138,6 +138,7 @@ import {
   prepareGithubPull,
   type GithubPullFile,
 } from "@/lib/github/pull";
+import { requireGithubDocumentPath } from "@/lib/github/repo";
 import { remapGithubMaps, type GithubPushIssue } from "@/lib/github/status";
 import {
   loadGithubSettings,
@@ -1442,10 +1443,16 @@ function AppShellContent({
 
   async function handleSaveGithubMap(map: GithubSyncMap) {
     try {
+      const kind = githubMapNodes.find((node) => node.id === map.nodeId)?.kind;
+      const path =
+        kind === "document" ? requireGithubDocumentPath(map.path) : map.path;
       const settings = await loadGithubSettings();
       await saveGithubSettings({
         ...settings,
-        maps: [...settings.maps.filter((m) => m.nodeId !== map.nodeId), map],
+        maps: [
+          ...settings.maps.filter((m) => m.nodeId !== map.nodeId),
+          { ...map, path },
+        ],
       });
       setGithubEpoch((value) => value + 1);
     } catch (error) {

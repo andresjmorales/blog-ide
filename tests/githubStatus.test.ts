@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 import { decodeGithubFileContent } from "@/lib/github/client";
 import {
   assessGithubBinding,
+  assertSafeGithubPushFiles,
   attachGithubCopySignals,
   attachWorkspaceTwins,
   collidingMappedDocuments,
   findBasenameCandidates,
+  githubAncestorBlob,
+  githubMapLooksBroken,
+  githubStatusTitle,
   githubUnimportedLookalikes,
   inspectPushFiles,
   prefixExists,
@@ -67,6 +71,68 @@ describe("GitHub mapping health", () => {
   it("treats a folder prefix with files as present", () => {
     expect(prefixExists("posts", index)).toBe(true);
     expect(prefixExists("drafts", index)).toBe(false);
+    expect(prefixExists("README.md", index)).toBe(false);
+  });
+
+  it("refuses pushing an essay onto a GitHub folder", () => {
+    expect(() =>
+      assertSafeGithubPushFiles([{ path: "posts" }], index)
+    ).toThrow(/\.md file/i);
+    expect(() =>
+      assertSafeGithubPushFiles([{ path: "published" }], {
+        ...index,
+        trees: [...index.trees],
+      })
+    ).toThrow(/\.md file/i);
+    expect(() =>
+      assertSafeGithubPushFiles([{ path: "published.md" }], {
+        blobs: index.blobs,
+        trees: [...index.trees, "published.md"],
+        truncated: false,
+      })
+    ).toThrow(/is a folder/i);
+    expect(
+      assertSafeGithubPushFiles([{ path: "drafts/new-essay.md" }], index)
+    ).toBeUndefined();
+  });
+
+  it("refuses creating a file under a path that is already a file", () => {
+    expect(githubAncestorBlob("README.md/extra.md", index.blobs)).toBe(
+      "README.md"
+    );
+    expect(() =>
+      assertSafeGithubPushFiles([{ path: "README.md/extra.md" }], index)
+    ).toThrow(/already a file/i);
+  });
+
+  it("treats mapping an essay to a folder as a broken error", () => {
+    const status = assessGithubBinding(
+      binding({
+        nodeId: "doc",
+        kind: "document",
+        path: "posts",
+      }),
+      index
+    );
+    expect(status.health).toBe("error");
+    expect(status.replacesFolder).toBe(true);
+    expect(githubMapLooksBroken(status)).toBe(true);
+    expect(githubStatusTitle(status)).toMatch(/is a folder/i);
+  });
+
+  it("describes a missing .md path as created on first push, not broken", () => {
+    const status = assessGithubBinding(
+      binding({
+        nodeId: "new",
+        kind: "document",
+        path: "drafts/new-essay.md",
+      }),
+      index
+    );
+    expect(status.health).toBe("missing");
+    expect(status.candidates).toEqual([]);
+    expect(githubMapLooksBroken(status)).toBe(false);
+    expect(githubStatusTitle(status)).toMatch(/first push will create/i);
   });
 
   it("warns a push that would recreate a moved file", () => {

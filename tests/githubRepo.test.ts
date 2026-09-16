@@ -3,9 +3,11 @@ import {
   ensureMarkdownFileName,
   formatGithubRepo,
   githubBasename,
+  isMarkdownGithubPath,
   joinGithubPath,
   normalizeGithubPath,
   parseGithubRepo,
+  requireGithubDocumentPath,
   sanitizeGithubFileName,
 } from "@/lib/github/repo";
 
@@ -51,6 +53,18 @@ describe("joinGithubPath / file names", () => {
     expect(sanitizeGithubFileName("a/b:c")).toBe("a-b-c");
     expect(ensureMarkdownFileName("README")).toBe("README.md");
     expect(ensureMarkdownFileName("notes.md")).toBe("notes.md");
+  });
+
+  it("requires essay maps to be a .md file, not a folder", () => {
+    expect(isMarkdownGithubPath("drafts/new-essay.md")).toBe(true);
+    expect(isMarkdownGithubPath("README.MD")).toBe(true);
+    expect(isMarkdownGithubPath("drafts")).toBe(false);
+    expect(isMarkdownGithubPath("drafts/new-essay")).toBe(false);
+    expect(requireGithubDocumentPath("/drafts/new-essay.md/")).toBe(
+      "drafts/new-essay.md"
+    );
+    expect(() => requireGithubDocumentPath("drafts")).toThrow(/\.md file/i);
+    expect(() => requireGithubDocumentPath("")).toThrow(/ending in \.md/i);
   });
 
   it("formats owner/repo", () => {

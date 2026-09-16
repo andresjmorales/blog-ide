@@ -78,9 +78,13 @@ export function HelpPanel({ open, onClose }: Props) {
             essays/Veganism/). Pop out any document to keep a scratchpad
             floating. Right-click a folder or essay and use GitHub → Map,
             Pull, or Push (token stays on this device).
-            The open essay can also be mapped under Essay settings → GitHub.
-            Mapped items show a small GitHub icon: green if the path
-            is still there, orange with a slash if git moved or deleted it.
+            The open essay can also be mapped under Essay settings → GitHub
+            to a <code>.md</code> file (for example <code>drafts/new-essay.md</code>);
+            first push creates that file if it is missing. Mapping an essay to a
+            folder name is refused, because that would replace the folder on
+            GitHub. Mapped items show a small GitHub icon: green if the path
+            is still there, orange if it is new or git moved it, slash if git
+            moved or deleted it.
             Two essays with the same file name get an “also …” chip so a
             workspace copy is obvious; GitHub extras under a mapped folder
             are listed and never imported as a new essay. Click a

@@ -109,6 +109,37 @@ describe("buildGithubPushPlans", () => {
     ]);
   });
 
+  it("can map an essay to a .md path that does not exist yet", () => {
+    const f = fixture();
+    const plans = buildGithubPushPlans({
+      nodes: f.all,
+      bodies: f.bodies,
+      defaultRepo: "me/site",
+      defaultBranch: "main",
+      defaultPath: "content",
+      maps: [{ nodeId: f.readme.id, path: "drafts/new-essay.md" }],
+      scope: { nodeId: f.readme.id },
+    });
+    expect(plans[0].files).toEqual([
+      { path: "drafts/new-essay.md", content: "# About\n", nodeId: f.readme.id },
+    ]);
+  });
+
+  it("refuses to map an essay to a folder name", () => {
+    const f = fixture();
+    expect(() =>
+      buildGithubPushPlans({
+        nodes: f.all,
+        bodies: f.bodies,
+        defaultRepo: "me/site",
+        defaultBranch: "main",
+        defaultPath: "content",
+        maps: [{ nodeId: f.readme.id, path: "drafts" }],
+        scope: { nodeId: f.readme.id },
+      })
+    ).toThrow(/\.md file/i);
+  });
+
   it("refuses Trash and an empty default repo with no maps", () => {
     const f = fixture();
     expect(() =>
