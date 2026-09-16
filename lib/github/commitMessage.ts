@@ -1,9 +1,7 @@
 import { PRODUCT_NAME } from "@/lib/brand";
-import { githubBasename, normalizeGithubPath } from "@/lib/github/repo";
+import { normalizeGithubPath } from "@/lib/github/repo";
 import { getPublicSiteUrl } from "@/lib/siteUrl";
 
-const SUBJECT_PREFIX = "blogide: ";
-const SUBJECT_MAX = 72;
 const MAX_LISTED_PATHS = 20;
 
 /** Host the user pushed from: this tab’s origin, else the public site URL. */
@@ -29,19 +27,12 @@ function normalizedPaths(files: Array<{ path: string }>): string[] {
   return paths;
 }
 
-function subjectForPaths(paths: string[]): string {
-  if (paths.length === 1) {
-    const path = paths[0];
-    const full = `${SUBJECT_PREFIX}${path}`;
-    if (full.length <= SUBJECT_MAX) return full;
-    return `${SUBJECT_PREFIX}${githubBasename(path) || path}`;
-  }
-  if (paths.length === 0) return `${SUBJECT_PREFIX}sync`;
-  return `${SUBJECT_PREFIX}sync ${paths.length} files`;
+function syncSubject(count: number): string {
+  return `blogide: sync ${count} file${count === 1 ? "" : "s"}`;
 }
 
 /**
- * GitHub commit subject names the file (or file count). The body records
+ * Subject keeps `blogide: sync N file(s)`. The body lists paths and records
  * where the push came from, e.g. `via BlogIDE (https://blogide.com)`.
  */
 export function githubPushCommitMessage(
@@ -49,13 +40,10 @@ export function githubPushCommitMessage(
   originUrl: string = githubPushOriginUrl()
 ): string {
   const paths = normalizedPaths(files);
-  const subject = subjectForPaths(paths);
   const origin = formatGithubPushOrigin(originUrl);
-  const parts = [subject];
+  const parts = [syncSubject(paths.length)];
 
-  if (paths.length === 1 && `${SUBJECT_PREFIX}${paths[0]}`.length > SUBJECT_MAX) {
-    parts.push("", paths[0]);
-  } else if (paths.length > 1) {
+  if (paths.length > 0) {
     const listed = paths.slice(0, MAX_LISTED_PATHS).map((path) => `- ${path}`);
     if (paths.length > MAX_LISTED_PATHS) {
       listed.push(`- …and ${paths.length - MAX_LISTED_PATHS} more`);
