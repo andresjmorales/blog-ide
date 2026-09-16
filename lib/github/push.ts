@@ -11,6 +11,7 @@ import {
   type GithubPushIssue,
 } from "@/lib/github/status";
 import { githubPushCommitMessage } from "@/lib/github/commitMessage";
+import { loadGithubSettings } from "@/lib/github/settings";
 import { loadGithubToken } from "@/lib/github/token";
 import type { GithubPushResult } from "@/lib/github/types";
 import { decryptTreeNames, nodesWithDisplayNames } from "@/lib/vault/names";
