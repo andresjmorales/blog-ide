@@ -24,7 +24,7 @@ export class GithubApiError extends Error {
 
 export function githubErrorCopy(error: unknown): string {
   if (error instanceof GithubApiError) {
-    if (error.status === 401) {
+    if (error.status === 401 || /bad credentials/i.test(error.message)) {
       return "GitHub rejected the token. Create a fine-grained PAT with Contents: Read and write on the target repo, and paste it under Settings.";
     }
     if (error.status === 403) {

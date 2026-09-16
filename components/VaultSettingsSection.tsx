@@ -15,6 +15,11 @@ import {
   isVaultUnlocked,
   regenerateVaultRecovery,
 } from "@/lib/vault/session";
+import {
+  SETTINGS_TOAST,
+  showSettingsError,
+  showSettingsSuccess,
+} from "@/lib/ui/settingsToast";
 
 type Props = {
   previewMode?: boolean;
@@ -33,7 +38,7 @@ export function VaultSettingsSection({
   const [idle, setIdle] = useState<VaultIdleLock>(() => loadVaultIdleLock());
   const [pass, setPass] = useState("");
   const [passConfirm, setPassConfirm] = useState("");
-  const [status, setStatus] = useState<string | null>(null);
+  const [passStatus, setPassStatus] = useState<string | null>(null);
   const [recovery, setRecovery] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const unlocked = isVaultUnlocked();
@@ -137,18 +142,24 @@ export function VaultSettingsSection({
                 onClick={() => {
                   void (async () => {
                     setBusy(true);
-                    setStatus(null);
+                    setPassStatus(null);
                     try {
                       if (pass !== passConfirm) {
-                        throw new Error("The two passphrases do not match.");
+                        setPassStatus("The two passphrases do not match.");
+                        return;
                       }
                       await changeVaultPassphrase(pass);
                       setPass("");
                       setPassConfirm("");
-                      setStatus("Passphrase updated.");
+                      showSettingsSuccess(
+                        "Passphrase updated.",
+                        SETTINGS_TOAST.vault
+                      );
                     } catch (err) {
-                      setStatus(
-                        err instanceof Error ? err.message : "Could not change passphrase."
+                      showSettingsError(
+                        err,
+                        "Could not change passphrase.",
+                        SETTINGS_TOAST.vault
                       );
                     } finally {
                       setBusy(false);
@@ -165,16 +176,18 @@ export function VaultSettingsSection({
                 onClick={() => {
                   void (async () => {
                     setBusy(true);
-                    setStatus(null);
                     try {
                       const code = await regenerateVaultRecovery();
                       setRecovery(formatRecoveryCode(code));
-                      setStatus("New recovery code. Store it; the old one no longer works.");
+                      showSettingsSuccess(
+                        "New recovery code. Store it; the old one no longer works.",
+                        SETTINGS_TOAST.vault
+                      );
                     } catch (err) {
-                      setStatus(
-                        err instanceof Error
-                          ? err.message
-                          : "Could not make a new recovery code."
+                      showSettingsError(
+                        err,
+                        "Could not make a new recovery code.",
+                        SETTINGS_TOAST.vault
                       );
                     } finally {
                       setBusy(false);
@@ -187,9 +200,11 @@ export function VaultSettingsSection({
               {recovery && (
                 <p className="mt-2 break-all font-mono text-sm">{recovery}</p>
               )}
+              {passStatus && (
+                <p className="mt-2 text-xs text-muted">{passStatus}</p>
+              )}
             </>
           )}
-          {status && <p className="mt-2 text-xs text-muted">{status}</p>}
         </>
       )}
     </section>

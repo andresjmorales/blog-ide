@@ -1,5 +1,7 @@
 /**
  * Session toasts for short action outcomes. Not persisted.
+ * Settings uses lib/ui/settingsToast.ts so action results stay visible
+ * while the dialog body scrolls; field validation stays inline.
  */
 
 import { toastCopyFromError } from "@/lib/ui/toastCopy";

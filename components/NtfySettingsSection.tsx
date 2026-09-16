@@ -12,6 +12,12 @@ import {
   saveNtfySecrets,
 } from "@/lib/ntfy/settings";
 import { showCopiedToast, showErrorToast } from "@/lib/ui/toast";
+import {
+  SETTINGS_TOAST,
+  showSettingsError,
+  showSettingsInfo,
+  showSettingsSuccess,
+} from "@/lib/ui/settingsToast";
 
 type Props = {
   previewMode?: boolean;
@@ -26,7 +32,6 @@ export function NtfySettingsSection({
   const [server, setServer] = useState(saved?.server ?? DEFAULT_NTFY_SERVER);
   const [tokenDraft, setTokenDraft] = useState("");
   const [hasToken, setHasToken] = useState(Boolean(saved?.token));
-  const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [topics, setTopics] = useState(saved?.topics ?? []);
 
@@ -89,7 +94,6 @@ export function NtfySettingsSection({
           onClick={() => {
             void (async () => {
               setBusy(true);
-              setMessage(null);
               try {
                 const current = loadNtfySecrets();
                 const nextTopics = channels.map((channel) => {
@@ -113,14 +117,22 @@ export function NtfySettingsSection({
                 setTokenDraft("");
                 setHasToken(Boolean(token));
                 setTopics(nextTopics);
-                setMessage(
-                  ok
-                    ? "Topics saved to your account."
-                    : "Saved on this device. Account sync failed; try again while online."
-                );
+                if (ok) {
+                  showSettingsSuccess(
+                    "Topics saved to your account.",
+                    SETTINGS_TOAST.ntfy
+                  );
+                } else {
+                  showSettingsInfo(
+                    "Saved on this device. Account sync failed; try again while online.",
+                    SETTINGS_TOAST.ntfy
+                  );
+                }
               } catch (err) {
-                setMessage(
-                  err instanceof Error ? err.message : "Could not save ntfy settings."
+                showSettingsError(
+                  err,
+                  "Could not save ntfy settings.",
+                  SETTINGS_TOAST.ntfy
                 );
               } finally {
                 setBusy(false);
@@ -140,7 +152,7 @@ export function NtfySettingsSection({
                 setHasToken(false);
                 setTopics([]);
                 setTokenDraft("");
-                setMessage("ntfy disconnected.");
+                showSettingsSuccess("ntfy disconnected.", SETTINGS_TOAST.ntfy);
               })();
             }}
           >
@@ -198,7 +210,6 @@ export function NtfySettingsSection({
           </p>
         </>
       )}
-      {message ? <p className="mt-2 text-xs text-muted">{message}</p> : null}
     </section>
   );
 }

@@ -3,6 +3,7 @@ import {
   formatPushbulletUserError,
   isPushbulletBlockedError,
 } from "@/lib/pushbullet/errors";
+import { PushbulletApiError } from "@/lib/pushbullet/client";
 
 describe("formatPushbulletUserError", () => {
   it("recognizes blocker-style fetch failures", () => {
@@ -26,5 +27,11 @@ describe("formatPushbulletUserError", () => {
     expect(formatPushbulletUserError("Could not sync devices.")).toBe(
       "Could not sync devices."
     );
+  });
+
+  it("rewrites 401 into account-page copy", () => {
+    expect(
+      formatPushbulletUserError(new PushbulletApiError("invalid access token", 401))
+    ).toMatch(/rejected the token/i);
   });
 });

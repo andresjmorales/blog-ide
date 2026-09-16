@@ -17,6 +17,10 @@ import {
   type ZoteroLibraryType,
 } from "@/lib/zotero/token";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
+import {
+  SETTINGS_TOAST,
+  showSettingsSuccess,
+} from "@/lib/ui/settingsToast";
 
 type Draft = {
   apiKey: string;
@@ -52,7 +56,6 @@ export function ZoteroSettingsSection() {
       style: initialStyle(prefs.dashStyle),
     };
   });
-  const [status, setStatus] = useState<string | null>(null);
 
   function persist() {
     const next = saveZoteroConfig({
@@ -64,7 +67,7 @@ export function ZoteroSettingsSection() {
     });
     setSaved(next);
     setDraft((prev) => ({ ...prev, apiKey: "" }));
-    setStatus("Saved on this device.");
+    showSettingsSuccess("Saved on this device.", SETTINGS_TOAST.zotero);
   }
 
   return (
@@ -189,14 +192,16 @@ export function ZoteroSettingsSection() {
                 groupId: "",
                 style: citeStyleFromDashPref(prefs.dashStyle),
               });
-              setStatus("Removed from this device.");
+              showSettingsSuccess(
+                "Removed from this device.",
+                SETTINGS_TOAST.zotero
+              );
             }}
           >
             Remove key
           </button>
         )}
       </div>
-      {status && <p className="mt-2 text-xs text-muted">{status}</p>}
     </section>
   );
 }

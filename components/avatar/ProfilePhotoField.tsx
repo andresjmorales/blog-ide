@@ -13,6 +13,11 @@ import {
   withAvatarCacheBust,
 } from "@/lib/avatar/paths";
 import { createClient } from "@/lib/supabase/client";
+import {
+  SETTINGS_TOAST,
+  showSettingsError,
+  showSettingsSuccess,
+} from "@/lib/ui/settingsToast";
 
 type Props = {
   initialUrl: string | null;
@@ -97,11 +102,9 @@ export function ProfilePhotoField({
       onUrlChange?.(publicUrl);
       if (cropSrc) URL.revokeObjectURL(cropSrc);
       setCropSrc(null);
-      setMessage("Photo updated.");
+      showSettingsSuccess("Photo updated.", SETTINGS_TOAST.photo);
     } catch (err) {
-      setMessage(
-        err instanceof Error ? err.message : "Could not upload photo."
-      );
+      showSettingsError(err, "Could not upload photo.", SETTINGS_TOAST.photo);
     } finally {
       setBusy(false);
     }
@@ -127,11 +130,9 @@ export function ProfilePhotoField({
 
       setUrl(null);
       onUrlChange?.(null);
-      setMessage("Photo removed.");
+      showSettingsSuccess("Photo removed.", SETTINGS_TOAST.photo);
     } catch (err) {
-      setMessage(
-        err instanceof Error ? err.message : "Could not remove photo."
-      );
+      showSettingsError(err, "Could not remove photo.", SETTINGS_TOAST.photo);
     } finally {
       setBusy(false);
     }
