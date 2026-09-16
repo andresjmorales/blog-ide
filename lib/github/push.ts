@@ -10,7 +10,7 @@ import {
   inspectPushFiles,
   type GithubPushIssue,
 } from "@/lib/github/status";
-import { loadGithubSettings } from "@/lib/github/settings";
+import { githubPushCommitMessage } from "@/lib/github/commitMessage";
 import { loadGithubToken } from "@/lib/github/token";
 import type { GithubPushResult } from "@/lib/github/types";
 import { decryptTreeNames, nodesWithDisplayNames } from "@/lib/vault/names";
@@ -125,9 +125,7 @@ export async function pushWorkspaceToGithub(input: {
         repo: plan.repo,
         branch: plan.branch,
         files: plan.files,
-        message: `blogide: sync ${plan.files.length} file${
-          plan.files.length === 1 ? "" : "s"
-        }`,
+        message: githubPushCommitMessage(plan.files),
       });
       results.push(result);
     } catch (error) {
