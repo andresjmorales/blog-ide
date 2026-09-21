@@ -37,6 +37,7 @@ const ACTIVE_MARKS = new Set<ToolbarItemId>([
   "superscript",
   "subscript",
   "codeBlock",
+  "poetry",
   "bullet",
   "ordered",
 ]);
@@ -60,6 +61,7 @@ export function FormattingOverflowMenu({
       superscript: current.isActive("superscript"),
       subscript: current.isActive("subscript"),
       codeBlock: current.isActive("codeBlock"),
+      poetry: current.isActive("poetry"),
       bullet: current.isActive("bulletList"),
       ordered: current.isActive("orderedList"),
     }),
@@ -173,6 +175,14 @@ function overflowItemsFor(
           id,
           label: TOOLBAR_ITEM_LABELS[id],
           onSelect: () => editor.chain().focus().toggleCodeBlock().run(),
+        },
+      ];
+    case "poetry":
+      return [
+        {
+          id,
+          label: TOOLBAR_ITEM_LABELS[id],
+          onSelect: () => editor.chain().focus().togglePoetry().run(),
         },
       ];
     case "code":

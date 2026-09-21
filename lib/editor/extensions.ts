@@ -27,6 +27,7 @@ import {
 } from "@/lib/editor/math";
 import { FindHighlight } from "@/lib/editor/findHighlight";
 import { FootnoteIndexPlugin } from "@/lib/editor/footnoteNumbers";
+import { Poetry } from "@/lib/editor/poetry";
 import { Subscript, Superscript } from "@/lib/editor/scriptMarks";
 import type { MarkdownTypingShortcuts } from "@/lib/settings";
 
@@ -170,6 +171,7 @@ export function createExtensions(
       : []),
     FindHighlight,
     FootnoteIndexPlugin,
+    Poetry,
     Markdown,
     preserveAsLiteralText("def"),
   ];

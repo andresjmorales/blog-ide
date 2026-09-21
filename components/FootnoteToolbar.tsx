@@ -133,15 +133,6 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
       render: () => <StrikeIcon className="blogide-tool-icon" />,
     },
     {
-      id: "code",
-      kind: "item",
-      title: "Inline code",
-      overflowLabel: "Inline code",
-      active: state.code,
-      onClick: () => editor.chain().focus().toggleCode().run(),
-      render: () => <Code2Icon className="blogide-tool-icon" />,
-    },
-    {
       id: "quote",
       kind: "item",
       title: "Blockquote",
@@ -160,6 +151,15 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
         void promptForLink(editor);
       },
       render: () => <LinkIcon className="blogide-tool-icon" />,
+    },
+    {
+      id: "code",
+      kind: "item",
+      title: "Inline code",
+      overflowLabel: "Inline code",
+      active: state.code,
+      onClick: () => editor.chain().focus().toggleCode().run(),
+      render: () => <Code2Icon className="blogide-tool-icon" />,
     },
     {
       id: "format",

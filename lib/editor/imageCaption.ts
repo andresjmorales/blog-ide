@@ -60,6 +60,7 @@ function isCaptionCandidate(line: string): boolean {
   if (IMAGE_CAPTION_SENTINEL_RE.test(line.trim())) return false;
   if (/^#{1,6}[ \t]/.test(line)) return false;
   if (/^(`{3,}|~{3,})/.test(line)) return false;
+  if (/^:::poetry\b/.test(line.trim()) || line.trim() === ":::") return false;
   if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) return false;
   if (/^>[ \t]/.test(line)) return false;
   if (/^([-*+]|\d+\.)[ \t]/.test(line)) return false;

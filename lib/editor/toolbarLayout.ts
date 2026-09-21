@@ -18,6 +18,7 @@ export const TOOLBAR_ITEM_IDS = [
   "superscript",
   "subscript",
   "codeBlock",
+  "poetry",
   "case",
   "chars",
   "image",
@@ -57,6 +58,7 @@ export const TOOLBAR_ITEM_LABELS: Record<ToolbarItemId, string> = {
   superscript: "Superscript",
   subscript: "Subscript",
   codeBlock: "Code block",
+  poetry: "Poetry",
   case: "Convert case",
   chars: "Special characters",
   image: "Image",
@@ -92,7 +94,7 @@ export const DEFAULT_TOOLBAR_LAYOUT: ToolbarLayout = [
   { type: "item", id: "link" },
   {
     type: "overflow",
-    items: ["code", "superscript", "subscript", "codeBlock", "case"],
+    items: ["code", "superscript", "subscript", "codeBlock", "poetry", "case"],
   },
   { type: "divider", id: "div-insert" },
   { type: "item", id: "chars" },
@@ -149,8 +151,53 @@ export function overflowSlot(layout: ToolbarLayout): ToolbarOverflowSlot | null 
  * Repair a persisted layout: drop unknown/duplicate ids, keep one overflow
  * folder, collapse extra dividers, and park new items in the unused pool.
  */
+function layoutSignature(slots: readonly unknown[]): string | null {
+  const parts: string[] = [];
+  for (const slot of slots) {
+    if (!slot || typeof slot !== "object") return null;
+    const type = (slot as { type?: unknown }).type;
+    if (type === "divider") {
+      parts.push("|");
+      continue;
+    }
+    if (type === "item") {
+      const id = (slot as { id?: unknown }).id;
+      if (typeof id !== "string") return null;
+      parts.push(id);
+      continue;
+    }
+    if (type === "overflow") {
+      const items = (slot as { items?: unknown }).items;
+      if (!Array.isArray(items) || items.some((id) => typeof id !== "string")) {
+        return null;
+      }
+      parts.push(`(${items.join(",")})`);
+      continue;
+    }
+    return null;
+  }
+  return parts.join(" ");
+}
+
+/** Default from before Poetry existed, so saved layouts pick the button up. */
+function prePoetryDefaultSignature(): string {
+  const slots = DEFAULT_TOOLBAR_LAYOUT.map((slot) =>
+    slot.type === "overflow"
+      ? {
+          type: "overflow" as const,
+          items: slot.items.filter((id) => id !== "poetry"),
+        }
+      : slot
+  );
+  return layoutSignature(slots) ?? "";
+}
+
 export function normalizeToolbarLayout(input: unknown): ToolbarLayout {
-  const raw = Array.isArray(input) ? input : DEFAULT_TOOLBAR_LAYOUT;
+  const source =
+    Array.isArray(input) && layoutSignature(input) === prePoetryDefaultSignature()
+      ? DEFAULT_TOOLBAR_LAYOUT
+      : input;
+  const raw = Array.isArray(source) ? source : DEFAULT_TOOLBAR_LAYOUT;
   const seen = new Set<ToolbarItemId>();
   const overflowItems: ToolbarItemId[] = [];
   let hasOverflow = false;

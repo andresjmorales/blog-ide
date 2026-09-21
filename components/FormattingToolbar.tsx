@@ -28,6 +28,7 @@ import { FormattingOverflowMenu } from "@/components/FormattingOverflowMenu";
 import { HeadingStyleMenu } from "@/components/HeadingStyleMenu";
 import { ImageInsertMenu } from "@/components/ImageInsertMenu";
 import { ConvertCaseMenu } from "@/components/ConvertCaseMenu";
+import { PoetryIcon } from "@/components/icons";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 
 type Props = {
@@ -67,6 +68,7 @@ export function FormattingToolbar({
       superscript: current.isActive("superscript"),
       subscript: current.isActive("subscript"),
       codeBlock: current.isActive("codeBlock"),
+      poetry: current.isActive("poetry"),
       canUndo: current.can().undo(),
       canRedo: current.can().redo(),
     }),
@@ -156,6 +158,7 @@ type ToolState = {
   superscript: boolean;
   subscript: boolean;
   codeBlock: boolean;
+  poetry: boolean;
   canUndo: boolean;
   canRedo: boolean;
 };
@@ -346,6 +349,16 @@ function ToolbarItem({
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
         >
           {"{ }"}
+        </ToolButton>
+      );
+    case "poetry":
+      return (
+        <ToolButton
+          title="Poetry. Keeps indents and uses a close line break. Enter for a new line, Ctrl+Enter to leave the block."
+          active={state.poetry}
+          onClick={() => editor.chain().focus().togglePoetry().run()}
+        >
+          <PoetryIcon className="blogide-tool-icon" />
         </ToolButton>
       );
     case "case":

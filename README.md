@@ -62,7 +62,7 @@ by design.
   browser Save as PDF dialog; optional Word `.docx` and PDF via Pandoc
   (`PANDOC_PATH`, plus a PDF engine such as `xelatex`). Import markdown or
   `.docx` / `.odt` from the Files panel. Convert Case, superscript,
-  subscript, inline code, and Code block live under toolbar **Aa+** (reorder
+  subscript, inline code, Code block, and Poetry (indents and close line breaks) live under toolbar **Aa+** (reorder
   under Settings → Editor). Clean
   whitespace (joins Shift-Enter / PDF wraps to spaces and keeps paragraph
   breaks) and punctuation normalize (Chicago/MLA dashes, smart quotes)

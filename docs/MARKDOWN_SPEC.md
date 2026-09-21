@@ -104,6 +104,56 @@ one paragraph break, so PDF wraps stay in one paragraph instead of becoming
 a new block per line. HTML paste drops empty `<p><br></p>`-style paragraphs
 from Word / Docs / some PDF clipboards.
 
+## Poetry
+
+A poem is one block with Shift-Enter spacing (no paragraph gap between
+lines) and preserved leading spaces. The on-disk marker is a fence, not an
+HTML tag, so a rich-text paste never has to round-trip raw tags as the
+marker. The editor and Preview render a real element instead:
+
+```html
+<div class="poetry" data-type="poetry" style="white-space: pre-wrap">…</div>
+```
+
+Copying that element and pasting it back restores the block, including
+indents. Inline marks stay inside the fence as ordinary markdown, one line
+at a time, so a verse can be poetry and still use italics, links,
+superscripts, and quotation marks. The block can also sit inside a
+blockquote.
+
+```md
+:::poetry
+<sup>27</sup>All creatures look to You
+  to give them their food in due season.
+<sup>28</sup>When You give it to them,
+  they gather it up;
+when You open Your hand,
+  they are satisfied with good things.
+:::
+```
+
+```md
+> :::poetry
+> <sup>27</sup>“All creatures look to You
+>   to give them their food in due season.”
+> :::
+```
+
+A blank line inside the fence is a stanza break (one empty line), not a new
+paragraph. Enter inserts that close break. Ctrl+Enter (Cmd+Enter on Mac)
+leaves the block. Toolbar **Aa+ → Poetry** toggles it. Tab inserts two
+spaces.
+
+**personal-site:** recognize `:::poetry` … `:::` (including when every line
+is prefixed with `> ` inside a blockquote). Render the body with
+`white-space: pre-wrap` and the surrounding typeface, not a monospace code
+block. Parse inline markdown per line after taking leading spaces off, so
+`<sup>`, `*emphasis*`, and links survive and the indent is not eaten.
+Closing fence is a line that is only `:::`.
+
+An HTML `<div class="poetry">` or `<pre class="poetry">` in markdown or on
+the clipboard is accepted and stored back as the fence.
+
 ## Superscript and subscript
 
 Toolbar **Aa+** (More formatting) holds extra inline formatting by default:

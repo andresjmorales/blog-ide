@@ -428,6 +428,13 @@ ${enhancer}
   }
   .editor-prose blockquote em,
   .editor-prose blockquote i { font-style: italic; }
+  .editor-prose .poetry {
+    font-family: inherit;
+    font-style: normal;
+    margin: 0 0 1em;
+    white-space: pre-wrap;
+  }
+  .editor-prose blockquote .poetry { margin: 0; color: inherit; }
   .editor-prose table { border-collapse: collapse; margin: 1.25em 0; width: 100%; }
   .editor-prose th, .editor-prose td {
     border: 1px solid var(--border); padding: 0.4em 0.65em; text-align: left;

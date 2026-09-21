@@ -764,6 +764,27 @@ export function GithubMark({
   );
 }
 
+/** Indented lines: the second line sits in from the left, like a poem. */
+export function PoetryIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width={16}
+      height={16}
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <path
+        d="M2.5 4.25h11M4.5 8h9M2.5 11.75h11"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function LockIcon({
   className = "",
   size = 12,
