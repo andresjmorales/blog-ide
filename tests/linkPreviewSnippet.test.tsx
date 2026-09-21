@@ -70,7 +70,28 @@ describe("LinkPreviewSnippet", () => {
     );
     expect(document.querySelector('a[title="Open in new tab"]')).toBeTruthy();
     expect(document.body.textContent).toContain("Pin and read here");
-    expect(document.querySelector('button[aria-label="Copy title"]')).toBeNull();
+    expect(document.querySelector('button[aria-label="Copy title"]')).toBeTruthy();
+  });
+
+  it("copies the fetched page title from the clipboard button", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    mount({
+      url: "https://example.com/page",
+      title: "Full webpage title",
+      description: "Summary",
+      siteName: "Example",
+      image: null,
+    });
+    const copy = document.querySelector(
+      'button[aria-label="Copy title"]'
+    ) as HTMLButtonElement | null;
+    expect(copy).toBeTruthy();
+    await act(async () => {
+      copy!.click();
+    });
+    expect(writeText).toHaveBeenCalledWith("Full webpage title");
+    vi.unstubAllGlobals();
   });
 
   it("pins and auto-opens the extract", () => {

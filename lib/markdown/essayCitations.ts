@@ -4,13 +4,12 @@
  * human copy; this index is for restyle, jump-to, and offline re-copy.
  */
 
+import type { FormattedKey } from "@/lib/citations/citeStyle";
+import { FORMATTED_KEYS, isFormattedKey } from "@/lib/citations/citeStyle";
+
 export type EssayCitationProvider = "zotero" | "bibtex" | "library";
 
-export type EssayCitationFormatted = {
-  "chicago-note"?: string;
-  "chicago-bib"?: string;
-  mla?: string;
-};
+export type EssayCitationFormatted = Partial<Record<FormattedKey, string>>;
 
 export type EssayCitation = {
   id: string;
@@ -35,13 +34,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function parseFormatted(raw: unknown): EssayCitationFormatted {
   if (!isRecord(raw)) return {};
   const formatted: EssayCitationFormatted = {};
-  if (typeof raw["chicago-note"] === "string") {
-    formatted["chicago-note"] = raw["chicago-note"];
+  for (const key of Object.keys(raw)) {
+    if (!isFormattedKey(key)) continue;
+    const value = raw[key];
+    if (typeof value === "string" && value) formatted[key] = value;
   }
-  if (typeof raw["chicago-bib"] === "string") {
-    formatted["chicago-bib"] = raw["chicago-bib"];
-  }
-  if (typeof raw.mla === "string") formatted.mla = raw.mla;
   return formatted;
 }
 
@@ -84,13 +81,10 @@ export function parseEssayCitationsJson(payload: string): EssayCitation[] {
 
 export function serializeEssayCitation(citation: EssayCitation): EssayCitation {
   const formatted: EssayCitationFormatted = {};
-  if (citation.formatted["chicago-note"]) {
-    formatted["chicago-note"] = citation.formatted["chicago-note"];
+  for (const key of FORMATTED_KEYS) {
+    const value = citation.formatted[key];
+    if (value) formatted[key] = value;
   }
-  if (citation.formatted["chicago-bib"]) {
-    formatted["chicago-bib"] = citation.formatted["chicago-bib"];
-  }
-  if (citation.formatted.mla) formatted.mla = citation.formatted.mla;
   const next: EssayCitation = {
     id: citation.id,
     provider: citation.provider,
@@ -158,11 +152,9 @@ export function stripBlogideTrailers(body: string): BlogideTrailers {
 }
 
 export function formattedStrings(citation: EssayCitation): string[] {
-  return [
-    citation.formatted["chicago-note"],
-    citation.formatted["chicago-bib"],
-    citation.formatted.mla,
-  ].filter((value): value is string => Boolean(value));
+  return FORMATTED_KEYS.map((key) => citation.formatted[key]).filter(
+    (value): value is string => Boolean(value)
+  );
 }
 
 export function citationMatchesText(

@@ -1,9 +1,10 @@
 import {
-  citeStyleToBibtex,
+  citeStyleToLocal,
+  FORMATTED_KEYS,
   formattedKeyForStyle,
   type CiteStyleId,
 } from "@/lib/citations/citeStyle";
-import { formatBibEntry, parseBibtex } from "@/lib/citations/formatBibtex";
+import { formatForLocalStyle, parseBibtex } from "@/lib/citations/formatBibtex";
 import type { EssayCitation } from "@/lib/markdown/essayCitations";
 import type { ZoteroSearchHit } from "@/lib/zotero/client";
 
@@ -16,6 +17,10 @@ export type CiteHit = {
   year: string;
   itemType: string;
   formatted: string;
+  /** Reference-list form when it differs from the footnote. */
+  bibliography?: string;
+  /** Parenthetical for author-date styles. */
+  inText?: string;
   bibtex: string;
   url?: string;
   /** Session Library row id when this hit is a saved PDF or bookmark. */
@@ -73,9 +78,9 @@ function urlFromFields(fields: Record<string, string>): string | undefined {
 }
 
 export function hitsFromBibtex(source: string, style: CiteStyleId): CiteHit[] {
-  const bibStyle = citeStyleToBibtex(style);
+  const localStyle = citeStyleToLocal(style);
   return parseBibtex(source).map((entry) => {
-    const formatted = formatBibEntry(entry, bibStyle);
+    const forms = formatForLocalStyle(entry, localStyle);
     return {
       id: `bibtex:${entry.key}`,
       provider: "bibtex",
@@ -84,7 +89,12 @@ export function hitsFromBibtex(source: string, style: CiteStyleId): CiteHit[] {
       creators: creatorsFromFields(entry.fields),
       year: yearFromFields(entry.fields),
       itemType: entry.type,
-      formatted,
+      formatted: forms.footnote,
+      bibliography:
+        forms.bibliography && forms.bibliography !== forms.footnote
+          ? forms.bibliography
+          : undefined,
+      inText: forms.inText,
       bibtex: source.includes(`@${entry.type}`)
         ? sliceBibtexEntry(source, entry.key) || rawEntryFallback(entry)
         : rawEntryFallback(entry),
@@ -137,7 +147,9 @@ export function hitFromZotero(hit: ZoteroSearchHit): CiteHit {
     creators: hit.creators,
     year: hit.year,
     itemType: hit.itemType,
-    formatted: hit.citation,
+    formatted: hit.footnote || hit.citation,
+    bibliography: hit.bibliography,
+    inText: hit.inText,
     bibtex: hit.bibtex,
     url: hit.url,
     zotero: hit,
@@ -151,9 +163,7 @@ export function hitFromEssayCitation(
   const key = formattedKeyForStyle(style);
   const formatted =
     citation.formatted[key] ||
-    citation.formatted["chicago-note"] ||
-    citation.formatted.mla ||
-    citation.formatted["chicago-bib"] ||
+    FORMATTED_KEYS.map((item) => citation.formatted[item]).find(Boolean) ||
     "";
   return {
     id: citation.id,

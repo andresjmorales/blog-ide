@@ -1,5 +1,7 @@
 import type { LinkPreview } from "@/lib/preview/openGraph";
 
+export type { LinkPreview };
+
 export async function fetchLinkPreview(url: string): Promise<LinkPreview> {
   const res = await fetch(
     `/api/link-preview?url=${encodeURIComponent(url)}`

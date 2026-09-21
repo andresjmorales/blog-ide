@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { AddToLibraryButton } from "@/components/library/AddToLibraryButton";
-import { ExternalLinkIcon } from "@/components/icons";
+import { ClipboardIcon, ExternalLinkIcon } from "@/components/icons";
 import type { LinkPreview } from "@/lib/preview/openGraph";
 import { citeLinkedUrl } from "@/lib/citations/libraryCite";
+import { showCopiedToast, showErrorToast } from "@/lib/ui/toast";
 
 /**
  * Compact OG chrome for the link bubble: fixed thumbnail, one-line summary,
@@ -32,6 +33,19 @@ export function LinkPreviewSnippet({
     : error
       ? error
       : preview?.title || url;
+  const fetchedTitle = preview?.title?.trim() ?? "";
+  const canCopyTitle =
+    Boolean(fetchedTitle) && fetchedTitle !== url && !loading && !error;
+
+  async function copyTitle() {
+    if (!fetchedTitle) return;
+    try {
+      await navigator.clipboard.writeText(fetchedTitle);
+      showCopiedToast("Copied page title.");
+    } catch (err) {
+      showErrorToast(err, "Could not copy to the clipboard.", "clipboard-copy");
+    }
+  }
 
   return (
     <div className="link-preview-snippet">
@@ -55,13 +69,30 @@ export function LinkPreviewSnippet({
         </div>
         <div className="link-preview-meta">
           <p className="link-hover-site">{preview?.siteName || "\u00a0"}</p>
-          <p
-            className={
-              error && !loading ? "link-hover-error" : "link-hover-title"
-            }
-          >
-            {titleText}
-          </p>
+          <div className="link-hover-title-line">
+            <p
+              className={
+                error && !loading ? "link-hover-error" : "link-hover-title"
+              }
+            >
+              {titleText}
+            </p>
+            {canCopyTitle && (
+              <button
+                type="button"
+                className="link-hover-copy-title"
+                aria-label="Copy title"
+                title="Copy page title"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  void copyTitle();
+                }}
+              >
+                <ClipboardIcon />
+              </button>
+            )}
+          </div>
           <p className="link-hover-desc">
             {preview?.description || "\u00a0"}
           </p>
@@ -84,11 +115,11 @@ export function LinkPreviewSnippet({
         <button
           type="button"
           title="Cite this link in the essay"
-          onClick={() => citeLinkedUrl(url, title)}
+          onClick={() => void citeLinkedUrl(url, title, preview)}
         >
           Cite
         </button>
-        <AddToLibraryButton url={url} title={title} variant="hover" />
+        <AddToLibraryButton url={url} title={title} preview={preview} variant="hover" />
       </div>
     </div>
   );

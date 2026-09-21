@@ -78,6 +78,11 @@ function preferredFormatted(
     citation.formatted["chicago-note"] ||
     citation.formatted.mla ||
     citation.formatted["chicago-bib"] ||
+    citation.formatted.apa ||
+    citation.formatted.harvard ||
+    citation.formatted.turabian ||
+    citation.formatted.ieee ||
+    citation.formatted.vancouver ||
     ""
   );
 }

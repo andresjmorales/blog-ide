@@ -17,6 +17,8 @@ import {
   DEFAULT_CITE_STYLE,
   type CiteStyleId,
 } from "@/lib/citations/citeStyle";
+import type { LinkPreview } from "@/lib/preview/client";
+import { resolvePageSource } from "@/lib/citations/urlSource";
 import { loadZoteroConfig } from "@/lib/zotero/token";
 
 /** Chicago-ish note from a saved Library PDF, bookmark, or BibTeX entry. */
@@ -24,7 +26,7 @@ export function formatLibraryCitation(
   entry: LibraryMeta,
   style: CiteStyleId = libraryCiteStyle()
 ): string {
-  if (entry.kind === "bibtex" && entry.bibtex) {
+  if (entry.bibtex && entry.kind !== "pdf") {
     return (
       hitsFromBibtex(entry.bibtex, style)[0]?.formatted ||
       entry.name.trim() ||
@@ -46,12 +48,23 @@ export function hitFromLibraryEntry(
   entry: LibraryMeta,
   style: CiteStyleId = libraryCiteStyle()
 ): CiteHit {
-  if (entry.kind === "bibtex" && entry.bibtex) {
+  if (entry.bibtex && entry.kind !== "pdf") {
     const parsed = hitsFromBibtex(entry.bibtex, style)[0];
+    if (parsed && entry.kind === "bibtex") {
+      return {
+        ...parsed,
+        id: `library:${entry.id}`,
+        url: entry.url ?? parsed.url,
+        libraryId: entry.id,
+      };
+    }
     if (parsed) {
       return {
         ...parsed,
         id: `library:${entry.id}`,
+        provider: "library",
+        itemType: "link",
+        title: entry.name || parsed.title,
         url: entry.url ?? parsed.url,
         libraryId: entry.id,
       };
@@ -92,14 +105,59 @@ export function insertLibraryCitation(
  * Bookmark a URL if needed, then insert a footnote. Opens Library when no
  * essay editor is mounted (phone sheet / empty workspace).
  */
-export function citeLinkedUrl(url: string, title?: string): void {
-  const existing = findLibraryLinkByUrl(url);
-  const entry = existing ?? addLibraryLink({ url, title });
-  if (!existing) void addLibraryLinkDurable({ url, title });
+export async function citeLinkedUrl(
+  url: string,
+  title?: string,
+  preview?: LinkPreview | null
+): Promise<void> {
+  let entry = findLibraryLinkByUrl(url);
+  if (!entry?.bibtex) {
+    try {
+      const source = await resolvePageSource({ url, title, preview });
+      entry = addLibraryLink({
+        url,
+        title: source.title || title,
+        bibtex: source.bibtex,
+        citeKey: source.citeKey,
+      });
+      void addLibraryLinkDurable({
+        url,
+        title: entry.name,
+        bibtex: source.bibtex,
+        citeKey: source.citeKey,
+      });
+    } catch {
+      if (!entry) {
+        entry = addLibraryLink({ url, title });
+        void addLibraryLinkDurable({ url, title });
+      }
+    }
+  }
   const editor = getEssayEditor();
-  if (!editor) {
+  if (!editor || !entry) {
     requestOpenLibraryCite();
     return;
   }
   insertLibraryCitation(editor, entry);
+}
+
+/** Bookmark a URL, filling authors, date, and site from the page when we can. */
+export async function saveEnrichedLibraryLink(input: {
+  url: string;
+  title?: string;
+  preview?: LinkPreview | null;
+}): Promise<void> {
+  const existing = findLibraryLinkByUrl(input.url);
+  if (existing) return;
+  try {
+    const source = await resolvePageSource(input);
+    await addLibraryLinkDurable({
+      url: input.url,
+      title: source.title || input.title,
+      bibtex: source.bibtex,
+      citeKey: source.citeKey,
+    });
+  } catch {
+    await addLibraryLinkDurable({ url: input.url, title: input.title });
+  }
 }

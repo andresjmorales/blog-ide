@@ -39,11 +39,18 @@ describe("session Library links", () => {
   });
 
   it("dedupes addLibraryLink by canonical URL", () => {
-    addLibraryLink({ url: "https://example.com/a", title: "A" });
+    addLibraryLink({
+      url: "https://example.com/a",
+      title: "A",
+      bibtex: "@misc{a, title = {A}}",
+      citeKey: "a",
+    });
     addLibraryLink({ url: "https://example.com/a/", title: "A2" });
     const links = listLibraryEntries().filter((e) => e.kind === "link");
     expect(links).toHaveLength(1);
     expect(links[0].name).toBe("A2");
+    expect(links[0].bibtex).toContain("@misc");
+    expect(links[0].citeKey).toBe("a");
   });
 
   it("saves BibTeX into the Library and dedupes by cite key", () => {

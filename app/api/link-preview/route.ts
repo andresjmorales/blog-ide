@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/supabase/requireUser";
 import { assertSafePublicUrl } from "@/lib/preview/ssrf";
 import { extractOpenGraph, type LinkPreview } from "@/lib/preview/openGraph";
+import { enrichWithCrossref } from "@/lib/preview/pageCitation";
 import { cacheGet, cacheSet } from "@/lib/preview/cache";
 
 export const runtime = "nodejs";
@@ -80,6 +81,9 @@ export async function GET(request: Request) {
     }
     const html = new TextDecoder("utf-8").decode(merged);
     const preview = extractOpenGraph(html, response.url || safe.href);
+    if (preview.citation?.doi) {
+      preview.citation = await enrichWithCrossref(preview.citation);
+    }
     cacheSet(`og:${url}`, preview);
     cacheSet(`og:${preview.url}`, preview);
     return NextResponse.json(preview);
