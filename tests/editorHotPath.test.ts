@@ -10,6 +10,12 @@ import {
 import { resetEditorWorkSchedule } from "@/lib/editor/workSchedule";
 import { setFindHighlights } from "@/lib/editor/findHighlight";
 import { findInEditor } from "@/lib/editor/findReplaceInEditor";
+import { BIBLE_SCAN_RADIUS } from "@/lib/bible/hits";
+import * as bibleDetect from "@/lib/bible/detect";
+import {
+  BibleRefHighlight,
+  getBibleRefState,
+} from "@/lib/editor/bible/BibleRefHighlight";
 
 function makeEditor(body: string) {
   return new Editor({
@@ -130,6 +136,59 @@ describe("editor hot path", () => {
       expect(extra).toBe(0);
       expect(editor.state.doc.attrs.essayCitations).toEqual([citation]);
     } finally {
+      editor.destroy();
+    }
+  });
+
+  it("does not scan the whole paragraph for bible refs while typing", () => {
+    const filler = "See item 12 and note 3 in chapter 4 of the argument. ";
+    const gap = "abcd ".repeat(31);
+    const body = `See John 3:16 today. ${filler.repeat(200)}Luke 2:10 ${gap}CARET${filler.repeat(200)} See Romans 8:28 today.[^1]\n\n[^1]: a note\n`;
+    const element = document.createElement("div");
+    document.body.appendChild(element);
+    const editor = new Editor({
+      element,
+      extensions: [...createExtensions(), BibleRefHighlight],
+      content: parseBody(body),
+    });
+    const spy = vi.spyOn(bibleDetect, "detectEnglishBibleRefs");
+    try {
+      editor.commands.setBibleRefsEnabled(true);
+      expect(getBibleRefState(editor).hits.map((hit) => hit.text)).toEqual(
+        expect.arrayContaining(["John 3:16", "Luke 2:10", "Romans 8:28"])
+      );
+      const index = footnoteIndexKey.getState(editor.state);
+      let caret = -1;
+      editor.state.doc.descendants((node, pos) => {
+        if (!node.isText || !node.text) return;
+        const at = node.text.indexOf("CARET");
+        if (at < 0) return;
+        caret = pos + at;
+        return false;
+      });
+      expect(caret).toBeGreaterThan(BIBLE_SCAN_RADIUS);
+      spy.mockClear();
+      editor.commands.insertContentAt(caret, "x");
+      expect(footnoteIndexKey.getState(editor.state)).toBe(index);
+      expect(spy.mock.calls.length).toBeGreaterThan(0);
+      for (const [text] of spy.mock.calls) {
+        expect(text.length).toBeLessThanOrEqual(BIBLE_SCAN_RADIUS * 2 + 2);
+      }
+      expect(getBibleRefState(editor).hits.map((hit) => hit.text)).toEqual(
+        expect.arrayContaining(["John 3:16", "Luke 2:10", "Romans 8:28"])
+      );
+
+      editor.commands.insertContentAt(caret, "Acts 2:38 ");
+      expect(getBibleRefState(editor).hits.map((hit) => hit.text)).toEqual(
+        expect.arrayContaining([
+          "John 3:16",
+          "Luke 2:10",
+          "Acts 2:38",
+          "Romans 8:28",
+        ])
+      );
+    } finally {
+      spy.mockRestore();
       editor.destroy();
     }
   });

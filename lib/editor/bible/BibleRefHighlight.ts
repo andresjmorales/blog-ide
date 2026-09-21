@@ -159,16 +159,28 @@ function applyDocChange(
   }
 
   const bounds = bibleScanBounds(tr.doc, changed.from, changed.to);
-  const kept = mappedHits.filter(
-    (hit) => hit.to <= bounds.from || hit.from >= bounds.to
-  );
   const fresh = collectBibleRefHitsInRange(tr.doc, bounds.from, bounds.to);
+  const kept = mappedHits.filter((hit) => {
+    if (hit.to <= bounds.from || hit.from >= bounds.to) return true;
+    const fullyInside = hit.from >= bounds.from && hit.to <= bounds.to;
+    if (fullyInside) return false;
+    // A ref that only clips the window edge was not edited and may start
+    // outside the slice. Leave the mapped hit in place.
+    return !rangesOverlap(hit.from, hit.to, changed.from, changed.to);
+  });
   const hits = [...kept, ...fresh].sort(
     (a, b) => a.from - b.from || a.to - b.to
   );
   const overlapping = decorations.find(bounds.from, bounds.to);
-  if (overlapping.length > 0) {
-    decorations = decorations.remove(overlapping);
+  const stale = overlapping.filter((deco) => {
+    const fullyInside = deco.from >= bounds.from && deco.to <= bounds.to;
+    return (
+      fullyInside ||
+      rangesOverlap(deco.from, deco.to, changed.from, changed.to)
+    );
+  });
+  if (stale.length > 0) {
+    decorations = decorations.remove(stale);
   }
   if (fresh.length > 0) {
     decorations = decorations.add(
