@@ -68,7 +68,8 @@ import {
   ZOTERO_CONFIG_EVENT,
   type ZoteroConfig,
 } from "@/lib/zotero/token";
-import { hitFromLibraryEntry } from "@/lib/citations/libraryCite";
+import { hitFromLibraryEntry, saveEnrichedLibraryLink } from "@/lib/citations/libraryCite";
+import { pageCitationFromBibtex } from "@/lib/preview/pageCitation";
 import {
   getEssayEditor,
   subscribeEssayEditor,
@@ -83,7 +84,6 @@ import {
   removeLibraryEntryDurable,
   resolveLibraryPdfSrc,
   subscribeLibrary,
-  toggleLibraryLinkDurable,
   type LibraryMeta,
 } from "@/lib/library/sessionLibrary";
 import { resolveLibraryOpenTarget } from "@/lib/library/openLibraryItem";
@@ -300,11 +300,16 @@ export function CitePanel({
     return zoteroByUrl[key];
   }
 
-  async function addToZotero(id: string, url: string, title?: string) {
+  async function addToZotero(id: string, url: string, title?: string, bibtex?: string) {
     if (!connected) return;
     setAddingId(id);
     try {
-      const result = await addUrlToZotero(config, { url, title }, style);
+      const stored = bibtex ? pageCitationFromBibtex(bibtex, url) : undefined;
+      const result = await addUrlToZotero(
+        config,
+        { url, title, citation: stored },
+        style
+      );
       const key = canonicalizeLibraryUrl(url) ?? url.trim();
       setZoteroByUrl((prev) => ({ ...prev, [key]: result.hit }));
       showSuccessToast(
@@ -321,12 +326,14 @@ export function CitePanel({
 
   async function addToLibrary(url: string, title?: string) {
     try {
-      const result = await toggleLibraryLinkDurable({ url, title });
-      showSuccessToast(
-        result.added ? "Saved to Library." : "Removed from Library.",
-        undefined,
-        "cite-library-add"
-      );
+      const existing = findLibraryLinkByUrl(url);
+      if (existing) {
+        await removeLibraryEntryDurable(existing.id);
+        showSuccessToast("Removed from Library.", undefined, "cite-library-add");
+        return;
+      }
+      await saveEnrichedLibraryLink({ url, title });
+      showSuccessToast("Saved to Library.", undefined, "cite-library-add");
     } catch (err) {
       showErrorToast(err, "Could not update Library.", "cite-library-add");
     }
@@ -534,7 +541,7 @@ export function CitePanel({
                 onCopyBibtex={() => void copyText(`${hit.id}:bib`, hit.bibtex)}
                 onAddToZotero={
                   connected && hit.url && !zoteroHit
-                    ? () => void addToZotero(hit.id, hit.url!, hit.title)
+                    ? () => void addToZotero(hit.id, hit.url!, hit.title, hit.bibtex)
                     : undefined
                 }
                 onOpenZotero={
@@ -630,7 +637,12 @@ export function CitePanel({
             ? (row) => {
                 const url = row.citation.url;
                 if (!url) return;
-                void addToZotero(`used:${row.citation.id}`, url, row.citation.title);
+                void addToZotero(
+                  `used:${row.citation.id}`,
+                  url,
+                  row.citation.title,
+                  row.citation.bibtex
+                );
               }
             : undefined
         }
@@ -643,7 +655,7 @@ export function CitePanel({
                 if (row.citation.provider !== "zotero") return;
                 try {
                   const fresh = await getZoteroItem(config, row.citation.id, style);
-                  if (!fresh?.citation) {
+                  if (!fresh?.footnote && !fresh?.citation) {
                     showToast({
                       tone: "error",
                       message: "Zotero had no formatted citation for that item.",
@@ -659,7 +671,7 @@ export function CitePanel({
                       rewriteFootnoteContent(
                         editor,
                         row.footnote.id,
-                        fresh.citation
+                        fresh.footnote || fresh.citation
                       );
                     }
                     showSuccessToast(
@@ -731,6 +743,42 @@ async function openLibraryHit(
   openLinkPin({ url: target.url, title: target.title });
 }
 
+function CitationForms({ hit }: { hit: CiteHit }) {
+  const bibliography =
+    hit.bibliography && hit.bibliography !== hit.formatted ? hit.bibliography : "";
+  const labeled = Boolean(hit.inText || bibliography);
+  if (!labeled) {
+    return (
+      <p className="cite-preview-text">
+        {hit.formatted ||
+          "No formatted citation yet. Paste BibTeX or refresh from Zotero."}
+      </p>
+    );
+  }
+  return (
+    <div className="cite-forms">
+      {hit.formatted && (
+        <div>
+          <p className="cite-preview-label">Footnote</p>
+          <p className="cite-preview-text">{hit.formatted}</p>
+        </div>
+      )}
+      {hit.inText && (
+        <div>
+          <p className="cite-preview-label">In-text</p>
+          <p className="cite-preview-text">{hit.inText}</p>
+        </div>
+      )}
+      {bibliography && (
+        <div>
+          <p className="cite-preview-label">Bibliography</p>
+          <p className="cite-preview-text">{bibliography}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CiteHitRow({
   hit,
   expanded,
@@ -796,10 +844,7 @@ function CiteHitRow({
                 Saved PDF. Open it in a pin; it is not a formatted citation.
               </p>
             ) : (
-              <p className="cite-preview-text">
-                {hit.formatted ||
-                  "No formatted citation yet. Paste BibTeX or refresh from Zotero."}
-              </p>
+              <CitationForms hit={hit} />
             )}
             {hit.bibtex && (
               <details className="cite-bibtex">

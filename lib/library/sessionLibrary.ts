@@ -107,6 +107,14 @@ function normalizeMeta(raw: unknown): LibraryMeta[] {
           typeof record.assetPath === "string" ? record.assetPath : undefined,
         byteSize:
           typeof record.byteSize === "number" ? record.byteSize : undefined,
+        bibtex:
+          typeof record.bibtex === "string" && record.bibtex.trim()
+            ? record.bibtex.trim()
+            : undefined,
+        citeKey:
+          typeof record.citeKey === "string" && record.citeKey.trim()
+            ? record.citeKey.trim()
+            : undefined,
       });
       continue;
     }
@@ -296,12 +304,31 @@ export function isLibraryLink(raw: string): boolean {
 export function addLibraryLink(input: {
   url: string;
   title?: string;
+  bibtex?: string;
+  citeKey?: string;
 }): LibraryMeta {
   const canonical = canonicalizeLibraryUrl(input.url);
   const url = canonical || input.url.trim();
   const id = `lib-link:${url}`;
-  const name = (input.title || url).trim() || url;
-  const entry: LibraryMeta = { id, kind: "link", name, url };
+  const previous = meta.find(
+    (entry) =>
+      entry.kind === "link" &&
+      entry.url &&
+      canonicalizeLibraryUrl(entry.url) === url
+  );
+  const name = (input.title || previous?.name || url).trim() || url;
+  const bibtex = input.bibtex?.trim() || previous?.bibtex;
+  const citeKey = input.citeKey?.trim() || previous?.citeKey;
+  const entry: LibraryMeta = {
+    id: previous?.id ?? id,
+    kind: "link",
+    name,
+    url,
+    bibtex,
+    citeKey,
+    assetPath: previous?.assetPath,
+    byteSize: previous?.byteSize,
+  };
   meta = [
     ...meta.filter(
       (e) =>
@@ -375,6 +402,8 @@ export async function addLibraryBibtexEntriesDurable(
 export async function addLibraryLinkDurable(input: {
   url: string;
   title?: string;
+  bibtex?: string;
+  citeKey?: string;
 }): Promise<LibraryMeta> {
   if (await signedIn()) {
     const row = await upsertCloudLibraryLink(input);
@@ -401,6 +430,8 @@ export async function addLibraryLinkDurable(input: {
 export function toggleLibraryLink(input: {
   url: string;
   title?: string;
+  bibtex?: string;
+  citeKey?: string;
 }): { added: boolean; entry: LibraryMeta | null } {
   const existing = findLibraryLinkByUrl(input.url);
   if (existing) {
@@ -414,6 +445,8 @@ export function toggleLibraryLink(input: {
         const row = await upsertCloudLibraryLink({
           url: input.url,
           title: input.title,
+          bibtex: input.bibtex,
+          citeKey: input.citeKey,
         });
         const entry = cloudRowToMeta(row);
         meta = [
@@ -443,6 +476,8 @@ export function toggleLibraryLink(input: {
 export async function toggleLibraryLinkDurable(input: {
   url: string;
   title?: string;
+  bibtex?: string;
+  citeKey?: string;
 }): Promise<{ added: boolean; entry: LibraryMeta | null }> {
   const existing = findLibraryLinkByUrl(input.url);
   if (existing) {

@@ -1,4 +1,5 @@
 import { decodeHtmlEntities } from "@/lib/preview/htmlEntities";
+import { extractPageCitation, type PageCitation } from "@/lib/preview/pageCitation";
 
 export type LinkPreview = {
   url: string;
@@ -7,6 +8,8 @@ export type LinkPreview = {
   siteName: string;
   image: string | null;
   author?: string;
+  /** Structured fields recovered from the page (citation tags, JSON-LD, OG). */
+  citation?: PageCitation;
 };
 
 function metaContent(html: string, ...keys: string[]): string {
@@ -53,13 +56,22 @@ export function extractOpenGraph(html: string, pageUrl: string): LinkPreview {
   );
 
   const author = metaContent(html, "author", "article:author") || undefined;
+  const previewTitle = decodeHtmlEntities(title).slice(0, 300);
+  const previewSite = decodeHtmlEntities(siteName).slice(0, 120);
+  const citation = extractPageCitation(html, pageUrl, {
+    title: previewTitle,
+    description: decodeHtmlEntities(description).slice(0, 600),
+    siteName: previewSite,
+    author,
+  });
 
   return {
     url: pageUrl,
-    title: decodeHtmlEntities(title).slice(0, 300),
+    title: previewTitle,
     description: decodeHtmlEntities(description).slice(0, 600),
-    siteName: decodeHtmlEntities(siteName).slice(0, 120),
+    siteName: previewSite,
     image,
     author,
+    citation,
   };
 }

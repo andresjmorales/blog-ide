@@ -4,9 +4,12 @@
  * Search works with a read-only key. Creating items needs library write.
  */
 
-import type { CiteStyleId } from "@/lib/citations/citeStyle";
+import { citeStyleKind, type CiteStyleId } from "@/lib/citations/citeStyle";
 import { canonicalizeLibraryUrl } from "@/lib/library/urls";
+import { fetchLinkPreview } from "@/lib/preview/client";
+import { preferPageCitation, type PageCitation } from "@/lib/preview/pageCitation";
 import { citationHtmlToPlain } from "@/lib/zotero/citationHtml";
+import { zoteroItemFromPage } from "@/lib/zotero/fromPage";
 import type { ZoteroConfig } from "@/lib/zotero/token";
 
 const API = "https://api.zotero.org";
@@ -44,7 +47,14 @@ export type ZoteroSearchHit = {
   creators: string;
   year: string;
   citeKey: string;
+  /** CSL citation include (note, or parenthetical for author-date). */
   citation: string;
+  /** Text to insert as a footnote. */
+  footnote: string;
+  /** Bibliography entry when it differs from the footnote. */
+  bibliography?: string;
+  /** Parenthetical when the footnote is the full reference. */
+  inText?: string;
   bibtex: string;
   libraryType: "user" | "group";
   libraryId: string;
@@ -202,14 +212,26 @@ export function citeKeyFromZotero(
 function formattedFromItem(
   item: ZoteroItemResponse,
   style: CiteStyleId
-): string {
+): { citation: string; footnote: string; bibliography?: string; inText?: string } {
   const citation = citationHtmlToPlain(item.citation ?? "");
-  if (citation) return citation;
-  if (style === "chicago-author-date") {
-    const bib = citationHtmlToPlain(item.bib ?? "");
-    if (bib) return bib;
+  const bibliography = citationHtmlToPlain(item.bib ?? "");
+  const kind = citeStyleKind(style);
+  if (kind === "note") {
+    const footnote = citation || bibliography;
+    return {
+      citation,
+      footnote,
+      bibliography:
+        bibliography && bibliography !== footnote ? bibliography : undefined,
+    };
   }
-  return "";
+  const footnote = bibliography || citation;
+  return {
+    citation,
+    footnote,
+    bibliography: bibliography && bibliography !== footnote ? bibliography : undefined,
+    inText: citation && citation !== footnote ? citation : undefined,
+  };
 }
 
 export function hitFromZoteroItem(
@@ -221,6 +243,7 @@ export function hitFromZoteroItem(
   const key = item.key || data?.key;
   if (!data || !key) return null;
   if (data.itemType === "attachment" || data.itemType === "note") return null;
+  const formatted = formattedFromItem(item, style);
   return {
     key,
     itemType: data.itemType,
@@ -228,7 +251,10 @@ export function hitFromZoteroItem(
     creators: formatZoteroCreators(data.creators),
     year: yearFromDate(data.date),
     citeKey: citeKeyFromZotero(data),
-    citation: formattedFromItem(item, style),
+    citation: formatted.citation,
+    footnote: formatted.footnote,
+    bibliography: formatted.bibliography,
+    inText: formatted.inText,
     bibtex: typeof item.bibtex === "string" ? item.bibtex.trim() : "",
     libraryType: config.libraryType,
     libraryId: libraryId(config),
@@ -239,11 +265,7 @@ export function hitFromZoteroItem(
   };
 }
 
-function includeForStyle(style: CiteStyleId): string {
-  return style === "chicago-author-date"
-    ? "data,citation,bib,bibtex"
-    : "data,citation,bibtex";
-}
+const ZOTERO_INCLUDE = "data,citation,bib,bibtex";
 
 export async function searchZoteroItems(
   config: ZoteroConfig,
@@ -261,7 +283,7 @@ export async function searchZoteroItems(
     {
       q,
       qmode: "titleCreatorYear",
-      include: includeForStyle(style),
+      include: ZOTERO_INCLUDE,
       style,
       limit: String(Math.min(50, Math.max(1, limit))),
     }
@@ -281,7 +303,7 @@ export async function getZoteroItem(
     config,
     `${libraryPath(config)}/items/${encodeURIComponent(key)}`,
     {
-      include: includeForStyle(style),
+      include: ZOTERO_INCLUDE,
       style,
     }
   );
@@ -312,7 +334,7 @@ export async function findZoteroItemByUrl(
     {
       q: needle,
       qmode: "everything",
-      include: includeForStyle(style),
+      include: ZOTERO_INCLUDE,
       style,
       limit: "10",
     }
@@ -328,27 +350,43 @@ export async function findZoteroItemByUrl(
   return null;
 }
 
+async function loadPageCitation(input: {
+  url: string;
+  citation?: PageCitation;
+}): Promise<PageCitation | undefined> {
+  let live: PageCitation | undefined;
+  try {
+    const preview = await fetchLinkPreview(input.url);
+    live = preview.citation;
+  } catch {
+    live = undefined;
+  }
+  return preferPageCitation(live, input.citation);
+}
+
 export async function createZoteroWebpage(
   config: ZoteroConfig,
-  input: { url: string; title?: string },
+  input: { url: string; title?: string; citation?: PageCitation },
   style: CiteStyleId
 ): Promise<ZoteroSearchHit> {
   const url = input.url.trim();
   if (!url) throw new ZoteroApiError(400, "Missing URL.");
   const title = (input.title || url).trim() || url;
+  const citation = await loadPageCitation(input);
+  const item = citation
+    ? zoteroItemFromPage(citation, { url, title })
+    : {
+        itemType: "webpage",
+        title,
+        url,
+        accessDate: new Date().toISOString().slice(0, 10),
+      };
   const created = await zoteroRequest<ZoteroWriteResponse>(
     config,
     `${libraryPath(config)}/items`,
     {
       method: "POST",
-      body: [
-        {
-          itemType: "webpage",
-          title,
-          url,
-          accessDate: new Date().toISOString().slice(0, 10),
-        },
-      ],
+      body: [item],
     }
   );
   const key =
@@ -372,6 +410,7 @@ export async function createZoteroWebpage(
     year: "",
     citeKey: citeKeyFromZotero({ title, key }),
     citation: title,
+    footnote: title,
     bibtex: "",
     libraryType: config.libraryType,
     libraryId: libraryId(config),
@@ -381,7 +420,7 @@ export async function createZoteroWebpage(
 
 export async function addUrlToZotero(
   config: ZoteroConfig,
-  input: { url: string; title?: string },
+  input: { url: string; title?: string; citation?: PageCitation },
   style: CiteStyleId
 ): Promise<{ hit: ZoteroSearchHit; created: boolean }> {
   const existing = await findZoteroItemByUrl(config, input.url, style);

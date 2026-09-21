@@ -74,7 +74,7 @@ export function ZoteroSettingsSection() {
     <section className="settings-section">
       <h3>
         Zotero
-        <SettingsInfo text="Search your Zotero library from the Library panel (toolbar Cite, or pop the panel out) and insert notes as BlogIDE footnotes. A read key is enough to search. Library write is needed to Add to Zotero from BlogIDE links. The key stays in this browser, not in Supabase." />
+        <SettingsInfo text="Search your Zotero library from the Library panel (toolbar Cite, or pop the panel out) and insert notes as BlogIDE footnotes. A read key is enough to search. Library write is needed to Add to Zotero from BlogIDE links. Add to Zotero keeps authors, dates, DOI, and publication details it can read from the page. The key stays in this browser, not in Supabase." />
       </h3>
       <p className="settings-help">
         Off until a key is saved.{" "}

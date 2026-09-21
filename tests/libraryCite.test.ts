@@ -49,6 +49,33 @@ describe("library citations", () => {
     ).toBe("https://example.com/.");
   });
 
+  it("formats a saved link from its scraped BibTeX", () => {
+    const hit = hitFromLibraryEntry(
+      {
+        id: "link-1",
+        kind: "link",
+        name: "Animal Liberation",
+        url: "https://example.com/singer",
+        bibtex: `@misc{singer2024animal,
+  author = {Singer, Peter},
+  title = {Animal Liberation},
+  howpublished = {The Site},
+  date = {2024-03-01},
+  year = {2024},
+  url = {https://example.com/singer}
+}`,
+      },
+      "chicago-note-bibliography"
+    );
+    expect(hit.provider).toBe("library");
+    expect(hit.itemType).toBe("link");
+    expect(hit.formatted).toBe(
+      'Peter Singer, "Animal Liberation," *The Site*, March 1, 2024, https://example.com/singer.'
+    );
+    expect(hit.bibliography).toBeTruthy();
+    expect(hit.bibliography).not.toBe(hit.formatted);
+  });
+
   it("formats a PDF as its file name", () => {
     expect(
       formatLibraryCitation({

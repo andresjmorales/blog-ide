@@ -5,6 +5,8 @@ import {
   BookmarkCheckIcon,
   BookmarkIcon,
 } from "@/components/icons";
+import { saveEnrichedLibraryLink } from "@/lib/citations/libraryCite";
+import type { LinkPreview } from "@/lib/preview/openGraph";
 import {
   getLibraryServerSnapshot,
   isLibraryLink,
@@ -23,10 +25,12 @@ type Variant = "hover" | "pin" | "header";
 export function AddToLibraryButton({
   url,
   title,
+  preview,
   variant = "pin",
 }: {
   url: string;
   title?: string;
+  preview?: LinkPreview | null;
   variant?: Variant;
 }) {
   const entries = useSyncExternalStore(
@@ -53,7 +57,11 @@ export function AddToLibraryButton({
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        toggleLibraryLink({ url, title });
+        if (saved) {
+          toggleLibraryLink({ url, title });
+          return;
+        }
+        void saveEnrichedLibraryLink({ url, title, preview });
       }}
     >
       <span className="link-library-bookmark-icon" aria-hidden>

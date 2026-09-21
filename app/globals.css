@@ -537,6 +537,19 @@ body {
   gap: 0.35rem;
   padding: 0.15rem 0.3rem 0.4rem;
 }
+.cite-forms {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.cite-preview-label {
+  color: var(--muted);
+  font-size: 0.6rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.1rem;
+  text-transform: uppercase;
+}
 .cite-preview-text {
   color: var(--foreground);
   font-size: 0.7rem;
@@ -3531,17 +3544,51 @@ body.is-dragging-footnote-ref.is-footnote-drop-blocked {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+.link-hover-title-line {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.28rem;
+  margin: 0 0 0.2rem;
+}
 .link-hover-title {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   display: -webkit-box;
+  flex: 1 1 auto;
   font-size: 0.85rem;
   font-weight: 600;
   line-clamp: 2;
   line-height: 1.3;
-  margin: 0 0 0.2rem;
+  margin: 0;
+  max-width: 100%;
   min-height: 1.1rem;
+  min-width: 0;
   overflow: hidden;
+}
+.link-hover-title-line:has(.link-hover-copy-title) .link-hover-title {
+  flex: 0 1 auto;
+  max-width: calc(100% - 1.15rem);
+}
+.link-hover-title-line .link-hover-error {
+  flex: 1;
+  margin: 0;
+}
+.link-hover-copy-title {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  line-height: 0;
+  margin-top: 0.12rem;
+  padding: 0;
+}
+.link-hover-copy-title:hover {
+  color: var(--accent);
+}
+.link-hover-copy-title svg {
+  height: 0.85rem;
+  width: 0.85rem;
 }
 .link-hover-desc,
 .link-hover-meta {

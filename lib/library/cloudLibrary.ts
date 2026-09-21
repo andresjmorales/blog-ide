@@ -54,6 +54,8 @@ export async function publicUrlForAssetPath(path: string): Promise<string> {
 export async function upsertCloudLibraryLink(input: {
   url: string;
   title?: string;
+  bibtex?: string;
+  citeKey?: string;
 }): Promise<CloudLibraryRow> {
   const supabase = createClient();
   const {
@@ -64,6 +66,8 @@ export async function upsertCloudLibraryLink(input: {
   const canonical = canonicalizeLibraryUrl(input.url);
   const url = canonical || input.url.trim();
   const title = (input.title || url).trim() || url;
+  const bibtex = input.bibtex?.trim() || null;
+  const citeKey = input.citeKey?.trim() || null;
 
   const { data: existing } = await supabase
     .from("library_items")
@@ -73,9 +77,17 @@ export async function upsertCloudLibraryLink(input: {
     .maybeSingle();
 
   if (existing) {
+    const patch: Record<string, unknown> = {
+      title,
+      updated_at: new Date().toISOString(),
+    };
+    if (bibtex) {
+      patch.bibtex = bibtex;
+      patch.cite_key = citeKey;
+    }
     const { data, error } = await supabase
       .from("library_items")
-      .update({ title, updated_at: new Date().toISOString() })
+      .update(patch)
       .eq("id", existing.id)
       .select(LIBRARY_ITEM_COLUMNS)
       .single();
@@ -92,6 +104,8 @@ export async function upsertCloudLibraryLink(input: {
       url,
       asset_path: null,
       byte_size: 0,
+      bibtex,
+      cite_key: citeKey,
     })
     .select(LIBRARY_ITEM_COLUMNS)
     .single();

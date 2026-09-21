@@ -81,7 +81,7 @@ describe("zotero helpers", () => {
       expect(url).toContain("q=Nussbaum");
       expect(url).toContain("qmode=titleCreatorYear");
       expect(url).not.toContain("itemType=");
-      expect(url).toContain("include=data%2Ccitation%2Cbibtex");
+      expect(url).toContain("include=data%2Ccitation%2Cbib%2Cbibtex");
       expect(url).not.toContain("secret-key");
       expect(init?.headers).toBeInstanceOf(Headers);
       expect((init?.headers as Headers).get("Authorization")).toBe(
@@ -190,5 +190,66 @@ describe("zotero helpers", () => {
     expect(fetchMock.mock.calls.some((call) => call[1]?.method === "POST")).toBe(
       true
     );
+  });
+
+  it("sends scraped authors, journal, and DOI when creating an item", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "POST") {
+        const body = JSON.parse(String(init?.body)) as Array<Record<string, unknown>>;
+        expect(body[0]).toMatchObject({
+          itemType: "journalArticle",
+          title: "Capabilities",
+          url: "https://example.com/new",
+          DOI: "10.1000/example",
+          publicationTitle: "Ethics",
+          date: "2024-03-01",
+        });
+        expect(body[0]?.creators).toEqual([
+          { creatorType: "author", firstName: "Martha", lastName: "Nussbaum" },
+        ]);
+        return new Response(
+          JSON.stringify({ success: { "0": "NEW2" }, successful: {}, failed: {} }),
+          { status: 200 }
+        );
+      }
+      if (url.includes("/items/NEW2")) {
+        return new Response(
+          JSON.stringify({
+            key: "NEW2",
+            data: {
+              key: "NEW2",
+              itemType: "journalArticle",
+              title: "Capabilities",
+              url: "https://example.com/new",
+            },
+            citation: "Martha Nussbaum, “Capabilities.”",
+          }),
+          { status: 200 }
+        );
+      }
+      return new Response(JSON.stringify([]), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const created = await addUrlToZotero(
+      config,
+      {
+        url: "https://example.com/new",
+        title: "Capabilities",
+        citation: {
+          itemType: "journalArticle",
+          title: "Capabilities",
+          creators: [{ firstName: "Martha", lastName: "Nussbaum" }],
+          date: "2024-03-01",
+          publicationTitle: "Ethics",
+          doi: "10.1000/example",
+          url: "https://example.com/new",
+        },
+      },
+      "chicago-note-bibliography"
+    );
+    expect(created.created).toBe(true);
+    expect(created.hit.footnote).toContain("Capabilities");
   });
 });
