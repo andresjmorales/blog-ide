@@ -6,6 +6,13 @@ import {
 
 const SKIP_BLOCKS = new Set(["codeBlock", "footnoteRef"]);
 
+/**
+ * Characters of prose rescanned on either side of a keystroke.
+ * One English reference is well under this (`detect_references` caps the
+ * book-name token). The window stays on the caret instead of the paragraph.
+ */
+export const BIBLE_SCAN_RADIUS = 160;
+
 export type BibleRefHit = {
   id: string;
   from: number;
@@ -42,14 +49,35 @@ function pushHitsFromText(
   }
 }
 
+function textSlice(
+  node: PMNode,
+  pos: number,
+  range?: { from: number; to: number }
+): { text: string; pos: number } | null {
+  if (!node.isText || !node.text || skipTextNode(node)) return null;
+  if (!range) {
+    if (!/\d/.test(node.text)) return null;
+    return { text: node.text, pos };
+  }
+  const nodeEnd = pos + node.text.length;
+  const from = Math.max(pos, range.from);
+  const to = Math.min(nodeEnd, range.to);
+  if (to <= from) return null;
+  const text = node.text.slice(from - pos, to - pos);
+  if (!/\d/.test(text)) return null;
+  return { text, pos: from };
+}
+
 function visitNode(
   hits: BibleRefHit[],
   node: PMNode,
-  pos: number
+  pos: number,
+  range?: { from: number; to: number }
 ): boolean | void {
   if (SKIP_BLOCKS.has(node.type.name)) return false;
-  if (!node.isText || !node.text || skipTextNode(node)) return;
-  pushHitsFromText(hits, node.text, pos);
+  const slice = textSlice(node, pos, range);
+  if (!slice) return;
+  pushHitsFromText(hits, slice.text, slice.pos);
 }
 
 /** Find Bible references in a ProseMirror doc without mutating it. */
@@ -60,8 +88,8 @@ export function collectBibleRefHits(doc: PMNode): BibleRefHit[] {
 }
 
 /**
- * Rescan only text nodes that overlap `[from, to)`. Used so typing one letter
- * does not re-detect the rest of the essay.
+ * Rescan text that overlaps `[from, to)`. Each text node contributes only
+ * that slice, not the rest of a long paragraph.
  */
 export function collectBibleRefHitsInRange(
   doc: PMNode,
@@ -71,27 +99,27 @@ export function collectBibleRefHitsInRange(
   const hits: BibleRefHit[] = [];
   const start = Math.max(0, from);
   const end = Math.max(start, Math.min(doc.content.size, to));
-  doc.nodesBetween(start, end, (node, pos) => visitNode(hits, node, pos));
+  const range = { from: start, to: end };
+  doc.nodesBetween(start, end, (node, pos) =>
+    visitNode(hits, node, pos, range)
+  );
   return hits;
 }
 
-/** Expand a change to the text nodes it sits in so a ref is never half-scanned. */
+/**
+ * Window around a change for a hot-path rescan. Does not grow to the
+ * surrounding text node: a long paragraph stays mapped outside this span.
+ */
 export function bibleScanBounds(
   doc: PMNode,
   from: number,
   to: number
 ): { from: number; to: number } {
-  let lo = from;
-  let hi = to;
-  const start = Math.max(0, from);
-  const end = Math.max(start, Math.min(doc.content.size, to));
-  doc.nodesBetween(start, end, (node, pos) => {
-    if (SKIP_BLOCKS.has(node.type.name)) return false;
-    if (node.isText) {
-      lo = Math.min(lo, pos);
-      hi = Math.max(hi, pos + node.nodeSize);
-    }
-    return;
-  });
-  return { from: lo, to: hi };
+  const size = doc.content.size;
+  const originFrom = Math.max(0, Math.min(from, size));
+  const originTo = Math.max(originFrom, Math.min(to, size));
+  return {
+    from: Math.max(0, originFrom - BIBLE_SCAN_RADIUS),
+    to: Math.min(size, originTo + BIBLE_SCAN_RADIUS),
+  };
 }

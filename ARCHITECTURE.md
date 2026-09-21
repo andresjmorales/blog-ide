@@ -227,8 +227,10 @@ A letter in the essay body, not inside a footnote:
 4. **Find decorations** — `DecorationSet.map` of existing marks. No rescan.
 5. **Harper underlines** — map decorations; drop squiggles on the edited word.
    WASM lint is *scheduled* (`harperLint`).
-6. **Bible refs** (if enabled) — remap hits; rescan only the edited text node.
-   Map decorations instead of rebuilding the set.
+6. **Bible refs** (if enabled) — remap hits; rescan a window of
+   `BIBLE_SCAN_RADIUS` (160 characters) on each side of the change, sliced
+   out of the edited text node. A reference that only clips that window is
+   left mapped. Map decorations instead of rebuilding the set.
 7. **36 footnote node views** — numbers come from plugin state (`byId`).
    Nested TipTap editors exist only for *open* cards, not every mark.
    Inline sidenote HTML is not mounted while the footnote rail is on.
@@ -239,7 +241,9 @@ A letter in the essay body, not inside a footnote:
 **Must not run on this tick:** `serializeBody`, outline/stats walk, Find
 `findInEditor`, `listEssayLinkedUrls`, `listUsedEssaySources`,
 `pruneEssayCitations`, Harper `extractLintBlocks` / `linter.lint`,
-IndexedDB, Supabase.
+IndexedDB, Supabase, `doc.descendants`, `nodesBetween(0, doc.content.size)`,
+or a regex over the essay or the whole paragraph (`detect_references` on
+`node.text`).
 
 ### After typing settles
 
@@ -272,6 +276,11 @@ off removes that lane's work.
   removed.
 - **Harper / Bible `DecorationSet.create` on every remap** rebuilt all marks.
   They now `map` the existing set, like Find.
+- **Bible `detect_references` on the whole text node.** `bibleScanBounds`
+  used to grow to the edited paragraph, then `visitNode` ran
+  `detect_references` on `node.text`. In a long paragraph full of
+  word-plus-number phrases that calls `_detect_book` for every phrase, on
+  the keystroke. The rescan is now the 160-character window above.
 - **Nested footnote editors** used to mount for every mark. They mount when
   the card opens.
 
