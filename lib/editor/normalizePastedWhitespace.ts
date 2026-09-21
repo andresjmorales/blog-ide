@@ -35,11 +35,16 @@ export function normalizePastedHtml(html: string): string {
   }
 
   const pres: string[] = [];
-  const withoutPre = html.replace(/<pre\b[\s\S]*?<\/pre>/gi, (block) => {
-    const index = pres.length;
-    pres.push(block);
-    return `${PRE_PLACEHOLDER_PREFIX}${index}${PRE_PLACEHOLDER_SUFFIX}`;
-  });
+  // Hold `<pre>` and poetry divs aside so DOMParser cannot collapse their
+  // spaces or turn a poem's blank lines into empty paragraphs.
+  const withoutPre = html.replace(
+    /<pre\b[\s\S]*?<\/pre>|<div\b[^>]*\b(?:class\s*=\s*["'][^"']*\bpoetry\b[^"']*["']|data-type\s*=\s*["']poetry["'])[^>]*>[\s\S]*?<\/div>/gi,
+    (block) => {
+      const index = pres.length;
+      pres.push(block);
+      return `${PRE_PLACEHOLDER_PREFIX}${index}${PRE_PLACEHOLDER_SUFFIX}`;
+    }
+  );
 
   const doc = new DOMParser().parseFromString(withoutPre, "text/html");
   for (const paragraph of [...doc.querySelectorAll("p")]) {

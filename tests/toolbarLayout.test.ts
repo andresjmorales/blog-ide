@@ -26,12 +26,36 @@ describe("toolbarLayout", () => {
       "superscript",
       "subscript",
       "codeBlock",
+      "poetry",
       "case",
     ]);
     expect(defaultOverflowItems()).toContain("code");
     expect(linkIndex).toBeGreaterThan(-1);
     expect(overflowIndex).toBe(linkIndex + 1);
     expect(unusedToolbarItems(DEFAULT_TOOLBAR_LAYOUT)).toEqual([]);
+  });
+
+  it("adds Poetry to a saved layout that was the previous default", () => {
+    const legacy = DEFAULT_TOOLBAR_LAYOUT.map((slot) =>
+      slot.type === "overflow"
+        ? {
+            type: "overflow" as const,
+            items: slot.items.filter((id) => id !== "poetry"),
+          }
+        : slot
+    );
+    expect(overflowSlot(normalizeToolbarLayout(legacy))?.items).toContain(
+      "poetry"
+    );
+  });
+
+  it("leaves Poetry in the unused pool when the toolbar was customized", () => {
+    const custom = normalizeToolbarLayout([
+      { type: "item", id: "bold" },
+      { type: "item", id: "italic" },
+    ]);
+    expect(unusedToolbarItems(custom)).toContain("poetry");
+    expect(overflowSlot(custom)?.items).not.toContain("poetry");
   });
 
   it("repairs a missing overflow folder and parks unknown ids", () => {

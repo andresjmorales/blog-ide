@@ -832,6 +832,15 @@ body {
 .editor-prose blockquote i {
   font-style: italic;
 }
+/* One block, Shift-Enter spacing. Spaces stay because white-space is pre-wrap. */
+.editor-prose .poetry {
+  font-family: inherit;
+  font-style: normal;
+  white-space: pre-wrap;
+}
+.editor-prose blockquote .poetry {
+  color: inherit;
+}
 .editor-prose ul,
 .editor-prose ol {
   padding-left: 1.5em;

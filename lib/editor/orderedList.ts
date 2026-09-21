@@ -171,16 +171,36 @@ function buildNestedStructure(
  * `1.` on serialize — the same trap the `1. ` input rule is designed to avoid.
  * Skips fenced code so examples inside fences stay untouched.
  */
+/** Drop leading `>` markers so a poetry fence inside a quote is recognized. */
+function withoutQuoteMarkers(line: string): string {
+  let rest = line;
+  while (rest.startsWith(">")) {
+    rest = rest.slice(1);
+    if (rest.startsWith(" ")) rest = rest.slice(1);
+  }
+  return rest;
+}
+
 export function protectZeroPaddedOrderedMarkers(body: string): string {
   let inFence = false;
+  let inPoetry = false;
   return body
     .split("\n")
     .map((line) => {
-      if (FENCE_LINE_RE.test(line.trimStart())) {
+      if (!inPoetry && FENCE_LINE_RE.test(line.trimStart())) {
         inFence = !inFence;
         return line;
       }
       if (inFence) return line;
+      const probed = withoutQuoteMarkers(line).trim();
+      if (!inPoetry && probed.startsWith(":::poetry")) {
+        inPoetry = true;
+        return line;
+      }
+      if (inPoetry) {
+        if (probed === ":::") inPoetry = false;
+        return line;
+      }
       const match = line.match(ZERO_PADDED_ORDERED_LINE_RE);
       if (!match) return line;
       const indent = match[1] ?? "";

@@ -51,6 +51,7 @@ import {
   normalizePastedHtml,
   sliceFromPastedPlainText,
 } from "@/lib/editor/normalizePastedWhitespace";
+import { sliceFromPoetryPlainText } from "@/lib/editor/poetry";
 import { TableControls } from "@/components/TableControls";
 import {
   firstImageFile,
@@ -233,6 +234,9 @@ export function DocumentEditor({
           return collapseExtraBlankLines(text);
         },
         clipboardTextParser(text, _context, _plain, view) {
+          if (view.state.selection.$from.parent.type.name === "poetry") {
+            return sliceFromPoetryPlainText(view.state.schema, text);
+          }
           return sliceFromPastedPlainText(view.state.schema, text);
         },
       },

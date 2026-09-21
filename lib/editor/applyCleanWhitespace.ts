@@ -23,6 +23,14 @@ export function applyCleanWhitespace(editor: Editor): boolean {
   if (empty) {
     return false;
   }
+  let hitsPoetry = false;
+  editor.state.doc.nodesBetween(from, to, (node) => {
+    if (node.type.name === "poetry") hitsPoetry = true;
+  });
+  // Poem indents and line breaks are intentional. Flattening them is not
+  // the Shift-Enter cleanup this command is for.
+  if (hitsPoetry) return false;
+
   const text = selectionText(editor.state.doc, from, to);
   const next = cleanWhitespace(text);
   if (next === text) {

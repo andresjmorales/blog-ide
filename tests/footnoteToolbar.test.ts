@@ -1,5 +1,8 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { fitToolbarItems, type ToolbarFitItem } from "@/lib/editor/footnoteToolbar";
+import { DEFAULT_TOOLBAR_LAYOUT } from "@/lib/editor/toolbarLayout";
 
 const btn = (width = 32): ToolbarFitItem => ({ kind: "item", width });
 const sep: ToolbarFitItem = { kind: "sep", width: 4 };
@@ -22,6 +25,65 @@ describe("fitToolbarItems", () => {
     const count = fitToolbarItems(90, items, 32, 4);
     expect(count).toBeGreaterThan(0);
     expect(items[count - 1]?.kind).not.toBe("sep");
+  });
+
+  it("follows the main toolbar order and does not add main-only tools", () => {
+    const source = readFileSync(
+      join(__dirname, "../components/FootnoteToolbar.tsx"),
+      "utf8"
+    );
+    const start = source.indexOf("const tools: ToolDef[]");
+    const end = source.indexOf("useLayoutEffect(", start);
+    const ids = [...source.slice(start, end).matchAll(/id: "([^"]+)"/g)].map(
+      (match) => match[1]
+    );
+    expect(ids).toEqual([
+      "undo",
+      "redo",
+      "sep-lists",
+      "bullet",
+      "ordered",
+      "sep-marks",
+      "bold",
+      "italic",
+      "strike",
+      "quote",
+      "link",
+      "code",
+      "format",
+      "sep-extra",
+      "chars",
+      "ws",
+    ]);
+
+    const main: string[] = [];
+    for (const slot of DEFAULT_TOOLBAR_LAYOUT) {
+      if (slot.type === "item") main.push(slot.id);
+      if (slot.type === "overflow") main.push(...slot.items);
+    }
+    const footnote = [
+      "undo",
+      "redo",
+      "bullet",
+      "ordered",
+      "bold",
+      "italic",
+      "strike",
+      "blockquote",
+      "link",
+      "code",
+      "superscript",
+      "subscript",
+      "codeBlock",
+      "case",
+      "chars",
+      "cleanup",
+    ];
+    let index = 0;
+    for (const id of main) {
+      if (footnote[index] === id) index += 1;
+    }
+    expect(index).toBe(footnote.length);
   });
 
   it("returns 0 for an empty row", () => {
