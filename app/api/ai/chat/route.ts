@@ -18,7 +18,7 @@ type Body = {
   messages: ChatMessage[];
   /** Optional one-shot system prompt override. */
   system?: string;
-  /** Optional model id; validated against the light allowlist. */
+  /** Optional model id; validated against the allowlist in lib/ai/models.ts. */
   model?: string;
   /** When true, respond with text/event-stream deltas. */
   stream?: boolean;

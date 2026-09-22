@@ -7,7 +7,7 @@ import {
   parseSearchReplacePatches,
   prepareApply,
 } from "@/lib/ai/apply";
-import { resolveModel } from "@/lib/ai/models";
+import { modelsForProvider, resolveModel } from "@/lib/ai/models";
 import {
   essayChatSystem,
   selectionChatSystem,
@@ -66,6 +66,29 @@ describe("model allowlist", () => {
   it("falls back to provider default for unknown ids", () => {
     expect(resolveModel("anthropic", "nope")).toBe("claude-sonnet-4-6");
     expect(resolveModel("openai", null)).toBe("gpt-4o-mini");
+  });
+
+  it("keeps newer models and still honors a saved id", () => {
+    expect(modelsForProvider("anthropic").map((model) => model.id)).toEqual([
+      "claude-sonnet-4-6",
+      "claude-sonnet-5",
+      "claude-opus-5-5",
+      "claude-fable-5-1",
+      "claude-haiku-4-5-20251001",
+    ]);
+    expect(resolveModel("anthropic", "claude-opus-5-5")).toBe(
+      "claude-opus-5-5"
+    );
+    expect(modelsForProvider("openai").map((model) => model.id)).toEqual([
+      "gpt-4o-mini",
+      "gpt-4o",
+      "gpt-4.1-mini",
+      "gpt-4.1",
+      "gpt-5.4-mini",
+      "gpt-5.4",
+      "gpt-5.5",
+    ]);
+    expect(resolveModel("openai", "gpt-5.5")).toBe("gpt-5.5");
   });
 });
 
