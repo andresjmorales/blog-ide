@@ -545,18 +545,21 @@ export function AiSidebar({
         ))}
         <label
           className="ml-auto flex items-center gap-1 text-[0.7rem] text-muted"
-          title="Model for this provider"
+          title={
+            modelOptions.find((option) => option.id === modelId)?.hint ??
+            "Model for this provider"
+          }
         >
           <span className="sr-only">Model</span>
           <select
-            className="max-w-[9.5rem] rounded border border-border bg-background px-1 py-0.5 text-[0.7rem] text-foreground outline-none focus:border-accent"
+            className="max-w-[14rem] rounded border border-border bg-background px-1 py-0.5 text-[0.7rem] text-foreground outline-none focus:border-accent"
             value={modelId ?? ""}
             disabled={busy}
             onChange={(event) => setModel(event.target.value)}
           >
             {modelOptions.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
+              <option key={option.id} value={option.id} title={option.hint}>
+                {option.label} · {option.hint}
               </option>
             ))}
           </select>

@@ -48,7 +48,7 @@ by design.
   Publication preview can also linkify references.
 - **Optional AI** — BYOK Anthropic / OpenAI keys (device-local), sidebar chat with
   canned actions (critique / tighten / title / expand), selection context,
-  streaming replies, light model picker, smarter Apply (diff / patch), and
+  streaming replies, model picker, smarter Apply (diff / patch), and
   import cleanup assist
 - **Export / import** — Copy → Rich text is the same formatted paste as
   selecting the essay and copying; Copy → Markdown copies source; Copy → HTML
