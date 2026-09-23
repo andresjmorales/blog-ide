@@ -249,6 +249,7 @@ or a regex over the essay or the whole paragraph (`detect_references` on
 
 | Delay | Owner | Work |
 | --- | --- | --- |
+| 150ms | Find bar input | 1–2 char queries only (longer queries scan instantly) |
 | 160ms | `DocumentEditor.onUpdate` | `serializeBody` → parent `persistMarkdown` |
 | 180ms | Outline | Headings + word counts (`takeOutlineSnapshot`) |
 | 250ms | Find (if open) | Full `findInEditor` + replace mapped highlights |
