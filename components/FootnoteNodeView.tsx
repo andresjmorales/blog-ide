@@ -309,6 +309,20 @@ export function FootnoteNodeView({
     [cancelHoverClose, cancelHoverOpen, footnoteId, isDesktop]
   );
 
+  /**
+   * Pointer inside the card: the user now owns it. A Find-opened card is
+   * visible only via `isFindTarget`, so also mark it open — otherwise an edit
+   * that breaks the match (or Find moving on) would close it mid-typing.
+   */
+  const claimCard = useCallback(() => {
+    cancelHoverClose();
+    stickyFootnoteIds.add(footnoteId);
+    setSticky(true);
+    setOpen(true);
+    openRef.current = true;
+    setCardZ(claimFloatZ());
+  }, [cancelHoverClose, footnoteId]);
+
   /** Freeze the floating card at its current viewport spot (pin or drag). */
   const freezeCardPosition = useCallback(() => {
     setCardPosition((current) => {
@@ -676,11 +690,7 @@ export function FootnoteNodeView({
             minHeight={FOOTNOTE_CARD_MIN_HEIGHT}
             dataAttributes={{ "data-footnote-id": footnoteId }}
             onClose={commitAndClose}
-            onRaise={() => {
-              stickyFootnoteIds.add(footnoteId);
-              setSticky(true);
-              setCardZ(claimFloatZ());
-            }}
+            onRaise={claimCard}
             onDragStart={freezeCardPosition}
             canBeginDrag={() => performance.now() >= dragSuppressUntil.current}
             onMove={moveCard}
@@ -730,11 +740,7 @@ export function FootnoteNodeView({
               onMouseLeave={() => {
                 if (prefs.footnoteOpenOnHover) scheduleHoverClose();
               }}
-              onPointerDown={() => {
-                stickyFootnoteIds.add(footnoteId);
-                setSticky(true);
-                setCardZ(claimFloatZ());
-              }}
+              onPointerDown={claimCard}
             >
               <span className="footnote-card-heading">
                 <span className="footnote-card-title">

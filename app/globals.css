@@ -1144,6 +1144,10 @@ body {
   padding: 0.25rem 0.45rem;
 }
 
+.blogide-find-replace-row .blogide-find-replace-close {
+  margin-left: auto;
+}
+
 .blogide-find-replace-row button:disabled {
   opacity: 0.45;
 }

@@ -21,6 +21,8 @@ import {
 import {
   EDITOR_WORK_MS,
   cancelEditorWork,
+  flushEditorWork,
+  hasScheduledEditorWork,
   scheduleEditorWork,
 } from "@/lib/editor/workSchedule";
 import {
@@ -30,6 +32,14 @@ import {
 
 /** Max chars to seed Find from the current selection (single-line only). */
 const SEED_QUERY_MAX_CHARS = 80;
+
+/**
+ * Queries this short match nearly everywhere in a long essay, so decorating
+ * every hit per keystroke lags. Wait for a brief pause; longer queries are
+ * selective enough to scan instantly.
+ */
+const SHORT_QUERY_MAX_CHARS = 2;
+const QUERY_WORK_ID = "find-query";
 
 type Props = {
   editor: Editor;
@@ -201,6 +211,8 @@ export function FindReplacePanel({
       focus?: boolean;
     }
   ) {
+    // Any scan supersedes a pending debounced one for a short query.
+    cancelEditorWork(QUERY_WORK_ID);
     const sticky = nextScope === "selection" ? nextSticky : null;
     const result = scan(
       editor,
@@ -258,6 +270,7 @@ export function FindReplacePanel({
     }
     focusFindField(true);
     return () => {
+      cancelEditorWork(QUERY_WORK_ID);
       clearFindHighlights(editor);
       setFootnoteFindSession(null);
       setTextInsertTarget(null);
@@ -451,15 +464,30 @@ export function FindReplacePanel({
           onChange={(event) => {
             const next = event.target.value;
             setQuery(next);
-            // Instant scroll to the first hit as the query changes (Chrome-like).
-            applyScan(next, regex, caseSensitive, scope, stickyRange, {
-              scroll: true,
-              resetIndex: true,
-            });
+            const run = () =>
+              // Scroll to the first hit as the query changes (Chrome-like).
+              applyScan(next, regex, caseSensitive, scope, stickyRange, {
+                scroll: true,
+                resetIndex: true,
+              });
+            if (next.length > 0 && next.length <= SHORT_QUERY_MAX_CHARS) {
+              scheduleEditorWork(
+                QUERY_WORK_ID,
+                EDITOR_WORK_MS.findShortQuery,
+                run
+              );
+              return;
+            }
+            run();
           }}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
               event.preventDefault();
+              if (hasScheduledEditorWork(QUERY_WORK_ID)) {
+                // Enter during the short-query pause: scan now, land on hit 1.
+                flushEditorWork(QUERY_WORK_ID);
+                return;
+              }
               if (matches.length === 0) {
                 applyScan(query, regex, caseSensitive, scope, stickyRange, {
                   scroll: true,
@@ -512,7 +540,12 @@ export function FindReplacePanel({
         >
           All
         </button>
-        <button type="button" onClick={onClose} aria-label="Close find">
+        <button
+          type="button"
+          className="blogide-find-replace-close"
+          onClick={onClose}
+          aria-label="Close find"
+        >
           ×
         </button>
       </div>

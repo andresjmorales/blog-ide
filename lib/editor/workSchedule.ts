@@ -15,6 +15,8 @@ export const EDITOR_WORK_MS = {
   outlineStats: 180,
   /** Re-scan Find matches; mapped highlights stay during the wait. */
   findRescan: 250,
+  /** Find-bar typing for 1–2 char queries (thousands of hits to decorate). */
+  findShortQuery: 150,
   /** Cite / Zotero "Cited here" + optional link inventory + citation prune. */
   citeInventory: 320,
   /** Harper WASM lint of dirty textblocks. Squiggles stay mapped meanwhile. */
