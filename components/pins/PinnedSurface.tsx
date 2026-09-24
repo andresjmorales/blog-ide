@@ -185,7 +185,12 @@ export function PinnedSurface({
     <div
       className={["pinned-surface", className].filter(Boolean).join(" ")}
       style={{ left, top, width, height, zIndex }}
-      onPointerDown={onRaise}
+      onPointerDown={(event) => {
+        // React bubbles events from portaled children (overflow menus) up
+        // the component tree. Raising here would lift the surface over the
+        // open menu mid-click, so the click lands on the surface instead.
+        if (event.currentTarget.contains(event.target as Node)) onRaise();
+      }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       role="dialog"

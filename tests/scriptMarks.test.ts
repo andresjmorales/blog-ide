@@ -80,3 +80,10 @@ describe("superscript and subscript marks", () => {
     );
   });
 });
+
+describe("superscript inside footnotes", () => {
+  it("round-trips a footnote body with <sup>", () => {
+    const md = "Claim.[^1]\n\n[^1]: E=mc<sup>2</sup> here.\n";
+    expect(serializeBody(parseBody(md))).toBe(md.trimEnd());
+  });
+});

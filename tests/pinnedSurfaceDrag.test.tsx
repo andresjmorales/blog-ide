@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
+import { createPortal } from "react-dom";
 import { PinnedSurface } from "@/components/pins/PinnedSurface";
 import { SURFACE_DRAG_THRESHOLD_PX } from "@/lib/pins/surfacePointer";
 
@@ -157,5 +158,47 @@ describe("PinnedSurface titlebar drag", () => {
     });
     const surface = document.querySelector(".pinned-surface");
     expect(surface?.getAttribute("data-footnote-id")).toBe("fn-2");
+  });
+
+  it("raises on its own pointerdown but not on a portaled child's", () => {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const onRaise = vi.fn();
+    const menuHost = document.createElement("div");
+    document.body.appendChild(menuHost);
+
+    act(() => {
+      root!.render(
+        <PinnedSurface
+          title="Footnote 1"
+          left={100}
+          top={80}
+          width={360}
+          height={280}
+          zIndex={40}
+          onClose={() => {}}
+          onRaise={onRaise}
+          onMove={() => {}}
+          onResize={() => {}}
+        >
+          <p className="inside">body</p>
+          {createPortal(<button className="menu-item">Superscript</button>, menuHost)}
+        </PinnedSurface>
+      );
+    });
+
+    // An overflow menu is portaled outside the surface but still bubbles
+    // through it in React; raising then would cover the menu mid-click.
+    act(() => {
+      dispatchPointer(document.querySelector(".menu-item")!, "pointerdown", {});
+    });
+    expect(onRaise).not.toHaveBeenCalled();
+
+    act(() => {
+      dispatchPointer(document.querySelector(".inside")!, "pointerdown", {});
+    });
+    expect(onRaise).toHaveBeenCalledTimes(1);
+    menuHost.remove();
   });
 });
