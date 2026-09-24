@@ -110,6 +110,7 @@ import {
 import { pushWorkspaceToGithubWithStatus } from "@/lib/github/push";
 import { githubActionMenuItems } from "@/lib/github/menu";
 import type { GithubMapStatus } from "@/lib/github/types";
+import { bodyStartPos } from "@/lib/editor/bodyStart";
 import { openPopOut } from "@/lib/pins/popOutStore";
 import {
   formatConflictTimestamp,
@@ -1142,7 +1143,9 @@ export function DocumentWorkspace({
         onSubtitleCommit={commitSubtitle}
         onFrontmatterChange={commitFrontmatter}
         onFocusBody={() => {
-          editorRef.current?.commands.focus("start");
+          const editor = editorRef.current;
+          if (!editor) return;
+          editor.commands.focus(bodyStartPos(editor.state.doc) ?? "start");
         }}
         titleDisabled={!canRenameDocument && Boolean(nodeId) && !previewMode}
       />

@@ -9,6 +9,7 @@ import {
 import type { AnyExtension, Editor } from "@tiptap/core";
 import { Placeholder } from "@tiptap/extensions";
 import { createExtensions } from "@/lib/editor/extensions";
+import { placeCaretAtBodyStart } from "@/lib/editor/bodyStart";
 import { parseBody, serializeBody } from "@/lib/markdown/pipeline";
 import { withoutFootnoteDeletionTracking } from "@/lib/editor/footnoteDeletion";
 import { FootnoteNodeView } from "@/components/FootnoteNodeView";
@@ -240,6 +241,8 @@ export function DocumentEditor({
           return sliceFromPastedPlainText(view.state.schema, text);
         },
       },
+      // A leading image would otherwise be node-selected on open.
+      onCreate: ({ editor: current }) => placeCaretAtBodyStart(current),
       onUpdate: ({ editor: current }) => {
         // TipTap already painted; defer markdown serialize + React/persist.
         if (emitTimerRef.current) window.clearTimeout(emitTimerRef.current);
@@ -497,6 +500,7 @@ export function DocumentEditor({
         emitUpdate: false,
       });
     });
+    placeCaretAtBodyStart(editor);
   }, [editor, markdown]);
 
   return (

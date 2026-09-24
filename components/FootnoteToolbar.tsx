@@ -10,7 +10,6 @@ import { fitToolbarItems } from "@/lib/editor/footnoteToolbar";
 import { EditorOverflowMenu, type OverflowItem } from "@/components/EditorOverflowMenu";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
 import { FormattingOverflowMenu } from "@/components/FormattingOverflowMenu";
-import { CleanWhitespaceButton } from "@/components/CleanWhitespaceButton";
 import {
   BulletListIcon,
   OrderedListIcon,
@@ -19,7 +18,6 @@ import {
 import { BoldIcon } from "@/components/tiptap-icons/bold-icon";
 import { ItalicIcon } from "@/components/tiptap-icons/italic-icon";
 import { StrikeIcon } from "@/components/tiptap-icons/strike-icon";
-import { Code2Icon } from "@/components/tiptap-icons/code2-icon";
 import { LinkIcon } from "@/components/tiptap-icons/link-icon";
 import { BlockquoteIcon } from "@/components/tiptap-icons/blockquote-icon";
 import { Undo2Icon } from "@/components/tiptap-icons/undo2-icon";
@@ -56,15 +54,22 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
       bold: current.isActive("bold"),
       italic: current.isActive("italic"),
       strike: current.isActive("strike"),
-      code: current.isActive("code"),
       link: current.isActive("link"),
       blockquote: current.isActive("blockquote"),
       bulletList: current.isActive("bulletList"),
       orderedList: current.isActive("orderedList"),
+      hasSelection: !current.state.selection.empty,
       canUndo: current.can().undo(),
       canRedo: current.can().redo(),
     }),
   });
+
+  const cleanWhitespaceItem: OverflowItem = {
+    id: "ws",
+    label: "Clean whitespace",
+    disabled: !state.hasSelection,
+    onSelect: () => applyCleanWhitespace(editor),
+  };
 
   const tools: ToolDef[] = [
     {
@@ -153,15 +158,6 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
       render: () => <LinkIcon className="blogide-tool-icon" />,
     },
     {
-      id: "code",
-      kind: "item",
-      title: "Inline code",
-      overflowLabel: "Inline code",
-      active: state.code,
-      onClick: () => editor.chain().focus().toggleCode().run(),
-      render: () => <Code2Icon className="blogide-tool-icon" />,
-    },
-    {
       id: "format",
       kind: "slot",
       title: "More formatting",
@@ -169,7 +165,8 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
       render: () => (
         <FormattingOverflowMenu
           editor={editor}
-          items={["superscript", "subscript", "codeBlock", "case"]}
+          items={["code", "superscript", "subscript", "codeBlock", "case"]}
+          extraItems={[cleanWhitespaceItem]}
         />
       ),
     },
@@ -180,13 +177,6 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
       title: "Special characters",
       overflowLabel: "Special characters",
       render: () => <SpecialCharsMenu editor={editor} />,
-    },
-    {
-      id: "ws",
-      kind: "slot",
-      title: "Clean whitespace",
-      overflowLabel: "Clean whitespace",
-      render: () => <CleanWhitespaceButton editor={editor} />,
     },
   ];
 
@@ -231,6 +221,11 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
       if (tool.id === "format") {
         return [
           {
+            id: "code",
+            label: "Inline code",
+            onSelect: () => editor.chain().focus().toggleCode().run(),
+          },
+          {
             id: "superscript",
             label: "Superscript",
             onSelect: () => editor.chain().focus().toggleSuperscript().run(),
@@ -255,16 +250,8 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
               onSelect: () => applyConvertCase(editor, option.mode),
             })),
           },
-        ];
-      }
-      if (tool.id === "ws") {
-        return [
-          {
-            id: "ws",
-            label: "Clean whitespace",
-            disabled: editor.state.selection.empty,
-            onSelect: () => applyCleanWhitespace(editor),
-          },
+          { kind: "separator", id: "sep-ws" },
+          cleanWhitespaceItem,
         ];
       }
       if (tool.id === "chars") {

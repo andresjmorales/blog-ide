@@ -25,6 +25,8 @@ type Props = {
   items?: ToolbarItemId[];
   /** Hidden slot buttons the menu can click (heading, Ω, image, case). */
   slotHostRef?: RefObject<HTMLElement | null>;
+  /** Host-specific actions appended after a separator (e.g. Clean whitespace). */
+  extraItems?: OverflowItem[];
 };
 
 const ACTIVE_MARKS = new Set<ToolbarItemId>([
@@ -47,6 +49,7 @@ export function FormattingOverflowMenu({
   buttonClassName,
   items,
   slotHostRef,
+  extraItems = [],
 }: Props) {
   const ids = items ?? defaultOverflowItems();
   const state = useEditorState({
@@ -77,6 +80,9 @@ export function FormattingOverflowMenu({
   const overflowItems: OverflowItem[] = ids.flatMap((id) =>
     overflowItemsFor(id, editor, slotHostRef)
   );
+  if (extraItems.length > 0) {
+    overflowItems.push({ kind: "separator", id: "sep-extra" }, ...extraItems);
+  }
 
   return (
     <EditorOverflowMenu

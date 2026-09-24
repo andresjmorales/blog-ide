@@ -49,11 +49,9 @@ describe("fitToolbarItems", () => {
       "strike",
       "quote",
       "link",
-      "code",
       "format",
       "sep-extra",
       "chars",
-      "ws",
     ]);
 
     const main: string[] = [];
