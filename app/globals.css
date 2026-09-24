@@ -3849,6 +3849,42 @@ body.is-dragging-footnote-ref.is-footnote-drop-blocked {
 .document-preview .preview-fn-tip p {
   margin: 0 0 0.45em;
 }
+.document-preview .preview-fn-tip-quote,
+.document-preview .preview-fn-tip-poetry,
+.document-preview .preview-fn-tip-pre,
+.document-preview .preview-fn-tip-figure,
+.document-preview .preview-fn-tip-caption {
+  display: block;
+  margin: 0.45em 0;
+}
+.document-preview .preview-fn-tip-quote {
+  border-left: 2px solid var(--border);
+  color: var(--muted);
+  padding-left: 0.6em;
+}
+.document-preview .preview-fn-tip-poetry,
+.document-preview .preview-fn-tip-pre {
+  white-space: pre-wrap;
+}
+.document-preview .preview-fn-tip-quote .preview-fn-tip-poetry {
+  margin: 0;
+}
+.document-preview .preview-fn-tip-pre {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.9em;
+}
+.document-preview .preview-fn-tip img {
+  display: block;
+  margin: 0 auto;
+  max-height: 12rem;
+  max-width: 100%;
+}
+.document-preview .preview-fn-tip-caption {
+  color: var(--muted);
+  font-size: 0.9em;
+  margin: 0.25em 0 0;
+  text-align: center;
+}
 .document-preview .preview-fn-tip a {
   color: var(--accent);
 }

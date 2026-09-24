@@ -109,6 +109,71 @@ describe("enhancePublicationFootnotes", () => {
   });
 });
 
+describe("buildPublicationPreview footnote tips", () => {
+  const tipFor = (markdown: string) => {
+    const { bodyHtml } = buildPublicationPreview(markdown);
+    const doc = new DOMParser().parseFromString(
+      `<div id="root">${bodyHtml}</div>`,
+      "text/html"
+    );
+    return {
+      tip: doc.querySelector(".preview-fn-tip") as HTMLElement,
+      note: doc.querySelector(".preview-footnotes-body") as HTMLElement,
+    };
+  };
+  const BLOCK_TAGS = "p, div, blockquote, pre, table, h1, h2, h3, hr, ul, ol, li, figure";
+
+  it.each([
+    ["blockquote", "Intro.\n\n    > Quoted *text*.\n\n    Tail."],
+    ["poetry", "Poem:\n\n    :::poetry\n    Line one,\n    line two.\n    :::\n\n    Tail."],
+    ["code block", "Code:\n\n    ```\n    <p>x</p>\n    ```\n\n    Tail."],
+    ["table", "Table:\n\n    | a | b |\n    | - | - |\n    | 1 | 2 |\n\n    Tail."],
+    ["heading", "Heading:\n\n    ## Title\n\n    Tail."],
+    ["rule", "Above.\n\n    ---\n\n    Tail."],
+  ])("keeps a %s inside the tip as phrasing content", (_, note) => {
+    const { tip } = tipFor(`Claim.[^1] After.\n\n[^1]: ${note}\n`);
+    expect(tip.querySelector(BLOCK_TAGS)).toBeNull();
+    expect(tip.textContent).toContain("Tail.");
+  });
+
+  it("styles quotes, poems and code as block spans", () => {
+    const { tip } = tipFor(
+      "Claim.[^1]\n\n[^1]: Intro.\n\n    > Quoted *text*.\n\n    :::poetry\n    Line one,\n    line two.\n    :::\n\n    ```\n    code\n    ```\n"
+    );
+    expect(tip.querySelector(".preview-fn-tip-quote em")?.textContent).toBe("text");
+    expect(tip.querySelector(".preview-fn-tip-poetry")?.textContent).toBe(
+      "Line one,\nline two."
+    );
+    expect(tip.querySelector(".preview-fn-tip-pre")?.textContent).toBe("code");
+  });
+
+  it("escapes markup-looking text in inline code", () => {
+    const { tip } = tipFor(
+      "Claim.[^1]\n\n[^1]: Try `<div>` and `<img src=x onerror=alert(1)>`. Tail.\n"
+    );
+    expect(tip.querySelector("div, img")).toBeNull();
+    expect(tip.textContent).toContain("<img src=x onerror=alert(1)>");
+    expect(tip.textContent).toContain("Tail.");
+  });
+
+  it("keeps spaces between adjacent inline marks", () => {
+    const { tip } = tipFor("Claim.[^1]\n\n[^1]: *a* *b* **c**\n");
+    expect(tip.textContent).toBe("a b c");
+  });
+
+  it("renders math and captions inside footnotes", () => {
+    const { tip, note } = tipFor(
+      "Claim.[^1]\n\n[^1]: Math $x^2$.\n\n    ![alt](https://example.com/x.png)\n    A caption\n"
+    );
+    expect(note.querySelector(".blogide-inline-math .katex")).not.toBeNull();
+    expect(note.querySelector("figcaption")?.textContent).toBe("A caption");
+    expect(tip.querySelector(".blogide-inline-math .katex")).not.toBeNull();
+    expect(tip.querySelector(".preview-fn-tip-caption")?.textContent).toBe(
+      "A caption"
+    );
+  });
+});
+
 describe("enhancePublicationCaptions", () => {
   it("wraps captioned images in figure/figcaption", () => {
     const html = enhancePublicationCaptions(
