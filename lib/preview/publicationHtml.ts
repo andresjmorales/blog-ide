@@ -31,57 +31,144 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/** One flattened tip fragment; `block` parts carry their own spacing. */
+type TipPart = { html: string; block?: boolean };
+
+/**
+ * Quotes, poems and code keep their shape in tips as block-styled spans
+ * (class → CSS); a real <blockquote>/<div>/<pre> would be hoisted out of the
+ * tip by the HTML parser, spilling the note into the essay body.
+ */
+function tipBlockSpanClass(el: HTMLElement): string | null {
+  const tag = el.tagName.toLowerCase();
+  if (tag === "blockquote") return "preview-fn-tip-quote";
+  if (tag === "pre") return "preview-fn-tip-pre";
+  if (tag === "figure") return "preview-fn-tip-figure";
+  if (tag === "figcaption") return "preview-fn-tip-caption";
+  if (tag === "div" && el.classList.contains("poetry")) {
+    return "preview-fn-tip-poetry";
+  }
+  return null;
+}
+
+/** Tags that are not phrasing content and must never be cloned into a tip. */
+const TIP_BLOCK_TAGS = new Set([
+  "address", "article", "aside", "details", "dd", "dl", "dt", "fieldset",
+  "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hr",
+  "main", "nav", "section", "table", "tbody", "td", "tfoot", "th", "thead",
+  "tr", "colgroup", "col", "caption",
+]);
+
+/** Join sibling parts: paragraph gap between inline runs, none around blocks. */
+function joinTipParts(parts: TipPart[], gap: string): string {
+  let out = "";
+  parts.forEach((part, i) => {
+    const prev = parts[i - 1];
+    if (prev && !prev.block && !part.block) out += gap;
+    out += part.html;
+  });
+  return out;
+}
+
+function flattenTipBlock(nodes: Iterable<ChildNode>): string {
+  return joinTipParts(flattenTipNodes(nodes), "<br><br>");
+}
+
 /**
  * Recursively flatten a node tree into phrasing-only HTML fragments.
  * Block tags (`p`, `div`, lists) are unwrapped so tips mid-`<p>` never
- * contain hoistable blocks.
+ * contain hoistable blocks. Top-level parts are joined by the caller;
+ * inline runs inside a paragraph come back as a single part.
  */
-function flattenTipNodes(nodes: Iterable<ChildNode>): string[] {
-  const parts: string[] = [];
+function flattenTipNodes(nodes: Iterable<ChildNode>): TipPart[] {
+  const parts: TipPart[] = [];
+  let inline = "";
+  const flushInline = () => {
+    if (inline.trim()) parts.push({ html: inline });
+    inline = "";
+  };
 
   for (const node of nodes) {
     if (node.nodeType === Node.TEXT_NODE) {
+      // Keep spaces between inline runs (`*a* *b*`); drop blank lines.
       const text = node.textContent ?? "";
-      if (text.trim()) parts.push(text);
+      if (text && !/^\s*\n\s*$/.test(text)) inline += escapeHtml(text);
       continue;
     }
     if (!(node instanceof HTMLElement)) continue;
 
     const tag = node.tagName.toLowerCase();
-    if (tag === "p" || tag === "div") {
-      const inner = flattenTipNodes(node.childNodes);
-      if (inner.length) parts.push(inner.join(""));
+    const blockClass = tipBlockSpanClass(node);
+    if (blockClass) {
+      flushInline();
+      const inner =
+        tag === "pre"
+          ? escapeHtml((node.textContent || "").replace(/\n+$/, ""))
+          : flattenTipBlock(node.childNodes);
+      if (inner) {
+        parts.push({
+          html: `<span class="${blockClass}">${inner}</span>`,
+          block: true,
+        });
+      }
+      continue;
+    }
+    if (tag === "p" || tag === "div" || tag === "li") {
+      flushInline();
+      const inner = flattenTipBlock(node.childNodes);
+      if (inner) parts.push({ html: inner });
       continue;
     }
     if (tag === "ul" || tag === "ol") {
+      flushInline();
       const items = [...node.querySelectorAll(":scope > li")];
       const lines = items.map((li, i) => {
-        const body = flattenTipNodes(li.childNodes).join("").trim();
+        const body = flattenTipBlock(li.childNodes).trim();
         return tag === "ol" ? `${i + 1}. ${body}` : `• ${body}`;
       });
-      if (lines.length) parts.push(lines.join("<br>"));
+      if (lines.length) parts.push({ html: lines.join("<br>") });
       continue;
     }
-    if (tag === "li") {
-      const inner = flattenTipNodes(node.childNodes);
-      if (inner.length) parts.push(inner.join(""));
+    if (tag === "table") {
+      flushInline();
+      // One line per row, cells separated by " | ".
+      const rows = [...node.querySelectorAll("tr")].map((tr) =>
+        [...tr.querySelectorAll(":scope > th, :scope > td")]
+          .map((cell) => flattenTipBlock(cell.childNodes))
+          .join(" | ")
+      );
+      if (rows.length) parts.push({ html: rows.join("<br>") });
+      continue;
+    }
+    if (tag === "h1" || tag === "h2" || tag === "h3" || tag === "h4" ||
+        tag === "h5" || tag === "h6") {
+      flushInline();
+      const inner = flattenTipBlock(node.childNodes);
+      if (inner) parts.push({ html: `<strong>${inner}</strong>` });
+      continue;
+    }
+    if (tag === "hr") {
+      flushInline();
       continue;
     }
     if (tag === "br") {
-      parts.push("<br>");
+      inline += "<br>";
       continue;
     }
-    if (tag === "pre" || tag === "blockquote") {
-      const text = (node.textContent || "").trim();
-      if (text) parts.push(escapeHtml(text));
+    if (TIP_BLOCK_TAGS.has(tag)) {
+      // Anything else block-level: keep the text, never the element.
+      flushInline();
+      const inner = flattenTipBlock(node.childNodes);
+      if (inner) parts.push({ html: inner });
       continue;
     }
     // Phrasing tags (a, em, strong, code, …): keep the element, flatten kids.
     const clone = node.cloneNode(false) as HTMLElement;
-    clone.innerHTML = flattenTipNodes(node.childNodes).join("");
-    parts.push(clone.outerHTML);
+    clone.innerHTML = flattenTipBlock(node.childNodes);
+    inline += clone.outerHTML;
   }
 
+  flushInline();
   return parts;
 }
 
@@ -104,11 +191,10 @@ export function toInlineTipHtml(noteHtml: string, doc?: Document): string {
 
   const wrap = owner.createElement("div");
   wrap.innerHTML = noteHtml.trim();
-  const parts = flattenTipNodes(wrap.childNodes);
 
   // Paragraph gap (not a single <br>) so multi-line notes stay readable.
-  // List item lines already use a single <br>; join top-level blocks with <br><br>.
-  const joined = parts.filter(Boolean).join("<br><br>");
+  // List item lines already use a single <br>.
+  const joined = flattenTipBlock(wrap.childNodes).trim();
   if (joined) return joined;
   const fallback = (wrap.textContent || "").trim();
   return fallback ? escapeHtml(fallback) : "";
@@ -281,7 +367,11 @@ export function buildPublicationPreview(markdown: string): PublicationPreview {
 
   const renderNoteHtml = (md: string) => {
     try {
-      return generateHTML(parseBody(md), PREVIEW_EXTENSIONS);
+      return enhancePublicationMath(
+        enhancePublicationCaptions(
+          generateHTML(parseBody(md), PREVIEW_EXTENSIONS)
+        )
+      );
     } catch {
       return `<p>${escapeHtml(md)}</p>`;
     }
@@ -496,6 +586,20 @@ ${enhancer}
   .preview-fn-tip > *:first-child { margin-top: 0; }
   .preview-fn-tip > *:last-child { margin-bottom: 0; }
   .preview-fn-tip p { margin: 0 0 0.45em; }
+  .preview-fn-tip-quote,
+  .preview-fn-tip-poetry,
+  .preview-fn-tip-pre,
+  .preview-fn-tip-figure,
+  .preview-fn-tip-caption { display: block; margin: 0.45em 0; }
+  .preview-fn-tip-quote {
+    border-left: 2px solid var(--border); color: var(--muted); padding-left: 0.6em;
+  }
+  .preview-fn-tip-poetry,
+  .preview-fn-tip-pre { white-space: pre-wrap; }
+  .preview-fn-tip-quote .preview-fn-tip-poetry { margin: 0; }
+  .preview-fn-tip-pre { font-family: ui-monospace, monospace; font-size: 0.9em; }
+  .preview-fn-tip img { display: block; max-width: 100%; max-height: 12rem; margin: 0 auto; }
+  .preview-fn-tip-caption { color: var(--muted); font-size: 0.9em; text-align: center; margin: 0.25em 0 0; }
   .preview-fn-tip a { color: var(--fn-link); }
   .preview-fn-tip em { font-style: italic; }
   .preview-fn-tip strong { font-weight: 700; }
