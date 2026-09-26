@@ -940,6 +940,31 @@ body {
   margin-left: auto;
 }
 
+/* Phones: tools wrap in a clipped column (two rows until expanded); the
+   essay menu and the expand toggle stack in a column on the right. */
+.blogide-editor-toolbar.is-compact {
+  align-items: flex-start;
+  flex-wrap: nowrap;
+}
+
+.blogide-toolbar-items {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.blogide-toolbar-side {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 0.25rem;
+}
+
 /* Shared outline control: Panels, gear, Pop out, overflow ⋯ */
 .blogide-chrome-btn {
   align-items: center;

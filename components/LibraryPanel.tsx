@@ -13,7 +13,12 @@ import { fetchLinkPreview } from "@/lib/preview/client";
 import { openLinkPin, openPdfPin } from "@/lib/pins/pinStore";
 import { showErrorToast } from "@/lib/ui/toast";
 
-export function LibraryPanel() {
+export function LibraryPanel({
+  onInserted,
+}: {
+  /** A citation was inserted into the open essay. */
+  onInserted?: () => void;
+} = {}) {
   const [linkDraft, setLinkDraft] = useState("");
   const [linkBusy, setLinkBusy] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -132,7 +137,7 @@ export function LibraryPanel() {
 
   return (
     <div className="library-panel">
-      <CitePanel afterResults={adders} />
+      <CitePanel afterResults={adders} onInserted={onInserted} />
     </div>
   );
 }

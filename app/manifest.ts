@@ -1,6 +1,10 @@
 import type { MetadataRoute } from "next";
 import { PRODUCT_DESCRIPTION, PRODUCT_NAME } from "@/lib/brand";
 
+const SHORTCUT_ICONS = [
+  { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+];
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: PRODUCT_NAME,
@@ -10,6 +14,23 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     background_color: "#faf9f6",
     theme_color: "#2f6b4f",
+    // Long-press the home-screen icon: jump straight to a surface.
+    shortcuts: [
+      { name: "Notes", url: "/editor?surface=notes", icons: SHORTCUT_ICONS },
+      {
+        name: "AI Assistant",
+        short_name: "AI",
+        url: "/editor?surface=ai",
+        icons: SHORTCUT_ICONS,
+      },
+      { name: "Library", url: "/editor?surface=library", icons: SHORTCUT_ICONS },
+    ],
+    // "Share → BlogIDE" from another app saves the link to the Library.
+    share_target: {
+      action: "/editor",
+      method: "GET",
+      params: { title: "title", text: "text", url: "url" },
+    },
     icons: [
       {
         src: "/icons/blogide.svg",

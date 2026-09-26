@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { SettingsLabel } from "@/components/SettingsInfo";
+import type { MobileStartSurface } from "@/lib/mobile/surface";
 import type { MarkdownTypingShortcuts } from "@/lib/settings";
 import { HARPER_LANGUAGE_OPTIONS } from "@/lib/editor/harper/dialect";
 import {
@@ -122,17 +123,22 @@ export function EditorPrefsSection() {
       </div>
       <div className="settings-row">
         <SettingsLabel
-          info="When on, phone-sized windows land on the Notes capture terminal first. Turn off to open the editor instead. You can still switch with Notes / Enter full app."
+          info="Which screen a phone-sized window opens to. Switch any time from the Editor / Notes / AI / Library buttons in the header. Home-screen shortcuts open their own screen regardless."
         >
-          Open Notes on phone
+          Start on phone
         </SettingsLabel>
-        <input
-          type="checkbox"
-          checked={prefs.mobileOpenShell}
+        <select
+          value={prefs.mobileStartSurface}
           onChange={(event) =>
-            updatePrefs({ mobileOpenShell: event.target.checked })
+            updatePrefs({
+              mobileStartSurface: event.target.value as MobileStartSurface,
+            })
           }
-        />
+        >
+          <option value="last">Last used (default)</option>
+          <option value="editor">Editor</option>
+          <option value="notes">Notes</option>
+        </select>
       </div>
       <div className="settings-row">
         <SettingsLabel

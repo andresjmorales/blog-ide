@@ -55,16 +55,16 @@ describe("SettingsPanel", () => {
     expect(host!.textContent).not.toContain("Preferences");
   });
 
-  it("keeps Open Notes on phone on Editor, not Account", () => {
+  it("keeps Start on phone on Editor, not Account", () => {
     render();
-    expect(host!.textContent).not.toContain("Open Notes on phone");
+    expect(host!.textContent).not.toContain("Start on phone");
     const editorTab = [...host!.querySelectorAll('[role="tab"]')].find(
       (tab) => tab.textContent === "Editor"
     ) as HTMLButtonElement;
     act(() => {
       editorTab.click();
     });
-    expect(host!.textContent).toContain("Open Notes on phone");
+    expect(host!.textContent).toContain("Start on phone");
     expect(host!.textContent).toContain("Rearrange toolbar");
     expect(host!.textContent).toContain("Aa+");
   });

@@ -542,6 +542,7 @@ export function DocumentEditor({
             cleanupOpen={cleanupOpen}
             onOpenCleanup={onOpenCleanup}
             inVault={inVault}
+            compact={narrowViewport}
           />
         )}
         {editor && findOpen && (
