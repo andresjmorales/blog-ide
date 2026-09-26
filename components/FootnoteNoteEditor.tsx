@@ -253,7 +253,11 @@ export function FootnoteNoteEditor({
       const snapshot = noteEditor.getMarkdown().trim();
       if (snapshot === contentRef.current) return;
       if (attrSyncTimer.current) window.clearTimeout(attrSyncTimer.current);
-      const delay = footnoteAttrSyncDelay(noteEditor.isFocused, snapshot);
+      const delay = footnoteAttrSyncDelay(
+        noteEditor.isFocused,
+        snapshot,
+        contentRef.current
+      );
       const commit = () => {
         attrSyncTimer.current = 0;
         const latest = noteEditor.getMarkdown().trim();

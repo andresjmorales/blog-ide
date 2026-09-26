@@ -1,6 +1,14 @@
 "use client";
 
-import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   EditorContent,
   ReactNodeViewRenderer,
@@ -201,6 +209,16 @@ export function DocumentEditor({
     onChangeRef.current = onChange;
   }, [onChange]);
 
+  // TipTap reads `content` only when it (re)creates the editor, which happens
+  // when these deps change. Parsing inline re-parsed the whole essay on every
+  // render (each debounced emit, each footnote commit); later markdown
+  // changes reach the editor through the setContent effect below.
+  const initialContent = useMemo(
+    () => parseBody(markdown),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [markdownTypingShortcuts, typography]
+  );
+
   const editor = useEditor(
     {
       // Placeholder is UI-only; it stays out of the shared markdown schema.
@@ -218,7 +236,7 @@ export function DocumentEditor({
         HarperHighlight,
         BibleRefHighlight,
       ],
-      content: parseBody(markdown),
+      content: initialContent,
       immediatelyRender: false,
       editorProps: {
         attributes: {

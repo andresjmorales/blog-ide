@@ -82,15 +82,24 @@ export function shouldFollowFootnoteRef(options: {
   return !options.pinned && !options.userPlaced;
 }
 
+const MARKDOWN_LINK_RE = /\[[^\]]*]\([^)]*\)/g;
+
+function markdownLinks(markdown: string): string {
+  return (markdown.match(MARKDOWN_LINK_RE) ?? []).join("\n");
+}
+
 export function footnoteAttrSyncDelay(
   isFocused: boolean,
-  markdown = ""
+  markdown = "",
+  committed = ""
 ): number {
   if (!isFocused) return 0;
   // Link edits often happen while the nested editor is still focused
   // (toolbar mousedown preventDefault). Flush those so the sidenote rail
-  // does not lag until a later click.
-  if (/\[[^\]]*]\([^)]*\)/.test(markdown)) return 0;
+  // does not lag until a later click. Only when the links themselves
+  // changed: plain typing in a note that has a link keeps the debounce, or
+  // every keystroke would round-trip through the whole essay.
+  if (markdownLinks(markdown) !== markdownLinks(committed)) return 0;
   return FOOTNOTE_ATTR_SYNC_FOCUSED_MS;
 }
 

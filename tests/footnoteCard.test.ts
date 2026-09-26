@@ -88,10 +88,27 @@ describe("footnote attr sync", () => {
     expect(footnoteAttrSyncDelay(false)).toBe(0);
   });
 
-  it("flushes immediately when the nested editor contains a hyperlink", () => {
+  it("flushes immediately when a hyperlink is added or changed", () => {
     expect(
       footnoteAttrSyncDelay(true, "See [source](https://example.com).")
     ).toBe(0);
+    expect(
+      footnoteAttrSyncDelay(
+        true,
+        "See [source](https://example.org).",
+        "See [source](https://example.com)."
+      )
+    ).toBe(0);
+  });
+
+  it("keeps debouncing plain typing around an unchanged hyperlink", () => {
+    expect(
+      footnoteAttrSyncDelay(
+        true,
+        "See [source](https://example.com). More words",
+        "See [source](https://example.com). More"
+      )
+    ).toBe(FOOTNOTE_ATTR_SYNC_FOCUSED_MS);
   });
 
   it("refuses to blank a populated note from an unfocused editor", () => {
