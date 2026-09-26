@@ -111,6 +111,28 @@ export function FootnoteNoteEditor({
     }
   }, [noteEditor, pendingFocusRef, dragSuppressUntilRef]);
 
+  // Mobile: the sheet shrinks when the on-screen keyboard opens. Bring the
+  // caret back into view inside the note once the viewport settles.
+  useEffect(() => {
+    if (!noteEditor) return;
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const editor = noteEditor;
+    let frame = 0;
+    function keepCaretVisible() {
+      if (!editor.isFocused) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (!editor.isDestroyed) editor.commands.scrollIntoView();
+      });
+    }
+    viewport.addEventListener("resize", keepCaretVisible);
+    return () => {
+      cancelAnimationFrame(frame);
+      viewport.removeEventListener("resize", keepCaretVisible);
+    };
+  }, [noteEditor]);
+
   useEffect(() => {
     if (!noteEditor) return;
     if (!isFindTarget || !findSession) {
@@ -231,7 +253,11 @@ export function FootnoteNoteEditor({
       const snapshot = noteEditor.getMarkdown().trim();
       if (snapshot === contentRef.current) return;
       if (attrSyncTimer.current) window.clearTimeout(attrSyncTimer.current);
-      const delay = footnoteAttrSyncDelay(noteEditor.isFocused, snapshot);
+      const delay = footnoteAttrSyncDelay(
+        noteEditor.isFocused,
+        snapshot,
+        contentRef.current
+      );
       const commit = () => {
         attrSyncTimer.current = 0;
         const latest = noteEditor.getMarkdown().trim();

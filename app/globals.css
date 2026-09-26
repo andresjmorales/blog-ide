@@ -2891,15 +2891,30 @@ body.is-dragging-footnote-ref.is-footnote-drop-blocked {
     border-bottom: 0;
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
-    bottom: 0;
+    /* iOS keeps the layout viewport full height under the keyboard; sit on
+       top of the keyboard and fit what is still visible. */
+    bottom: var(--keyboard-inset, 0px);
     box-shadow: 0 -12px 36px rgb(0 0 0 / 24%);
     left: 0;
-    max-height: 55dvh;
+    max-height: min(70dvh, calc(var(--app-height, 100dvh) - 3rem));
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
     top: auto;
     width: 100vw;
   }
   .footnote-card-heading {
     cursor: default;
+  }
+  .footnote-card .footnote-card-toolbar {
+    flex-shrink: 0;
+  }
+  /* Long notes scroll inside the sheet so every line (and the caret) can be
+     reached; ProseMirror scrolls the caret into view within this box. */
+  .footnote-card .footnote-card-editor-shell {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 }
 

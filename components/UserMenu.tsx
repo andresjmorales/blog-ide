@@ -38,6 +38,9 @@ export function UserMenu({
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
   const initials = initialsFromName(displayName, email);
+  // Fall back to initials when the photo fails (expired or deleted object).
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
+  const showAvatar = Boolean(avatarUrl) && failedAvatarUrl !== avatarUrl;
   const label = displayName.trim() || email || "Account";
 
   useEffect(() => {
@@ -70,10 +73,11 @@ export function UserMenu({
           setOpen((v) => !v);
         }}
       >
-        {avatarUrl ? (
+        {showAvatar && avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={avatarUrl}
+            onError={() => setFailedAvatarUrl(avatarUrl)}
             alt=""
             className="h-full w-full object-cover"
             aria-hidden
