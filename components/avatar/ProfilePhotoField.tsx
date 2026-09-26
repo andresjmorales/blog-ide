@@ -7,10 +7,11 @@ import {
   AVATAR_MAX_INPUT_BYTES,
   AVATAR_OUTPUT_MIME,
 } from "@/lib/avatar/constants";
+import { createAssetSignedUrl } from "@/lib/assets/signedUrls";
 import {
+  AVATAR_SIGNED_URL_TTL_SEC,
   AVATARS_BUCKET,
   avatarStoragePath,
-  withAvatarCacheBust,
 } from "@/lib/avatar/paths";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -39,6 +40,7 @@ export function ProfilePhotoField({
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [url, setUrl] = useState<string | null>(initialUrl);
+  const [failed, setFailed] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -90,16 +92,17 @@ export function ProfilePhotoField({
         });
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage.from(AVATARS_BUCKET).getPublicUrl(path);
-      const publicUrl = withAvatarCacheBust(data.publicUrl);
-
+      // The bucket is private: store the path and sign it for display. Each
+      // signature is a new URL, so no cache-buster is needed.
       const { error } = await supabase.auth.updateUser({
-        data: { avatar_url: publicUrl },
+        data: { avatar_path: path, avatar_url: "" },
       });
       if (error) throw error;
 
-      setUrl(publicUrl);
-      onUrlChange?.(publicUrl);
+      const signedUrl = await createAssetSignedUrl(path, AVATAR_SIGNED_URL_TTL_SEC);
+      setUrl(signedUrl);
+      setFailed(false);
+      onUrlChange?.(signedUrl);
       if (cropSrc) URL.revokeObjectURL(cropSrc);
       setCropSrc(null);
       showSettingsSuccess("Photo updated.", SETTINGS_TOAST.photo);
@@ -124,7 +127,7 @@ export function ProfilePhotoField({
       await supabase.storage.from(AVATARS_BUCKET).remove([path]);
 
       const { error } = await supabase.auth.updateUser({
-        data: { avatar_url: "" },
+        data: { avatar_path: "", avatar_url: "" },
       });
       if (error) throw error;
 
@@ -146,9 +149,14 @@ export function ProfilePhotoField({
           className="user-avatar !h-14 !w-14 !min-w-14 !p-0 overflow-hidden text-sm"
           aria-hidden
         >
-          {url ? (
+          {url && !failed ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={url} alt="" className="h-full w-full object-cover" />
+            <img
+              src={url}
+              alt=""
+              className="h-full w-full object-cover"
+              onError={() => setFailed(true)}
+            />
           ) : (
             <span>{initialsFromName(displayName)}</span>
           )}

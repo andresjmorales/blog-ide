@@ -383,7 +383,9 @@ export function FootnoteNodeView({
     function positionCard() {
       setCardPosition((current) => {
         if (window.innerWidth < 768) {
-          return {};
+          // Bottom sheet: CSS places it. Keep the same object so scrolling
+          // inside a long note does not re-render on every scroll event.
+          return Object.keys(current).length === 0 ? current : {};
         }
         if (
           !shouldFollowFootnoteRef({

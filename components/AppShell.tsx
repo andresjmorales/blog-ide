@@ -1156,6 +1156,13 @@ function AppShellContent({
       if (!viewport) return;
       root.style.setProperty("--app-height", `${Math.round(viewport.height)}px`);
       if (window.scrollY || window.scrollX) window.scrollTo(0, 0);
+      // Space the keyboard covers at the bottom of the layout viewport, so
+      // fixed bottom sheets (the footnote card) can sit above it.
+      const inset = Math.max(
+        0,
+        Math.round(window.innerHeight - viewport.height - viewport.offsetTop)
+      );
+      root.style.setProperty("--keyboard-inset", `${inset}px`);
     }
     apply();
     viewport.addEventListener("resize", apply);
@@ -1164,6 +1171,7 @@ function AppShellContent({
       viewport.removeEventListener("resize", apply);
       viewport.removeEventListener("scroll", apply);
       root.style.removeProperty("--app-height");
+      root.style.removeProperty("--keyboard-inset");
     };
   }, [isMobile]);
 

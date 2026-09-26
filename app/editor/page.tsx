@@ -2,6 +2,11 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { AppShell } from "@/components/AppShell";
+import {
+  AVATAR_SIGNED_URL_TTL_SEC,
+  AVATARS_BUCKET,
+  avatarSourceFromMetadata,
+} from "@/lib/avatar/paths";
 
 export const metadata = { title: "Editor · BlogIDE" };
 
@@ -26,12 +31,20 @@ function displayNameFromUser(user: {
     .join(" ");
 }
 
-function avatarUrlFromUser(user: {
-  user_metadata?: Record<string, unknown>;
-}): string | null {
-  const meta = user.user_metadata ?? {};
-  const url = meta.avatar_url;
-  return typeof url === "string" && url.trim() ? url.trim() : null;
+async function avatarUrlForUser(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  user: { id: string; user_metadata?: Record<string, unknown> }
+): Promise<string | null> {
+  const source = avatarSourceFromMetadata(user.user_metadata, user.id);
+  if (!source) return null;
+  if (source.kind === "url") return source.url;
+  // Private bucket: sign per load. A missing object or Storage hiccup falls
+  // back to initials rather than a broken image.
+  const { data, error } = await supabase.storage
+    .from(AVATARS_BUCKET)
+    .createSignedUrl(source.path, AVATAR_SIGNED_URL_TTL_SEC);
+  if (error || !data?.signedUrl) return null;
+  return data.signedUrl;
 }
 
 export default async function EditorPage() {
@@ -53,7 +66,7 @@ export default async function EditorPage() {
     <AppShell
       userEmail={user.email ?? ""}
       displayName={displayNameFromUser(user)}
-      avatarUrl={avatarUrlFromUser(user)}
+      avatarUrl={await avatarUrlForUser(supabase, user)}
     />
   );
 }
