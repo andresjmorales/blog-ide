@@ -191,15 +191,27 @@ import {
 } from "@/lib/sync/engine";
 import { openPopOut } from "@/lib/pins/popOutStore";
 import { PopOutLayer } from "@/components/pins/PopOutLayer";
-import { TerminalCapture } from "@/components/mobile/TerminalCapture";
-import { ShellButton } from "@/components/shell/ShellButton";
+import { MobilePinViewer } from "@/components/mobile/MobilePinViewer";
+import { MobileSurfaceSwitcher } from "@/components/mobile/MobileSurfaceSwitcher";
 import { ShellChat } from "@/components/shell/ShellChat";
+import { useUnreadNotes } from "@/components/shell/useUnreadNotes";
+import { saveEnrichedLibraryLink } from "@/lib/citations/libraryCite";
 import {
-  loadMobileSurface,
-  saveMobileSurface,
-  subscribeMobileSurface,
+  findLibraryLinkByUrl,
+  hydrateLibraryFromCloud,
+} from "@/lib/library/sessionLibrary";
+import {
+  extractSharedUrl,
+  isMobileSurface,
+  loadLastMobileSurface,
+  parseSurfaceParam,
+  resolveStartSurface,
+  saveLastMobileSurface,
+  sharedLinkTitle,
+  SURFACE_HISTORY_KEY,
+  SURFACE_PARAM,
   type MobileSurface,
-} from "@/lib/capture/mobileSurface";
+} from "@/lib/mobile/surface";
 import {
   closeDockablePanelPin,
   isDockablePanelPinOpen,
@@ -274,13 +286,37 @@ function useIsMobileViewport() {
   );
 }
 
-/** Explicit Shell vs full-app preference from localStorage (null = use default). */
-function useStoredMobileSurface() {
-  return useSyncExternalStore(
-    subscribeMobileSurface,
-    loadMobileSurface,
-    () => null
-  );
+/** Launch params the app consumes once: shortcut surface + Android share. */
+const LAUNCH_PARAMS = [SURFACE_PARAM, "url", "text", "title"] as const;
+
+function historySurface(state: unknown): MobileSurface | null {
+  const value = (state as Record<string, unknown> | null)?.[
+    SURFACE_HISTORY_KEY
+  ];
+  return isMobileSurface(value) ? value : null;
+}
+
+/** Share-sheet link → Library. Returns false when nothing usable was shared. */
+async function saveSharedLink(params: URLSearchParams): Promise<boolean> {
+  const fields = {
+    url: params.get("url"),
+    text: params.get("text"),
+    title: params.get("title"),
+  };
+  const url = extractSharedUrl(fields);
+  if (!url) return false;
+  try {
+    await hydrateLibraryFromCloud();
+    if (findLibraryLinkByUrl(url)) {
+      showToast("Already in your Library.");
+      return true;
+    }
+    await saveEnrichedLibraryLink({ url, title: sharedLinkTitle(fields, url) });
+    showSuccessToast("Saved to Library.", undefined, "library-share");
+  } catch (error) {
+    showErrorToast(error, "Could not save the shared link.", "library-share");
+  }
+  return true;
 }
 
 function useSyncStatusLabel() {
@@ -378,7 +414,14 @@ function AppShellContent({
   // Mobile drawers are session-local and default closed: phones open to a
   // clean editor, and toggling them never rewrites the synced desktop layout.
   const [mobileLeftOpen, setMobileLeftOpen] = useState(false);
-  const mobileSurface = useStoredMobileSurface();
+  // Phones show one full-screen surface; the Editor stays mounted underneath.
+  const [mobileSurface, setMobileSurfaceState] =
+    useState<MobileSurface>("editor");
+  // AI / Library mount on first visit, then stay mounted so a chat or search
+  // survives switching away.
+  const [visitedSurfaces, setVisitedSurfaces] = useState<
+    ReadonlySet<MobileSurface>
+  >(() => new Set(["editor"]));
   const [shellRefreshKey, setShellRefreshKey] = useState(0);
   const getMarkdownForAiRef = useRef<() => string | null>(() => null);
   const applyMarkdownRef = useRef<(markdown: string) => void>(() => {});
@@ -742,19 +785,105 @@ function AppShellContent({
     setShellRefreshKey((k) => k + 1);
   }, [setShellRefreshKey]);
 
-  const enterAppSurface = useCallback(() => {
-    saveMobileSurface("app");
-  }, []);
+  const showMobileSurface = useCallback((surface: MobileSurface) => {
+    setMobileSurfaceState(surface);
+    setVisitedSurfaces((prev) =>
+      prev.has(surface) ? prev : new Set(prev).add(surface)
+    );
+    saveLastMobileSurface(surface);
+  }, [setMobileSurfaceState, setVisitedSurfaces]);
 
-  const enterCaptureSurface = useCallback(() => {
-    saveMobileSurface("capture");
-    setMobileLeftOpen(false);
-  }, [setMobileLeftOpen]);
+  /**
+   * Header switcher. Leaving the Editor pushes one history entry (swapped in
+   * place between Notes / AI / Library), so Android Back returns to the
+   * Editor instead of closing the app.
+   */
+  const switchMobileSurface = useCallback(
+    (next: MobileSurface) => {
+      setMobileLeftOpen(false);
+      const state = (window.history.state ?? {}) as Record<string, unknown>;
+      const current = historySurface(state);
+      const onSurfaceEntry = current != null && current !== "editor";
+      if (next === "editor") {
+        // popstate below lands us on the Editor.
+        if (onSurfaceEntry) window.history.back();
+        else showMobileSurface("editor");
+        return;
+      }
+      if (current === next) {
+        showMobileSurface(next);
+        return;
+      }
+      const entry = { ...state, [SURFACE_HISTORY_KEY]: next };
+      if (onSurfaceEntry) window.history.replaceState(entry, "");
+      else window.history.pushState(entry, "");
+      showMobileSurface(next);
+    },
+    [setMobileLeftOpen, showMobileSurface]
+  );
 
-  /** Phone: full-screen capture terminal. Desktop uses the Notes panel tab. */
-  const openShell = useCallback(() => {
-    enterCaptureSurface();
-  }, [enterCaptureSurface]);
+  useEffect(() => {
+    function onPopState(event: PopStateEvent) {
+      showMobileSurface(historySurface(event.state) ?? "editor");
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [showMobileSurface]);
+
+  // Once per load: home-screen shortcuts (?surface=notes), Android shares
+  // (?url= / ?text=), then the Start-on preference. Launch params are
+  // stripped so a reload doesn't re-save the link.
+  const launchHandled = useRef(false);
+  useEffect(() => {
+    if (!hydrated || launchHandled.current) return;
+    launchHandled.current = true;
+    const url = new URL(window.location.href);
+    const params = url.searchParams;
+    const hadParams = LAUNCH_PARAMS.some((key) => params.has(key));
+    let requested = parseSurfaceParam(params.get(SURFACE_PARAM));
+    const sharing = params.has("url") || params.has("text");
+    if (sharing) {
+      void saveSharedLink(new URLSearchParams(params));
+      requested = "library";
+    }
+    const existing = historySurface(window.history.state);
+    if (hadParams) {
+      for (const key of LAUNCH_PARAMS) params.delete(key);
+      const state = { ...(window.history.state ?? {}) } as Record<
+        string,
+        unknown
+      >;
+      delete state[SURFACE_HISTORY_KEY];
+      window.history.replaceState(state, "", url.pathname + url.search + url.hash);
+    }
+
+    if (!getMobileViewport()) {
+      if (requested && requested !== "editor") {
+        const panel: PanelId = requested === "notes" ? "shell" : requested;
+        applyLayout(showPanel(panelLayout, panel));
+      }
+      return;
+    }
+
+    // A reload keeps its history entry: stay on that surface.
+    if (!hadParams && existing) {
+      showMobileSurface(existing);
+      return;
+    }
+    const start = resolveStartSurface({
+      param: requested,
+      start: prefs.mobileStartSurface,
+      last: loadLastMobileSurface(),
+    });
+    if (start !== "editor") {
+      window.history.pushState(
+        { ...(window.history.state ?? {}), [SURFACE_HISTORY_KEY]: start },
+        ""
+      );
+    }
+    showMobileSurface(start);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- launch only
+  }, [hydrated]);
 
   const handlePopInPanel = useCallback(
     (panelId: PanelId, side: DockSide) => {
@@ -1409,7 +1538,7 @@ function AppShellContent({
 
   function handleOpenChannelDoc(channelId: string) {
     setActiveNodeId(channelId);
-    if (isMobile) setMobileLeftOpen(false);
+    if (isMobile) switchMobileSurface("editor");
   }
 
   function handlePopOutDocument(nodeId: string) {
@@ -1986,11 +2115,8 @@ function AppShellContent({
     }
   }
 
-  const effectiveSurface: MobileSurface =
-    mobileSurface ??
-    (isMobile ? (prefs.mobileOpenShell ? "capture" : "app") : "app");
-  const showTerminal =
-    !previewMode && hydrated && effectiveSurface === "capture";
+  const unreadNotes = useUnreadNotes(nodes, shellRefreshKey);
+  const phoneSurface: MobileSurface = isMobile ? mobileSurface : "editor";
 
   const bootLabel = formatWorkspaceBootLabel({
     inFlight: treeLoading,
@@ -2023,7 +2149,7 @@ function AppShellContent({
       docTitles={docTitles}
       onOpen={(nodeId) => {
         setActiveNodeId(nodeId);
-        if (isMobile) setMobileLeftOpen(false);
+        if (isMobile) switchMobileSurface("editor");
       }}
       onNewDocument={handleNewDocument}
       onPopOutDocument={handlePopOutDocument}
@@ -2067,7 +2193,11 @@ function AppShellContent({
     !dismissedConnectionDialog &&
     shouldShowConnectionDialog(bootAttempts, nodes.length > 0);
 
-  const libraryPanel = <LibraryPanel />;
+  const libraryPanel = (
+    <LibraryPanel
+      onInserted={isMobile ? () => switchMobileSurface("editor") : undefined}
+    />
+  );
 
   const aiPanel = (
     <AiSidebar
@@ -2104,27 +2234,18 @@ function AppShellContent({
     },
   };
 
-  /** Mobile drawer: Files left only (Library is desktop; Notes uses Shell). */
-  const mobileFilesDrawer = fileExplorer;
-
-  if (showTerminal) {
-    return (
-      <EditorPrefsProvider prefs={prefs} updatePrefs={update}>
-        <DocumentSessionProvider value={sessionValue}>
-          <TerminalCapture
-            nodes={nodes}
-            displayName={resolvedName}
-            onEnterApp={enterAppSurface}
-            refreshKey={shellRefreshKey}
-            onRefreshTree={async () => {
-              await refreshTree();
-              bumpShellRefresh();
-            }}
-          />
-        </DocumentSessionProvider>
-      </EditorPrefsProvider>
-    );
-  }
+  const notesChat = (
+    <ShellChat
+      nodes={nodes}
+      refreshKey={shellRefreshKey}
+      onNotesChanged={bumpShellRefresh}
+      compactMeta
+      onNewChannel={() => void handleNewChannel()}
+      onOpenChannelDoc={handleOpenChannelDoc}
+      onRenameChannel={(id) => void handleRename(id)}
+      onTrashChannel={(id) => void handleMoveToTrash(id)}
+    />
+  );
 
   return (
     <EditorPrefsProvider prefs={prefs} updatePrefs={update}>
@@ -2150,14 +2271,6 @@ function AppShellContent({
                   onToggle={(id) => applyLayout(togglePanel(panelLayout, id))}
                 />
               )}
-              {isMobile && !previewMode && (
-                <ShellButton
-                  nodes={nodes}
-                  dockOpen={false}
-                  onClick={openShell}
-                  refreshKey={shellRefreshKey}
-                />
-              )}
               <ReloadButton
                 onBeforeReload={async () => {
                   if (previewMode) return;
@@ -2171,6 +2284,15 @@ function AppShellContent({
                 }}
               />
             </div>
+            {isMobile ? (
+              <div className="absolute inset-y-0 left-1/2 flex -translate-x-1/2 items-center">
+                <MobileSurfaceSwitcher
+                  value={mobileSurface}
+                  onChange={switchMobileSurface}
+                  unreadNotes={previewMode ? 0 : unreadNotes}
+                />
+              </div>
+            ) : (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <span className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -2185,6 +2307,7 @@ function AppShellContent({
                 BlogIDE
               </span>
             </div>
+            )}
             <div className="z-10 flex items-center gap-2 text-xs text-muted">
               <span
                 className={`hidden items-center gap-1.5 sm:inline-flex ${
@@ -2315,12 +2438,15 @@ function AppShellContent({
                   <p className="border-b border-border px-3 py-2 text-xs font-medium text-muted">
                     Files
                   </p>
-                  {mobileFilesDrawer}
+                  {fileExplorer}
                 </aside>
               </>
             )}
 
-            <main className="relative min-h-0 min-w-0 flex-1">
+            <main
+              className="relative min-h-0 min-w-0 flex-1"
+              inert={phoneSurface !== "editor"}
+            >
               {!previewMode &&
               !activeNodeId &&
               (treeLoading ||
@@ -2421,6 +2547,40 @@ function AppShellContent({
                 }
               />
             </main>
+
+            {/* Phone: Notes / AI / Library, full screen over the Editor */}
+            {isMobile && phoneSurface === "notes" && (
+              <section
+                aria-label="Notes"
+                className="absolute inset-0 z-20 flex min-h-0 flex-col bg-background"
+              >
+                {previewMode ? (
+                  <p className="p-4 text-sm text-muted">
+                    Sign in to capture notes to yourself.
+                  </p>
+                ) : (
+                  notesChat
+                )}
+              </section>
+            )}
+            {isMobile && visitedSurfaces.has("ai") && (
+              <section
+                aria-label="AI Assistant"
+                hidden={phoneSurface !== "ai"}
+                className="absolute inset-0 z-20 flex min-h-0 flex-col bg-background"
+              >
+                {aiPanel}
+              </section>
+            )}
+            {isMobile && visitedSurfaces.has("library") && (
+              <section
+                aria-label="Library"
+                hidden={phoneSurface !== "library"}
+                className="absolute inset-0 z-20 min-h-0 overflow-y-auto bg-background"
+              >
+                {libraryPanel}
+              </section>
+            )}
 
             {/* Desktop right dock */}
             {!isMobile && dockHasVisiblePanels(panelLayout, "right") && (
@@ -2563,6 +2723,7 @@ function AppShellContent({
             onClose={() => setResolverCopyId(null)}
             onResolved={handleConflictResolved}
           />
+          {isMobile && <MobilePinViewer />}
           {!isMobile && (
             <>
               <PersistentPanel
@@ -2575,16 +2736,7 @@ function AppShellContent({
                 {aiPanel}
               </PersistentPanel>
               <PersistentPanel target={panelTargets.shell}>
-                <ShellChat
-                  nodes={nodes}
-                  refreshKey={shellRefreshKey}
-                  onNotesChanged={bumpShellRefresh}
-                  compactMeta
-                  onNewChannel={() => void handleNewChannel()}
-                  onOpenChannelDoc={handleOpenChannelDoc}
-                  onRenameChannel={(id) => void handleRename(id)}
-                  onTrashChannel={(id) => void handleMoveToTrash(id)}
-                />
+                {notesChat}
               </PersistentPanel>
               <PersistentPanel
                 target={panelTargets.library}
