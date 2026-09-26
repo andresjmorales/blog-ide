@@ -2158,6 +2158,18 @@ function AppShellContent({
                   refreshKey={shellRefreshKey}
                 />
               )}
+              <ReloadButton
+                onBeforeReload={async () => {
+                  if (previewMode) return;
+                  await flushDocumentRef.current();
+                  // Best-effort push; a dirty draft left in IndexedDB is
+                  // reopened and synced after the reload anyway.
+                  await withTimeout(
+                    flushSyncQueue(),
+                    OPEN_DOC_FLUSH_TIMEOUT_MS
+                  ).catch(() => 0);
+                }}
+              />
             </div>
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <span className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight">
@@ -2193,18 +2205,6 @@ function AppShellContent({
                   <SyncStateIcon status={syncStatus} />
                 </span>
               )}
-              <ReloadButton
-                onBeforeReload={async () => {
-                  if (previewMode) return;
-                  await flushDocumentRef.current();
-                  // Best-effort push; a dirty draft left in IndexedDB is
-                  // reopened and synced after the reload anyway.
-                  await withTimeout(
-                    flushSyncQueue(),
-                    OPEN_DOC_FLUSH_TIMEOUT_MS
-                  ).catch(() => 0);
-                }}
-              />
               <UserMenu
                 displayName={resolvedName}
                 email={previewMode ? "" : userEmail}
