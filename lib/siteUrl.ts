@@ -19,5 +19,14 @@ export function safeNextPath(
   if (!next) return fallback;
   if (!next.startsWith("/") || next.startsWith("//")) return fallback;
   if (next.includes("://")) return fallback;
-  return next;
+  // Browsers read "/\evil.com" (and "/\t/evil.com") as "//evil.com", so
+  // resolve the path the way the redirect will and require the same origin.
+  const base = "http://same-origin.invalid";
+  try {
+    const resolved = new URL(next, base);
+    if (resolved.origin !== base) return fallback;
+    return `${resolved.pathname}${resolved.search}${resolved.hash}`;
+  } catch {
+    return fallback;
+  }
 }

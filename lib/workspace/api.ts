@@ -238,6 +238,48 @@ export async function listAllDocumentBodies(): Promise<Map<string, string>> {
   return map;
 }
 
+/**
+ * Every markdown body (live documents AND their revision snapshots) for a
+ * reference sweep. `unreadable` counts encrypted rows that could not be
+ * decrypted (vault locked / bad key) — a sweeper must refuse to delete
+ * anything when it is non-zero, since those rows may reference the asset.
+ */
+export async function listAllMarkdownForSweep(): Promise<{
+  bodies: string[];
+  unreadable: number;
+}> {
+  const [docs, revisions] = await Promise.all([
+    client().from("documents").select("markdown, enc, ciphertext"),
+    client().from("document_revisions").select("markdown, enc, ciphertext"),
+  ]);
+  if (docs.error) throw docs.error;
+  if (revisions.error) throw revisions.error;
+  const keys = getVaultKeys();
+  const bodies: string[] = [];
+  let unreadable = 0;
+  for (const row of [...(docs.data ?? []), ...(revisions.data ?? [])] as {
+    markdown: string;
+    enc?: number;
+    ciphertext?: string | null;
+  }[]) {
+    if (row.enc !== 1) {
+      bodies.push(row.markdown ?? "");
+      continue;
+    }
+    const blob = byteaToBytes(row.ciphertext);
+    if (!keys || !blob) {
+      unreadable += 1;
+      continue;
+    }
+    try {
+      bodies.push(await decryptUtf8(keys.dek, blob));
+    } catch {
+      unreadable += 1;
+    }
+  }
+  return { bodies, unreadable };
+}
+
 export type DocumentRevision = {
   node_id: string;
   version: number;

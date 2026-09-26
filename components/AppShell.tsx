@@ -34,7 +34,12 @@ import {
   loadCachedWorkspaceTree,
   saveCachedWorkspaceTree,
 } from "@/lib/workspace/treeCache";
-import { BOOT_SLOW_HINT_MS, withTimeout, WORKSPACE_READ_TIMEOUT_MS } from "@/lib/net/timeout";
+import {
+  BOOT_SLOW_HINT_MS,
+  OPEN_DOC_FLUSH_TIMEOUT_MS,
+  withTimeout,
+  WORKSPACE_READ_TIMEOUT_MS,
+} from "@/lib/net/timeout";
 import { UserMenu } from "@/components/UserMenu";
 import { AiSidebar } from "@/components/AiSidebar";
 import type { AiSelection } from "@/lib/ai/selection";
@@ -53,6 +58,7 @@ import { LibraryPanel } from "@/components/LibraryPanel";
 import { DockRegion } from "@/components/panels/DockRegion";
 import { PanelsMenu } from "@/components/panels/PanelsMenu";
 import { FullscreenButton } from "@/components/FullscreenButton";
+import { ReloadButton } from "@/components/ReloadButton";
 import {
   PersistentPanel,
   usePanelTargets,
@@ -174,6 +180,7 @@ import {
 import type { WorkspaceNode } from "@/lib/workspace/types";
 import { classifyConflict } from "@/lib/workspace/conflicts";
 import {
+  flushSyncQueue,
   formatSyncLabel,
   getSyncStatus,
   openDocument,
@@ -221,6 +228,21 @@ const MAX_PANEL = 480;
 const MIN_SHELL = 140;
 const MAX_SHELL = 480;
 const MD_BREAKPOINT = 768;
+
+/**
+ * Identity of a tree listing for change detection. The open essay's
+ * updated_at is left out: our own autosaves bump it every few seconds.
+ */
+function treeSignature(
+  list: WorkspaceNode[],
+  ignoreUpdatedAtFor: string | null
+): string {
+  return JSON.stringify(
+    list.map((node) =>
+      node.id === ignoreUpdatedAtFor ? { ...node, updated_at: null } : node
+    )
+  );
+}
 
 const noopSubscribe = () => () => {};
 
@@ -457,6 +479,7 @@ function AppShellContent({
   const countdownTimerRef = useRef<number | null>(null);
   const slowHintTimerRef = useRef<number | null>(null);
   const nodesRef = useRef<WorkspaceNode[]>([]);
+  const activeNodeIdRef = useRef<string | null>(null);
   const pushbulletSessionRef = useRef<ReturnType<
     typeof startPushbulletCapture
   > | null>(null);
@@ -495,6 +518,10 @@ function AppShellContent({
   useEffect(() => {
     nodesRef.current = nodes;
   }, [nodes]);
+
+  useEffect(() => {
+    activeNodeIdRef.current = activeNodeId;
+  }, [activeNodeId]);
 
   useEffect(() => {
     if (previewMode) return;
@@ -806,8 +833,18 @@ function AppShellContent({
           setTreeStale(true);
           return false;
         }
-        setNodes(list);
-        refreshDocTitles(list);
+        // Every autosave bumps the saved essay's updated_at and asks for a
+        // refresh. When that is the only difference, keep the current array
+        // (no explorer re-render) and skip reloading every essay's title,
+        // which downloads the body of every document in the workspace.
+        const ignoreId = activeNodeIdRef.current;
+        const signature = treeSignature(list, ignoreId);
+        if (signature !== treeSignature(nodesRef.current, ignoreId)) {
+          refreshDocTitles(list);
+        }
+        setNodes((prev) =>
+          treeSignature(prev, ignoreId) === signature ? prev : list
+        );
         setTreeError(null);
         setTreeStale(false);
         return true;
@@ -2121,6 +2158,18 @@ function AppShellContent({
                   refreshKey={shellRefreshKey}
                 />
               )}
+              <ReloadButton
+                onBeforeReload={async () => {
+                  if (previewMode) return;
+                  await flushDocumentRef.current();
+                  // Best-effort push; a dirty draft left in IndexedDB is
+                  // reopened and synced after the reload anyway.
+                  await withTimeout(
+                    flushSyncQueue(),
+                    OPEN_DOC_FLUSH_TIMEOUT_MS
+                  ).catch(() => 0);
+                }}
+              />
             </div>
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <span className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight">

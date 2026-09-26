@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { requiresBetaCode } from "@/lib/hosted";
 import { createClient } from "@/lib/supabase/client";
+import { safeNextPath } from "@/lib/siteUrl";
 
 export function LoginForm() {
   const betaRequired = requiresBetaCode();
@@ -31,12 +32,7 @@ export function LoginForm() {
         return;
       }
 
-      const next = searchParams.get("next");
-      const safeNext =
-        next && next.startsWith("/") && !next.startsWith("//")
-          ? next
-          : "/editor";
-      router.push(safeNext);
+      router.push(safeNextPath(searchParams.get("next"), "/editor"));
       router.refresh();
     } finally {
       setBusy(false);

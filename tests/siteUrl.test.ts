@@ -16,4 +16,14 @@ describe("safeNextPath", () => {
     );
     expect(safeNextPath(null, "/reset/confirm")).toBe("/reset/confirm");
   });
+
+  it("rejects backslash and control-character tricks browsers treat as //", () => {
+    expect(safeNextPath("/\\evil.example", "/editor")).toBe("/editor");
+    expect(safeNextPath("/\t/evil.example", "/editor")).toBe("/editor");
+    expect(safeNextPath("/\\/evil.example/x", "/editor")).toBe("/editor");
+  });
+
+  it("keeps query and hash on same-origin paths", () => {
+    expect(safeNextPath("/editor?doc=1#top", "/")).toBe("/editor?doc=1#top");
+  });
 });

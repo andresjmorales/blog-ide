@@ -119,6 +119,18 @@ import {
 import { VAULT_SERVER_FEATURE_REASON } from "@/lib/vault/copy";
 import { isVaultNamePlaceholder } from "@/lib/vault/names";
 
+/**
+ * Browser "Leave site?" prompt, armed only while a draft exists that has not
+ * reached IndexedDB yet (a sub-second window after typing, or longer if the
+ * local write is failing). Added/removed on demand so an idle page keeps its
+ * back/forward-cache eligibility.
+ */
+function warnUnsavedDraft(event: BeforeUnloadEvent) {
+  event.preventDefault();
+  // Legacy browsers only show the prompt when returnValue is set.
+  event.returnValue = "";
+}
+
 const SAMPLE_DOC = `---
 title: Welcome to BlogIDE
 status: draft
@@ -308,6 +320,8 @@ export function DocumentWorkspace({
   /** Last markdown written locally — skip no-op saves from flush paths. */
   const lastPersistedRef = useRef<string | null>(null);
   const baseVersionRef = useRef(1);
+  /** IndexedDB draft writes started but not yet committed. */
+  const localWritesInFlightRef = useRef(0);
   const nodeIdRef = useRef(nodeId);
   const syncingNameRef = useRef(false);
   const prevDocumentNameRef = useRef<string | null | undefined>(documentName);
@@ -445,6 +459,45 @@ export function DocumentWorkspace({
     if (isMarkdownCanonical(mode)) onDeletedFootnotesChange([]);
   }, [mode, onDeletedFootnotesChange]);
 
+  const syncUnloadGuard = useCallback(() => {
+    if (pendingLocalRef.current || localWritesInFlightRef.current > 0) {
+      window.addEventListener("beforeunload", warnUnsavedDraft);
+    } else {
+      window.removeEventListener("beforeunload", warnUnsavedDraft);
+    }
+  }, []);
+
+  useEffect(
+    () => () => window.removeEventListener("beforeunload", warnUnsavedDraft),
+    []
+  );
+
+  /**
+   * Write one draft to IndexedDB. If the write fails (storage full, blocked,
+   * evicted) the draft goes back into pendingLocalRef — unless newer typing
+   * already replaced it — so the next blur / hide / 60s flush retries it
+   * instead of silently dropping it.
+   */
+  const writeLocalDraft = useCallback(
+    async (pending: { nodeId: string; markdown: string }): Promise<void> => {
+      localWritesInFlightRef.current += 1;
+      syncUnloadGuard();
+      try {
+        await saveLocal(pending.nodeId, pending.markdown, baseVersionRef.current);
+      } catch (error) {
+        if (!pendingLocalRef.current) pendingLocalRef.current = pending;
+        if (lastPersistedRef.current === pending.markdown) {
+          lastPersistedRef.current = null;
+        }
+        throw error;
+      } finally {
+        localWritesInFlightRef.current -= 1;
+        syncUnloadGuard();
+      }
+    },
+    [syncUnloadGuard]
+  );
+
   /**
    * Write any debounced-but-unsaved draft to IndexedDB right now. Called on
    * blur / hide / doc switch so a fast tab close can't drop the last ~1s of
@@ -459,8 +512,8 @@ export function DocumentWorkspace({
     if (!pending) return Promise.resolve();
     pendingLocalRef.current = null;
     lastPersistedRef.current = pending.markdown;
-    return saveLocal(pending.nodeId, pending.markdown, baseVersionRef.current);
-  }, []);
+    return writeLocalDraft(pending);
+  }, [writeLocalDraft]);
 
   useEffect(() => {
     if (!loading) return;
@@ -497,6 +550,7 @@ export function DocumentWorkspace({
         const opened = await openDocument(nodeId);
         if (cancelled) return;
         pendingLocalRef.current = null;
+        syncUnloadGuard();
         lastPersistedRef.current = opened.markdown;
         const unpacked = unpackDocument(
           opened.markdown,
@@ -551,9 +605,13 @@ export function DocumentWorkspace({
       // Persist any draft still sitting in the autosave debounce before the
       // editor for this doc goes away (doc switch / unmount).
       const pending = pendingLocalRef.current;
-      void commitPendingLocal().then(() => {
-        if (pending) void syncDocument(pending.nodeId);
-      });
+      void commitPendingLocal()
+        .then(() => {
+          if (pending) void syncDocument(pending.nodeId);
+        })
+        .catch(() => {
+          // Draft kept in memory; the status badge shows the local-save error.
+        });
     };
   }, [
     nodeId,
@@ -561,6 +619,7 @@ export function DocumentWorkspace({
     onDocumentLoaded,
     onRequestTreeRefresh,
     commitPendingLocal,
+    syncUnloadGuard,
   ]);
 
   const syncFilenameFromTitle = useCallback(
@@ -604,6 +663,7 @@ export function DocumentWorkspace({
       if (!persistEnabled || !nodeId) return;
       if (fullMarkdown === lastPersistedRef.current) return;
       pendingLocalRef.current = { nodeId, markdown: fullMarkdown };
+      syncUnloadGuard();
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
         saveTimer.current = null;
@@ -611,7 +671,7 @@ export function DocumentWorkspace({
         if (!pending || pending.nodeId !== nodeId) return;
         pendingLocalRef.current = null;
         lastPersistedRef.current = pending.markdown;
-        void saveLocal(pending.nodeId, pending.markdown, baseVersionRef.current).then(
+        void writeLocalDraft(pending).then(
           () => {
             void syncFilenameFromTitle(pending.markdown);
             if (syncTimer.current) clearTimeout(syncTimer.current);
@@ -624,6 +684,9 @@ export function DocumentWorkspace({
                 onRequestTreeRefresh?.();
               });
             }, EDITOR_WORK_MS.cloudSync);
+          },
+          () => {
+            // Draft kept in memory for the next flush to retry.
           }
         );
       }, EDITOR_WORK_MS.localPersist);
@@ -634,6 +697,8 @@ export function DocumentWorkspace({
       onRequestTreeRefresh,
       syncFilenameFromTitle,
       setBaseVersion,
+      syncUnloadGuard,
+      writeLocalDraft,
     ]
   );
 
@@ -689,7 +754,9 @@ export function DocumentWorkspace({
   useEffect(() => {
     registerFlushDocument?.(() => {
       flushMarkdownRef.current?.();
-      return commitPendingLocal();
+      return commitPendingLocal().catch(() => {
+        // Draft stays pending; the status badge shows the local-save error.
+      });
     });
   }, [registerFlushDocument, commitPendingLocal]);
 
@@ -1164,6 +1231,7 @@ export function DocumentWorkspace({
         syncTimer.current = null;
       }
       pendingLocalRef.current = null;
+      syncUnloadGuard();
       lastPersistedRef.current = markdown;
       baseVersionRef.current = version;
       const unpacked = unpackDocument(markdown, documentNameRef.current);
@@ -1187,7 +1255,7 @@ export function DocumentWorkspace({
         );
       }
     },
-    [setBaseVersion]
+    [setBaseVersion, syncUnloadGuard]
   );
 
   // After a conflict resolution, clear stale debounces and reload the
@@ -1221,7 +1289,9 @@ export function DocumentWorkspace({
         pending &&
         normalize(pending.markdown) !== normalize(event.localMarkdown)
       ) {
-        void commitPendingLocal().then(() => syncDocument(nodeId));
+        void commitPendingLocal()
+          .then(() => syncDocument(nodeId))
+          .catch(() => {});
         return;
       }
       applyOpenedMarkdown(event.remoteMarkdown, event.remoteVersion);
@@ -1246,10 +1316,13 @@ export function DocumentWorkspace({
       if (timer) window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         timer = null;
-        // Never clobber typing that is still debouncing toward IndexedDB.
+        // Never clobber typing that is still debouncing toward IndexedDB —
+        // including keystrokes still inside the editor's serialize debounce.
+        flushMarkdownRef.current?.();
         if (pendingLocalRef.current || saveTimer.current) return;
         void fastForwardDocument(docId).then((updated) => {
           if (!updated || nodeIdRef.current !== docId) return;
+          flushMarkdownRef.current?.();
           if (pendingLocalRef.current || saveTimer.current) return;
           applyOpenedMarkdown(updated.markdown, updated.baseVersion);
         });
@@ -1308,7 +1381,14 @@ export function DocumentWorkspace({
       flushMarkdownRef.current?.();
       void commitPendingLocal()
         .then(() => flushSyncQueue())
-        .then(() => onRequestTreeRefresh?.());
+        .then((attempted) => {
+          // The 60s tick and every window blur land here; only refetch the
+          // tree when something was actually pushed.
+          if (attempted > 0) onRequestTreeRefresh?.();
+        })
+        .catch(() => {
+          // Draft stays pending; the status badge shows the local-save error.
+        });
     }
 
     function onVisibility() {
@@ -2003,7 +2083,7 @@ export function DocumentWorkspace({
           spellCheck={false}
           lang={spellcheckLang}
           aria-label="Markdown source"
-          className="min-h-0 w-full flex-1 resize-none bg-transparent px-6 py-6 font-mono text-sm leading-relaxed outline-none"
+          className="min-h-0 w-full flex-1 resize-none bg-transparent px-4 py-4 font-mono text-base md:px-6 md:py-6 md:text-sm leading-relaxed outline-none"
         />
         {shellDock}
         {markdownChrome}

@@ -1,14 +1,13 @@
 import {
+  adoptRemoteIfClean,
   dequeueSync,
   getLocalDoc,
   listSyncQueue,
-  putLocalDoc,
   settleConflictDoc,
   settleSyncedDoc,
   stageLocalEdit,
   type LocalDoc,
 } from "@/lib/db/indexed";
-import { releaseRemovedEssayImages } from "@/lib/assets/quota";
 import { normalize } from "@/lib/markdown/pipeline";
 import { WORKSPACE_READ_TIMEOUT_MS, withTimeout } from "@/lib/net/timeout";
 import {
@@ -84,6 +83,18 @@ conflictChannel?.addEventListener("message", (message: MessageEvent<unknown>) =>
 
 let focusNodeId: string | null = null;
 
+/**
+ * Whether the cloud row at a known version is vault-encrypted. Every change
+ * to `enc` goes through save_document (which bumps the version), so when
+ * the local baseVersion matches we can skip re-downloading the whole essay
+ * before each autosave just to learn how to store it.
+ */
+const knownRemoteEnc = new Map<string, { version: number; enc: number }>();
+
+function rememberRemoteEnc(nodeId: string, version: number, enc: number) {
+  knownRemoteEnc.set(nodeId, { version, enc: enc === 1 ? 1 : 0 });
+}
+
 const emptySlice = (): NodeSyncSlice => ({
   localSavedAt: null,
   syncedAt: null,
@@ -150,6 +161,9 @@ export type OpenedDocument = {
 
 export const SIGNED_OUT_MESSAGE = "Signed out. Sign in again to sync.";
 
+export const LOCAL_SAVE_FAILED_MESSAGE =
+  "Could not save on this device. Keep this tab open — retrying.";
+
 /**
  * Auth-shaped failures (expired JWT, revoked session) — the fix is a login,
  * not a retry, so the status badge should say that instead of "sync failed".
@@ -201,6 +215,7 @@ export async function openDocument(nodeId: string): Promise<OpenedDocument> {
   }
 
   if (remote) {
+    rememberRemoteEnc(nodeId, Number(remote.version), remote.enc ?? 0);
     let markdown = await plaintextFromRemote(remote);
     try {
       const supabase = createClient();
@@ -213,17 +228,30 @@ export async function openDocument(nodeId: string): Promise<OpenedDocument> {
     } catch {
       // signed URL refresh is best-effort
     }
-    const next: LocalDoc = {
+    const adopted = await adoptRemoteIfClean(
       nodeId,
       markdown,
-      updatedAt: remote.updated_at,
-      dirty: false,
-      baseVersion: Number(remote.version),
-    };
-    await putLocalDoc(next);
+      Number(remote.version),
+      remote.updated_at
+    );
+    if (!adopted.adopted) {
+      // A draft was staged (another tab, or a restore flush) while the
+      // remote was loading — never overwrite it; open the draft instead.
+      emitFor(nodeId, {
+        dirty: true,
+        localSavedAt: adopted.local.updatedAt,
+        error: null,
+      });
+      return {
+        nodeId,
+        markdown: adopted.local.markdown,
+        baseVersion: adopted.local.baseVersion,
+        dirty: true,
+      };
+    }
     emitFor(nodeId, {
       dirty: false,
-      localSavedAt: next.updatedAt,
+      localSavedAt: remote.updated_at,
       syncedAt: remote.updated_at,
       error: null,
     });
@@ -265,7 +293,17 @@ export async function saveLocal(
   baseVersionHint: number
 ): Promise<void> {
   const updatedAt = new Date().toISOString();
-  await stageLocalEdit(nodeId, markdown, baseVersionHint, updatedAt);
+  try {
+    await stageLocalEdit(nodeId, markdown, baseVersionHint, updatedAt);
+  } catch (error) {
+    // IndexedDB full, blocked (private mode), or evicted mid-session. The
+    // caller keeps the draft in memory and retries; tell the user now so
+    // they don't close the tab believing it was saved.
+    emitFor(nodeId, {
+      error: LOCAL_SAVE_FAILED_MESSAGE,
+    });
+    throw error;
+  }
   const prev = sliceFor(nodeId);
   emitFor(nodeId, {
     dirty: true,
@@ -422,23 +460,28 @@ async function syncDocumentOnce(nodeId: string): Promise<void> {
   emitFor(nodeId, { syncing: true, error: null });
 
   try {
-    const previousRemote = await fetchRemoteDocument(nodeId);
-    const previousMarkdown = previousRemote
-      ? await plaintextFromRemote(previousRemote)
-      : "";
+    let enc: number;
+    const known = knownRemoteEnc.get(nodeId);
+    if (known && known.version === latest.baseVersion) {
+      enc = known.enc;
+    } else {
+      // Only the storage mode is needed; a stale base will conflict anyway.
+      const previousRemote = await fetchRemoteDocument(nodeId);
+      enc = previousRemote?.enc === 1 ? 1 : 0;
+    }
 
     const result = await saveDocumentRemote(
       nodeId,
       latest.markdown,
       latest.baseVersion,
-      { enc: previousRemote?.enc === 1 ? 1 : 0 }
+      { enc }
     );
 
     if (result.ok) {
-      // Best-effort: free Storage for essay images dropped from this doc.
-      void releaseRemovedEssayImages(previousMarkdown, latest.markdown).catch(
-        () => {}
-      );
+      // Images dropped from the essay are NOT deleted here: an undo, a
+      // version-history restore, a conflict copy, or another essay may still
+      // reference them. Settings → Clean unused images reclaims the space.
+      rememberRemoteEnc(nodeId, result.version, enc);
 
       const updatedAt = new Date().toISOString();
       // Single IDB transaction: keystrokes that landed during the RPC keep
@@ -531,21 +574,19 @@ export async function fastForwardDocument(
   if (!remote) return null;
 
   const remoteVersion = Number(remote.version);
+  rememberRemoteEnc(nodeId, remoteVersion, remote.enc ?? 0);
   if (local && remoteVersion <= local.baseVersion) return null;
 
-  // Re-check dirtiness atomically-ish: a keystroke may have landed during
-  // the fetch. Never overwrite a dirty draft from here.
-  const fresh = await getLocalDoc(nodeId);
-  if (fresh?.dirty) return null;
-
   const markdown = await plaintextFromRemote(remote);
-  await putLocalDoc({
+  // Check-and-write in one IndexedDB transaction: a keystroke that landed
+  // during the fetch/decrypt must never be overwritten from here.
+  const adopted = await adoptRemoteIfClean(
     nodeId,
     markdown,
-    updatedAt: remote.updated_at,
-    dirty: false,
-    baseVersion: remoteVersion,
-  });
+    remoteVersion,
+    remote.updated_at
+  );
+  if (!adopted.adopted) return null;
   emitFor(nodeId, {
     dirty: false,
     localSavedAt: remote.updated_at,
@@ -580,14 +621,18 @@ export async function syncDocument(nodeId: string): Promise<void> {
   return run;
 }
 
-export async function flushSyncQueue(): Promise<void> {
-  if (typeof navigator !== "undefined" && !navigator.onLine) return;
+/** Push every queued document. Resolves with how many were attempted. */
+export async function flushSyncQueue(): Promise<number> {
+  if (typeof navigator !== "undefined" && !navigator.onLine) return 0;
   const queue = await listSyncQueue();
+  let attempted = 0;
   for (const item of queue) {
     if (item.op === "put") {
+      attempted += 1;
       await syncDocument(item.nodeId);
     }
   }
+  return attempted;
 }
 
 /**
