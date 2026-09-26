@@ -1,6 +1,6 @@
 "use client";
 
-import { BookmarkIcon } from "@/components/icons";
+import { BlogideMarkIcon, BookmarkIcon } from "@/components/icons";
 import {
   MOBILE_SURFACES,
   MOBILE_SURFACE_LABELS,
@@ -61,19 +61,7 @@ export function MobileSurfaceSwitcher({
 }
 
 function SurfaceIcon({ surface }: { surface: MobileSurface }) {
-  if (surface === "editor") {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src="/icons/blogide.svg"
-        alt=""
-        width={20}
-        height={20}
-        className="size-5"
-        draggable={false}
-      />
-    );
-  }
+  if (surface === "editor") return <BlogideMarkIcon />;
   if (surface === "library") return <BookmarkIcon />;
   if (surface === "ai") return <SparkleIcon />;
   return <NotesIcon />;

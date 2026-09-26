@@ -858,3 +858,34 @@ export function LockIcon({
     </svg>
   );
 }
+
+/**
+ * Outline BlogIDE mark (frame, `>_` prompt, pencil) in currentColor — the
+ * monochrome counterpart of /icons/blogide.svg for icon-sized chrome.
+ */
+export function BlogideMarkIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width="18"
+      height="18"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="1.75" y="1.75" width="12.5" height="12.5" rx="3.25" />
+      <path d="M4.4 4.6 6.5 6 4.4 7.4M7.6 7.4h2" />
+      <g transform="translate(7.1 7.1) scale(0.265)">
+        <path
+          vectorEffect="non-scaling-stroke"
+          d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"
+        />
+        <path vectorEffect="non-scaling-stroke" d="m15 5 4 4" />
+      </g>
+    </svg>
+  );
+}
