@@ -1,6 +1,13 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
+import {
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
 import { promptForLink } from "@/lib/editor/linkShortcut";
@@ -39,7 +46,16 @@ type Props = {
   cleanupOpen: boolean;
   onOpenCleanup?: () => void;
   inVault?: boolean;
+  /**
+   * Phones: show two rows of tools with an expand toggle, and keep `extra`
+   * (the ⋮ essay menu) in a right-hand column so it never scrolls away.
+   */
+  compact?: boolean;
 };
+
+/** Rows whose tops sit within this many px count as the same row. */
+const ROW_TOLERANCE = 4;
+const COLLAPSED_ROWS = 2;
 
 export function FormattingToolbar({
   editor,
@@ -49,9 +65,15 @@ export function FormattingToolbar({
   cleanupOpen,
   onOpenCleanup,
   inVault = false,
+  compact = false,
 }: Props) {
   const { prefs } = useEditorPrefs();
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const itemsRef = useRef<HTMLDivElement | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  /** Height that shows exactly two rows, or null when everything fits. */
+  const [clipHeight, setClipHeight] = useState<number | null>(null);
+  const itemsId = useId();
   const layout = prefs.toolbarLayout;
   const overflow = overflowSlot(layout);
   const state = useEditorState({
@@ -88,14 +110,47 @@ export function FormattingToolbar({
 
   const groups = groupToolbarSlots(layout);
 
-  return (
-    <div
-      ref={hostRef}
-      className="blogide-editor-toolbar shrink-0"
-      role="toolbar"
-      aria-label="Formatting"
-    >
-      {groups.map((group, groupIndex) => (
+  const measure = useCallback(() => {
+    const el = itemsRef.current;
+    if (!el) return;
+    const origin = el.getBoundingClientRect().top;
+    const boxes = Array.from(
+      el.querySelectorAll<HTMLElement>(".blogide-editor-toolbar-group > *")
+    )
+      .map((node) => node.getBoundingClientRect())
+      .filter((rect) => rect.height > 0)
+      .map((rect) => ({
+        top: rect.top - origin,
+        bottom: rect.bottom - origin,
+      }));
+    const rowTops: number[] = [];
+    for (const { top } of [...boxes].sort((a, b) => a.top - b.top)) {
+      const last = rowTops[rowTops.length - 1];
+      if (last === undefined || top - last > ROW_TOLERANCE) rowTops.push(top);
+    }
+    let next: number | null = null;
+    if (rowTops.length > COLLAPSED_ROWS) {
+      const cutoff = rowTops[COLLAPSED_ROWS] - ROW_TOLERANCE;
+      next = Math.ceil(
+        Math.max(...boxes.filter((b) => b.top < cutoff).map((b) => b.bottom))
+      );
+    }
+    setClipHeight((prev) => (prev === next ? prev : next));
+  }, []);
+
+  // Clipping never moves items, so measuring under the clip is stable.
+  useLayoutEffect(() => {
+    if (!compact) return;
+    const el = itemsRef.current;
+    if (!el) return;
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [compact, layout, measure]);
+
+  const collapsible = compact && clipHeight != null;
+  const toolGroups = groups.map((group, groupIndex) => (
         <div key={group.key} className="contents">
           {groupIndex > 0 ? (
             <span className="blogide-editor-toolbar-sep" aria-hidden />
@@ -125,7 +180,49 @@ export function FormattingToolbar({
             })}
           </div>
         </div>
-      ))}
+      ));
+
+  return (
+    <div
+      ref={hostRef}
+      className={`blogide-editor-toolbar shrink-0${compact ? " is-compact" : ""}`}
+      role="toolbar"
+      aria-label="Formatting"
+    >
+      {compact ? (
+        <>
+          <div
+            ref={itemsRef}
+            id={itemsId}
+            className="blogide-toolbar-items"
+            style={
+              collapsible && !expanded ? { maxHeight: clipHeight } : undefined
+            }
+          >
+            {toolGroups}
+          </div>
+          <div className="blogide-toolbar-side">
+            {extra ? <div className="blogide-toolbar-extra">{extra}</div> : null}
+            {collapsible && (
+              <button
+                type="button"
+                aria-expanded={expanded}
+                aria-controls={itemsId}
+                aria-label={expanded ? "Fewer tools" : "More tools"}
+                title={expanded ? "Fewer tools" : "More tools"}
+                // Keep the editor selection while toggling.
+                onPointerDown={(event) => event.preventDefault()}
+                onClick={() => setExpanded((v) => !v)}
+                className="inline-flex h-8 min-w-8 items-center justify-center rounded text-muted hover:bg-panel hover:text-foreground"
+              >
+                <ChevronIcon up={expanded} />
+              </button>
+            )}
+          </div>
+        </>
+      ) : (
+        toolGroups
+      )}
       {hiddenSlotIds.map((id) => (
         <span
           key={`hidden-${id}`}
@@ -141,8 +238,24 @@ export function FormattingToolbar({
           />
         </span>
       ))}
-      {extra ? <div className="blogide-toolbar-extra">{extra}</div> : null}
+      {!compact && extra ? (
+        <div className="blogide-toolbar-extra">{extra}</div>
+      ) : null}
     </div>
+  );
+}
+
+function ChevronIcon({ up }: { up: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d={up ? "M4 10l4-4 4 4" : "M4 6l4 4 4-4"}
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

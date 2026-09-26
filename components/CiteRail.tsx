@@ -186,9 +186,12 @@ export function CiteRail({
 export function CitePanel({
   editor: editorProp,
   afterResults,
+  onInserted,
 }: {
   editor?: Editor | null;
   afterResults?: ReactNode;
+  /** After a citation lands in the essay (phones switch back to the Editor). */
+  onInserted?: () => void;
 }) {
   const storeEditor = useSyncExternalStore(
     subscribeEssayEditor,
@@ -523,6 +526,7 @@ export function CitePanel({
                     citationFromHit(hit, style),
                     hit.formatted
                   );
+                  onInserted?.();
                 }}
                 onInsertCaret={() => {
                   if (!editor || !hit.formatted || !hitCanCite(hit)) return;
@@ -531,6 +535,7 @@ export function CitePanel({
                     citationFromHit(hit, style),
                     hit.formatted
                   );
+                  onInserted?.();
                 }}
                 onCopy={() => void copyText(hit.id, hit.formatted)}
                 onCopyUrl={

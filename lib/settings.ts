@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { normalizeHarperDictionary } from "@/lib/editor/harper/dictionary";
 import { normalizeHarperDisabledKinds } from "@/lib/editor/harper/kinds";
+import type { MobileStartSurface } from "@/lib/mobile/surface";
 import {
   DEFAULT_PANEL_LAYOUT,
   panelLayoutFromLegacy,
@@ -31,8 +32,10 @@ export type EditorPrefs = {
   shellHeight?: number;
   /** IDE dock layout (Files / AI / Shell). */
   panelLayout?: PanelLayout;
-  /** On phone, land on Shell/terminal by default (vs full editor). */
+  /** @deprecated Read once to migrate into mobileStartSurface. */
   mobileOpenShell?: boolean;
+  /** Phone launch surface: last used, Editor, or Notes. */
+  mobileStartSurface?: MobileStartSurface;
   /** Show margin sidenotes beside the prose. */
   sidenotes?: boolean;
   /** Anchored beside each mark, or a scrollable rail of all notes. */
@@ -108,6 +111,7 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   shellHeight: 220,
   panelLayout: DEFAULT_PANEL_LAYOUT,
   mobileOpenShell: true,
+  mobileStartSurface: "last",
   sidenotes: true,
   sidenoteLayout: "sticky",
   footnoteOpenOnHover: true,
@@ -137,6 +141,16 @@ export function loadLocalPrefs(): EditorPrefs {
   }
 }
 
+function normalizeMobileStartSurface(
+  partial: EditorPrefs
+): MobileStartSurface {
+  const value = partial.mobileStartSurface;
+  if (value === "last" || value === "editor" || value === "notes") return value;
+  // "Open Notes on phone" switched off meant "open the editor".
+  if (partial.mobileOpenShell === false) return "editor";
+  return DEFAULT_EDITOR_PREFS.mobileStartSurface;
+}
+
 export function mergePrefs(partial: EditorPrefs = {}): Required<EditorPrefs> {
   const merged = { ...DEFAULT_EDITOR_PREFS, ...partial };
   const typography =
@@ -149,6 +163,7 @@ export function mergePrefs(partial: EditorPrefs = {}): Required<EditorPrefs> {
   });
   return {
     ...merged,
+    mobileStartSurface: normalizeMobileStartSurface(partial),
     typography,
     smartQuotes: typography,
     panelLayout,

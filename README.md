@@ -23,7 +23,7 @@ by design.
   Zotero when the key can write. Toolbar Cite opens this panel (sheet
   on a phone).
 - **Workspace** — folder/document/link tree, Trash, Notes channels, a seeded
-  scratchpad you can rename or trash, phone terminal capture + desktop Shell,
+  scratchpad you can rename or trash, Notes to self (full screen on phones, a Shell panel on desktop),
   optional Pushbullet or ntfy capture into those channels (Pushbullet REST
   goes through this site so ad blockers that block api.pushbullet.com still
   allow catch-up)
@@ -185,8 +185,10 @@ self-host). On first editor load, BlogIDE seeds `essays/`, `drafts/`,
 or trash them and they stay gone. Later loads only keep the `Notes` and
 `Trash` sections (and a Notes channel if none remain).
 Edits save to IndexedDB immediately and sync to
-Supabase. On a phone, you land in a terminal-style quick-capture screen; on
-desktop, open **Shell** for the same Notes stream. Optional: Settings →
+Supabase. On a phone, the header switches between four full-screen views
+(Editor, Notes, AI, Library), with Files in a slide-over drawer; on desktop they
+are dockable panels. Installed as an app, long-press the icon for Notes / AI /
+Library shortcuts, or share a link to BlogIDE to save it to your Library. Optional: Settings →
 Integrations for Pushbullet or ntfy capture into Notes channels. Those tokens
 are encrypted on your account (paste them in Settings, never in a chat).
 
