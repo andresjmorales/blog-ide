@@ -119,6 +119,17 @@ working layer:
    resurrect a stale base version.
 7. Blur, tab-hide, doc switch, and unmount flush the debounced draft to
    IndexedDB immediately before pushing the queue.
+8. Adopting a remote copy (open, wake fast-forward) checks for a dirty draft
+   and writes in the same IndexedDB transaction, so a keystroke or sibling
+   tab that lands mid-fetch is never overwritten.
+9. If an IndexedDB write fails, the draft stays in memory, the badge shows
+   an error, and the next flush retries. A "Leave site?" prompt is armed
+   only while a draft has not reached IndexedDB yet.
+10. Saves never delete Storage images dropped from an essay (undo, version
+    history, conflict copies, and other essays may still use them).
+    Settings → Clean unused images sweeps them, counting live essays,
+    revisions, and unsynced local drafts, and refuses while the vault is
+    locked.
 
 Each user has a hard combined quota across UTF-8 markdown bytes **and** binary
 Storage objects tracked in `user_assets` (essay images + Library PDFs). Default
@@ -208,7 +219,7 @@ open). The contract is in `lib/editor/workSchedule.ts`.
 | **Hot path** (same tick as the key) | 0 | ProseMirror `apply`, incremental decoration mapping, toolbar `isActive` |
 | **after typing** | 160–320ms after last key | Markdown serialize, outline/stats, Find rescan, Cite inventory |
 | **after idle** | 400ms | Harper WASM lint of dirty textblocks |
-| **persist** | 1s local, then 1.5s cloud | IndexedDB, then Supabase |
+| **persist** | 1s local, then 1.5s cloud | IndexedDB, then Supabase (one RPC; the essay is not re-downloaded first when its version is known) |
 
 Constants live in `EDITOR_WORK_MS`. Use `scheduleEditorWork(id, delay, fn)`
 so a second keystroke resets the timer. Flush on blur / unmount / doc switch

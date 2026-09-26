@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/supabase/requireUser";
-import { assertSafePublicUrl } from "@/lib/preview/ssrf";
+import { readBodyCapped, safePublicFetch } from "@/lib/preview/ssrf";
 import { extractOpenGraph, type LinkPreview } from "@/lib/preview/openGraph";
 import { enrichWithCrossref } from "@/lib/preview/pageCitation";
 import { cacheGet, cacheSet } from "@/lib/preview/cache";
@@ -25,62 +25,35 @@ export async function GET(request: Request) {
   }
 
   try {
-    const safe = await assertSafePublicUrl(url);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     let response: Response;
+    let merged: Uint8Array;
     try {
-      response = await fetch(safe.href, {
-        redirect: "follow",
+      // Every redirect hop is validated before it is requested.
+      response = await safePublicFetch(url, {
         signal: controller.signal,
         headers: {
           Accept: "text/html,application/xhtml+xml",
           "User-Agent": "BlogIDE-LinkPreview/1.0",
         },
       });
+
+      const type = response.headers.get("content-type") || "";
+      if (!type.includes("text/html") && !type.includes("application/xhtml")) {
+        response.body?.cancel().catch(() => {});
+        return NextResponse.json(
+          { error: "URL is not an HTML page" },
+          { status: 415 }
+        );
+      }
+      merged = await readBodyCapped(response, MAX_BYTES);
     } finally {
       clearTimeout(timer);
     }
 
-    // Re-check final URL after redirects
-    await assertSafePublicUrl(response.url);
-
-    const type = response.headers.get("content-type") || "";
-    if (!type.includes("text/html") && !type.includes("application/xhtml")) {
-      return NextResponse.json(
-        { error: "URL is not an HTML page" },
-        { status: 415 }
-      );
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) {
-      return NextResponse.json({ error: "Empty response" }, { status: 502 });
-    }
-
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) {
-        total += value.byteLength;
-        if (total > MAX_BYTES) {
-          reader.cancel().catch(() => {});
-          break;
-        }
-        chunks.push(value);
-      }
-    }
-
-    const merged = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) {
-      merged.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
     const html = new TextDecoder("utf-8").decode(merged);
-    const preview = extractOpenGraph(html, response.url || safe.href);
+    const preview = extractOpenGraph(html, response.url || url);
     if (preview.citation?.doi) {
       preview.citation = await enrichWithCrossref(preview.citation);
     }

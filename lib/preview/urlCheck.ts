@@ -1,4 +1,4 @@
-import { assertSafePublicUrl } from "@/lib/preview/ssrf";
+import { safePublicFetch } from "@/lib/preview/ssrf";
 
 const TIMEOUT_MS = 5000;
 const BROWSER_UA =
@@ -30,25 +30,21 @@ async function fetchProbe(
   if (method === "GET") {
     headers.Range = "bytes=0-0";
   }
-  return fetch(href, {
-    method,
-    redirect: "follow",
-    signal,
-    headers,
-  });
+  // Every redirect hop is validated before it is requested.
+  const response = await safePublicFetch(href, { method, signal, headers });
+  response.body?.cancel().catch(() => {});
+  return response;
 }
 
 export async function probeUrl(raw: string): Promise<UrlCheckResult> {
   try {
-    const safe = await assertSafePublicUrl(raw);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      let response = await fetchProbe(safe.href, "HEAD", controller.signal);
+      let response = await fetchProbe(raw, "HEAD", controller.signal);
       if (RETRY_STATUSES.has(response.status)) {
-        response = await fetchProbe(safe.href, "GET", controller.signal);
+        response = await fetchProbe(raw, "GET", controller.signal);
       }
-      await assertSafePublicUrl(response.url);
       const status = response.status;
       if (status >= 200 && status < 400) {
         return { url: raw, ok: true, status };

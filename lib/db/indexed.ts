@@ -140,6 +140,37 @@ export async function adoptRemoteDoc(
 }
 
 /**
+ * Adopt a remote copy only if the local copy is still clean, checked and
+ * written in ONE transaction. A keystroke (or a sibling tab) that stages a
+ * dirty draft while the remote fetch/decrypt was in flight wins; the draft
+ * is returned instead and nothing is overwritten.
+ */
+export async function adoptRemoteIfClean(
+  nodeId: string,
+  markdown: string,
+  baseVersion: number,
+  updatedAt: string
+): Promise<{ adopted: true } | { adopted: false; local: LocalDoc }> {
+  const db = await getDb();
+  const tx = db.transaction(["docs", "syncQueue"], "readwrite");
+  const docs = tx.objectStore("docs");
+  const current = await docs.get(nodeId);
+  if (current?.dirty) {
+    await tx.done;
+    return { adopted: false, local: current };
+  }
+  await docs.put({
+    nodeId,
+    markdown,
+    updatedAt,
+    dirty: false,
+    baseVersion,
+  });
+  await tx.done;
+  return { adopted: true };
+}
+
+/**
  * Resolve a conflict without overwriting a newer cross-tab edit that landed
  * after the preserved conflict body was read.
  */

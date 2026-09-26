@@ -387,3 +387,70 @@ describe("fastForwardDocument", () => {
     expect((await getLocalDoc(nodeId))?.markdown).toBe("local");
   });
 });
+
+describe("remote adoption races", () => {
+  it("fast-forward keeps a draft staged while the remote was loading", async () => {
+    const nodeId = freshNodeId();
+    await putLocalDoc({
+      nodeId,
+      markdown: "old",
+      updatedAt: new Date().toISOString(),
+      dirty: false,
+      baseVersion: 3,
+    });
+    mockFetchRemote.mockImplementation(async () => {
+      // A keystroke lands in IndexedDB mid-fetch.
+      await stageLocalEdit(nodeId, "typed during fetch", 3, new Date().toISOString());
+      return remoteDoc(nodeId, 5, "newer from phone");
+    });
+
+    expect(await fastForwardDocument(nodeId)).toBeNull();
+    const local = await getLocalDoc(nodeId);
+    expect(local?.markdown).toBe("typed during fetch");
+    expect(local?.dirty).toBe(true);
+  });
+
+  it("openDocument returns a draft staged while the remote was loading", async () => {
+    const nodeId = freshNodeId();
+    mockFetchRemote.mockImplementation(async () => {
+      await stageLocalEdit(nodeId, "other tab draft", 2, new Date().toISOString());
+      return remoteDoc(nodeId, 2, "cloud copy");
+    });
+
+    const opened = await openDocument(nodeId);
+    expect(opened.markdown).toBe("other tab draft");
+    expect(opened.dirty).toBe(true);
+    expect((await getLocalDoc(nodeId))?.markdown).toBe("other tab draft");
+  });
+});
+
+describe("autosave round trips", () => {
+  it("does not re-download the essay before saving at a known version", async () => {
+    const nodeId = freshNodeId();
+    mockFetchRemote.mockResolvedValue(remoteDoc(nodeId, 4, "opened"));
+    await openDocument(nodeId);
+    mockFetchRemote.mockClear();
+
+    mockSaveRemote.mockResolvedValue({ ok: true, version: 5, sizeBytes: 3 });
+    await saveLocal(nodeId, "edit one", 4);
+    await syncDocument(nodeId);
+    await saveLocal(nodeId, "edit two", 5);
+    await syncDocument(nodeId);
+
+    expect(mockFetchRemote).not.toHaveBeenCalled();
+    expect(mockSaveRemote).toHaveBeenLastCalledWith(nodeId, "edit two", 5, {
+      enc: 0,
+    });
+  });
+
+  it("asks the server for the storage mode when the base version is unknown", async () => {
+    const nodeId = freshNodeId();
+    await stageLocalEdit(nodeId, "offline draft", 7, new Date().toISOString());
+    mockFetchRemote.mockResolvedValue(remoteDoc(nodeId, 7, "cloud"));
+    mockSaveRemote.mockResolvedValue({ ok: true, version: 8, sizeBytes: 3 });
+
+    await syncDocument(nodeId);
+    expect(mockFetchRemote).toHaveBeenCalledTimes(1);
+    expect((await getLocalDoc(nodeId))?.dirty).toBe(false);
+  });
+});

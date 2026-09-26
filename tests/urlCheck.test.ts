@@ -2,10 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { probeUrl } from "@/lib/preview/urlCheck";
 
 vi.mock("@/lib/preview/ssrf", () => ({
-  assertSafePublicUrl: async (raw: string) => {
-    const parsed = new URL(raw);
-    return { href: parsed.href, hostname: parsed.hostname };
-  },
+  safePublicFetch: (raw: string, init: RequestInit) => fetch(raw, init),
 }));
 
 afterEach(() => {

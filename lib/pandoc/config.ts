@@ -7,10 +7,10 @@
  */
 
 export const PANDOC_MARKDOWN_FROM =
-  "markdown+footnotes+pipe_tables+strike+raw_html+autolink_bare_uris";
+  "markdown+footnotes+pipe_tables+strikeout+raw_html+autolink_bare_uris";
 
 export const PANDOC_MARKDOWN_TO =
-  "markdown+footnotes+pipe_tables+strike-raw_html";
+  "markdown+footnotes+pipe_tables+strikeout-raw_html";
 
 export const PANDOC_PDF_ENGINES = [
   "xelatex",

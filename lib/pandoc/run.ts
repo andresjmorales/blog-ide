@@ -10,11 +10,32 @@ import {
   PANDOC_MARKDOWN_TO,
   PANDOC_PDF_ENGINES,
 } from "@/lib/pandoc/config";
+import {
+  localizeRemoteImages,
+  PANDOC_HARDEN_FILTER,
+  paranoidTexEnv,
+} from "@/lib/pandoc/sandbox";
 
 const execFileAsync = promisify(execFile);
 const TIMEOUT_MS = 45_000;
 const MAX_MARKDOWN_BYTES = 2 * 1024 * 1024;
 const MAX_IMPORT_BYTES = 8 * 1024 * 1024;
+/** Raw TeX in essays would reach the PDF engine verbatim. */
+const EXPORT_MARKDOWN_FROM = `${PANDOC_MARKDOWN_FROM}-raw_tex`;
+const FILTER_NAME = "blogide-harden.lua";
+
+/**
+ * Write the essay (with remote images localized) and the hardening filter
+ * into `dir`. Pandoc then runs with `cwd: dir`, so the only readable
+ * resources are the ones written here. See lib/pandoc/sandbox.ts.
+ */
+async function prepareExportDir(dir: string, markdown: string) {
+  const input = join(dir, "essay.md");
+  const filter = join(dir, FILTER_NAME);
+  await writeFile(input, await localizeRemoteImages(markdown, dir), "utf8");
+  await writeFile(filter, PANDOC_HARDEN_FILTER, "utf8");
+  return { input, filter };
+}
 
 export class PandocUnavailableError extends Error {
   constructor() {
@@ -53,20 +74,20 @@ export async function markdownToDocx(markdown: string): Promise<Buffer> {
   }
 
   const dir = await mkdtemp(join(tmpdir(), "blogide-pandoc-"));
-  const input = join(dir, "essay.md");
   const output = join(dir, "essay.docx");
   try {
-    await writeFile(input, markdown, "utf8");
+    const { input, filter } = await prepareExportDir(dir, markdown);
     await execFileAsync(
       pandoc,
       [
-        `--from=${PANDOC_MARKDOWN_FROM}`,
+        `--from=${EXPORT_MARKDOWN_FROM}`,
         "--to=docx",
         "--wrap=none",
+        `--lua-filter=${filter}`,
         `--output=${output}`,
         input,
       ],
-      { timeout: TIMEOUT_MS, maxBuffer: 20 * 1024 * 1024 }
+      { cwd: dir, timeout: TIMEOUT_MS, maxBuffer: 20 * 1024 * 1024 }
     );
     return await readFile(output);
   } catch (error) {
@@ -111,21 +132,26 @@ export async function markdownToPdf(markdown: string): Promise<Buffer> {
   }
 
   const dir = await mkdtemp(join(tmpdir(), "blogide-pandoc-pdf-"));
-  const input = join(dir, "essay.md");
   const output = join(dir, "essay.pdf");
   try {
-    await writeFile(input, markdown, "utf8");
+    const { input, filter } = await prepareExportDir(dir, markdown);
     await execFileAsync(
       pandoc,
       [
-        `--from=${PANDOC_MARKDOWN_FROM}`,
+        `--from=${EXPORT_MARKDOWN_FROM}`,
         "--to=pdf",
         `--pdf-engine=${engine}`,
         "--wrap=none",
+        `--lua-filter=${filter}`,
         `--output=${output}`,
         input,
       ],
-      { timeout: 90_000, maxBuffer: 20 * 1024 * 1024 }
+      {
+        cwd: dir,
+        env: paranoidTexEnv(),
+        timeout: 90_000,
+        maxBuffer: 20 * 1024 * 1024,
+      }
     );
     return await readFile(output);
   } catch (error) {

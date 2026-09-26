@@ -56,8 +56,12 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetchWithTimeout(request, NAV_TIMEOUT_MS)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          // Don't let a 500, a maintenance page, or a sign-in redirect
+          // replace the good offline copy of the app shell.
+          if (response.ok && !response.redirected) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
           return response;
         })
         .catch(() =>

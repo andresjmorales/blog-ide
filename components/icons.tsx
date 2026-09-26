@@ -648,6 +648,34 @@ export function MaximizeIcon({
   );
 }
 
+/** Circular arrow for reloading the app. */
+export function ReloadIcon({
+  className = "",
+  size = 15,
+}: {
+  className?: string;
+  size?: number;
+}) {
+  return (
+    <svg
+      aria-hidden
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <path
+        d="M13.25 8a5.25 5.25 0 1 1-1.54-3.71M13.25 2.75v2.5h-2.5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** Inward corners to leave fullscreen. */
 export function RestoreIcon({
   className = "",

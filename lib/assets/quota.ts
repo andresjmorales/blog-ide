@@ -1,12 +1,12 @@
 import { FREE_QUOTA_BYTES } from "@/lib/billing/plans";
 import { createClient } from "@/lib/supabase/client";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   assetPathFromUrl,
   collectOwnedAssetPaths,
 } from "@/lib/assets/paths";
 import { deleteUserAsset } from "@/lib/assets/upload";
-import { listAllDocumentBodies } from "@/lib/workspace/api";
+import { listLocalDocs } from "@/lib/db/indexed";
+import { listAllMarkdownForSweep } from "@/lib/workspace/api";
 
 export type QuotaUsage = {
   usedBytes: number;
@@ -63,9 +63,23 @@ export async function cleanUnusedEssayImages(): Promise<{
     .eq("kind", "essay_image");
   if (error) throw error;
 
-  const bodies = await listAllDocumentBodies();
+  // Live essays, their version history (restorable), and unsynced drafts on
+  // this device all count as references.
+  const { bodies, unreadable } = await listAllMarkdownForSweep();
+  if (unreadable > 0) {
+    throw new Error(
+      "Unlock the vault first — its essays may use some of these images."
+    );
+  }
+  try {
+    for (const local of await listLocalDocs()) {
+      if (local.dirty) bodies.push(local.markdown);
+    }
+  } catch {
+    // No IndexedDB (private mode) — nothing unsynced to protect here.
+  }
   const referenced = new Set<string>();
-  for (const markdown of bodies.values()) {
+  for (const markdown of bodies) {
     for (const path of collectOwnedAssetPaths(markdown, user.id)) {
       referenced.add(path);
     }
@@ -80,37 +94,6 @@ export async function cleanUnusedEssayImages(): Promise<{
     freedBytes += Number(row.byte_size) || 0;
   }
   return { removed, freedBytes };
-}
-
-/**
- * Best-effort: release Storage objects that disappeared from markdown
- * (e.g. image replaced/removed in the editor). Only touches owned URLs.
- */
-export async function releaseRemovedEssayImages(
-  previousMarkdown: string,
-  nextMarkdown: string
-): Promise<void> {
-  if (!isSupabaseConfigured()) return;
-  try {
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const before = new Set(collectOwnedAssetPaths(previousMarkdown, user.id));
-    const after = new Set(collectOwnedAssetPaths(nextMarkdown, user.id));
-    for (const path of before) {
-      if (after.has(path)) continue;
-      try {
-        await deleteUserAsset(path);
-      } catch {
-        /* ignore — sweeper can finish later */
-      }
-    }
-  } catch {
-    /* preview / missing env — skip */
-  }
 }
 
 export function isOwnedAssetUrl(url: string, userId: string): boolean {
