@@ -397,6 +397,7 @@ export function enhancePublicationMath(html: string): string {
     const { html: rendered } = renderLatexHtml(latex, false);
     const span = doc.createElement("span");
     span.className = "blogide-inline-math";
+    span.setAttribute("data-latex", latex);
     span.innerHTML = rendered || escapeHtml(`$${latex}$`);
     el.replaceWith(span);
   });
@@ -405,6 +406,7 @@ export function enhancePublicationMath(html: string): string {
     const { html: rendered } = renderLatexHtml(latex, true);
     const div = doc.createElement("div");
     div.className = "blogide-block-math";
+    div.setAttribute("data-latex", latex);
     div.innerHTML = rendered || escapeHtml(`$$${latex}$$`);
     el.replaceWith(div);
   });

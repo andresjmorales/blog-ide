@@ -1587,6 +1587,44 @@ body {
   margin: 0.35rem 0 0.4rem;
 }
 
+.blogide-publish-checklist {
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0.4rem 0.55rem;
+}
+.blogide-publish-checklist li + li {
+  border-top: 1px solid var(--border);
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+}
+.blogide-publish-check {
+  align-items: flex-start;
+  color: var(--foreground);
+  display: flex;
+  gap: 0.45rem;
+}
+.blogide-publish-check input {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+.blogide-publish-check-mark {
+  color: var(--muted);
+  display: inline-block;
+  flex-shrink: 0;
+  text-align: center;
+  width: 0.85rem;
+}
+.blogide-publish-check-detail {
+  color: var(--muted);
+  display: block;
+  font-size: 0.68rem;
+  margin-top: 0.1rem;
+}
+
 .blogide-publish-steps {
   color: var(--muted);
   font-size: 0.75rem;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
@@ -12,10 +12,18 @@ import {
   type PrePublishReport,
 } from "@/lib/preview/runPrePublishCheck";
 import {
+  DEFAULT_MARKERS_OPTIONS,
   htmlForPublishTarget,
   PUBLISH_COPY_TARGETS,
+  type MarkersCopyOptions,
   type PublishCopyTarget,
 } from "@/lib/export/clipboardHtml";
+import {
+  analyzePublishInventory,
+  emptyPublishInventory,
+  inventorySummary,
+  type PublishInventory,
+} from "@/lib/export/publishChecklist";
 import { copyDocumentForPaste, copyMarkdownToClipboard } from "@/lib/export/document";
 import { showCopiedToast, showErrorToast } from "@/lib/ui/toast";
 import { VAULT_SERVER_FEATURE_REASON } from "@/lib/vault/copy";
@@ -476,6 +484,18 @@ function PublishTab({
       : VAULT_SERVER_FEATURE_REASON
   );
   const [copyBusy, setCopyBusy] = useState<string | null>(null);
+  const [markersOptions, setMarkersOptions] = useState<MarkersCopyOptions>(
+    DEFAULT_MARKERS_OPTIONS
+  );
+  const inventory = useMemo<PublishInventory>(() => {
+    try {
+      return analyzePublishInventory(getMarkdown());
+    } catch {
+      return emptyPublishInventory();
+    }
+    // Mount / remount (Re-check) only, same as the link check.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!allowServerChecks) return;
@@ -509,10 +529,20 @@ function PublishTab({
     setCopyBusy(target);
     try {
       const markdown = getMarkdown();
-      const { html, plain } = htmlForPublishTarget(markdown, target);
+      const { html, plain } = htmlForPublishTarget(
+        markdown,
+        target,
+        markersOptions
+      );
       await copyDocumentForPaste({ html, plain });
+      const summary =
+        target === "markers"
+          ? inventorySummary(analyzePublishInventory(markdown), markersOptions)
+          : "";
       showCopiedToast(
-        `Copied ${spec?.label ?? "HTML"}. Paste into the other editor.`
+        target === "markers"
+          ? `Copied text with markers${summary ? ` (${summary})` : ""}. Paste into Substack.`
+          : `Copied ${spec?.label ?? "HTML"}. Paste into the other editor.`
       );
     } catch (err) {
       showErrorToast(
@@ -563,17 +593,28 @@ function PublishTab({
           />
         ))}
       </div>
-      <h3 className="blogide-cleanup-subhead">
-        Instructions to natively insert footnotes into the Substack editor
-      </h3>
+      <h3 className="blogide-cleanup-subhead">Substack</h3>
       <p className="blogide-cleanup-hint">
-        Substack only creates clickable footnotes through its own editor
-        command. Paste text with markers, then run the helper in that tab.
+        Substack only creates clickable footnotes, LaTeX blocks, and poems
+        through its own editor. Check what this essay needs, paste the text
+        with markers, then run the helper in that tab to finish the job.
       </p>
+      <SubstackChecklist
+        inventory={inventory}
+        options={markersOptions}
+        onChange={(patch) =>
+          setMarkersOptions((current) => ({ ...current, ...patch }))
+        }
+      />
       <ol className="blogide-publish-steps">
         <li>
           <div className="blogide-publish-step-row">
-            <span>Copy text with markers</span>
+            <span>
+              Copy text with markers
+              {markersOptions.images && inventory.images.total
+                ? " and images"
+                : ""}
+            </span>
             <CopyIconButton
               label={
                 copyBusy === "markers"
@@ -588,7 +629,10 @@ function PublishTab({
         </li>
         <li>
           <div className="blogide-publish-step-row">
-            <span>Copy helper script</span>
+            <span>
+              Copy helper script
+              {helperNeeded(inventory, markersOptions) ? "" : " (optional)"}
+            </span>
             <CopyIconButton
               label={
                 copyBusy === "script"
@@ -601,7 +645,8 @@ function PublishTab({
           </div>
           <p>
             In the Substack tab, open the console (F12), paste, and press
-            Enter.
+            Enter. It converts every marker it finds, checks images, and
+            tells you what it did.
           </p>
           <div className="blogide-publish-step-alt">
             <span>Or copy a bookmarklet and save it as a bookmark URL</span>
@@ -689,6 +734,238 @@ function PublishTab({
         </>
       )}
     </section>
+  );
+}
+
+function helperNeeded(
+  inventory: PublishInventory,
+  options: MarkersCopyOptions
+): boolean {
+  return (
+    (options.footnotes && inventory.footnotes > 0) ||
+    (options.superscripts && inventory.scripts > 0) ||
+    (options.math && inventory.blockMath > 0) ||
+    (options.poetry && inventory.poems > 0) ||
+    (options.images && inventory.images.total > 0)
+  );
+}
+
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+/**
+ * Everything in the essay that will not survive a plain paste. A checked
+ * box leaves a marker for the helper; unchecked pastes a static fallback.
+ */
+function SubstackChecklist({
+  inventory,
+  options,
+  onChange,
+}: {
+  inventory: PublishInventory;
+  options: MarkersCopyOptions;
+  onChange: (patch: Partial<MarkersCopyOptions>) => void;
+}) {
+  const { images } = inventory;
+  const imageWarnings: string[] = [];
+  if (images.expiring) {
+    imageWarnings.push(
+      `${plural(images.expiring, "BlogIDE upload")} use links that expire in about a day. Substack usually re-hosts pasted images; the helper checks.`
+    );
+  }
+  if (images.embedded) {
+    imageWarnings.push(
+      `${plural(images.embedded, "embedded image")} (vault/offline) may not paste. Upload by hand if missing.`
+    );
+  }
+  if (images.relative) {
+    imageWarnings.push(
+      `${plural(images.relative, "image")} use a relative path and will not load in Substack.`
+    );
+  }
+  if (images.captions) {
+    imageWarnings.push(
+      `${plural(images.captions, "caption")}: check they pasted under the image.`
+    );
+  }
+
+  const rows: React.ReactNode[] = [];
+  if (inventory.footnotes) {
+    rows.push(
+      <CheckRow
+        key="footnotes"
+        checked={options.footnotes}
+        onChange={(footnotes) => onChange({ footnotes })}
+        label={`${plural(inventory.footnotes, "footnote")} → native Substack footnotes`}
+        detail={
+          options.footnotes
+            ? "Pastes [1] markers + a Notes list; the helper inserts real footnotes."
+            : "Pastes static ¹ numbers + a Notes list. Not clickable."
+        }
+      />
+    );
+  }
+  if (images.total) {
+    rows.push(
+      <CheckRow
+        key="images"
+        checked={options.images}
+        onChange={(value) => onChange({ images: value })}
+        label={`Copy ${plural(images.total, "image")}`}
+        detail={
+          options.images
+            ? "Pasted with the text. The helper reports any still hosted outside Substack."
+            : "Left out. Upload them in Substack yourself."
+        }
+        warnings={options.images ? imageWarnings : []}
+      />
+    );
+  }
+  if (inventory.scripts) {
+    rows.push(
+      <CheckRow
+        key="scripts"
+        checked={options.superscripts}
+        onChange={(superscripts) => onChange({ superscripts })}
+        label={`${plural(inventory.scripts, "superscript/subscript")} → restore formatting`}
+        detail={
+          options.superscripts
+            ? "Pastes {sup:27} markers (Substack drops quotes that contain <sup>); the helper formats them."
+            : "Pastes Unicode ²⁷ where possible, plain text otherwise."
+        }
+      />
+    );
+  }
+  if (inventory.blockMath) {
+    rows.push(
+      <CheckRow
+        key="math"
+        checked={options.math}
+        onChange={(math) => onChange({ math })}
+        label={`${plural(inventory.blockMath, "display equation")} → Substack LaTeX blocks`}
+        detail={
+          options.math
+            ? "Pastes $$…$$ paragraphs; the helper converts them if this Substack editor has a LaTeX block."
+            : "Pastes the LaTeX source as a code block."
+        }
+      />
+    );
+  }
+  if (inventory.inlineMath) {
+    rows.push(
+      <NoteRow
+        key="inline-math"
+        label={`${plural(inventory.inlineMath, "inline equation")}`}
+        detail="Substack has no inline math. Pastes as $…$ source text; rewrite or use a LaTeX block."
+        warn
+      />
+    );
+  }
+  if (inventory.poems) {
+    rows.push(
+      <CheckRow
+        key="poetry"
+        checked={options.poetry}
+        onChange={(poetry) => onChange({ poetry })}
+        label={`${plural(inventory.poems, "poem")} → Substack poetry`}
+        detail={
+          options.poetry
+            ? "Pastes {poetry} … {/poetry} around each poem; the helper wraps it if this editor has a poem block. Poems in quotes keep line breaks only."
+            : "Pastes line breaks and indents only."
+        }
+      />
+    );
+  }
+  if (inventory.tables) {
+    rows.push(
+      <NoteRow
+        key="tables"
+        label={plural(inventory.tables, "table")}
+        detail="Substack has no tables; the paste flattens them. Use an image or a list."
+        warn
+      />
+    );
+  }
+
+  if (!rows.length) {
+    return (
+      <p className="blogide-cleanup-hint">
+        Nothing risky found: headings, emphasis, links, lists, and quotes
+        paste as-is. The helper is not needed.
+      </p>
+    );
+  }
+  return <ul className="blogide-publish-checklist">{rows}</ul>;
+}
+
+function CheckRow({
+  checked,
+  onChange,
+  label,
+  detail,
+  warnings = [],
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  label: string;
+  detail: string;
+  warnings?: string[];
+}) {
+  return (
+    <li>
+      <label className="blogide-publish-check">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(event) => onChange(event.target.checked)}
+        />
+        <span>
+          {label}
+          <span className="blogide-publish-check-detail">{detail}</span>
+          {warnings.map((warning) => (
+            <span
+              key={warning}
+              className="blogide-publish-check-detail text-amber-800 dark:text-amber-300"
+            >
+              ⚠ {warning}
+            </span>
+          ))}
+        </span>
+      </label>
+    </li>
+  );
+}
+
+function NoteRow({
+  label,
+  detail,
+  warn,
+}: {
+  label: string;
+  detail: string;
+  warn?: boolean;
+}) {
+  return (
+    <li>
+      <div className="blogide-publish-check">
+        <span className="blogide-publish-check-mark" aria-hidden>
+          {warn ? "⚠" : "•"}
+        </span>
+        <span>
+          {label}
+          <span
+            className={
+              warn
+                ? "blogide-publish-check-detail text-amber-800 dark:text-amber-300"
+                : "blogide-publish-check-detail"
+            }
+          >
+            {detail}
+          </span>
+        </span>
+      </div>
+    </li>
   );
 }
 

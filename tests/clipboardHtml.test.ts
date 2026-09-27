@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_MARKERS_OPTIONS,
   flattenToParagraph,
   htmlForPublishTarget,
 } from "@/lib/export/clipboardHtml";
@@ -80,9 +81,15 @@ Hello[^1].
 `;
     const { html } = htmlForPublishTarget(md, "markers");
     expect(html).toContain("<blockquote>");
-    expect(html).toMatch(/mc2|mc²/);
+    expect(html).toContain("mc{sup:2}");
     expect(html).not.toContain("<sup>");
     expect(html).toContain("[1]");
+    const plain = htmlForPublishTarget(md, "markers", {
+      ...DEFAULT_MARKERS_OPTIONS,
+      superscripts: false,
+    }).html;
+    expect(plain).toContain("mc²");
+    expect(plain).not.toContain("<sup>");
   });
 
   it("keeps a path URL inside one Notes item so later numbers stay aligned", () => {
@@ -212,9 +219,11 @@ describe("SUBSTACK_FOOTNOTE_HELPER", () => {
   });
 
   it("uses a marker regex that matches [1] and [^1]", () => {
-    const snippet = SUBSTACK_FOOTNOTE_HELPER.match(
-      /const m = (\/.+\/)\.exec/
-    )?.[1];
+    const snippet = [
+      ...SUBSTACK_FOOTNOTE_HELPER.matchAll(/const m = (\/.+\/)\.exec/g),
+    ]
+      .map((match) => match[1])
+      .find((source) => source.startsWith("/\\["));
     expect(snippet).toBeTruthy();
     const re = new Function(`return ${snippet}`)() as RegExp;
     expect("[1]".match(re)?.[1]).toBe("1");

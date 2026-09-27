@@ -10,7 +10,11 @@
 
 import { buildPublicationPreview } from "@/lib/preview/publicationHtml";
 import { htmlToPlainText } from "@/lib/export/htmlPlain";
-import { SUBSTACK_NOTES_HEADING } from "@/lib/export/substackEditorHelper";
+import {
+  SUBSTACK_NOTES_HEADING,
+  SUBSTACK_POETRY_END,
+  SUBSTACK_POETRY_START,
+} from "@/lib/export/substackEditorHelper";
 
 export type PublishCopyFormat = "superscripts" | "html" | "markers";
 
@@ -51,6 +55,32 @@ export function resolvePublishCopyTarget(
   return "superscripts";
 }
 
+/**
+ * What the markers copy hands to the Substack helper. Each flag that is on
+ * leaves a marker the helper turns into native Substack formatting; each
+ * flag that is off pastes a static fallback that reads fine without it.
+ */
+export type MarkersCopyOptions = {
+  /** `[1]` markers + Notes list (off: static ¹ numbers + Notes list). */
+  footnotes: boolean;
+  /** Keep images (off: drop them and upload by hand in Substack). */
+  images: boolean;
+  /** `{sup:27}` / `{sub:2}` markers (off: Unicode ²⁷ where possible). */
+  superscripts: boolean;
+  /** Display math as a `$$…$$` paragraph (off: a LaTeX code block). */
+  math: boolean;
+  /** `{poetry}` … `{/poetry}` around poems (off: line breaks only). */
+  poetry: boolean;
+};
+
+export const DEFAULT_MARKERS_OPTIONS: MarkersCopyOptions = {
+  footnotes: true,
+  images: true,
+  superscripts: true,
+  math: true,
+  poetry: true,
+};
+
 export type PublishCopyResult = {
   title: string;
   html: string;
@@ -71,7 +101,7 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function preparePublicationBody(markdown: string): PreparedBody | null {
+export function preparePublicationBody(markdown: string): PreparedBody | null {
   const preview = buildPublicationPreview(markdown);
   if (typeof DOMParser === "undefined") return null;
   const doc = new DOMParser().parseFromString(
@@ -117,12 +147,207 @@ function replaceRefsWithSup(doc: Document, root: HTMLElement): void {
   });
 }
 
-function replaceRefsWithMarkers(doc: Document, root: HTMLElement): void {
+function replaceRefsWithMarkers(
+  doc: Document,
+  root: HTMLElement,
+  options: { helper: boolean } = { helper: true }
+): void {
   root.querySelectorAll(".preview-fn").forEach((wrap) => {
     const n = footnoteNumber(wrap);
     if (!n) return;
-    wrap.replaceWith(doc.createTextNode(`[${n}]`));
+    wrap.replaceWith(
+      doc.createTextNode(options.helper ? `[${n}]` : toUnicodeScript(n, "sup") ?? `(${n})`)
+    );
   });
+}
+
+const SUP_CHARS: Record<string, string> = {
+  "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶",
+  "7": "⁷", "8": "⁸", "9": "⁹", "+": "⁺", "-": "⁻", "=": "⁼", "(": "⁽",
+  ")": "⁾", n: "ⁿ", i: "ⁱ",
+};
+
+const SUB_CHARS: Record<string, string> = {
+  "0": "₀", "1": "₁", "2": "₂", "3": "₃", "4": "₄", "5": "₅", "6": "₆",
+  "7": "₇", "8": "₈", "9": "₉", "+": "₊", "-": "₋", "=": "₌", "(": "₍",
+  ")": "₎",
+};
+
+/** Unicode super/subscript for short numeric-ish text, or null if unmappable. */
+export function toUnicodeScript(text: string, kind: "sup" | "sub"): string | null {
+  const map = kind === "sup" ? SUP_CHARS : SUB_CHARS;
+  if (!text) return null;
+  let out = "";
+  for (const ch of text) {
+    const mapped = map[ch];
+    if (!mapped) return null;
+    out += mapped;
+  }
+  return out;
+}
+
+/**
+ * Content `<sup>` / `<sub>` (verse numbers, ordinals, chemistry). Substack
+ * drops whole blockquotes that contain them, so they never paste as tags.
+ */
+function replaceScripts(
+  doc: Document,
+  root: HTMLElement,
+  options: { helper: boolean }
+): void {
+  for (const el of [...root.querySelectorAll("sup, sub")]) {
+    const kind = el.tagName.toLowerCase() === "sup" ? "sup" : "sub";
+    const text = el.textContent ?? "";
+    if (!text) {
+      el.remove();
+      continue;
+    }
+    if (options.helper && !/[{}]/.test(text)) {
+      el.replaceWith(doc.createTextNode(`{${kind}:${text}}`));
+      continue;
+    }
+    el.replaceWith(doc.createTextNode(toUnicodeScript(text, kind) ?? text));
+  }
+}
+
+/**
+ * KaTeX HTML pastes as duplicated garbage (MathML + spans). Paste LaTeX
+ * source instead: inline as `$…$`, display as a `$$…$$` paragraph the
+ * helper can convert, or a code block when the helper will not run.
+ */
+function replaceMathWithSource(
+  doc: Document,
+  root: HTMLElement,
+  options: { helper: boolean }
+): void {
+  for (const el of [...root.querySelectorAll(".blogide-inline-math")]) {
+    const latex = el.getAttribute("data-latex") ?? el.textContent ?? "";
+    el.replaceWith(doc.createTextNode(`$${latex}$`));
+  }
+  for (const el of [...root.querySelectorAll(".blogide-block-math")]) {
+    const latex = (el.getAttribute("data-latex") ?? el.textContent ?? "").trim();
+    const inNotes = Boolean(el.closest(".preview-footnotes"));
+    if (options.helper && !inNotes) {
+      const p = doc.createElement("p");
+      p.textContent = `$$${latex}$$`;
+      el.replaceWith(p);
+    } else {
+      const pre = doc.createElement("pre");
+      const code = doc.createElement("code");
+      code.textContent = latex;
+      pre.appendChild(code);
+      el.replaceWith(pre);
+    }
+  }
+}
+
+/** Leading spaces → no-break spaces so indents survive HTML paste. */
+function appendPoemLine(doc: Document, target: Element, line: Node[]): void {
+  let leading = true;
+  for (const node of line) {
+    if (leading && node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent ?? "";
+      const match = /^[ \t]+/.exec(text);
+      if (match) {
+        const width = match[0].replace(/\t/g, "    ").length;
+        target.appendChild(
+          doc.createTextNode("\u00a0".repeat(width) + text.slice(match[0].length))
+        );
+        leading = false;
+        continue;
+      }
+    }
+    leading = false;
+    target.appendChild(node);
+  }
+}
+
+/** Split a pre-wrap poem into lines of cloned inline nodes. */
+function poemLines(poem: Element): Node[][] {
+  const lines: Node[][] = [[]];
+  function walk(node: Node, wrap: (inner: Node) => Node): void {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const parts = (node.textContent ?? "").split("\n");
+      parts.forEach((part, index) => {
+        if (index > 0) lines.push([]);
+        if (part) lines[lines.length - 1].push(wrap(node.ownerDocument!.createTextNode(part)));
+      });
+      return;
+    }
+    if (!(node instanceof Element)) return;
+    if (node.tagName.toLowerCase() === "br") {
+      lines.push([]);
+      return;
+    }
+    for (const child of [...node.childNodes]) {
+      walk(child, (inner) => {
+        const clone = node.cloneNode(false);
+        clone.appendChild(inner);
+        return wrap(clone);
+      });
+    }
+  }
+  for (const child of [...poem.childNodes]) walk(child, (inner) => inner);
+  return lines;
+}
+
+/**
+ * Poems are one pre-wrap div in BlogIDE. Pasted HTML collapses those
+ * newlines, so emit stanzas as paragraphs with `<br>` lines, optionally
+ * fenced by `{poetry}` / `{/poetry}` for the helper.
+ */
+function replacePoetry(
+  doc: Document,
+  root: HTMLElement,
+  options: { helper: boolean }
+): void {
+  for (const poem of [...root.querySelectorAll("div.poetry")]) {
+    const lines = poemLines(poem);
+    while (lines.length && lines[lines.length - 1].length === 0) lines.pop();
+    while (lines.length && lines[0].length === 0) lines.shift();
+    const stanzas: Node[][][] = [[]];
+    for (const line of lines) {
+      const blank = line.every((node) => !(node.textContent ?? "").trim());
+      if (blank) {
+        if (stanzas[stanzas.length - 1].length) stanzas.push([]);
+        continue;
+      }
+      stanzas[stanzas.length - 1].push(line);
+    }
+    const frag = doc.createDocumentFragment();
+    const nested = Boolean(poem.closest("blockquote, li, .preview-footnotes"));
+    const fence = options.helper && !nested;
+    if (fence) {
+      const start = doc.createElement("p");
+      start.textContent = SUBSTACK_POETRY_START;
+      frag.appendChild(start);
+    }
+    for (const stanza of stanzas) {
+      if (!stanza.length) continue;
+      const p = doc.createElement("p");
+      stanza.forEach((line, index) => {
+        if (index > 0) p.appendChild(doc.createElement("br"));
+        appendPoemLine(doc, p, line);
+      });
+      frag.appendChild(p);
+    }
+    if (fence) {
+      const end = doc.createElement("p");
+      end.textContent = SUBSTACK_POETRY_END;
+      frag.appendChild(end);
+    }
+    poem.replaceWith(frag);
+  }
+}
+
+function removeImages(root: HTMLElement): void {
+  for (const figure of [...root.querySelectorAll("figure")]) {
+    if (figure.querySelector("img")) figure.remove();
+  }
+  root.querySelectorAll("img").forEach((img) => img.remove());
+  for (const p of [...root.querySelectorAll("p")]) {
+    if (!p.childNodes.length) p.remove();
+  }
 }
 
 function replaceEndnotesWithList(
@@ -296,6 +521,8 @@ export function sanitizeMarkersHtml(doc: Document, root: HTMLElement): void {
 
 /** Paste-safe: superscripts + Notes list. No hash links. */
 function formatSuperscripts(doc: Document, root: HTMLElement): void {
+  replaceMathWithSource(doc, root, { helper: false });
+  replacePoetry(doc, root, { helper: false });
   replaceRefsWithSup(doc, root);
   replaceEndnotesWithList(doc, root, { heading: true });
 }
@@ -304,8 +531,16 @@ function formatSuperscripts(doc: Document, root: HTMLElement): void {
  * Markers the Substack editor helper can find, plus a Notes ordered list
  * whose formatting survives paste into ProseMirror.
  */
-function formatMarkers(doc: Document, root: HTMLElement): void {
-  replaceRefsWithMarkers(doc, root);
+function formatMarkers(
+  doc: Document,
+  root: HTMLElement,
+  options: MarkersCopyOptions
+): void {
+  if (!options.images) removeImages(root);
+  replaceMathWithSource(doc, root, { helper: options.math });
+  replacePoetry(doc, root, { helper: options.poetry });
+  replaceRefsWithMarkers(doc, root, { helper: options.footnotes });
+  replaceScripts(doc, root, { helper: options.superscripts });
   replaceEndnotesWithList(doc, root, { heading: true });
   sanitizeMarkersHtml(doc, root);
 }
@@ -356,7 +591,8 @@ function formatHtml(doc: Document, root: HTMLElement): void {
  */
 export function htmlForPublishTarget(
   markdown: string,
-  target: PublishCopyTarget
+  target: PublishCopyTarget,
+  markersOptions: MarkersCopyOptions = DEFAULT_MARKERS_OPTIONS
 ): PublishCopyResult {
   const format = resolvePublishCopyTarget(target);
   const preview = buildPublicationPreview(markdown);
@@ -369,7 +605,9 @@ export function htmlForPublishTarget(
     return { title: preview.title, html, plain: htmlToPlainText(html) };
   }
   if (format === "html") formatHtml(prepared.doc, prepared.root);
-  else if (format === "markers") formatMarkers(prepared.doc, prepared.root);
+  else if (format === "markers") {
+    formatMarkers(prepared.doc, prepared.root, markersOptions);
+  }
   else formatSuperscripts(prepared.doc, prepared.root);
 
   const body = prepared.root.innerHTML;

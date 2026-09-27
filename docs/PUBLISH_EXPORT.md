@@ -60,7 +60,8 @@ Honest options:
    Notes list at the end. Readable. Not clickable native Substack notes.
 2. **Text with markers + helper** — paste `[1]` markers and a Notes list,
    then run BlogIDE’s helper in the Substack tab so it calls
-   `insertFootnote()` for you.
+   `insertFootnote()` for you (plus superscripts, LaTeX, and poems; see
+   the checklist below).
 
 The helper is a console script / bookmarklet, not a Playwright robot.
 Automating a logged-in Substack session from BlogIDE would mean stealing
@@ -113,7 +114,7 @@ Two paths:
 | Copy → Markdown | Markdown | — | GFM `[^1]` |
 | Copy → HTML | HTML + readable plain | — | Linked endnotes |
 | Cleanup → Superscript numbers | HTML + readable plain | — | Static `<sup>` + Notes |
-| Cleanup → Bracketed numbers [1] | HTML with `[1]` + Notes list | — | For the Substack helper |
+| Cleanup → Bracketed numbers [1] | HTML with helper markers + Notes list | — | For the Substack helper |
 | Cleanup → Linked HTML endnotes | HTML + readable plain | — | Linked endnotes |
 | Export → Markdown | — | `.md` | GFM |
 | Export → HTML | — | `.html` | Preview endnotes |
@@ -124,27 +125,57 @@ Two paths:
 `text/plain` on the HTML copies is a readable rendering of the HTML,
 never the markdown source.
 
-## Native Substack footnotes (helper)
+## Substack checklist and helper
 
-1. Cleanup → Publish → **Copy text with markers**.
-2. Paste into a Substack draft (title field stays separate; the paste is
-   body only).
-3. Open DevTools on that tab (F12) → Console.
-4. Cleanup → Publish → **Copy helper script**, paste, Enter.
+Cleanup → Publish → **Substack** scans the essay and lists only what will
+not survive a plain paste. Each item is a checkbox: checked leaves a marker
+the helper finishes; unchecked pastes a static fallback that reads fine on
+its own.
 
-Markers HTML is paste-sanitized for Substack: `<sup>` / `<sub>` inside
-quotes are unwrapped (Substack otherwise drops the whole blockquote), and
-each Notes item is flattened to one paragraph so a path URL on its own
-line does not split the item and shift later numbers. The helper also
-ignores leftover `[n]` text inside the Notes section.
+| Item | Checked (helper finishes it) | Unchecked (static) |
+| --- | --- | --- |
+| Footnotes | `[1]` markers + Notes list → `insertFootnote()` | `¹` numbers + Notes list |
+| Images | pasted; helper reports any still hosted outside Substack | left out, upload by hand |
+| Superscript / subscript | `{sup:27}` / `{sub:2}` → Substack marks | Unicode `²⁷` where possible |
+| Display math | `$$…$$` paragraph → Substack LaTeX block | LaTeX source in a code block |
+| Poetry | `{poetry}` … `{/poetry}` → Substack poem block | stanzas with line breaks and indents |
 
-The script finds `[1]` / `[^1]`, calls `insertFootnote()`, fills each note
-from the trailing Notes list (keeping bold/links from the paste), then
-deletes that list. **Copy bookmarklet** is the same code as a
-`javascript:` URL if you prefer a bookmark.
+Informational rows (no checkbox): inline math (Substack has none; pastes
+as `$…$`), tables (Substack has none; the paste flattens), and image
+warnings — BlogIDE uploads use signed links that expire in about a day,
+embedded `data:` images may not paste, relative paths never load.
 
-If Substack’s schema changes, the helper will say `insertFootnote` is
-missing. Re-check this doc or fall back to static superscript numbers.
+KaTeX HTML is never pasted: it comes out as duplicated text. Every
+non-HTML copy uses the LaTeX source. Poems are split into `<br>` lines with
+no-break-space indents because pasted HTML collapses `pre-wrap` newlines.
+
+Steps:
+
+1. Tick what you want, then **Copy text with markers (and images)**.
+2. Paste into a Substack draft (the title field stays separate).
+3. **Copy helper script**, open DevTools on that tab (F12) → Console,
+   paste, Enter. Or save **Copy bookmarklet** as a bookmark URL.
+
+The helper is one script (one bookmarklet) that runs five independent
+passes, each in its own `try`, so one failure does not stop the rest:
+superscripts → LaTeX → poetry → footnotes → image audit. Each pass only
+acts on markers that are present, so unchecked items are left alone, and
+the Notes list is only removed after footnotes were actually inserted. It
+ends with one alert saying what it did per item.
+
+Substack’s node names for LaTeX and poem blocks are not documented, so the
+helper looks them up by name at run time (`/latex|math|equation/`,
+`/poe|verse/`) and reports what it found. If one is missing, markers are
+removed and the content stays readable (`$$…$$` text, line-broken
+paragraphs). If `insertFootnote` is missing, it says so and leaves the
+`[1]` markers.
+
+Markers HTML is paste-sanitized for Substack: `<sup>` / `<sub>` never
+paste as tags (Substack otherwise drops the whole blockquote), blockquotes
+are flattened, and each Notes item is flattened to one paragraph so a path
+URL on its own line does not split the item and shift later numbers. The
+footnote pass ignores `[n]` inside the Notes section, code, and `$$`
+paragraphs (`\sqrt[3]{x}`).
 
 ## Pandoc
 
