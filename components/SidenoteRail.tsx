@@ -42,6 +42,8 @@ export function SidenoteRail({
   }, [onRootChange]);
   const linkedRef = useRef(true);
   const [linked, setLinked] = useState(true);
+  /** Hand scrolling back to the essay (set by the link effect). */
+  const releaseToEssayRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     linkedRef.current = linked;
@@ -149,6 +151,16 @@ export function SidenoteRail({
       if (driver === "rail") scheduleTick();
     }
 
+    // Clicking a note arms the rail as driver (pointerdown), which would pull
+    // the essay back to the rail's position every frame and cancel the
+    // scroll to that note. Let the essay lead instead; the rail follows.
+    releaseToEssayRef.current = () => {
+      window.clearTimeout(idleTimer);
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = 0;
+      driver = null;
+    };
+
     // Relink: snap rail to the essay immediately.
     setProgress(notesPane, progressOf(essayPane));
 
@@ -175,6 +187,7 @@ export function SidenoteRail({
 
     return () => {
       running = false;
+      releaseToEssayRef.current = () => {};
       window.clearTimeout(idleTimer);
       if (frame) window.cancelAnimationFrame(frame);
       essayPane.removeEventListener("scroll", onEssayScroll);
@@ -197,6 +210,7 @@ export function SidenoteRail({
       `[data-footnote-id="${CSS.escape(id)}"] .footnote-ref`
     );
     if (!ref) return;
+    releaseToEssayRef.current();
     ref.scrollIntoView({ behavior: "smooth", block: "center" });
     ref.click();
   }

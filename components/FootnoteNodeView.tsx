@@ -438,6 +438,19 @@ export function FootnoteNodeView({
   }, [commitAndClose, cardOpen, isFindTarget, outerEditor]);
 
   useEffect(() => {
+    // A hover preview belongs to the spot under the cursor; once the essay
+    // scrolls away from it, dismiss (clicked, pinned, and Find cards stay).
+    if (!cardOpen || sticky || pinned || isFindTarget) return;
+    function closeOnScroll(event: Event) {
+      if (isFootnoteOutsidePointerTarget(event.target, footnoteId)) {
+        commitAndClose();
+      }
+    }
+    window.addEventListener("scroll", closeOnScroll, true);
+    return () => window.removeEventListener("scroll", closeOnScroll, true);
+  }, [cardOpen, sticky, pinned, isFindTarget, footnoteId, commitAndClose]);
+
+  useEffect(() => {
     // Pinned cards ignore outside clicks. Hover-only and click-sticky both
     // dismiss on outside pointer (hover also dismisses on mouse leave).
     // Defer attaching so the same gesture that opened the card cannot close it
@@ -631,7 +644,10 @@ export function FootnoteNodeView({
         onPointerMove={onRefDragMove}
         onPointerUp={endRefDrag}
         onPointerCancel={endRefDrag}
-        onMouseEnter={() => {
+        onMouseEnter={cancelHoverClose}
+        onMouseMove={() => {
+          // Start on real mouse movement, not mouseenter: text reflowing or
+          // scrolling under a still cursor must not pop a card open.
           if (refDrag.current?.dragging) return;
           if (!prefs.footnoteOpenOnHover) return;
           cancelHoverClose();
