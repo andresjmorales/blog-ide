@@ -189,6 +189,20 @@ export function footnoteDefinitions(markdown: string): Map<string, string> {
   return defs;
 }
 
+/** Note text by label (`[^2]: text` → "2" → "text"), for showing notes in chat. */
+export function footnoteNotes(markdown: string): Record<string, string> {
+  const notes: Record<string, string> = {};
+  for (const [label, block] of footnoteDefinitions(markdown)) {
+    notes[label] = block
+      .replace(FOOTNOTE_DEF_START, "")
+      .split("\n")
+      .map((line) => line.replace(/^( {2,4}|\t)/, ""))
+      .join("\n")
+      .trim();
+  }
+  return notes;
+}
+
 /**
  * Rewrites often keep `[^2]` markers but drop the `[^2]: …` lines. Inserting
  * that would create empty footnotes (and lose the notes), so copy any missing

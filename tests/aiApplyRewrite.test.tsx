@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import {
+  footnoteNotes,
   normalizeFullDocumentReply,
   prepareApply,
   restoreFootnoteDefinitions,
@@ -122,20 +123,36 @@ describe("chat footnotes", () => {
     host?.remove();
   });
 
-  it("numbers markers and lists notes instead of showing ?", () => {
+  function render(node: React.ReactNode) {
     host = document.createElement("div");
     document.body.appendChild(host);
     root = createRoot(host);
-    act(() => {
-      root!.render(
-        <ChatMarkdown markdown={"Claim.[^1] Other.[^2]\n\n[^1]: The note."} />
-      );
-    });
-    const sups = [...host.querySelectorAll("sup.footnote-ref")].map((s) => s.textContent);
+    act(() => root!.render(node));
+    return host;
+  }
+
+  it("labels markers and lists notes instead of showing ?", () => {
+    const el = render(
+      <ChatMarkdown markdown={"Claim.[^1] Other.[^2]\n\n[^1]: The note."} />
+    );
+    const sups = [...el.querySelectorAll("sup.footnote-ref")].map((s) => s.textContent);
     expect(sups).toEqual(["1", "2"]);
-    const notes = host.querySelectorAll(".ai-chat-notes li");
-    expect(notes[0]?.textContent).toBe("The note.");
+    const notes = el.querySelectorAll(".ai-chat-notes li");
+    expect(notes[0]?.textContent).toBe("1 The note.");
     expect(notes[1]?.className).toBe("is-missing");
+  });
+
+  it("fills cited notes from the essay, keeping the essay's numbers", () => {
+    const el = render(
+      <ChatMarkdown
+        markdown={"Your third point.[^3]"}
+        notes={footnoteNotes("Body.[^3]\n\n[^3]: Essay note three.\n")}
+      />
+    );
+    expect(el.querySelector("sup.footnote-ref")?.textContent).toBe("3");
+    const note = el.querySelector(".ai-chat-notes li");
+    expect(note?.className).toBe("is-essay");
+    expect(note?.textContent).toBe("3 Essay note three.");
   });
 });
 

@@ -900,7 +900,7 @@ begin
     coalesce(rev_markdown, ''),
     cur_version,
     rev_cipher,
-    coalesce(rev_enc, 0)
+    coalesce(rev_enc, 0)::smallint
   );
 end;
 $$;

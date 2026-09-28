@@ -19,6 +19,9 @@ type Props = {
   getCurrentMarkdown?: () => string;
 };
 
+/** A restore failure whose message is already written for the reader. */
+export class RestoreMessage extends Error {}
+
 function formatStamp(iso: string): string {
   const date = new Date(iso);
   return date.toLocaleString(undefined, {
@@ -71,6 +74,8 @@ export function VersionHistoryPanel({
   const [revisions, setRevisions] = useState<DocumentRevision[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Raw server / engine text behind a friendly error, shown under Details. */
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const [previewVersion, setPreviewVersion] = useState<number | null>(null);
   const [compareVersion, setCompareVersion] = useState<number | null>(null);
   const [confirmVersion, setConfirmVersion] = useState<number | null>(null);
@@ -134,15 +139,24 @@ export function VersionHistoryPanel({
   async function restore(version: number) {
     setRestoringVersion(version);
     setError(null);
+    setErrorDetail(null);
     try {
       await onRestore(version);
       setRestoredVersion(version);
       setConfirmVersion(null);
       await load();
     } catch (err) {
-      // Supabase errors are plain objects; keep their message visible.
-      const copy = toastCopyFromError(err, "Restore failed.");
-      setError(copy.detail ? `${copy.message} (${copy.detail})` : copy.message);
+      const friendly = `Couldn't restore version ${version}. Your current essay wasn't changed.`;
+      // Our own messages (quota, missing version) read fine as they are.
+      // Server errors (plain Supabase objects) and engine errors go under
+      // Details instead of being shown raw.
+      const copy = toastCopyFromError(err, friendly);
+      if (err instanceof RestoreMessage) {
+        setError(err.message);
+      } else {
+        setError(friendly);
+        setErrorDetail(copy.detail ?? (copy.technical ? null : copy.message));
+      }
     } finally {
       setRestoringVersion(null);
     }
@@ -179,9 +193,15 @@ export function VersionHistoryPanel({
           </p>
 
           {error && (
-            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-              {error}
-            </p>
+            <div role="alert" className="text-sm text-red-600 dark:text-red-400">
+              <p>{error}</p>
+              {errorDetail && (
+                <details className="mt-1 text-xs text-muted">
+                  <summary className="cursor-pointer">Details</summary>
+                  <p className="mt-1 font-mono break-words">{errorDetail}</p>
+                </details>
+              )}
+            </div>
           )}
           {restoredVersion != null && !error && (
             <p role="status" className="settings-help">

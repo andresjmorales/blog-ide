@@ -11,6 +11,7 @@ import {
 } from "@/lib/ai/actions";
 import {
   findPatchRange,
+  footnoteNotes,
   withoutFootnoteDefinitions,
   parseSearchReplacePatches,
   prepareApply,
@@ -60,6 +61,8 @@ type Message = {
   notice?: string;
   /** Per patch-block state, keyed by block index. */
   patchStatus?: Record<number, PatchStatus>;
+  /** Essay footnotes the model saw, so chat can show notes it only cites. */
+  essayNotes?: Record<string, string>;
   /** Whole-reply apply (rewrite / selection / title) went through. */
   applied?: boolean;
 };
@@ -342,6 +345,9 @@ export function AiSidebar({
         scope,
         selectionText: selection?.text,
         actionId: opts.actionId,
+        essayNotes: resolved.essayMarkdown
+          ? footnoteNotes(resolved.essayMarkdown)
+          : undefined,
       },
     ]);
     setInput("");
@@ -1156,6 +1162,7 @@ function AssistantBody({
               key={`t${i}`}
               markdown={segment.text}
               streaming={streaming}
+              notes={message.essayNotes}
             />;
         }
         if (segment.type === "pending-patch") {

@@ -47,7 +47,10 @@ import {
 } from "@/lib/sync/engine";
 import { restoreDocumentRevision } from "@/lib/workspace/api";
 import { EDITOR_WORK_MS } from "@/lib/editor/workSchedule";
-import { VersionHistoryPanel } from "@/components/VersionHistoryPanel";
+import {
+  RestoreMessage,
+  VersionHistoryPanel,
+} from "@/components/VersionHistoryPanel";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   parseSpellcheckLangs,
@@ -1355,10 +1358,14 @@ export function DocumentWorkspace({
       await syncDocument(nodeId);
       const result = await restoreDocumentRevision(nodeId, version);
       if (!result.ok) {
-        throw new Error(
+        throw new RestoreMessage(
           result.reason === "quota"
-            ? "Restore blocked: storage quota exceeded."
-            : `Could not restore this version (${result.reason}).`
+            ? "Restore blocked: storage is full. Free up space, then try again."
+            : result.reason === "revision_not_found"
+              ? "That version is no longer in the history."
+              : result.reason === "conflict"
+                ? "The essay changed on another device while restoring. Reopen version history and try again."
+                : `Couldn't restore version ${version} (${result.reason}). Your current essay wasn't changed.`
         );
       }
       const opened = await openDocument(nodeId);
