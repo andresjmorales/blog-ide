@@ -35,6 +35,7 @@ import { PanelCaret } from "@/components/icons";
 import type { DocRange } from "@/lib/editor/findReplaceInEditor";
 import { FormattingToolbar } from "@/components/FormattingToolbar";
 import { FindReplacePanel } from "@/components/FindReplacePanel";
+import { placeCursorFromMargin } from "@/lib/editor/marginClick";
 import { CitationInsertDialog } from "@/components/CitationInsertDialog";
 import { ShortcutCheatsheet } from "@/components/ShortcutCheatsheet";
 import { getEssayEditor, setEssayEditor } from "@/lib/citations/essayEditor";
@@ -177,6 +178,8 @@ export function DocumentEditor({
   const [citeSheetOpen, setCiteSheetOpen] = useState(false);
   const [narrowViewport, setNarrowViewport] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
+  /** Centered page column (margin clicks land here or on the scroller). */
+  const pageRef = useRef<HTMLDivElement | null>(null);
   /** Bumped on every Ctrl+F / Find click so an already-open panel refocuses. */
   const [findFocusNonce, setFindFocusNonce] = useState(0);
   const [findStickyRange, setFindStickyRange] = useState<DocRange | null>(null);
@@ -558,8 +561,12 @@ export function DocumentEditor({
             onClose={() => {
               setFindOpen(false);
               // Return focus so the next Ctrl+F lands in a known place.
+              // Don't scroll: the panel already placed the cursor on the
+              // current match (or you clicked somewhere yourself).
               queueMicrotask(() => {
-                if (!editor.isDestroyed) editor.commands.focus();
+                if (!editor.isDestroyed) {
+                  editor.commands.focus(null, { scrollIntoView: false });
+                }
               });
             }}
           />
@@ -594,8 +601,22 @@ export function DocumentEditor({
               }}
               className="min-h-0 min-w-0 flex-1 overflow-y-auto"
               data-blogide-editor-scroll=""
+              onMouseDown={(event) => {
+                // Only bare page area (margins, below the essay), never the
+                // title, controls, or the prose itself.
+                if (
+                  event.button !== 0 ||
+                  !editor ||
+                  (event.target !== event.currentTarget &&
+                    event.target !== pageRef.current)
+                ) {
+                  return;
+                }
+                if (placeCursorFromMargin(editor, event)) event.preventDefault();
+              }}
             >
               <div
+                ref={pageRef}
                 className={`mx-auto px-6 py-10 ${
                   railEnabled
                     ? "max-w-2xl"

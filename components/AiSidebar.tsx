@@ -87,7 +87,13 @@ type Props = {
   onApplyMarkdown?: (markdown: string) => void;
   onApplySelection?: (markdown: string, selection: AiSelection) => boolean;
   onOpenSettings?: () => void;
+  /** Open essay's id: each essay keeps its own chat for this session. */
+  essayKey?: string | null;
+  /** Open essay's title for the context label. */
+  essayLabel?: string | null;
 };
+
+type Thread = { messages: Message[]; undo: UndoState | null };
 
 let messageSeq = 0;
 function nextId(): string {
@@ -105,6 +111,8 @@ export function AiSidebar({
   onApplyMarkdown,
   onApplySelection,
   onOpenSettings,
+  essayKey = null,
+  essayLabel = null,
 }: Props) {
   // Always start empty so SSR and the first client paint match; load keys after mount.
   const [keys, setKeys] = useState<AiKeys>({});
@@ -124,14 +132,51 @@ export function AiSidebar({
   const [pendingApply, setPendingApply] = useState<PendingApply | null>(null);
   const [undo, setUndo] = useState<UndoState | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  /** Follow streaming output only while the reader is at the bottom. */
+  const nearBottomRef = useRef(true);
   const abortRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  /** Chats of essays you switched away from (kept for this session). */
+  const threadsRef = useRef(new Map<string, Thread>());
+  const threadKeyRef = useRef(essayKey ?? "");
+  const liveThreadRef = useRef<Thread>({ messages, undo });
 
   const hasEssay = essayAvailable;
 
+  // Declared before the swap below so it still holds the outgoing chat.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [messages, busy, pendingApply]);
+    liveThreadRef.current = { messages, undo };
+  }, [messages, undo]);
+
+  // Swap to the open essay's chat. An in-flight reply stops and stays in the
+  // chat it belongs to; undo and pending reviews never cross essays.
+  useEffect(() => {
+    const nextKey = essayKey ?? "";
+    if (nextKey === threadKeyRef.current) return;
+    abortRef.current?.abort();
+    threadsRef.current.set(threadKeyRef.current, liveThreadRef.current);
+    const next = threadsRef.current.get(nextKey);
+    threadKeyRef.current = nextKey;
+    setMessages(next?.messages ?? []);
+    setUndo(next?.undo ?? null);
+    setPendingApply(null);
+    setError(null);
+    nearBottomRef.current = true;
+  }, [essayKey]);
+
+  // New message: jump to it. Streaming: follow along unless scrolled up.
+  // Applying an edit (a status change on an old message) never scrolls.
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "nearest" });
+    nearBottomRef.current = true;
+  }, [messages.length]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!busy || !el || !nearBottomRef.current) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages, busy]);
 
   useEffect(() => {
     function refresh() {
@@ -738,13 +783,14 @@ export function AiSidebar({
     .reverse()
     .find((m) => m.role === "assistant")?.id;
   const usingSelection = preferSelection && hasEssay && selectionWords != null;
+  const essayName = essayLabel?.trim() || "Open essay";
   const contextLabel = !hasEssay
     ? "No essay open"
     : usingSelection
-      ? `Selection · ${formatWordCount(selectionWords)}`
+      ? `${essayName} · selection, ${formatWordCount(selectionWords)}`
       : includeEssay
-        ? "Whole essay"
-        : "Chat only";
+        ? essayName
+        : `${essayName} (not sent)`;
 
   const reviewPanel = pendingApply && (
     <ReviewPanel
@@ -801,19 +847,36 @@ export function AiSidebar({
         <EditorOverflowMenu items={settingsItems} />
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
+      <div
+        ref={scrollRef}
+        className="flex-1 space-y-3 overflow-y-auto px-3 py-3"
+        onScroll={(event) => {
+          const el = event.currentTarget;
+          nearBottomRef.current =
+            el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+        }}
+      >
         {messages.length === 0 && (
           <div className="ai-empty text-xs text-muted">
             <p className="mb-1.5 font-medium text-foreground">
-              Ask about your essay, or pick an action below.
+              {hasEssay && essayLabel
+                ? `Chat about “${essayLabel}”`
+                : "Ask about your essay, or pick an action below."}
             </p>
             <ul className="list-disc space-y-0.5 pl-4">
+              <li>
+                The open essay is always the context: its latest version goes
+                with every message.
+              </li>
               <li>Select a passage first to focus on just that part.</li>
               <li>
                 Suggested edits show as before / after cards you can apply one
                 at a time, then undo.
               </li>
-              <li>The latest version of the essay is sent with each message.</li>
+              <li>
+                Each essay keeps its own chat until you close the tab; switching
+                essays switches chats.
+              </li>
             </ul>
           </div>
         )}
@@ -879,6 +942,17 @@ export function AiSidebar({
           void send(input);
         }}
       >
+        <div
+          className={`ai-context mb-2 ${usingSelection ? "is-selection" : ""}`}
+          title={
+            hasEssay
+              ? "The open essay goes with every message; a selection narrows the focus"
+              : "Open an essay to chat about it"
+          }
+        >
+          <span className="ai-context-label">Context</span>
+          <span className="truncate">{contextLabel}</span>
+        </div>
         <div className="mb-2 flex flex-wrap items-center gap-1">
           {AI_ACTIONS.map((action) => (
             <button
@@ -892,14 +966,6 @@ export function AiSidebar({
               {action.label}
             </button>
           ))}
-          <span
-            className={`ml-auto truncate text-[0.65rem] ${
-              usingSelection ? "text-accent" : "text-muted"
-            }`}
-            title="What the assistant will see with your next message"
-          >
-            {contextLabel}
-          </span>
         </div>
         <textarea
           ref={textareaRef}
@@ -1174,7 +1240,9 @@ function AssistantFooter({
   const remaining = patchIndexes.filter(
     (index) => message.patchStatus?.[index] !== "applied"
   );
-  const isCritique = message.actionId === "critique";
+  // Critique / proofread replies are prose (proofread edits come as patches).
+  const isCritique =
+    message.actionId === "critique" || message.actionId === "proofread";
   return (
     <div className="mt-2 flex flex-wrap items-center justify-end gap-1">
       <button type="button" className={chipClass} onClick={onCopy} title="Copy reply">
@@ -1235,8 +1303,16 @@ function ReviewPanel({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  // Bring the review into view without jumping to the end of the chat.
+  useEffect(() => {
+    panelRef.current?.scrollIntoView({ block: "nearest" });
+  }, []);
   return (
-    <div className="mt-2 rounded-md border border-accent/40 bg-accent/5 px-2.5 py-2 text-xs">
+    <div
+      ref={panelRef}
+      className="mt-2 rounded-md border border-accent/40 bg-accent/5 px-2.5 py-2 text-xs"
+    >
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <span className="font-medium text-foreground">{summary}</span>
         <div className="flex gap-1">

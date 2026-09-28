@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import {
   findInEditor,
@@ -122,6 +122,13 @@ export function FindReplacePanel({
   );
   const [matches, setMatches] = useState<FindMatch[]>([]);
   const [index, setIndex] = useState(0);
+  /** Latest matches / index for the close handler (Escape listener is stable). */
+  const closeStateRef = useRef({ matches: [] as FindMatch[], index: 0 });
+  useEffect(() => {
+    closeStateRef.current = { matches, index };
+  }, [matches, index]);
+  /** The writer clicked or typed in the essay after the last match was shown. */
+  const userMovedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const findInputRef = useRef<HTMLInputElement | null>(null);
   const replaceInputRef = useRef<HTMLInputElement | null>(null);
@@ -238,6 +245,7 @@ export function FindReplacePanel({
     setMatches(result.matches);
     setError(result.error);
     setIndex(nextIndex);
+    if (options?.scroll) userMovedRef.current = false;
     setFindHighlights(editor, result.matches, nextIndex, sticky);
     syncFootnoteFindSession(editor, result.matches, nextIndex, {
       query: nextQuery,
@@ -363,21 +371,53 @@ export function FindReplacePanel({
   }, [editor]);
 
   useEffect(() => {
+    const dom = editor.view.dom;
+    const onUserMove = () => {
+      userMovedRef.current = true;
+    };
+    dom.addEventListener("mousedown", onUserMove);
+    dom.addEventListener("keydown", onUserMove);
+    return () => {
+      dom.removeEventListener("mousedown", onUserMove);
+      dom.removeEventListener("keydown", onUserMove);
+    };
+  }, [editor]);
+
+  /**
+   * Close like Google Docs / VS Code: leave the cursor on the match you were
+   * looking at (selected), without scrolling. If you clicked into the essay
+   * since, keep that spot instead.
+   */
+  const closeFind = useCallback(() => {
+    setFootnoteFindSession(null);
+    const { matches: current, index: at } = closeStateRef.current;
+    const match = current[at];
+    if (!userMovedRef.current && match && match.footnotePos == null && !editor.isDestroyed) {
+      editor
+        .chain()
+        .setTextSelection({ from: match.from, to: match.to })
+        .focus(null, { scrollIntoView: false })
+        .run();
+    }
+    onClose();
+  }, [editor, onClose]);
+
+  useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
-        setFootnoteFindSession(null);
-        onClose();
+        closeFind();
       }
     }
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [onClose]);
+  }, [closeFind]);
 
   function go(delta: number) {
     if (matches.length === 0) return;
     const next = (index + delta + matches.length) % matches.length;
     setIndex(next);
+    userMovedRef.current = false;
     setFindHighlights(
       editor,
       matches,
@@ -543,7 +583,7 @@ export function FindReplacePanel({
         <button
           type="button"
           className="blogide-find-replace-close"
-          onClick={onClose}
+          onClick={closeFind}
           aria-label="Close find"
         >
           ×
