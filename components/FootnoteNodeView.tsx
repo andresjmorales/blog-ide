@@ -771,7 +771,14 @@ export function FootnoteNodeView({
               onMouseLeave={() => {
                 if (prefs.footnoteOpenOnHover) scheduleHoverClose();
               }}
-              onPointerDown={claimCard}
+              onPointerDown={(event) => {
+                // React bubbles pointerdown from portaled menus (toolbar
+                // overflow, Aa+) up to here. Raising the sheet then would put
+                // it over the menu mid-tap, and the tap would miss. Same fix
+                // as PinnedSurface on desktop.
+                if (!event.currentTarget.contains(event.target as Node)) return;
+                claimCard();
+              }}
             >
               <span className="footnote-card-heading">
                 <span className="footnote-card-title">
