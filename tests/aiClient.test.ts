@@ -64,14 +64,14 @@ describe("canned action prompts", () => {
 
 describe("model allowlist", () => {
   it("falls back to provider default for unknown ids", () => {
-    expect(resolveModel("anthropic", "nope")).toBe("claude-sonnet-4-6");
+    expect(resolveModel("anthropic", "nope")).toBe("claude-sonnet-5-5");
     expect(resolveModel("openai", null)).toBe("gpt-4o-mini");
   });
 
   it("keeps newer models and still honors a saved id", () => {
     expect(modelsForProvider("anthropic").map((model) => model.id)).toEqual([
-      "claude-sonnet-4-6",
       "claude-sonnet-5-5",
+      "claude-sonnet-4-6",
       "claude-opus-5-5",
       "claude-fable-5-1",
       "claude-haiku-4-5-20251001",
@@ -79,7 +79,10 @@ describe("model allowlist", () => {
     expect(resolveModel("anthropic", "claude-opus-5-5")).toBe(
       "claude-opus-5-5"
     );
-    // A saved Sonnet 5 pick moves to Sonnet 5.5 rather than the default.
+    // A saved Sonnet 4.6 pick is kept; a saved Sonnet 5 pick moves to 5.5.
+    expect(resolveModel("anthropic", "claude-sonnet-4-6")).toBe(
+      "claude-sonnet-4-6"
+    );
     expect(resolveModel("anthropic", "claude-sonnet-5")).toBe(
       "claude-sonnet-5-5"
     );

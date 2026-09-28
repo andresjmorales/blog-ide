@@ -18,14 +18,14 @@ export type AiModelOption = {
  */
 export const ANTHROPIC_MODELS: AiModelOption[] = [
   {
-    id: "claude-sonnet-4-6",
-    label: "Sonnet 4.6",
-    hint: "Default · balanced",
-  },
-  {
     id: "claude-sonnet-5-5",
     label: "Sonnet 5.5",
-    hint: "Current · fast",
+    hint: "Default · fast",
+  },
+  {
+    id: "claude-sonnet-4-6",
+    label: "Sonnet 4.6",
+    hint: "Previous · balanced",
   },
   {
     id: "claude-opus-5-5",
