@@ -83,6 +83,24 @@ export function collectDocumentStats(doc: StatsNode): DocumentStats {
   };
 }
 
+export type StatsDoc = StatsNode & {
+  slice: (from: number, to: number) => { content: Pick<StatsNode, "descendants"> };
+};
+
+/** Stats for a document range (the outline's "Selection" readout). */
+export function collectRangeStats(
+  doc: StatsDoc,
+  from: number,
+  to: number
+): DocumentStats {
+  const { content } = doc.slice(from, to);
+  return collectDocumentStats({
+    type: { name: "doc" },
+    isText: false,
+    descendants: (f) => content.descendants(f),
+  });
+}
+
 /** Format reading time for the outline footer. */
 export function formatReadingTime(minutes: number, words: number): string {
   if (words <= 0) return "0 min read";

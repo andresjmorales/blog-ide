@@ -2,7 +2,11 @@
  * Shared GitHub backup actions for Files context menus and the essay ⋯ menu.
  */
 
-export type GithubMenuActionId = "map-github" | "pull-github" | "push-github";
+export type GithubMenuActionId =
+  | "map-github"
+  | "diff-github"
+  | "pull-github"
+  | "push-github";
 
 export type GithubMenuAction = {
   id: GithubMenuActionId;
@@ -15,6 +19,8 @@ export function githubActionMenuItems(input: {
   includeMap?: boolean;
   includePull?: boolean;
   includePush?: boolean;
+  /** Essays only: compare the local copy with the mapped GitHub file. */
+  includeDiff?: boolean;
 }): GithubMenuAction[] {
   const includeMap = input.includeMap !== false;
   const includePull = input.includePull !== false;
@@ -22,6 +28,13 @@ export function githubActionMenuItems(input: {
   const items: GithubMenuAction[] = [];
   if (includeMap) {
     items.push({ id: "map-github", label: "Map to GitHub…" });
+  }
+  if (input.includeDiff) {
+    items.push({
+      id: "diff-github",
+      label: "See diff with GitHub…",
+      disabled: !input.mapped,
+    });
   }
   if (includePull) {
     items.push({

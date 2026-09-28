@@ -77,6 +77,120 @@ body {
   margin-top: 0.75em;
 }
 
+/* AI assistant + GitHub diff: loading dots, edit cards, word diff, composer. */
+.ai-thinking {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.22rem;
+  height: 1.1rem;
+  vertical-align: middle;
+}
+.ai-thinking span {
+  animation: ai-bounce 1.1s ease-in-out infinite;
+  background: var(--accent);
+  border-radius: 999px;
+  height: 0.38rem;
+  opacity: 0.55;
+  width: 0.38rem;
+}
+.ai-thinking span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.ai-thinking span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes ai-bounce {
+  0%,
+  70%,
+  100% {
+    opacity: 0.45;
+    transform: translateY(0);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-0.28rem);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-thinking span {
+    animation-duration: 2.4s;
+    animation-name: ai-pulse;
+  }
+  @keyframes ai-pulse {
+    0%,
+    100% {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+}
+.ai-patch {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  padding: 0.45rem 0.55rem;
+}
+.ai-patch.is-applied {
+  border-color: color-mix(in srgb, #059669 45%, var(--border));
+}
+.ai-patch-pending {
+  align-items: center;
+  display: flex;
+  gap: 0.4rem;
+}
+.word-diff {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.word-diff ins {
+  background: color-mix(in srgb, #10b981 22%, transparent);
+  border-radius: 0.15rem;
+  text-decoration: none;
+}
+.word-diff del {
+  background: color-mix(in srgb, #ef4444 16%, transparent);
+  border-radius: 0.15rem;
+  color: color-mix(in srgb, var(--foreground) 65%, transparent);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, #ef4444 70%, transparent);
+}
+.word-diff-context {
+  color: var(--muted);
+  display: -webkit-box;
+  font-size: 0.72rem;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.github-diff-status {
+  font-size: 0.8rem;
+  margin-bottom: 0.6rem;
+}
+.github-diff-status.is-same {
+  color: var(--accent);
+  font-weight: 550;
+}
+.github-diff-body {
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: min(55dvh, 28rem);
+  overflow: auto;
+  padding: 0.6rem 0.75rem;
+}
+.ai-composer {
+  max-height: 12rem;
+  min-height: 3.25rem;
+  overflow-y: auto;
+}
+
 /* Compact markdown in the AI chat panel. */
 .ai-chat-prose.editor-prose {
   font-size: 0.8125rem;
@@ -305,6 +419,36 @@ body {
   font-size: 0.82rem;
   font-variant-numeric: tabular-nums;
   font-weight: 650;
+}
+.doc-stats-heading {
+  align-items: center;
+  display: flex;
+  gap: 0.35rem;
+  justify-content: space-between;
+  min-width: 0;
+}
+.doc-stats-selection-btn,
+.doc-stats-scope {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  flex-shrink: 0;
+  font-size: 0.6rem;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  padding: 0.18rem 0.4rem;
+}
+.doc-stats-selection-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.doc-stats-scope {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent);
+}
+.doc-stats.is-selection .doc-stats-words {
+  color: var(--accent);
 }
 .doc-stats-read {
   color: var(--muted);

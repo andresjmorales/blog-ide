@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { githubErrorCopy, githubWhoAmI } from "@/lib/github/client";
-import { pushWorkspaceToGithubWithStatus } from "@/lib/github/push";
+import {
+  pushWorkspaceToGithubWithStatus,
+  showGithubPushToast,
+} from "@/lib/github/push";
 import {
   SETTINGS_TOAST,
   showSettingsError,
@@ -339,11 +342,7 @@ export function GitHubSettingsSection({
                       const results = await pushWorkspaceToGithubWithStatus({
                         scope: "workspace",
                       });
-                      const files = results.reduce((n, r) => n + r.fileCount, 0);
-                      showSettingsSuccess(
-                        `Pushed ${files} file${files === 1 ? "" : "s"} to GitHub.`,
-                        SETTINGS_TOAST.github
-                      );
+                      showGithubPushToast(results, SETTINGS_TOAST.github);
                     } catch (err) {
                       showSettingsError(
                         githubErrorCopy(err),

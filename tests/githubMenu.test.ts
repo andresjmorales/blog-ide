@@ -28,4 +28,17 @@ describe("githubActionMenuItems", () => {
       })
     ).toEqual([{ id: "push-github", label: "Push to GitHub" }]);
   });
+
+  it("adds See diff for essays, disabled until mapped", () => {
+    expect(
+      githubActionMenuItems({ mapped: false, includeDiff: true }).map(
+        (item) => [item.id, item.disabled]
+      )
+    ).toEqual([
+      ["map-github", undefined],
+      ["diff-github", true],
+      ["pull-github", true],
+      ["push-github", undefined],
+    ]);
+  });
 });

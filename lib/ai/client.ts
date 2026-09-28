@@ -8,9 +8,14 @@ import {
   resolveModel,
 } from "@/lib/ai/models";
 
+import type { ChatImagePart } from "@/lib/ai/images";
+
+export type ChatContentPart = { type: "text"; text: string } | ChatImagePart;
+
 export type ChatMessage = {
   role: "user" | "assistant" | "system";
-  content: string;
+  /** Plain text, or text + image parts (user turns only). */
+  content: string | ChatContentPart[];
 };
 
 export type ChatCompletionInput = {
@@ -84,7 +89,11 @@ export async function chatCompletion(
  * Returns the full assistant text.
  */
 export async function chatCompletionStream(
-  input: ChatCompletionInput & { onDelta: (chunk: string) => void }
+  input: ChatCompletionInput & {
+    onDelta: (chunk: string) => void;
+    /** The provider stopped at the output-length limit. */
+    onTruncated?: () => void;
+  }
 ): Promise<string> {
   const { provider, apiKey, model } = resolveRequest(input);
 
@@ -143,8 +152,10 @@ export async function chatCompletionStream(
         const parsed = JSON.parse(data) as {
           text?: string;
           error?: string;
+          truncated?: boolean;
         };
         if (parsed.error) throw new Error(parsed.error);
+        if (parsed.truncated) input.onTruncated?.();
         if (parsed.text) {
           full += parsed.text;
           input.onDelta(parsed.text);
@@ -190,15 +201,17 @@ Footnotes (important — do not confuse with body prose):
 - When rewriting the full document, keep markers in the body and matching [^n]: definitions at the end; preserve ids and wording unless the user asked to change the notes. Do not inline footnote text into the main essay.
 - If a <!--blogide-citations:…--> comment is present, leave it unchanged. Do not invent citation snapshots.
 
-Apply / rewrite protocol:
-- When the user asks you to rewrite, edit, tighten, or expand the whole essay: return ONLY the complete markdown document (keep frontmatter if present). No preamble or code fences.
-- For small surgical edits you may instead return one or more patch blocks:
+Apply / rewrite protocol (the app turns your reply into one-click edits):
+- For edits to part of the essay (tightening, fixing, rewording, adding a sentence), return patch blocks, one per change:
   <<<SEARCH
-  exact text from the essay
+  exact text copied from the essay
   ===
   replacement text
   >>>REPLACE
+  Copy SEARCH text verbatim from the current essay (same markdown, punctuation, and footnote markers), long enough to be unique, and no longer than one paragraph. Put a one-line reason before each block. Do not wrap blocks in code fences.
+- Only when the user asks to rewrite the whole essay: return ONLY the complete markdown document (keep frontmatter if present). No preamble or code fences.
 - Otherwise (critique, ideas, questions): answer normally in prose; do not dump the whole essay unless asked.
+- Images from the essay may be attached to the user's message; refer to them by position or alt text when relevant.
 
 Current essay:
 ---

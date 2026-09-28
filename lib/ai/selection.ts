@@ -61,7 +61,19 @@ export function replaceWysiwygRange(
   if (from < 0 || to > size || from > to) return false;
   try {
     const doc = parseBody(markdown);
-    const content = doc.content ?? [];
+    let content = doc.content ?? [];
+    // A selection inside one paragraph takes the reply's inline content;
+    // inserting a paragraph node there would split the paragraph in two.
+    const $from = editor.state.doc.resolve(from);
+    const $to = editor.state.doc.resolve(to);
+    if (
+      $from.parent === $to.parent &&
+      $from.parent.isTextblock &&
+      content.length === 1 &&
+      content[0].type === "paragraph"
+    ) {
+      content = content[0].content ?? [];
+    }
     return editor
       .chain()
       .focus()

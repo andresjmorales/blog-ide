@@ -27,12 +27,21 @@ function normalizedPaths(files: Array<{ path: string }>): string[] {
   return paths;
 }
 
-function syncSubject(count: number): string {
-  return `blogide: sync ${count} file${count === 1 ? "" : "s"}`;
+/** `(essay.md)` or `(essay.md + 3 more)` so commits are told apart at a glance. */
+function subjectFileHint(paths: string[]): string {
+  if (paths.length === 0) return "";
+  const first = paths[0].split("/").pop() || paths[0];
+  const more = paths.length - 1;
+  return more > 0 ? ` (${first} + ${more} more)` : ` (${first})`;
+}
+
+function syncSubject(paths: string[]): string {
+  const count = paths.length;
+  return `blogide: sync ${count} file${count === 1 ? "" : "s"}${subjectFileHint(paths)}`;
 }
 
 /**
- * Subject keeps `blogide: sync N file(s)`. The body lists paths and records
+ * Subject is `blogide: sync N file(s) (first.md + N-1 more)`. The body lists paths and records
  * where the push came from, e.g. `via BlogIDE (https://blogide.com)`.
  */
 export function githubPushCommitMessage(
@@ -41,7 +50,7 @@ export function githubPushCommitMessage(
 ): string {
   const paths = normalizedPaths(files);
   const origin = formatGithubPushOrigin(originUrl);
-  const parts = [syncSubject(paths.length)];
+  const parts = [syncSubject(paths)];
 
   if (paths.length > 0) {
     const listed = paths.slice(0, MAX_LISTED_PATHS).map((path) => `- ${path}`);
