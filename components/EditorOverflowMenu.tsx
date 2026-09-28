@@ -45,6 +45,11 @@ export function EditorOverflowMenu({
 }: OverflowMenuProps) {
   const [open, setOpen] = useState(false);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
+  /** Fixed-position anchor so a scrolling menu cannot clip the submenu. */
+  const [submenuAnchor, setSubmenuAnchor] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
   const [coords, setCoords] = useState<{
     top: number;
     right: number;
@@ -81,7 +86,10 @@ export function EditorOverflowMenu({
     const below = viewportBottom - rect.bottom - 4 - gap;
     const above = rect.top - 4 - gap;
     const height = menu.scrollHeight;
-    if (height <= below || below >= above) {
+    if (height <= below) {
+      // Fits: no max-height, so no overflow clipping of the side submenu.
+      setCoords({ ...coords, maxHeight: Infinity });
+    } else if (below >= above) {
       setCoords({ ...coords, maxHeight: Math.max(120, below) });
     } else {
       const fit = Math.min(height, above);
@@ -115,6 +123,17 @@ export function EditorOverflowMenu({
       document.removeEventListener("pointerdown", onPointer, true);
     };
   }, [open]);
+
+  const scrolls = coords?.maxHeight != null && Number.isFinite(coords.maxHeight);
+
+  function showSubmenu(id: string, row: HTMLElement) {
+    const rect = row.getBoundingClientRect();
+    setSubmenuAnchor({
+      top: rect.top,
+      right: window.innerWidth - rect.left + 2,
+    });
+    setOpenSubmenu(id);
+  }
 
   return (
     <>
@@ -161,9 +180,10 @@ export function EditorOverflowMenu({
               top: coords.top,
               right: coords.right,
               zIndex,
-              maxHeight: coords.maxHeight,
-              overflowY: coords.maxHeight != null ? "auto" : undefined,
+              maxHeight: scrolls ? coords.maxHeight : undefined,
+              overflowY: scrolls ? "auto" : undefined,
             }}
+            onScroll={() => setOpenSubmenu(null)}
           >
             {items.map((item) => {
               if (item.kind === "separator") {
@@ -180,7 +200,9 @@ export function EditorOverflowMenu({
                   <div
                     key={item.id}
                     className="relative"
-                    onMouseEnter={() => setOpenSubmenu(item.id)}
+                    onMouseEnter={(event) =>
+                      showSubmenu(item.id, event.currentTarget)
+                    }
                     onMouseLeave={() => setOpenSubmenu(null)}
                   >
                     <button
@@ -189,19 +211,27 @@ export function EditorOverflowMenu({
                       aria-haspopup="menu"
                       aria-expanded={openSubmenu === item.id}
                       className="flex w-full items-center justify-between gap-4 px-3 py-1.5 text-left text-foreground hover:bg-panel"
-                      onClick={() =>
-                        setOpenSubmenu((cur) =>
-                          cur === item.id ? null : item.id
+                      // Open, not toggle: hover already opened it, and a
+                      // toggle would close it again on the same click.
+                      onClick={(event) =>
+                        showSubmenu(
+                          item.id,
+                          event.currentTarget.parentElement as HTMLElement
                         )
                       }
                     >
                       <span>{item.label}</span>
                       <span className="text-muted">‹</span>
                     </button>
-                    {openSubmenu === item.id && (
+                    {openSubmenu === item.id && submenuAnchor && (
                       <div
                         role="menu"
-                        className="absolute right-full top-0 z-50 mr-0.5 min-w-[10rem] rounded-md border border-border bg-background py-1 shadow-md"
+                        className="fixed min-w-[10rem] rounded-md border border-border bg-background py-1 shadow-md"
+                        style={{
+                          top: submenuAnchor.top,
+                          right: submenuAnchor.right,
+                          zIndex,
+                        }}
                       >
                         {item.items.map((sub) => (
                           <button
