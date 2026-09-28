@@ -71,13 +71,17 @@ describe("model allowlist", () => {
   it("keeps newer models and still honors a saved id", () => {
     expect(modelsForProvider("anthropic").map((model) => model.id)).toEqual([
       "claude-sonnet-4-6",
-      "claude-sonnet-5",
+      "claude-sonnet-5-5",
       "claude-opus-5-5",
       "claude-fable-5-1",
       "claude-haiku-4-5-20251001",
     ]);
     expect(resolveModel("anthropic", "claude-opus-5-5")).toBe(
       "claude-opus-5-5"
+    );
+    // A saved Sonnet 5 pick moves to Sonnet 5.5 rather than the default.
+    expect(resolveModel("anthropic", "claude-sonnet-5")).toBe(
+      "claude-sonnet-5-5"
     );
     expect(modelsForProvider("openai").map((model) => model.id)).toEqual([
       "gpt-4o-mini",

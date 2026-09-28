@@ -23,8 +23,8 @@ export const ANTHROPIC_MODELS: AiModelOption[] = [
     hint: "Default · balanced",
   },
   {
-    id: "claude-sonnet-5",
-    label: "Sonnet 5",
+    id: "claude-sonnet-5-5",
+    label: "Sonnet 5.5",
     hint: "Current · fast",
   },
   {
@@ -90,11 +90,17 @@ export function defaultModelForProvider(provider: AiProvider): string {
   return modelsForProvider(provider)[0].id;
 }
 
+/** Removed ids → their successor, so a saved pick moves up a version instead of resetting. */
+const REPLACED_MODELS: Record<string, string> = {
+  "claude-sonnet-5": "claude-sonnet-5-5",
+};
+
 export function resolveModel(
   provider: AiProvider,
   preferred?: string | null
 ): string {
   const options = modelsForProvider(provider);
-  if (preferred && options.some((m) => m.id === preferred)) return preferred;
+  const wanted = preferred ? (REPLACED_MODELS[preferred] ?? preferred) : null;
+  if (wanted && options.some((m) => m.id === wanted)) return wanted;
   return options[0].id;
 }
