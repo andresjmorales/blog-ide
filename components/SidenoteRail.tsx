@@ -6,6 +6,7 @@ import { useEditorState } from "@tiptap/react";
 import { FootnoteSidenote } from "@/components/FootnoteSidenote";
 import { DeletedFootnotesPanel } from "@/components/DeletedFootnotesPanel";
 import { PanelCaret } from "@/components/icons";
+import { openFootnoteCardNear } from "@/lib/editor/footnoteOpen";
 import {
   collectRailNotes,
   footnoteIndexKey,
@@ -17,8 +18,9 @@ const LINK_EASE = 0.22;
 
 /**
  * Scrollable gutter of every footnote. When linked, essay ↔ rail scroll stay
- * in proportion (either pane can drive the other). When unlocked, the rail
- * is fully independent.
+ * in proportion (either pane can drive the other) and clicking a note scrolls
+ * the essay to it. When unlocked, the rail is fully independent: clicking a
+ * note opens it in place without moving the essay.
  */
 export function SidenoteRail({
   editor,
@@ -42,6 +44,8 @@ export function SidenoteRail({
   }, [onRootChange]);
   const linkedRef = useRef(true);
   const [linked, setLinked] = useState(true);
+  /** Hand scrolling back to the essay (set by the link effect). */
+  const releaseToEssayRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     linkedRef.current = linked;
@@ -149,6 +153,16 @@ export function SidenoteRail({
       if (driver === "rail") scheduleTick();
     }
 
+    // Clicking a note arms the rail as driver (pointerdown), which would pull
+    // the essay back to the rail's position every frame and cancel the
+    // scroll to that note. Let the essay lead instead; the rail follows.
+    releaseToEssayRef.current = () => {
+      window.clearTimeout(idleTimer);
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = 0;
+      driver = null;
+    };
+
     // Relink: snap rail to the essay immediately.
     setProgress(notesPane, progressOf(essayPane));
 
@@ -175,6 +189,7 @@ export function SidenoteRail({
 
     return () => {
       running = false;
+      releaseToEssayRef.current = () => {};
       window.clearTimeout(idleTimer);
       if (frame) window.cancelAnimationFrame(frame);
       essayPane.removeEventListener("scroll", onEssayScroll);
@@ -191,12 +206,19 @@ export function SidenoteRail({
     };
   }, [scrollRoot, linked]);
 
-  function activate(id: string) {
+  /**
+   * Linked: scroll the essay to the marker (the rail follows) and open it.
+   * Unlocked: the panes are independent, so leave the essay where it is and
+   * open the note's card beside its rail row.
+   */
+  function activate(id: string, rowEl: HTMLElement | null) {
     if (!scrollRoot || !id) return;
+    if (!linkedRef.current && openFootnoteCardNear(id, rowEl)) return;
     const ref = scrollRoot.querySelector<HTMLElement>(
       `[data-footnote-id="${CSS.escape(id)}"] .footnote-ref`
     );
     if (!ref) return;
+    releaseToEssayRef.current();
     ref.scrollIntoView({ behavior: "smooth", block: "center" });
     ref.click();
   }
@@ -267,7 +289,14 @@ export function SidenoteRail({
               <FootnoteSidenote
                 number={note.number}
                 markdown={note.content}
-                onActivate={() => activate(note.id)}
+                onActivate={() =>
+                  activate(
+                    note.id,
+                    railRef.current?.querySelector<HTMLElement>(
+                      `[data-rail-id="${CSS.escape(note.id)}"]`
+                    ) ?? null
+                  )
+                }
               />
             </div>
           ))

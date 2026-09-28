@@ -224,9 +224,13 @@ body {
   border-top: 1px solid var(--border);
   color: var(--muted);
   font-size: 0.72rem;
+  list-style: none;
   margin-top: 0.6em;
-  padding-top: 0.4em;
-  padding-left: 1.25em;
+  padding: 0.4em 0 0;
+}
+.ai-chat-prose .ai-chat-notes sup {
+  color: var(--accent);
+  font-weight: 600;
 }
 .ai-chat-prose .ai-chat-notes .is-missing {
   font-style: italic;

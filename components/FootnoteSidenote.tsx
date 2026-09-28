@@ -42,6 +42,13 @@ export function FootnoteSidenote({
       onPointerDown={(event) => {
         event.stopPropagation();
       }}
+      onClick={(event) => {
+        // The whole row opens the note, not just the number or its text
+        // (a click beside a short note used to hit nothing).
+        event.preventDefault();
+        event.stopPropagation();
+        onActivate?.();
+      }}
       onWheel={(event) => {
         const el = event.currentTarget;
         if (el.scrollHeight > el.clientHeight + 1) {
@@ -68,22 +75,8 @@ export function FootnoteSidenote({
         className={`footnote-sidenote-body ${html ? "" : "is-empty"}`}
         title="Edit footnote"
         aria-label={`Edit footnote ${number}`}
-        onClick={(event) => {
-          // Link clicks still open the footnote editor (hover preview is gone;
-          // otherwise a link-only note is unreachable from the sidenote body).
-          if (
-            event.target instanceof Element &&
-            event.target.closest("a[href]")
-          ) {
-            event.preventDefault();
-            event.stopPropagation();
-            onActivate?.();
-            return;
-          }
-          event.preventDefault();
-          event.stopPropagation();
-          onActivate?.();
-        }}
+        // Clicks (links included) bubble to the row, which opens the note;
+        // otherwise a link-only note would be unreachable from the sidenote.
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();

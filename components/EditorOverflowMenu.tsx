@@ -45,9 +45,11 @@ export function EditorOverflowMenu({
 }: OverflowMenuProps) {
   const [open, setOpen] = useState(false);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
-  const [coords, setCoords] = useState<{ top: number; right: number } | null>(
-    null
-  );
+  const [coords, setCoords] = useState<{
+    top: number;
+    right: number;
+    maxHeight?: number;
+  } | null>(null);
   const [zIndex, setZIndex] = useState(50);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -62,6 +64,30 @@ export function EditorOverflowMenu({
     });
     setZIndex(claimFloatZ());
   }, [open]);
+
+  // Once the menu has a size: open upward when there's more room above
+  // (e.g. a button in a phone bottom sheet), and scroll when it still
+  // doesn't fit. The visual viewport excludes the on-screen keyboard.
+  useLayoutEffect(() => {
+    if (!open || !coords || coords.maxHeight != null) return;
+    const menu = menuRef.current;
+    const button = buttonRef.current;
+    if (!menu || !button) return;
+    const rect = button.getBoundingClientRect();
+    const viewportBottom =
+      (window.visualViewport?.offsetTop ?? 0) +
+      (window.visualViewport?.height ?? window.innerHeight);
+    const gap = 8;
+    const below = viewportBottom - rect.bottom - 4 - gap;
+    const above = rect.top - 4 - gap;
+    const height = menu.scrollHeight;
+    if (height <= below || below >= above) {
+      setCoords({ ...coords, maxHeight: Math.max(120, below) });
+    } else {
+      const fit = Math.min(height, above);
+      setCoords({ ...coords, top: rect.top - 4 - fit, maxHeight: above });
+    }
+  }, [open, coords]);
 
   useEffect(() => {
     if (!open) return;
@@ -131,7 +157,13 @@ export function EditorOverflowMenu({
             ]
               .filter(Boolean)
               .join(" ")}
-            style={{ top: coords.top, right: coords.right, zIndex }}
+            style={{
+              top: coords.top,
+              right: coords.right,
+              zIndex,
+              maxHeight: coords.maxHeight,
+              overflowY: coords.maxHeight != null ? "auto" : undefined,
+            }}
           >
             {items.map((item) => {
               if (item.kind === "separator") {

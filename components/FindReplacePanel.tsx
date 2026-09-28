@@ -102,6 +102,9 @@ function seedQueryFromSticky(
   }
 }
 
+/** Typing pause before Find opens a footnote card for the active match. */
+const FOOTNOTE_CARD_TYPING_PAUSE_MS = 400;
+
 export function FindReplacePanel({
   editor,
   onClose,
@@ -127,6 +130,8 @@ export function FindReplacePanel({
   useEffect(() => {
     closeStateRef.current = { matches, index };
   }, [matches, index]);
+  /** Pending footnote-card open while the query is still being typed. */
+  const footnoteSyncTimerRef = useRef<number | null>(null);
   /** The writer clicked or typed in the essay after the last match was shown. */
   const userMovedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
@@ -202,6 +207,31 @@ export function FindReplacePanel({
     });
   }
 
+  /**
+   * Open the footnote card for the active match. While the query is still
+   * being typed, wait for a pause so cards don't flash open mid-word.
+   */
+  function syncFootnoteCards(
+    list: FindMatch[],
+    at: number,
+    opts: { query: string; regex: boolean; caseSensitive: boolean },
+    typing: boolean
+  ) {
+    if (footnoteSyncTimerRef.current != null) {
+      window.clearTimeout(footnoteSyncTimerRef.current);
+      footnoteSyncTimerRef.current = null;
+    }
+    if (typing && list[at]?.footnotePos != null) {
+      setFootnoteFindSession(null);
+      footnoteSyncTimerRef.current = window.setTimeout(() => {
+        footnoteSyncTimerRef.current = null;
+        syncFootnoteFindSession(editor, list, at, opts);
+      }, FOOTNOTE_CARD_TYPING_PAUSE_MS);
+      return;
+    }
+    syncFootnoteFindSession(editor, list, at, opts);
+  }
+
   function applyScan(
     nextQuery: string,
     nextRegex: boolean,
@@ -216,6 +246,8 @@ export function FindReplacePanel({
       resetIndex?: boolean;
       /** Refocus the active find/replace field (default true). */
       focus?: boolean;
+      /** Triggered by typing in the query (footnote cards wait for a pause). */
+      typing?: boolean;
     }
   ) {
     // Any scan supersedes a pending debounced one for a short query.
@@ -247,11 +279,12 @@ export function FindReplacePanel({
     setIndex(nextIndex);
     if (options?.scroll) userMovedRef.current = false;
     setFindHighlights(editor, result.matches, nextIndex, sticky);
-    syncFootnoteFindSession(editor, result.matches, nextIndex, {
-      query: nextQuery,
-      regex: nextRegex,
-      caseSensitive: nextCase,
-    });
+    syncFootnoteCards(
+      result.matches,
+      nextIndex,
+      { query: nextQuery, regex: nextRegex, caseSensitive: nextCase },
+      Boolean(options?.typing)
+    );
     if (options?.scroll && result.matches[nextIndex]) {
       scrollMatchIntoView(editor, result.matches[nextIndex]);
     }
@@ -279,6 +312,9 @@ export function FindReplacePanel({
     focusFindField(true);
     return () => {
       cancelEditorWork(QUERY_WORK_ID);
+      if (footnoteSyncTimerRef.current != null) {
+        window.clearTimeout(footnoteSyncTimerRef.current);
+      }
       clearFindHighlights(editor);
       setFootnoteFindSession(null);
       setTextInsertTarget(null);
@@ -424,11 +460,7 @@ export function FindReplacePanel({
       next,
       scope === "selection" ? stickyRange : null
     );
-    syncFootnoteFindSession(editor, matches, next, {
-      query,
-      regex,
-      caseSensitive,
-    });
+    syncFootnoteCards(matches, next, { query, regex, caseSensitive }, false);
     scrollMatchIntoView(editor, matches[next]);
     findInputRef.current?.focus({ preventScroll: true });
   }
@@ -509,6 +541,7 @@ export function FindReplacePanel({
               applyScan(next, regex, caseSensitive, scope, stickyRange, {
                 scroll: true,
                 resetIndex: true,
+                typing: true,
               });
             if (next.length > 0 && next.length <= SHORT_QUERY_MAX_CHARS) {
               scheduleEditorWork(

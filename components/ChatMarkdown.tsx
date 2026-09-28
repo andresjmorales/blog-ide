@@ -19,31 +19,48 @@ function escapeHtml(text: string): string {
     .replace(/>/g, "&gt;");
 }
 
+/** `[^label]` from a parsed marker id (`source-<encoded label>-<occurrence>`). */
+function labelFromId(id: string): string | null {
+  const match = id.match(/^source-(.+)-\d+$/);
+  return match ? decodeFootnoteValue(match[1]) : null;
+}
+
 /**
  * The editor numbers footnotes with a node view; static HTML only has an
- * empty marker. Number them and list the notes under the reply.
+ * empty marker. Show each marker's own label (so "[^3]" reads as the essay's
+ * note 3) and list the notes under the reply. Notes the reply only cites
+ * come from the essay the model was given.
  */
-function numberFootnotes(html: string): string {
+function numberFootnotes(
+  html: string,
+  essayNotes: Record<string, string> | undefined
+): string {
   if (!html.includes("footnote-ref") || typeof DOMParser === "undefined") {
     return html;
   }
   const doc = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
   const root = doc.body.firstElementChild;
   if (!root) return html;
-  const notes: string[] = [];
+  const items: string[] = [];
+  const listed = new Set<string>();
   root.querySelectorAll("sup.footnote-ref").forEach((sup, index) => {
-    const content = decodeFootnoteValue(sup.getAttribute("data-content") ?? "");
-    sup.textContent = String(index + 1);
-    notes.push(content.trim());
+    const label = labelFromId(sup.getAttribute("data-id") ?? "") ?? String(index + 1);
+    sup.textContent = label;
+    if (listed.has(label)) return;
+    listed.add(label);
+    const own = decodeFootnoteValue(sup.getAttribute("data-content") ?? "").trim();
+    const fromEssay = essayNotes?.[label]?.trim();
+    const marker = `<sup>${escapeHtml(label)}</sup> `;
+    if (own) items.push(`<li>${marker}${escapeHtml(own)}</li>`);
+    else if (fromEssay) {
+      items.push(
+        `<li class="is-essay" title="Note from the essay">${marker}${escapeHtml(fromEssay)}</li>`
+      );
+    } else {
+      items.push(`<li class="is-missing">${marker}(note not found)</li>`);
+    }
   });
-  const items = notes
-    .map((note) =>
-      note
-        ? `<li>${escapeHtml(note)}</li>`
-        : `<li class="is-missing">(note not included in this reply)</li>`
-    )
-    .join("");
-  return `${root.innerHTML}<ol class="ai-chat-notes">${items}</ol>`;
+  return `${root.innerHTML}<ul class="ai-chat-notes">${items.join("")}</ul>`;
 }
 
 /** Latest value, but updated at most every `ms` while `active`. */
@@ -62,21 +79,24 @@ function useThrottled<T>(value: T, ms: number, active: boolean): T {
 export function ChatMarkdown({
   markdown,
   streaming = false,
+  notes,
 }: {
   markdown: string;
   /** Throttle re-rendering while the reply is still arriving. */
   streaming?: boolean;
+  /** Essay footnotes by label, for markers whose note isn't in the reply. */
+  notes?: Record<string, string>;
 }) {
   const source = useThrottled(markdown, STREAM_RENDER_MS, streaming);
   const html = useMemo(() => {
     try {
       const text = unwrapMarkdownReply(source);
       if (!text.trim()) return "";
-      return numberFootnotes(generateHTML(parseBody(text), CHAT_EXTENSIONS));
+      return numberFootnotes(generateHTML(parseBody(text), CHAT_EXTENSIONS), notes);
     } catch {
       return null;
     }
-  }, [source]);
+  }, [source, notes]);
 
   if (html === null) {
     return <div className="whitespace-pre-wrap">{markdown}</div>;

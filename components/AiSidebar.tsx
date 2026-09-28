@@ -11,6 +11,7 @@ import {
 } from "@/lib/ai/actions";
 import {
   findPatchRange,
+  footnoteNotes,
   withoutFootnoteDefinitions,
   parseSearchReplacePatches,
   prepareApply,
@@ -60,6 +61,8 @@ type Message = {
   notice?: string;
   /** Per patch-block state, keyed by block index. */
   patchStatus?: Record<number, PatchStatus>;
+  /** Essay footnotes the model saw, so chat can show notes it only cites. */
+  essayNotes?: Record<string, string>;
   /** Whole-reply apply (rewrite / selection / title) went through. */
   applied?: boolean;
 };
@@ -95,6 +98,24 @@ type Props = {
 };
 
 type Thread = { messages: Message[]; undo: UndoState | null };
+
+/** "[BlogIDE: the writer applied …]" for the turn after an assistant reply. */
+function appliedEditsNote(previous: Message | undefined): string {
+  if (!previous || previous.role !== "assistant") return "";
+  const total = splitReplySegments(previous.content).filter(
+    (segment) => segment.type === "patch"
+  ).length;
+  const applied = Object.values(previous.patchStatus ?? {}).filter(
+    (status) => status === "applied"
+  ).length;
+  if (total > 0 && applied > 0) {
+    return `[BlogIDE note: the writer applied ${applied} of your ${total} suggested edit${total === 1 ? "" : "s"}${applied < total ? "; the rest were not applied" : ""}. The current essay already includes the applied ones.]`;
+  }
+  if (previous.applied) {
+    return "[BlogIDE note: the writer applied your previous rewrite. The current essay already includes it.]";
+  }
+  return "";
+}
 
 let messageSeq = 0;
 function nextId(): string {
@@ -342,6 +363,9 @@ export function AiSidebar({
         scope,
         selectionText: selection?.text,
         actionId: opts.actionId,
+        essayNotes: resolved.essayMarkdown
+          ? footnoteNotes(resolved.essayMarkdown)
+          : undefined,
       },
     ]);
     setInput("");
@@ -355,15 +379,20 @@ export function AiSidebar({
     });
 
     const toApi = (withImages: boolean): ChatMessage[] =>
-      history.map((m) => {
+      history.map((m, i) => {
+        // Tell the model which of its earlier edits the writer applied; the
+        // essay it's given is always the current one, so without this a
+        // follow-up reads "those errors aren't in the essay".
+        const note = i > 0 && m.role === "user" ? appliedEditsNote(history[i - 1]) : "";
+        const text = note ? `${note}\n\n${m.content}` : m.content;
         if (m.id === userMessage.id && withImages && images.parts.length > 0) {
           const parts: ChatContentPart[] = [
             ...images.parts,
-            { type: "text", text: m.content },
+            { type: "text", text },
           ];
           return { role: m.role, content: parts };
         }
-        return { role: m.role, content: m.content };
+        return { role: m.role, content: text };
       });
 
     const notices: string[] = [];
@@ -1156,6 +1185,7 @@ function AssistantBody({
               key={`t${i}`}
               markdown={segment.text}
               streaming={streaming}
+              notes={message.essayNotes}
             />;
         }
         if (segment.type === "pending-patch") {

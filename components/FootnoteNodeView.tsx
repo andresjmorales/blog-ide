@@ -24,7 +24,10 @@ import {
   setFootnoteFindSession,
   subscribeFootnoteFindSession,
 } from "@/lib/editor/footnoteFindBridge";
-import { consumeFootnoteEditorOpen } from "@/lib/editor/footnoteOpen";
+import {
+  consumeFootnoteEditorOpen,
+  registerFootnoteCardOpener,
+} from "@/lib/editor/footnoteOpen";
 import { FootnoteNoteEditor } from "@/components/FootnoteNoteEditor";
 import { PinnedSurface } from "@/components/pins/PinnedSurface";
 import {
@@ -309,6 +312,16 @@ export function FootnoteNodeView({
     [cancelHoverClose, cancelHoverOpen, footnoteId, isDesktop]
   );
 
+  // The unlocked sidenote rail opens the card beside the clicked row
+  // without scrolling the essay to the marker.
+  useEffect(
+    () =>
+      registerFootnoteCardOpener(footnoteId, (anchorEl) =>
+        openCard({ sticky: true, anchorEl })
+      ),
+    [footnoteId, openCard]
+  );
+
   /**
    * Pointer inside the card: the user now owns it. A Find-opened card is
    * visible only via `isFindTarget`, so also mark it open — otherwise an edit
@@ -436,6 +449,19 @@ export function FootnoteNodeView({
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [commitAndClose, cardOpen, isFindTarget, outerEditor]);
+
+  useEffect(() => {
+    // A hover preview belongs to the spot under the cursor; once the essay
+    // scrolls away from it, dismiss (clicked, pinned, and Find cards stay).
+    if (!cardOpen || sticky || pinned || isFindTarget) return;
+    function closeOnScroll(event: Event) {
+      if (isFootnoteOutsidePointerTarget(event.target, footnoteId)) {
+        commitAndClose();
+      }
+    }
+    window.addEventListener("scroll", closeOnScroll, true);
+    return () => window.removeEventListener("scroll", closeOnScroll, true);
+  }, [cardOpen, sticky, pinned, isFindTarget, footnoteId, commitAndClose]);
 
   useEffect(() => {
     // Pinned cards ignore outside clicks. Hover-only and click-sticky both
@@ -631,7 +657,10 @@ export function FootnoteNodeView({
         onPointerMove={onRefDragMove}
         onPointerUp={endRefDrag}
         onPointerCancel={endRefDrag}
-        onMouseEnter={() => {
+        onMouseEnter={cancelHoverClose}
+        onMouseMove={() => {
+          // Start on real mouse movement, not mouseenter: text reflowing or
+          // scrolling under a still cursor must not pop a card open.
           if (refDrag.current?.dragging) return;
           if (!prefs.footnoteOpenOnHover) return;
           cancelHoverClose();
@@ -742,7 +771,14 @@ export function FootnoteNodeView({
               onMouseLeave={() => {
                 if (prefs.footnoteOpenOnHover) scheduleHoverClose();
               }}
-              onPointerDown={claimCard}
+              onPointerDown={(event) => {
+                // React bubbles pointerdown from portaled menus (toolbar
+                // overflow, Aa+) up to here. Raising the sheet then would put
+                // it over the menu mid-tap, and the tap would miss. Same fix
+                // as PinnedSurface on desktop.
+                if (!event.currentTarget.contains(event.target as Node)) return;
+                claimCard();
+              }}
             >
               <span className="footnote-card-heading">
                 <span className="footnote-card-title">

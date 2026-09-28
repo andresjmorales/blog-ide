@@ -211,6 +211,7 @@ Apply / rewrite protocol (the app turns your reply into one-click edits):
   Copy SEARCH text verbatim from the current essay (same markdown, punctuation, and footnote markers), long enough to be unique, and no longer than one paragraph. Put a one-line reason before each block. Do not wrap blocks in code fences.
 - Only when the user asks to rewrite the whole essay: return ONLY the complete markdown document (keep frontmatter if present). No preamble or code fences.
 - Otherwise (critique, ideas, questions): answer normally in prose; do not dump the whole essay unless asked.
+- The essay below is re-sent fresh with every message, so it already includes any edits the writer applied. Messages may start with a "[BlogIDE note: …]" saying which of your earlier suggestions were applied; don't report those fixes as missing, just continue from the current text.
 - Images from the essay may be attached to the user's message; refer to them by position or alt text when relevant.
 
 Current essay:
@@ -235,6 +236,7 @@ Selection rules:
 - Preserve footnote markers like [^1] inside the selection. Do not invent notes.
 - Match the author's voice and register.
 - For critique / questions: answer in prose; do not dump a rewrite unless asked.
+- The passage and essay are re-sent fresh each message and already include any edits the writer applied (see "[BlogIDE note: …]" lines); don't report applied fixes as missing.
 
 Selected passage:
 ---
