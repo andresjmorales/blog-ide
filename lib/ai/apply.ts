@@ -1,6 +1,7 @@
 import { unwrapMarkdownReply } from "@/lib/ai/client";
 import { writeTitle, parseTitle } from "@/lib/markdown/titleFrontmatter";
 import { splitFrontmatter } from "@/lib/markdown/frontmatter";
+import { stripBlogideTrailers } from "@/lib/markdown/essayCitations";
 
 export type SearchReplacePatch = {
   search: string;
@@ -154,10 +155,111 @@ export function looksLikeFullMarkdownDocument(text: string): boolean {
 }
 
 export function extractTitleSuggestion(text: string): string | null {
-  const match = text.match(/^\s*TITLE:\s*(.+)\s*$/im);
+  // Uppercase only: frontmatter `title:` in a full-essay reply must not count.
+  const match = text.match(/^[ \t]*TITLE:[ \t]*(.+?)[ \t]*$/m);
   if (!match) return null;
-  const title = match[1].trim().replace(/^["']|["']$/g, "");
+  const title = match[1].trim().replace(/^["'“”]|["'“”]$/g, "");
   return title || null;
+}
+
+const FOOTNOTE_DEF_START = /^\[\^([^\]\s]+)\]:/;
+const FOOTNOTE_REF = /\[\^([^\]\s]+)\](?!:)/g;
+
+/** Footnote definition blocks by label (first line plus indented continuation). */
+export function footnoteDefinitions(markdown: string): Map<string, string> {
+  const defs = new Map<string, string>();
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  for (let i = 0; i < lines.length; i += 1) {
+    const start = lines[i].match(FOOTNOTE_DEF_START);
+    if (!start) continue;
+    const block = [lines[i]];
+    let j = i + 1;
+    while (j < lines.length) {
+      if (/^( {2,}|\t)\S/.test(lines[j])) {
+        block.push(lines[j]);
+        j += 1;
+      } else if (lines[j].trim() === "" && /^( {2,}|\t)\S/.test(lines[j + 1] ?? "")) {
+        block.push(lines[j]);
+        j += 1;
+      } else break;
+    }
+    if (!defs.has(start[1])) defs.set(start[1], block.join("\n"));
+    i = j - 1;
+  }
+  return defs;
+}
+
+/**
+ * Rewrites often keep `[^2]` markers but drop the `[^2]: …` lines. Inserting
+ * that would create empty footnotes (and lose the notes), so copy any missing
+ * definitions back from the text being replaced.
+ */
+export function restoreFootnoteDefinitions(reply: string, source: string): string {
+  const defined = footnoteDefinitions(reply);
+  const original = footnoteDefinitions(source);
+  if (original.size === 0) return reply;
+  const missing: string[] = [];
+  for (const match of reply.matchAll(FOOTNOTE_REF)) {
+    const label = match[1];
+    if (defined.has(label) || missing.includes(label) || !original.has(label)) continue;
+    missing.push(label);
+  }
+  if (missing.length === 0) return reply;
+  return `${reply.replace(/\s+$/, "")}\n\n${missing
+    .map((label) => original.get(label))
+    .join("\n")}\n`;
+}
+
+/** Remove footnote definition blocks (the essay already holds them). */
+export function withoutFootnoteDefinitions(markdown: string): string {
+  const defs = footnoteDefinitions(markdown);
+  let next = markdown;
+  for (const block of defs.values()) next = next.replace(block, "");
+  return next.replace(/\n{3,}/g, "\n\n").replace(/\s+$/, "");
+}
+
+/** BlogIDE data comments (`<!--blogide-…-->`) at the end of a document. */
+function blogideTrailerText(markdown: string): string {
+  const trimmed = markdown.replace(/\s+$/, "");
+  const body = stripBlogideTrailers(trimmed).body.replace(/\s+$/, "");
+  return trimmed.slice(body.length).trim();
+}
+
+/**
+ * Make a full-essay reply safe to swap in: keep the essay's frontmatter
+ * (title, subtitle, …) and BlogIDE trailers when the reply left them out, and
+ * restore dropped footnote definitions.
+ */
+export function normalizeFullDocumentReply(reply: string, essay: string): string {
+  let next = restoreFootnoteDefinitions(reply, essay);
+  const essayParts = splitFrontmatter(essay);
+  if (essayParts.frontmatter && !splitFrontmatter(next).frontmatter) {
+    next = `${essayParts.frontmatter}\n${next.replace(/^\n+/, "")}`;
+  }
+  const trailer = blogideTrailerText(essay);
+  if (trailer && !next.includes("<!--blogide-")) {
+    next = `${next.replace(/\s+$/, "")}\n\n${trailer}\n`;
+  }
+  return next;
+}
+
+/** Drop a one-line lead-in like "Here's the revised essay:" before a rewrite. */
+export function stripReplyPreface(text: string): string {
+  const match = text.match(/^([^\n]{1,200}:)[ \t]*\n\s*\n([\s\S]+)$/);
+  if (!match || /^(#|---|>|[-*] |\d+\. )/.test(match[1])) return text;
+  // Only when what follows is substantial: a long passage or several paragraphs.
+  const rest = match[2];
+  const paragraphs = rest.split(/\n\s*\n/).filter((p) => p.trim()).length;
+  return rest.length > 200 || paragraphs >= 2 ? rest : text;
+}
+
+/** Reply is most of the essay again (a rewrite without headings/frontmatter). */
+function looksLikeEssayRewrite(reply: string, essay: string): boolean {
+  const essayBody = splitFrontmatter(essay).body.trim();
+  if (essayBody.length < 200) return false;
+  const paragraphs = reply.split(/\n\s*\n/).filter((p) => p.trim()).length;
+  const ratio = reply.length / essayBody.length;
+  return paragraphs >= 2 && ratio > 0.5 && ratio < 2;
 }
 
 /** Apply a TITLE: suggestion into essay frontmatter. */
@@ -212,28 +314,15 @@ export function prepareApply(input: {
   selectionText: string | null;
   scope: "essay" | "selection";
 }): PreparedApply {
-  const reply = unwrapMarkdownReply(input.reply);
-  if (!reply.trim()) return { kind: "none", reason: "Nothing to apply." };
+  const unwrapped = unwrapMarkdownReply(input.reply);
+  if (!unwrapped.trim()) return { kind: "none", reason: "Nothing to apply." };
+  const essay = input.essayMarkdown;
 
-  const title = extractTitleSuggestion(input.reply);
-  if (title && input.essayMarkdown) {
-    const after = applyTitleToMarkdown(input.essayMarkdown, title);
-    if (after === input.essayMarkdown) {
-      return { kind: "none", reason: "Title is already set to that value." };
-    }
-    return {
-      kind: "title",
-      before: input.essayMarkdown,
-      after,
-      title,
-      summary: `Set title to “${title}”`,
-    };
-  }
-
-  if (input.essayMarkdown) {
+  // 1. Patch blocks: surgical edits against the current essay.
+  if (essay) {
     const patches = parseSearchReplacePatches(input.reply);
     if (patches) {
-      const result = applySearchReplacePatches(input.essayMarkdown, patches);
+      const result = applySearchReplacePatches(essay, patches);
       if (result.applied === 0) {
         return {
           kind: "none",
@@ -242,7 +331,7 @@ export function prepareApply(input: {
       }
       return {
         kind: "patches",
-        before: input.essayMarkdown,
+        before: essay,
         after: result.markdown,
         applied: result.applied,
         failed: result.failed,
@@ -251,44 +340,50 @@ export function prepareApply(input: {
     }
   }
 
+  const reply = stripReplyPreface(unwrapped);
+
+  // 2. Selection rewrite.
   if (input.scope === "selection" && input.selectionText != null) {
     return {
       kind: "selection",
       before: input.selectionText,
-      after: reply,
+      after: restoreFootnoteDefinitions(reply, input.selectionText),
       summary: "Replace selection",
     };
   }
 
-  if (input.essayMarkdown && looksLikeFullMarkdownDocument(reply)) {
-    return {
-      kind: "document",
-      before: input.essayMarkdown,
-      after: reply,
-      summary: "Replace essay",
-    };
+  // 3. Whole-essay rewrite (checked before TITLE: so frontmatter can't be
+  //    mistaken for a title suggestion).
+  if (
+    essay &&
+    (looksLikeFullMarkdownDocument(reply) || looksLikeEssayRewrite(reply, essay))
+  ) {
+    const after = normalizeFullDocumentReply(reply, essay);
+    if (after.trim() === essay.trim()) {
+      return { kind: "none", reason: "The rewrite matches the essay already." };
+    }
+    return { kind: "document", before: essay, after, summary: "Replace essay" };
   }
 
-  if (input.essayMarkdown && reply.length > 40) {
-    // Soft fallback: treat substantial markdown replies as document rewrites.
-    if (
-      reply.includes("\n") &&
-      (reply.startsWith("#") ||
-        reply.startsWith("---") ||
-        /\[\^\d+\]/.test(reply))
-    ) {
-      return {
-        kind: "document",
-        before: input.essayMarkdown,
-        after: reply,
-        summary: "Replace essay",
-      };
+  // 4. Title suggestion.
+  const title = extractTitleSuggestion(unwrapped);
+  if (title && essay) {
+    const after = applyTitleToMarkdown(essay, title);
+    if (after === essay) {
+      return { kind: "none", reason: "Title is already set to that value." };
     }
+    return {
+      kind: "title",
+      before: essay,
+      after,
+      title,
+      summary: `Set title to “${title}”`,
+    };
   }
 
   return {
     kind: "none",
     reason:
-      "Reply does not look like a rewrite, title, or patch. Ask for a revision, or use Tighten / Expand.",
+      "This reply isn't an edit to apply. Ask for a revision, or use Proofread / Tighten / Expand.",
   };
 }

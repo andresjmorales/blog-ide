@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   listDocumentRevisions,
   type DocumentRevision,
 } from "@/lib/workspace/api";
 import { compactDiff, unifiedLineDiff, type DiffLine } from "@/lib/markdown/diff";
+import { toastCopyFromError } from "@/lib/ui/toastCopy";
 
 type Props = {
   open: boolean;
@@ -85,7 +86,7 @@ export function VersionHistoryPanel({
       setRevisions(list);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Could not load version history."
+        toastCopyFromError(err, "Could not load version history.").message
       );
     } finally {
       setLoading(false);
@@ -114,6 +115,20 @@ export function VersionHistoryPanel({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
 
+  // One diff per opened comparison, not one per re-render (each render would
+  // re-serialize the essay and redo the LCS).
+  const compareMarkdown =
+    compareVersion != null
+      ? (revisions.find((rev) => rev.version === compareVersion)?.markdown ?? null)
+      : null;
+  const compareLines = useMemo(() => {
+    if (compareMarkdown == null) return null;
+    const current = currentMarkdown ?? getCurrentMarkdown?.() ?? "";
+    return compactDiff(unifiedLineDiff(compareMarkdown, current), 2);
+    // getCurrentMarkdown is read once per comparison on purpose.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compareMarkdown, currentMarkdown]);
+
   if (!open || !nodeId) return null;
 
   async function restore(version: number) {
@@ -125,7 +140,9 @@ export function VersionHistoryPanel({
       setConfirmVersion(null);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Restore failed.");
+      // Supabase errors are plain objects; keep their message visible.
+      const copy = toastCopyFromError(err, "Restore failed.");
+      setError(copy.detail ? `${copy.message} (${copy.detail})` : copy.message);
     } finally {
       setRestoringVersion(null);
     }
@@ -253,17 +270,8 @@ export function VersionHistoryPanel({
                     {rev.markdown}
                   </pre>
                 )}
-                {compareVersion === rev.version &&
-                  (currentMarkdown != null || getCurrentMarkdown) && (
-                  <DiffPreview
-                    lines={compactDiff(
-                      unifiedLineDiff(
-                        rev.markdown,
-                        currentMarkdown ?? getCurrentMarkdown?.() ?? ""
-                      ),
-                      2
-                    )}
-                  />
+                {compareVersion === rev.version && compareLines && (
+                  <DiffPreview lines={compareLines} />
                 )}
               </li>
             ))}

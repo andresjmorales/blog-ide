@@ -46,13 +46,12 @@ describe("AI model picker", () => {
     const options = await renderWithKey("anthropic");
     expect(options.map((option) => option.id)).toEqual([
       "claude-sonnet-5-5",
-      "claude-sonnet-4-6",
       "claude-opus-5-5",
       "claude-fable-5-1",
       "claude-haiku-4-5-20251001",
     ]);
     expect(options[0]?.label).toContain("Sonnet 5.5");
-    expect(options[2]?.label).toContain("Opus 5.5");
+    expect(options[1]?.label).toContain("Opus 5.5");
   });
 
   it("lists the OpenAI catalog when that key is active", async () => {

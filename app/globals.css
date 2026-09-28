@@ -213,6 +213,25 @@ body {
   overflow-y: auto;
 }
 
+/* Chat footnotes: numbered markers + notes under the reply. */
+.ai-chat-prose sup.footnote-ref {
+  color: var(--accent);
+  font-size: 0.7em;
+  font-weight: 600;
+  padding: 0 0.1em;
+}
+.ai-chat-prose .ai-chat-notes {
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.72rem;
+  margin-top: 0.6em;
+  padding-top: 0.4em;
+  padding-left: 1.25em;
+}
+.ai-chat-prose .ai-chat-notes .is-missing {
+  font-style: italic;
+}
+
 /* Compact markdown in the AI chat panel. */
 .ai-chat-prose.editor-prose {
   font-size: 0.8125rem;

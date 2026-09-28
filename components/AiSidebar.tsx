@@ -11,6 +11,7 @@ import {
 } from "@/lib/ai/actions";
 import {
   findPatchRange,
+  withoutFootnoteDefinitions,
   parseSearchReplacePatches,
   prepareApply,
   splitReplySegments,
@@ -672,12 +673,20 @@ export function AiSidebar({
         }
       } else if (before) {
         // Selection is gone: replace the passage where it sits in the essay.
-        const range = findPatchRange(before, prepared.before);
+        // A WYSIWYG selection carries its footnote definitions at the end;
+        // the essay keeps those in its own notes section.
+        const range = findPatchRange(
+          before,
+          withoutFootnoteDefinitions(prepared.before)
+        );
         if (!range) {
           setError("Selection text no longer found in the essay.");
           return;
         }
-        next = before.slice(0, range.from) + prepared.after + before.slice(range.to);
+        next =
+          before.slice(0, range.from) +
+          withoutFootnoteDefinitions(prepared.after) +
+          before.slice(range.to);
       } else {
         setError("Nothing to apply the selection to.");
         return;
@@ -895,6 +904,7 @@ export function AiSidebar({
                 message.content ? (
                   <AssistantBody
                     message={message}
+                    streaming={isStreaming}
                     canApply={Boolean(onApplyMarkdown) && !isStreaming}
                     onApplyPatch={(index) => applyPatches(message, [index])}
                   />
@@ -1125,10 +1135,12 @@ function UserBody({ message }: { message: Message }) {
 
 function AssistantBody({
   message,
+  streaming,
   canApply,
   onApplyPatch,
 }: {
   message: Message;
+  streaming: boolean;
   canApply: boolean;
   onApplyPatch: (index: number) => void;
 }) {
@@ -1140,7 +1152,11 @@ function AssistantBody({
     <div className="space-y-2">
       {segments.map((segment, i) => {
         if (segment.type === "text") {
-          return <ChatMarkdown key={`t${i}`} markdown={segment.text} />;
+          return <ChatMarkdown
+              key={`t${i}`}
+              markdown={segment.text}
+              streaming={streaming}
+            />;
         }
         if (segment.type === "pending-patch") {
           return (
