@@ -8,10 +8,119 @@ import type { AiProvider } from "@/lib/ai/keys";
 
 export const runtime = "nodejs";
 
+type ContentPart =
+  | { type: "text"; text: string }
+  | { type: "image"; source: "url"; url: string }
+  | { type: "image"; source: "base64"; mediaType: string; data: string };
+
 type ChatMessage = {
   role: "user" | "assistant" | "system";
-  content: string;
+  content: string | ContentPart[];
 };
+
+/** Room for a full-essay rewrite without cutting off mid-document. */
+const MAX_OUTPUT_TOKENS = 16000;
+const MAX_IMAGES_PER_REQUEST = 20;
+const IMAGE_MEDIA = /^image\/(png|jpeg|gif|webp)$/;
+
+/** Keep well-formed parts only; cap images so a request can't balloon. */
+function sanitizeParts(content: ChatMessage["content"], budget: { images: number }): ContentPart[] {
+  if (typeof content === "string") return [{ type: "text", text: content }];
+  if (!Array.isArray(content)) return [];
+  const parts: ContentPart[] = [];
+  for (const part of content) {
+    if (!part || typeof part !== "object") continue;
+    if (part.type === "text" && typeof part.text === "string") {
+      parts.push({ type: "text", text: part.text });
+      continue;
+    }
+    if (part.type !== "image" || budget.images <= 0) continue;
+    if (part.source === "url" && typeof part.url === "string" && /^https:\/\//i.test(part.url)) {
+      parts.push({ type: "image", source: "url", url: part.url });
+      budget.images -= 1;
+    } else if (
+      part.source === "base64" &&
+      typeof part.data === "string" &&
+      typeof part.mediaType === "string" &&
+      IMAGE_MEDIA.test(part.mediaType)
+    ) {
+      parts.push({ type: "image", source: "base64", mediaType: part.mediaType, data: part.data });
+      budget.images -= 1;
+    }
+  }
+  return parts;
+}
+
+function textOf(content: ChatMessage["content"]): string {
+  if (typeof content === "string") return content;
+  return content
+    .filter((part): part is { type: "text"; text: string } => part.type === "text")
+    .map((part) => part.text)
+    .join("\n");
+}
+
+function anthropicMessages(body: Body) {
+  const budget = { images: MAX_IMAGES_PER_REQUEST };
+  return body.messages
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => {
+      if (typeof m.content === "string" || m.role === "assistant") {
+        return { role: m.role, content: textOf(m.content) };
+      }
+      return {
+        role: m.role,
+        content: sanitizeParts(m.content, budget).map((part) =>
+          part.type === "text"
+            ? { type: "text", text: part.text }
+            : part.source === "url"
+              ? { type: "image", source: { type: "url", url: part.url } }
+              : {
+                  type: "image",
+                  source: { type: "base64", media_type: part.mediaType, data: part.data },
+                }
+        ),
+      };
+    });
+}
+
+/** System prompt as a cached block: the essay context repeats every turn. */
+function anthropicSystem(body: Body) {
+  const system =
+    body.system ||
+    textOf(body.messages.find((m) => m.role === "system")?.content ?? "") ||
+    undefined;
+  if (!system) return undefined;
+  return [{ type: "text", text: system, cache_control: { type: "ephemeral" } }];
+}
+
+function openAiMessages(body: Body) {
+  const budget = { images: MAX_IMAGES_PER_REQUEST };
+  const messages: Array<{ role: string; content: unknown }> = body.messages.map((m) => {
+    if (typeof m.content === "string" || m.role !== "user") {
+      return { role: m.role, content: textOf(m.content) };
+    }
+    return {
+      role: m.role,
+      content: sanitizeParts(m.content, budget).map((part) =>
+        part.type === "text"
+          ? { type: "text", text: part.text }
+          : {
+              type: "image_url",
+              image_url: {
+                url:
+                  part.source === "url"
+                    ? part.url
+                    : `data:${part.mediaType};base64,${part.data}`,
+              },
+            }
+      ),
+    };
+  });
+  if (body.system && !messages.some((m) => m.role === "system")) {
+    messages.unshift({ role: "system", content: body.system });
+  }
+  return messages;
+}
 
 type Body = {
   provider: "anthropic" | "openai";
@@ -95,13 +204,8 @@ function encodeSseDone(): Uint8Array {
 }
 
 async function chatAnthropic(apiKey: string, body: Body, model: string) {
-  const system =
-    body.system ||
-    body.messages.find((m) => m.role === "system")?.content ||
-    undefined;
-  const messages = body.messages
-    .filter((m) => m.role === "user" || m.role === "assistant")
-    .map((m) => ({ role: m.role, content: m.content }));
+  const system = anthropicSystem(body);
+  const messages = anthropicMessages(body);
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -112,7 +216,7 @@ async function chatAnthropic(apiKey: string, body: Body, model: string) {
     },
     body: JSON.stringify({
       model: model || defaultModelForProvider("anthropic"),
-      max_tokens: 8192,
+      max_tokens: MAX_OUTPUT_TOKENS,
       system,
       messages,
     }),
@@ -120,6 +224,7 @@ async function chatAnthropic(apiKey: string, body: Body, model: string) {
 
   const payload = (await response.json()) as {
     content?: Array<{ type: string; text?: string }>;
+    stop_reason?: string;
     error?: { message?: string };
   };
 
@@ -132,17 +237,15 @@ async function chatAnthropic(apiKey: string, body: Body, model: string) {
     .map((part) => part.text)
     .join("\n");
 
-  return NextResponse.json({ text });
+  return NextResponse.json({
+    text,
+    truncated: payload.stop_reason === "max_tokens",
+  });
 }
 
 async function streamAnthropic(apiKey: string, body: Body, model: string) {
-  const system =
-    body.system ||
-    body.messages.find((m) => m.role === "system")?.content ||
-    undefined;
-  const messages = body.messages
-    .filter((m) => m.role === "user" || m.role === "assistant")
-    .map((m) => ({ role: m.role, content: m.content }));
+  const system = anthropicSystem(body);
+  const messages = anthropicMessages(body);
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -153,7 +256,7 @@ async function streamAnthropic(apiKey: string, body: Body, model: string) {
     },
     body: JSON.stringify({
       model: model || defaultModelForProvider("anthropic"),
-      max_tokens: 8192,
+      max_tokens: MAX_OUTPUT_TOKENS,
       system,
       messages,
       stream: true,
@@ -192,9 +295,16 @@ async function streamAnthropic(apiKey: string, body: Body, model: string) {
             try {
               const event = JSON.parse(data) as {
                 type?: string;
-                delta?: { type?: string; text?: string };
+                delta?: { type?: string; text?: string; stop_reason?: string };
                 error?: { message?: string };
               };
+              if (
+                event.type === "message_delta" &&
+                event.delta?.stop_reason === "max_tokens"
+              ) {
+                controller.enqueue(encodeSse({ truncated: true }));
+                continue;
+              }
               if (event.error?.message) {
                 controller.enqueue(
                   encodeSse({ error: event.error.message })
@@ -228,13 +338,7 @@ async function streamAnthropic(apiKey: string, body: Body, model: string) {
 }
 
 async function chatOpenAi(apiKey: string, body: Body, model: string) {
-  const messages = body.messages.map((m) => ({
-    role: m.role,
-    content: m.content,
-  }));
-  if (body.system && !messages.some((m) => m.role === "system")) {
-    messages.unshift({ role: "system", content: body.system });
-  }
+  const messages = openAiMessages(body);
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -249,7 +353,7 @@ async function chatOpenAi(apiKey: string, body: Body, model: string) {
   });
 
   const payload = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
+    choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
     error?: { message?: string };
   };
 
@@ -258,17 +362,14 @@ async function chatOpenAi(apiKey: string, body: Body, model: string) {
   }
 
   const text = payload.choices?.[0]?.message?.content ?? "";
-  return NextResponse.json({ text });
+  return NextResponse.json({
+    text,
+    truncated: payload.choices?.[0]?.finish_reason === "length",
+  });
 }
 
 async function streamOpenAi(apiKey: string, body: Body, model: string) {
-  const messages = body.messages.map((m) => ({
-    role: m.role,
-    content: m.content,
-  }));
-  if (body.system && !messages.some((m) => m.role === "system")) {
-    messages.unshift({ role: "system", content: body.system });
-  }
+  const messages = openAiMessages(body);
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -312,9 +413,15 @@ async function streamOpenAi(apiKey: string, body: Body, model: string) {
             if (!data || data === "[DONE]") continue;
             try {
               const event = JSON.parse(data) as {
-                choices?: Array<{ delta?: { content?: string } }>;
+                choices?: Array<{
+                  delta?: { content?: string };
+                  finish_reason?: string | null;
+                }>;
                 error?: { message?: string };
               };
+              if (event.choices?.[0]?.finish_reason === "length") {
+                controller.enqueue(encodeSse({ truncated: true }));
+              }
               if (event.error?.message) {
                 controller.enqueue(
                   encodeSse({ error: event.error.message })

@@ -111,6 +111,13 @@ export function prepareMath(body: string): string {
   return out;
 }
 
+/**
+ * KaTeX stylesheet matching the bundled renderer. Class names change between
+ * KaTeX releases (e.g. `stretchy` → `katex-stretchy`), so standalone pages must
+ * load the CSS for the same version or `\boxed{}` / arrows render invisibly.
+ */
+export const KATEX_CSS_URL = `https://cdn.jsdelivr.net/npm/katex@${katex.version}/dist/katex.min.css`;
+
 export function renderLatexHtml(
   latex: string,
   displayMode: boolean

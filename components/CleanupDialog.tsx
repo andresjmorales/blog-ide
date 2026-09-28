@@ -551,7 +551,7 @@ function PublishTab({
         "clipboard-copy"
       );
     } finally {
-      setCopyBusy(null);
+      setCopyBusy((current) => (current === target ? null : current));
     }
   }
 
@@ -571,7 +571,7 @@ function PublishTab({
     } catch (err) {
       showErrorToast(err, "Could not copy the helper.", "clipboard-copy");
     } finally {
-      setCopyBusy(null);
+      setCopyBusy((current) => (current === kind ? null : current));
     }
   }
 
@@ -588,7 +588,7 @@ function PublishTab({
             key={target.id}
             label={copyBusy === target.id ? "Copying…" : target.label}
             hint={target.hint}
-            disabled={copyBusy != null}
+            disabled={copyBusy === target.id}
             onClick={() => void copyFor(target.id)}
           />
         ))}
@@ -621,7 +621,7 @@ function PublishTab({
                   ? "Copying text with markers"
                   : "Copy text with markers"
               }
-              disabled={copyBusy != null}
+              disabled={copyBusy === "markers"}
               onClick={() => void copyFor("markers")}
             />
           </div>
@@ -639,7 +639,7 @@ function PublishTab({
                   ? "Copying helper script"
                   : "Copy helper script"
               }
-              disabled={copyBusy != null}
+              disabled={copyBusy === "script"}
               onClick={() => void copyHelper("script")}
             />
           </div>
@@ -656,7 +656,7 @@ function PublishTab({
                   ? "Copying bookmarklet"
                   : "Copy bookmarklet"
               }
-              disabled={copyBusy != null}
+              disabled={copyBusy === "bookmarklet"}
               onClick={() => void copyHelper("bookmarklet")}
             />
           </div>

@@ -61,13 +61,13 @@ export function actionUserPrompt(
     case "tighten":
       return scope === "selection"
         ? "Tighten the selected passage. Return ONLY the revised passage as markdown (no preamble, no code fences). Keep meaning, voice, and any footnote markers. Do not invent new claims."
-        : "Tighten this essay. Return ONLY the complete revised markdown document (keep frontmatter if present). Cut fluff and repetition; keep voice, meaning, structure, and footnote markers/definitions. No preamble.";
+        : "Tighten this essay. Suggest the most valuable cuts as SEARCH/REPLACE patch blocks (at most 8), each preceded by a one-line reason. Cut fluff and repetition; keep voice, meaning, and footnote markers. Do not return the whole document.";
     case "title":
       return `Propose 3 sharper titles for this essay, then pick one best title on its own final line as:\nTITLE: Your Chosen Title\n\nDo not rewrite the essay body. Prefer titles that fit the argument, not clickbait.`;
     case "expand":
       return scope === "selection"
         ? "Expand the selected passage with one clearer beat of explanation or evidence. Return ONLY the revised passage as markdown (no preamble). Keep voice and footnote markers; do not invent sources."
-        : "Find the thinnest section and expand it slightly. Return ONLY the complete revised markdown document (keep frontmatter). Preserve voice, structure, and footnotes. No preamble.";
+        : "Find the thinnest passage and expand it with one clearer beat of explanation or evidence. Return SEARCH/REPLACE patch blocks (usually one), preceded by a one-line reason. Preserve voice and footnotes; do not invent sources.";
   }
 }
 
@@ -77,10 +77,10 @@ export function actionSystemAddon(action: AiActionId): string {
     case "critique":
       return "This is a critique request: answer in prose/bullets. Do not dump a full rewritten essay.";
     case "tighten":
-      return "This is a tighten request: return revised markdown only when rewriting, ready to Apply.";
+      return "This is a tighten request: for a selection return only the revised passage; for the whole essay return patch blocks, ready to Apply.";
     case "title":
       return "This is a title request: suggest titles and end with a single TITLE: line. Do not rewrite the essay body.";
     case "expand":
-      return "This is an expand request: return revised markdown only, ready to Apply.";
+      return "This is an expand request: for a selection return only the revised passage; for the whole essay return patch blocks, ready to Apply.";
   }
 }

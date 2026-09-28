@@ -10,8 +10,10 @@ import {
   type AiActionId,
 } from "@/lib/ai/actions";
 import {
-  applyDiffPreview,
+  findPatchRange,
+  parseSearchReplacePatches,
   prepareApply,
+  splitReplySegments,
   type PreparedApply,
 } from "@/lib/ai/apply";
 import {
@@ -21,7 +23,10 @@ import {
   IMPORT_CLEANUP_SYSTEM,
   selectionChatSystem,
   unwrapMarkdownReply,
+  type ChatContentPart,
+  type ChatMessage,
 } from "@/lib/ai/client";
+import { essayImageParts } from "@/lib/ai/images";
 import {
   getActiveProvider,
   loadAiKeys,
@@ -32,19 +37,49 @@ import {
 } from "@/lib/ai/keys";
 import { modelsForProvider, resolveModel } from "@/lib/ai/models";
 import type { AiSelection } from "@/lib/ai/selection";
+import { countWords, formatWordCount } from "@/lib/editor/documentStats";
+import { reviewDiff, wordDiff, type WordSegment } from "@/lib/markdown/wordDiff";
+import { showCopiedToast, showErrorToast } from "@/lib/ui/toast";
+
+type PatchStatus = "applied" | "missing";
 
 type Message = {
+  id: string;
   role: "user" | "assistant";
   content: string;
   /** Scope used when generating this assistant turn (for Apply). */
   scope?: "essay" | "selection";
   selectionText?: string;
+  /** Canned action that produced this turn (user) / reply (assistant). */
+  actionId?: AiActionId;
+  /** Essay images sent with this user turn. */
+  imageCount?: number;
+  /** Short status under a reply (cut off, images dropped, …). */
+  notice?: string;
+  /** Per patch-block state, keyed by block index. */
+  patchStatus?: Record<number, PatchStatus>;
+  /** Whole-reply apply (rewrite / selection / title) went through. */
+  applied?: boolean;
+};
+
+type PendingApply = {
+  messageId: string | null;
+  prepared: PreparedApply & { kind: Exclude<PreparedApply["kind"], "none"> };
+  selection: AiSelection | null;
+};
+
+type UndoState = {
+  messageId: string | null;
+  /** Essay markdown before this reply's first apply. */
+  before: string;
+  /** Essay markdown just after the latest apply (captured after the editor settles). */
+  after: string | null;
 };
 
 type Props = {
   /** True when an essay is open (enables Include essay / Clean import). */
   essayAvailable?: boolean;
-  /** Fresh markdown snapshot — called only on Send / Clean import. */
+  /** Fresh markdown snapshot — called only on Send / Apply / context refresh. */
   getDocumentMarkdown?: () => string | null;
   /** Current editor selection, if any. */
   getSelection?: () => AiSelection | null;
@@ -52,6 +87,15 @@ type Props = {
   onApplySelection?: (markdown: string, selection: AiSelection) => boolean;
   onOpenSettings?: () => void;
 };
+
+let messageSeq = 0;
+function nextId(): string {
+  messageSeq += 1;
+  return `m${Date.now().toString(36)}${messageSeq}`;
+}
+
+const chipClass =
+  "rounded border border-border px-2 py-0.5 text-[0.7rem] text-muted hover:border-accent hover:text-accent disabled:opacity-40 disabled:hover:border-border disabled:hover:text-muted";
 
 export function AiSidebar({
   essayAvailable = false,
@@ -68,22 +112,24 @@ export function AiSidebar({
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** On for the first attach in a thread; unchecked after a successful include. */
+  /** Send the current essay with every message (fresh snapshot each turn). */
   const [includeEssay, setIncludeEssay] = useState(true);
   /** Prefer selection as context when the editor has one. */
   const [preferSelection, setPreferSelection] = useState(true);
-  const [pendingApply, setPendingApply] = useState<{
-    messageIndex: number;
-    prepared: PreparedApply & { kind: Exclude<PreparedApply["kind"], "none"> };
-    selection: AiSelection | null;
-  } | null>(null);
+  /** Attach the essay's images to the next messages. */
+  const [includeImages, setIncludeImages] = useState(false);
+  /** Word count of the live editor selection, refreshed when the panel is approached. */
+  const [selectionWords, setSelectionWords] = useState<number | null>(null);
+  const [pendingApply, setPendingApply] = useState<PendingApply | null>(null);
+  const [undo, setUndo] = useState<UndoState | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const hasEssay = essayAvailable;
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages, busy, pendingApply]);
 
   useEffect(() => {
@@ -106,6 +152,14 @@ export function AiSidebar({
     };
   }, []);
 
+  // Grow the composer with its content (up to a cap set in CSS).
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [input]);
+
   const provider = getActiveProvider(keys);
   const modelId = provider
     ? resolveModel(
@@ -120,12 +174,17 @@ export function AiSidebar({
       )}`
     : "No API key";
 
+  function refreshContext() {
+    const selection = getSelection?.() ?? null;
+    setSelectionWords(selection?.text ? countWords(selection.text) : null);
+  }
+
   function clearChat() {
     abortRef.current?.abort();
     setMessages([]);
     setError(null);
-    setIncludeEssay(true);
     setPendingApply(null);
+    setUndo(null);
   }
 
   function setModel(nextModel: string) {
@@ -135,6 +194,12 @@ export function AiSidebar({
         ? { anthropicModel: nextModel }
         : { openaiModel: nextModel };
     setKeys(saveAiKeys(patch));
+  }
+
+  function updateMessage(id: string, patch: (m: Message) => Partial<Message>) {
+    setMessages((current) =>
+      current.map((m) => (m.id === id ? { ...m, ...patch(m) } : m))
+    );
   }
 
   function resolveScope(actionPreferSelection?: boolean): {
@@ -158,9 +223,7 @@ export function AiSidebar({
     essayMarkdown: string | null;
     includeEssay: boolean;
     actionId?: AiActionId;
-    forcedSystem?: string;
   }): string | undefined {
-    if (input.forcedSystem) return input.forcedSystem;
     const addon = input.actionId ? `\n\n${actionSystemAddon(input.actionId)}` : "";
     if (input.scope === "selection" && input.selection) {
       return (
@@ -180,9 +243,10 @@ export function AiSidebar({
   async function runChat(opts: {
     userText: string;
     actionId?: AiActionId;
-    forcedSystem?: string;
     forceIncludeEssay?: boolean;
     forceScope?: "essay" | "selection";
+    /** Thread to continue from (Retry drops the last exchange). */
+    base?: Message[];
   }) {
     const trimmed = opts.userText.trim();
     if (!trimmed || busy) return;
@@ -200,97 +264,153 @@ export function AiSidebar({
           ? false
           : action?.preferSelection
     );
-    const scope =
-      opts.forceScope ??
-      (resolved.scope === "selection" ? "selection" : "essay");
+    const scope = opts.forceScope ?? resolved.scope;
     const selection = scope === "selection" ? resolved.selection : null;
     const shouldIncludeEssay =
-      opts.forceIncludeEssay ??
-      (scope === "selection" ? true : includeEssay && hasEssay);
+      hasEssay &&
+      (opts.forceIncludeEssay ?? (scope === "selection" ? true : includeEssay));
 
-    const history: Message[] = [
-      ...messages,
+    const images =
+      includeImages && hasEssay && resolved.essayMarkdown
+        ? essayImageParts(resolved.essayMarkdown)
+        : { parts: [], skipped: 0 };
+
+    const userMessage: Message = {
+      id: nextId(),
+      role: "user",
+      content: trimmed,
+      scope,
+      selectionText: selection?.text,
+      actionId: opts.actionId,
+      imageCount: images.parts.length || undefined,
+    };
+    const history: Message[] = [...(opts.base ?? messages), userMessage];
+    const assistantId = nextId();
+    setMessages([
+      ...history,
       {
-        role: "user",
-        content: trimmed,
+        id: assistantId,
+        role: "assistant",
+        content: "",
         scope,
         selectionText: selection?.text,
+        actionId: opts.actionId,
       },
-    ];
-    setMessages(history);
+    ]);
     setInput("");
 
     const system = buildSystem({
       scope,
       selection,
       essayMarkdown: resolved.essayMarkdown,
-      includeEssay: shouldIncludeEssay && hasEssay,
+      includeEssay: shouldIncludeEssay,
       actionId: opts.actionId,
-      forcedSystem: opts.forcedSystem,
     });
 
-    const assistantIndex = history.length;
-    setMessages([...history, { role: "assistant", content: "", scope, selectionText: selection?.text }]);
+    const toApi = (withImages: boolean): ChatMessage[] =>
+      history.map((m) => {
+        if (m.id === userMessage.id && withImages && images.parts.length > 0) {
+          const parts: ChatContentPart[] = [
+            ...images.parts,
+            { type: "text", text: m.content },
+          ];
+          return { role: m.role, content: parts };
+        }
+        return { role: m.role, content: m.content };
+      });
+
+    const notices: string[] = [];
+    if (images.skipped > 0) {
+      notices.push(
+        `${images.skipped} image${images.skipped === 1 ? "" : "s"} not sent (not a public https image, or over the limit).`
+      );
+    }
 
     const controller = new AbortController();
     abortRef.current = controller;
 
-    try {
-      const reply = await chatCompletionStream({
-        messages: history.map((m) => ({ role: m.role, content: m.content })),
+    const stream = (withImages: boolean) =>
+      chatCompletionStream({
+        messages: toApi(withImages),
         system,
         provider: provider ?? undefined,
         model: modelId ?? undefined,
         signal: controller.signal,
         onDelta: (chunk) => {
-          setMessages((current) => {
-            const next = [...current];
-            const existing = next[assistantIndex];
-            if (!existing || existing.role !== "assistant") return current;
-            next[assistantIndex] = {
-              ...existing,
-              content: existing.content + chunk,
-            };
-            return next;
-          });
+          updateMessage(assistantId, (m) => ({ content: m.content + chunk }));
+        },
+        onTruncated: () => {
+          notices.push("Reply hit the length limit and was cut off.");
         },
       });
-      setMessages((current) => {
-        const next = [...current];
-        const existing = next[assistantIndex];
-        if (!existing || existing.role !== "assistant") return current;
-        next[assistantIndex] = {
-          ...existing,
-          content: reply || existing.content,
-          scope,
-          selectionText: selection?.text,
-        };
-        return next;
-      });
-      if (shouldIncludeEssay && scope === "essay") setIncludeEssay(false);
+
+    try {
+      let reply: string;
+      try {
+        reply = await stream(images.parts.length > 0);
+      } catch (err) {
+        // A provider that can't download an image fails the whole request;
+        // answer without them rather than making the writer retry.
+        const aborted = err instanceof DOMException && err.name === "AbortError";
+        if (aborted || images.parts.length === 0) throw err;
+        updateMessage(userMessage.id, () => ({ imageCount: undefined }));
+        updateMessage(assistantId, () => ({ content: "" }));
+        notices.push("Images could not be sent, so this answer is text-only.");
+        reply = await stream(false);
+      }
+      updateMessage(assistantId, (m) => ({
+        content: reply || m.content,
+        notice: notices.length > 0 ? notices.join(" ") : undefined,
+      }));
+      if (action?.expectRewrite && reply.trim()) {
+        const isPatchReply = Boolean(parseSearchReplacePatches(reply));
+        if (!isPatchReply && (scope === "selection" || action.id === "title")) {
+          // Rewrites of a selection / title: open the review straight away.
+          requestApply(
+            { id: assistantId, content: reply, scope, selectionText: selection?.text },
+            { quiet: true, selection }
+          );
+        }
+      }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         setMessages((current) =>
-          current.filter(
-            (m, i) => !(i === assistantIndex && m.role === "assistant" && !m.content)
-          )
+          current.filter((m) => !(m.id === assistantId && !m.content))
         );
       } else {
         setError(err instanceof Error ? err.message : "Request failed.");
         setMessages((current) =>
-          current.filter(
-            (m, i) => !(i === assistantIndex && m.role === "assistant" && !m.content.trim())
-          )
+          current.filter((m) => !(m.id === assistantId && !m.content.trim()))
         );
       }
     } finally {
       setBusy(false);
       abortRef.current = null;
+      refreshContext();
     }
   }
 
   async function send(text: string) {
     await runChat({ userText: text });
+  }
+
+  function retryLast() {
+    let userIndex = -1;
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === "user") {
+        userIndex = i;
+        break;
+      }
+    }
+    if (userIndex === -1 || busy) return;
+    const last = messages[userIndex];
+    void runChat({
+      userText: last.content,
+      actionId: last.actionId,
+      forceScope: last.actionId ? last.scope : undefined,
+      forceIncludeEssay: last.actionId ? true : undefined,
+      base: messages.slice(0, userIndex),
+    });
   }
 
   async function runAction(actionId: AiActionId) {
@@ -336,13 +456,15 @@ export function AiSidebar({
         provider: (provider ?? "anthropic") as AiProvider,
         model: modelId ?? undefined,
       });
+      const assistantId = nextId();
       setMessages((current) => [
         ...current,
         {
+          id: nextId(),
           role: "user",
           content: "Clean up this pasted essay (footnotes, headings, quotes).",
         },
-        { role: "assistant", content: reply, scope: "essay" },
+        { id: assistantId, role: "assistant", content: reply, scope: "essay" },
       ]);
       const cleaned = unwrapMarkdownReply(reply);
       if (cleaned && onApplyMarkdown) {
@@ -353,13 +475,9 @@ export function AiSidebar({
           scope: "essay",
         });
         if (prepared.kind !== "none") {
-          setPendingApply({
-            messageIndex: -1,
-            prepared,
-            selection: null,
-          });
+          setPendingApply({ messageId: assistantId, prepared, selection: null });
         } else {
-          onApplyMarkdown(cleaned);
+          setError("The cleanup returned no changes.");
         }
       }
     } catch (err) {
@@ -369,54 +487,136 @@ export function AiSidebar({
     }
   }
 
-  function requestApply(messageIndex: number, content: string, scope: "essay" | "selection" = "essay", selectionText?: string) {
+  /** Remember the pre-apply essay so this reply's edits can be undone. */
+  function rememberUndo(messageId: string | null, before: string) {
+    setUndo((current) => ({
+      messageId,
+      before: current && current.messageId === messageId ? current.before : before,
+      after: null,
+    }));
+    // Read back after the editor re-renders so later edits can be detected.
+    window.setTimeout(() => {
+      const settled = getDocumentMarkdown?.() ?? null;
+      setUndo((current) =>
+        current && current.messageId === messageId
+          ? { ...current, after: settled }
+          : current
+      );
+    }, 300);
+  }
+
+  /** Apply a full-essay replacement and remember how to undo it. */
+  function commitEssay(messageId: string | null, before: string, next: string) {
+    onApplyMarkdown?.(next);
+    rememberUndo(messageId, before);
+  }
+
+  function undoApply() {
+    if (!undo || !onApplyMarkdown) return;
+    const current = getDocumentMarkdown?.() ?? null;
+    if (
+      undo.after != null &&
+      current != null &&
+      current !== undo.after &&
+      !window.confirm(
+        "The essay changed after this edit was applied. Undo anyway? Those later changes will be lost."
+      )
+    ) {
+      return;
+    }
+    onApplyMarkdown(undo.before);
+    if (undo.messageId) {
+      updateMessage(undo.messageId, () => ({
+        applied: false,
+        patchStatus: undefined,
+      }));
+    }
+    setUndo(null);
+  }
+
+  function applyPatches(message: Message, indexes: number[]) {
+    const essay = getDocumentMarkdown?.() ?? null;
+    if (!essay || !onApplyMarkdown) {
+      setError("Open the essay to apply edits.");
+      return;
+    }
+    const patches = splitReplySegments(message.content).filter(
+      (s): s is Extract<typeof s, { type: "patch" }> => s.type === "patch"
+    );
+    let next = essay;
+    const status: Record<number, PatchStatus> = { ...(message.patchStatus ?? {}) };
+    let applied = 0;
+    for (const patch of patches) {
+      if (!indexes.includes(patch.index)) continue;
+      const range = findPatchRange(next, patch.search);
+      if (!range) {
+        status[patch.index] = "missing";
+        continue;
+      }
+      next = next.slice(0, range.from) + patch.replace + next.slice(range.to);
+      status[patch.index] = "applied";
+      applied += 1;
+    }
+    updateMessage(message.id, () => ({ patchStatus: status }));
+    if (applied > 0) {
+      setError(null);
+      commitEssay(message.id, essay, next);
+    } else {
+      setError("That text is no longer in the essay (it may already be edited).");
+    }
+  }
+
+  function requestApply(
+    message: Pick<Message, "id" | "content" | "scope" | "selectionText">,
+    options: { quiet?: boolean; selection?: AiSelection | null } = {}
+  ) {
+    const scope = message.scope ?? "essay";
+    const selectionText = message.selectionText;
     const essayMarkdown = getDocumentMarkdown?.()?.trim() || null;
     const liveSelection = getSelection?.() ?? null;
     const selection =
       scope === "selection"
-        ? liveSelection &&
-          (!selectionText || liveSelection.text === selectionText)
-          ? liveSelection
-          : selectionText
-            ? ({
-                text: selectionText,
-                from: -1,
-                to: -1,
-                mode: "source" as const,
-              } satisfies AiSelection)
-            : liveSelection
+        ? options.selection && options.selection.text === selectionText
+          ? options.selection
+          : liveSelection &&
+              (!selectionText || liveSelection.text === selectionText)
+            ? liveSelection
+            : selectionText
+              ? ({
+                  text: selectionText,
+                  from: -1,
+                  to: -1,
+                  mode: "source" as const,
+                } satisfies AiSelection)
+              : liveSelection
         : null;
 
     const prepared = prepareApply({
-      reply: content,
+      reply: message.content,
       essayMarkdown,
       selectionText: selection?.text ?? selectionText ?? null,
-      scope:
-        scope === "selection" || (preferSelection && selection)
-          ? "selection"
-          : "essay",
+      scope: scope === "selection" && selection ? "selection" : "essay",
     });
 
     if (prepared.kind === "none") {
-      setError(prepared.reason);
+      if (!options.quiet) setError(prepared.reason);
       return;
     }
     setError(null);
     setPendingApply({
-      messageIndex,
+      messageId: message.id,
       prepared,
-      selection:
-        prepared.kind === "selection"
-          ? selection ?? liveSelection
-          : null,
+      selection: prepared.kind === "selection" ? selection ?? liveSelection : null,
     });
   }
 
   function confirmPendingApply() {
     if (!pendingApply) return;
-    const { prepared, selection } = pendingApply;
+    const { prepared, selection, messageId } = pendingApply;
+    const before = getDocumentMarkdown?.() ?? null;
     if (prepared.kind === "selection") {
-      if (selection && onApplySelection) {
+      let next: string | null = null;
+      if (selection && selection.from >= 0 && onApplySelection) {
         const ok = onApplySelection(prepared.after, selection);
         if (!ok) {
           setError(
@@ -424,50 +624,55 @@ export function AiSidebar({
           );
           return;
         }
-      } else if (onApplyMarkdown && prepared.before) {
-        // Fallback: replace first exact occurrence in the essay.
-        const essay = getDocumentMarkdown?.() ?? "";
-        const index = essay.indexOf(prepared.before);
-        if (index === -1 || !essay) {
+      } else if (before) {
+        // Selection is gone: replace the passage where it sits in the essay.
+        const range = findPatchRange(before, prepared.before);
+        if (!range) {
           setError("Selection text no longer found in the essay.");
           return;
         }
-        onApplyMarkdown(
-          essay.slice(0, index) +
-            prepared.after +
-            essay.slice(index + prepared.before.length)
-        );
+        next = before.slice(0, range.from) + prepared.after + before.slice(range.to);
       } else {
         setError("Nothing to apply the selection to.");
         return;
       }
+      if (next != null && before != null) commitEssay(messageId, before, next);
+      else if (before != null) rememberUndo(messageId, before);
+    } else if (prepared.kind === "patches") {
+      const message = messages.find((m) => m.id === messageId);
+      if (message) {
+        const all = splitReplySegments(message.content)
+          .filter((s) => s.type === "patch")
+          .map((s) => (s.type === "patch" ? s.index : -1));
+        applyPatches(message, all);
+      } else if (before != null) {
+        commitEssay(messageId, before, prepared.after);
+      }
+    } else if (before != null) {
+      commitEssay(messageId, before, prepared.after);
     } else {
       onApplyMarkdown?.(prepared.after);
     }
+    if (messageId) updateMessage(messageId, () => ({ applied: true }));
     setPendingApply(null);
   }
 
-  const pendingDiff = useMemo(() => {
+  async function copyText(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      showCopiedToast("Copied reply.");
+    } catch (err) {
+      showErrorToast(err, "Could not copy.", "clipboard-copy");
+    }
+  }
+
+  const pendingRows = useMemo(() => {
     if (!pendingApply) return null;
-    if (
-      pendingApply.prepared.kind === "document" ||
-      pendingApply.prepared.kind === "patches" ||
-      pendingApply.prepared.kind === "title"
-    ) {
-      return applyDiffPreview(
-        pendingApply.prepared.before,
-        pendingApply.prepared.after,
-        1
-      ).slice(0, 80);
-    }
-    if (pendingApply.prepared.kind === "selection") {
-      return applyDiffPreview(
-        pendingApply.prepared.before,
-        pendingApply.prepared.after,
-        1
-      ).slice(0, 40);
-    }
-    return null;
+    return reviewDiff(
+      pendingApply.prepared.before,
+      pendingApply.prepared.after,
+      1
+    ).slice(0, 60);
   }, [pendingApply]);
 
   if (!keysReady) {
@@ -528,23 +733,51 @@ export function AiSidebar({
       : []),
   ];
 
+  const lastAssistantId = [...messages]
+    .reverse()
+    .find((m) => m.role === "assistant")?.id;
+  const usingSelection = preferSelection && hasEssay && selectionWords != null;
+  const contextLabel = !hasEssay
+    ? "No essay open"
+    : usingSelection
+      ? `Selection · ${formatWordCount(selectionWords)}`
+      : includeEssay
+        ? "Whole essay"
+        : "Chat only";
+
+  const reviewPanel = pendingApply && (
+    <ReviewPanel
+      summary={pendingApply.prepared.summary}
+      rows={pendingRows ?? []}
+      onCancel={() => setPendingApply(null)}
+      onConfirm={confirmPendingApply}
+    />
+  );
+
   return (
-    <div className="flex h-full min-h-0 flex-col text-sm">
-      <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border px-3 py-2">
-        {AI_ACTIONS.map((action) => (
-          <button
-            key={action.id}
-            type="button"
-            disabled={busy || (!hasEssay && action.id !== "critique")}
-            title={action.title}
-            onClick={() => void runAction(action.id)}
-            className="rounded border border-border px-2 py-0.5 text-[0.7rem] text-muted hover:border-accent hover:text-accent disabled:opacity-40"
-          >
-            {action.label}
-          </button>
-        ))}
+    <div
+      className="flex h-full min-h-0 flex-col text-sm"
+      onPointerEnter={refreshContext}
+      onFocusCapture={refreshContext}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && busy) {
+          event.preventDefault();
+          abortRef.current?.abort();
+        }
+      }}
+    >
+      <div className="flex shrink-0 items-center gap-1 border-b border-border px-3 py-2">
+        <button
+          type="button"
+          className={chipClass}
+          disabled={busy || messages.length === 0}
+          onClick={clearChat}
+          title="Start a new conversation"
+        >
+          New chat
+        </button>
         <label
-          className="ml-auto flex items-center gap-1 text-[0.7rem] text-muted"
+          className="ml-auto flex min-w-0 items-center gap-1 text-[0.7rem] text-muted"
           title={
             modelOptions.find((option) => option.id === modelId)?.hint ??
             "Model for this provider"
@@ -552,7 +785,7 @@ export function AiSidebar({
         >
           <span className="sr-only">Model</span>
           <select
-            className="max-w-[14rem] rounded border border-border bg-background px-1 py-0.5 text-[0.7rem] text-foreground outline-none focus:border-accent"
+            className="min-w-0 max-w-[14rem] rounded border border-border bg-background px-1 py-0.5 text-[0.7rem] text-foreground outline-none focus:border-accent"
             value={modelId ?? ""}
             disabled={busy}
             onChange={(event) => setModel(event.target.value)}
@@ -564,101 +797,74 @@ export function AiSidebar({
             ))}
           </select>
         </label>
+        <EditorOverflowMenu items={settingsItems} />
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
-        {messages.map((message, index) => (
-          <div
-            key={`${message.role}-${index}`}
-            className={`rounded-md px-2.5 py-2 text-xs leading-relaxed ${
-              message.role === "user"
-                ? "bg-accent/10 text-foreground"
-                : "bg-panel text-foreground"
-            }`}
-          >
-            {message.role === "assistant" ? (
-              message.content ? (
-                <ChatMarkdown markdown={message.content} />
+        {messages.length === 0 && (
+          <div className="ai-empty text-xs text-muted">
+            <p className="mb-1.5 font-medium text-foreground">
+              Ask about your essay, or pick an action below.
+            </p>
+            <ul className="list-disc space-y-0.5 pl-4">
+              <li>Select a passage first to focus on just that part.</li>
+              <li>
+                Suggested edits show as before / after cards you can apply one
+                at a time, then undo.
+              </li>
+              <li>The latest version of the essay is sent with each message.</li>
+            </ul>
+          </div>
+        )}
+        {messages.map((message) => {
+          const isStreaming = busy && message.id === lastAssistantId;
+          return (
+            <div
+              key={message.id}
+              className={`rounded-md px-2.5 py-2 text-xs leading-relaxed ${
+                message.role === "user"
+                  ? "bg-accent/10 text-foreground"
+                  : "bg-panel text-foreground"
+              }`}
+            >
+              {message.role === "assistant" ? (
+                message.content ? (
+                  <AssistantBody
+                    message={message}
+                    canApply={Boolean(onApplyMarkdown) && !isStreaming}
+                    onApplyPatch={(index) => applyPatches(message, [index])}
+                  />
+                ) : (
+                  <ThinkingDots />
+                )
               ) : (
-                <span className="text-muted">Thinking…</span>
-              )
-            ) : (
-              <div className="whitespace-pre-wrap">{message.content}</div>
-            )}
-            {message.role === "assistant" &&
-              message.content &&
-              onApplyMarkdown &&
-              !busy && (
-                <div className="mt-2 flex justify-end">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() =>
-                      requestApply(
-                        index,
-                        message.content,
-                        message.scope ?? "essay",
-                        message.selectionText
-                      )
-                    }
-                    className="rounded border border-border px-2 py-0.5 text-[0.7rem] text-muted hover:border-accent hover:text-accent disabled:opacity-40"
-                    title="Preview a patch or replacement, then apply"
-                  >
-                    Apply…
-                  </button>
-                </div>
+                <UserBody message={message} />
               )}
-          </div>
-        ))}
-        {pendingApply && (
-          <div className="rounded-md border border-accent/40 bg-accent/5 px-2.5 py-2 text-xs">
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-              <span className="font-medium text-foreground">
-                {pendingApply.prepared.summary}
-              </span>
-              <div className="flex gap-1">
-                <button
-                  type="button"
-                  className="rounded border border-border px-2 py-0.5 text-[0.7rem] text-muted hover:border-accent hover:text-accent"
-                  onClick={() => setPendingApply(null)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="rounded bg-accent px-2 py-0.5 text-[0.7rem] font-medium text-white"
-                  onClick={confirmPendingApply}
-                >
-                  Confirm
-                </button>
-              </div>
+              {message.role === "assistant" && message.notice && (
+                <p className="mt-1.5 text-[0.65rem] text-amber-700 dark:text-amber-400">
+                  {message.notice}
+                </p>
+              )}
+              {message.role === "assistant" && message.content && !isStreaming && (
+                <AssistantFooter
+                  message={message}
+                  canApply={Boolean(onApplyMarkdown) && !busy}
+                  isLast={message.id === lastAssistantId}
+                  canUndo={undo?.messageId === message.id && !busy}
+                  onCopy={() => void copyText(unwrapMarkdownReply(message.content))}
+                  onRetry={retryLast}
+                  onReview={() => requestApply(message)}
+                  onApplyAll={(indexes) => applyPatches(message, indexes)}
+                  onUndo={undoApply}
+                />
+              )}
+              {pendingApply?.messageId === message.id && reviewPanel}
             </div>
-            {pendingDiff && pendingDiff.length > 0 ? (
-              <pre className="max-h-40 overflow-auto rounded border border-border bg-background p-2 font-mono text-[0.65rem] leading-snug">
-                {pendingDiff.map((line, i) => (
-                  <div
-                    key={`${line.type}-${i}`}
-                    className={
-                      line.type === "add"
-                        ? "text-emerald-700 dark:text-emerald-400"
-                        : line.type === "remove"
-                          ? "text-red-700 dark:text-red-400"
-                          : "text-muted"
-                    }
-                  >
-                    {line.type === "add" ? "+" : line.type === "remove" ? "-" : " "}
-                    {line.text}
-                  </div>
-                ))}
-              </pre>
-            ) : (
-              <p className="text-muted">No line-level diff to preview.</p>
-            )}
-          </div>
-        )}
-        {busy && messages[messages.length - 1]?.role !== "assistant" && (
-          <p className="text-xs text-muted">Thinking…</p>
-        )}
+          );
+        })}
+        {pendingApply &&
+          !messages.some((m) => m.id === pendingApply.messageId) &&
+          reviewPanel}
         {error && (
           <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
         )}
@@ -672,87 +878,410 @@ export function AiSidebar({
           void send(input);
         }}
       >
+        <div className="mb-2 flex flex-wrap items-center gap-1">
+          {AI_ACTIONS.map((action) => (
+            <button
+              key={action.id}
+              type="button"
+              disabled={busy || (!hasEssay && action.id !== "critique")}
+              title={action.title}
+              onClick={() => void runAction(action.id)}
+              className={chipClass}
+            >
+              {action.label}
+            </button>
+          ))}
+          <span
+            className={`ml-auto truncate text-[0.65rem] ${
+              usingSelection ? "text-accent" : "text-muted"
+            }`}
+            title="What the assistant will see with your next message"
+          >
+            {contextLabel}
+          </span>
+        </div>
         <textarea
+          ref={textareaRef}
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          rows={3}
+          rows={2}
           placeholder={
-            preferSelection
-              ? "Ask about the selection or essay…"
+            usingSelection
+              ? "Ask about the selection…"
               : includeEssay && hasEssay
                 ? "Ask about this essay…"
                 : "Message the assistant…"
           }
-          className="mb-2 w-full resize-none rounded border border-border bg-background px-2.5 py-2 text-xs outline-none focus:border-accent"
+          className="ai-composer mb-2 w-full resize-none rounded border border-border bg-background px-2.5 py-2 text-xs outline-none focus:border-accent"
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();
               void send(input);
             }
           }}
         />
         <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-col gap-1">
-            <label
-              className={`flex min-w-0 cursor-pointer items-center gap-1.5 text-xs ${
-                !hasEssay ? "opacity-40" : "text-foreground"
-              }`}
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <ContextToggle
+              label="Selection"
               title={
                 hasEssay
-                  ? "When a passage is selected, use it as the primary context"
+                  ? "When a passage is selected, focus on it (the essay still goes along as background)"
                   : "Open an essay to use selection context"
               }
-            >
-              <input
-                type="checkbox"
-                className="accent-[var(--accent)]"
-                checked={preferSelection && hasEssay}
-                disabled={!hasEssay}
-                onChange={(event) => setPreferSelection(event.target.checked)}
-              />
-              Selection context
-            </label>
-            <label
-              className={`flex min-w-0 cursor-pointer items-center gap-1.5 text-xs ${
-                !hasEssay ? "opacity-40" : "text-foreground"
-              }`}
+              checked={preferSelection && hasEssay}
+              disabled={!hasEssay}
+              onChange={setPreferSelection}
+            />
+            <ContextToggle
+              label="Essay"
               title={
                 hasEssay
-                  ? "Attach the open essay to the next message, then uncheck"
+                  ? "Send the current version of the essay with every message"
                   : "Open an essay to attach it"
               }
-            >
-              <input
-                type="checkbox"
-                className="accent-[var(--accent)]"
-                checked={includeEssay && hasEssay}
-                disabled={!hasEssay}
-                onChange={(event) => setIncludeEssay(event.target.checked)}
-              />
-              Include essay
-            </label>
+              checked={includeEssay && hasEssay}
+              disabled={!hasEssay}
+              onChange={setIncludeEssay}
+            />
+            <ContextToggle
+              label="Images"
+              title={
+                hasEssay
+                  ? "Also send the essay's images (public https images, up to 8) so the model can see them. Costs more tokens."
+                  : "Open an essay to send its images"
+              }
+              checked={includeImages && hasEssay}
+              disabled={!hasEssay}
+              onChange={setIncludeImages}
+            />
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            {busy && (
+            {busy ? (
               <button
                 type="button"
-                className="rounded border border-border px-2 py-1.5 text-xs text-muted hover:border-accent hover:text-accent"
+                className="rounded border border-border px-3 py-1.5 text-xs text-muted hover:border-accent hover:text-accent"
                 onClick={() => abortRef.current?.abort()}
+                title="Stop (Esc)"
               >
                 Stop
               </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!input.trim()}
+                className="rounded bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+                title="Send (Enter) · new line (Shift+Enter)"
+              >
+                Send
+              </button>
             )}
-            <EditorOverflowMenu items={settingsItems} />
-            <button
-              type="submit"
-              disabled={busy || !input.trim()}
-              className="rounded bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
-            >
-              Send
-            </button>
           </div>
         </div>
       </form>
+    </div>
+  );
+}
+
+function ContextToggle({
+  label,
+  title,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  title: string;
+  checked: boolean;
+  disabled: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <label
+      className={`flex cursor-pointer items-center gap-1.5 text-xs ${
+        disabled ? "opacity-40" : "text-foreground"
+      }`}
+      title={title}
+    >
+      <input
+        type="checkbox"
+        className="accent-[var(--accent)]"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      {label}
+    </label>
+  );
+}
+
+function ThinkingDots() {
+  return (
+    <span className="ai-thinking" role="status" aria-label="Thinking">
+      <span />
+      <span />
+      <span />
+    </span>
+  );
+}
+
+function UserBody({ message }: { message: Message }) {
+  const action = message.actionId
+    ? AI_ACTIONS.find((a) => a.id === message.actionId)
+    : undefined;
+  const scopeNote =
+    message.scope === "selection" && message.selectionText
+      ? `Selection · ${formatWordCount(countWords(message.selectionText))}`
+      : null;
+  return (
+    <div>
+      {action ? (
+        <div className="font-medium">{action.label}</div>
+      ) : (
+        <div className="whitespace-pre-wrap">{message.content}</div>
+      )}
+      {(scopeNote || message.imageCount) && (
+        <div className="mt-1 text-[0.65rem] text-muted">
+          {[
+            scopeNote,
+            message.imageCount
+              ? `${message.imageCount} image${message.imageCount === 1 ? "" : "s"}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AssistantBody({
+  message,
+  canApply,
+  onApplyPatch,
+}: {
+  message: Message;
+  canApply: boolean;
+  onApplyPatch: (index: number) => void;
+}) {
+  const segments = useMemo(
+    () => splitReplySegments(message.content),
+    [message.content]
+  );
+  return (
+    <div className="space-y-2">
+      {segments.map((segment, i) => {
+        if (segment.type === "text") {
+          return <ChatMarkdown key={`t${i}`} markdown={segment.text} />;
+        }
+        if (segment.type === "pending-patch") {
+          return (
+            <div key={`p${i}`} className="ai-patch ai-patch-pending">
+              <ThinkingDots /> <span className="text-muted">Drafting edit…</span>
+            </div>
+          );
+        }
+        const status = message.patchStatus?.[segment.index];
+        return (
+          <PatchCard
+            key={`p${i}`}
+            search={segment.search}
+            replace={segment.replace}
+            status={status}
+            canApply={canApply}
+            onApply={() => onApplyPatch(segment.index)}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function PatchCard({
+  search,
+  replace,
+  status,
+  canApply,
+  onApply,
+}: {
+  search: string;
+  replace: string;
+  status?: PatchStatus;
+  canApply: boolean;
+  onApply: () => void;
+}) {
+  const segments = useMemo(() => wordDiff(search, replace), [search, replace]);
+  return (
+    <div className={`ai-patch ${status === "applied" ? "is-applied" : ""}`}>
+      <WordDiffText segments={segments} />
+      <div className="mt-1.5 flex items-center justify-end gap-2">
+        {status === "missing" && (
+          <span className="text-[0.65rem] text-red-600 dark:text-red-400">
+            Not found in essay
+          </span>
+        )}
+        {status === "applied" ? (
+          <span className="text-[0.65rem] font-medium text-emerald-700 dark:text-emerald-400">
+            ✓ Applied
+          </span>
+        ) : (
+          canApply && (
+            <button
+              type="button"
+              className={chipClass}
+              onClick={onApply}
+              title="Replace this passage in the essay"
+            >
+              Apply
+            </button>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WordDiffText({ segments }: { segments: WordSegment[] }) {
+  return (
+    <div className="ai-diff-text">
+      {segments.map((segment, i) =>
+        segment.type === "add" ? (
+          <ins key={i}>{segment.text}</ins>
+        ) : segment.type === "remove" ? (
+          <del key={i}>{segment.text}</del>
+        ) : (
+          <span key={i}>{segment.text}</span>
+        )
+      )}
+    </div>
+  );
+}
+
+function AssistantFooter({
+  message,
+  canApply,
+  isLast,
+  canUndo,
+  onCopy,
+  onRetry,
+  onReview,
+  onApplyAll,
+  onUndo,
+}: {
+  message: Message;
+  canApply: boolean;
+  isLast: boolean;
+  canUndo: boolean;
+  onCopy: () => void;
+  onRetry: () => void;
+  onReview: () => void;
+  onApplyAll: (indexes: number[]) => void;
+  onUndo: () => void;
+}) {
+  const patchIndexes = useMemo(
+    () =>
+      splitReplySegments(message.content).flatMap((s) =>
+        s.type === "patch" ? [s.index] : []
+      ),
+    [message.content]
+  );
+  const remaining = patchIndexes.filter(
+    (index) => message.patchStatus?.[index] !== "applied"
+  );
+  const isCritique = message.actionId === "critique";
+  return (
+    <div className="mt-2 flex flex-wrap items-center justify-end gap-1">
+      <button type="button" className={chipClass} onClick={onCopy} title="Copy reply">
+        Copy
+      </button>
+      {isLast && (
+        <button type="button" className={chipClass} onClick={onRetry} title="Ask again">
+          Retry
+        </button>
+      )}
+      {canUndo && (
+        <button
+          type="button"
+          className={chipClass}
+          onClick={onUndo}
+          title="Restore the essay from before these edits"
+        >
+          Undo
+        </button>
+      )}
+      {canApply && patchIndexes.length > 1 && remaining.length > 0 && (
+        <button
+          type="button"
+          className="rounded bg-accent px-2 py-0.5 text-[0.7rem] font-medium text-white"
+          onClick={() => onApplyAll(remaining)}
+        >
+          Apply {remaining.length === patchIndexes.length ? "all" : "rest"} ({remaining.length})
+        </button>
+      )}
+      {canApply && patchIndexes.length === 0 && !isCritique && (
+        message.applied ? (
+          <span className="px-1 text-[0.65rem] font-medium text-emerald-700 dark:text-emerald-400">
+            ✓ Applied
+          </span>
+        ) : (
+          <button
+            type="button"
+            className={chipClass}
+            onClick={onReview}
+            title="Preview the change, then apply it to the essay"
+          >
+            Review & apply…
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
+function ReviewPanel({
+  summary,
+  rows,
+  onCancel,
+  onConfirm,
+}: {
+  summary: string;
+  rows: ReturnType<typeof reviewDiff>;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="mt-2 rounded-md border border-accent/40 bg-accent/5 px-2.5 py-2 text-xs">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="font-medium text-foreground">{summary}</span>
+        <div className="flex gap-1">
+          <button type="button" className={chipClass} onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="rounded bg-accent px-2 py-0.5 text-[0.7rem] font-medium text-white"
+            onClick={onConfirm}
+          >
+            Apply
+          </button>
+        </div>
+      </div>
+      {rows.length > 0 ? (
+        <div className="max-h-60 space-y-1.5 overflow-auto rounded border border-border bg-background p-2">
+          {rows.map((row, i) =>
+            row.type === "context" ? (
+              <div key={i} className="ai-diff-context">
+                {row.text}
+              </div>
+            ) : (
+              <WordDiffText key={i} segments={row.segments} />
+            )
+          )}
+        </div>
+      ) : (
+        <p className="text-muted">No visible changes.</p>
+      )}
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import { unwrapMarkdownReply } from "@/lib/ai/client";
-import { compactDiff, unifiedLineDiff } from "@/lib/markdown/diff";
 import { writeTitle, parseTitle } from "@/lib/markdown/titleFrontmatter";
 import { splitFrontmatter } from "@/lib/markdown/frontmatter";
 
@@ -36,6 +35,54 @@ export function parseSearchReplacePatches(
   return patches.length > 0 ? patches : null;
 }
 
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Quote / dash / whitespace variants models often "normalize" when copying. */
+const LOOSE_CHAR: Record<string, string> = {
+  "'": "['‘’]",
+  "‘": "['‘’]",
+  "’": "['‘’]",
+  '"': '["“”]',
+  "“": '["“”]',
+  "”": '["“”]',
+  "-": "[-–—]",
+  "–": "[-–—]",
+  "—": "[-–—]",
+};
+
+/**
+ * Locate a SEARCH block in the essay. Exact match first; then a tolerant pass
+ * that ignores whitespace runs and curly/straight quote or dash differences.
+ */
+export function findPatchRange(
+  source: string,
+  search: string
+): { from: number; to: number } | null {
+  const exact = source.indexOf(search);
+  if (exact !== -1) return { from: exact, to: exact + search.length };
+  const trimmed = search.trim();
+  if (!trimmed) return null;
+  const trimmedExact = source.indexOf(trimmed);
+  if (trimmedExact !== -1) {
+    return { from: trimmedExact, to: trimmedExact + trimmed.length };
+  }
+  const pattern = trimmed
+    .split(/\s+/)
+    .map((word) =>
+      [...word].map((ch) => LOOSE_CHAR[ch] ?? escapeRegExp(ch)).join("")
+    )
+    .join("\\s+");
+  try {
+    const match = new RegExp(pattern).exec(source);
+    if (!match) return null;
+    return { from: match.index, to: match.index + match[0].length };
+  } catch {
+    return null;
+  }
+}
+
 export function applySearchReplacePatches(
   source: string,
   patches: SearchReplacePatch[]
@@ -44,18 +91,55 @@ export function applySearchReplacePatches(
   let applied = 0;
   const failed: string[] = [];
   for (const patch of patches) {
-    const index = markdown.indexOf(patch.search);
-    if (index === -1) {
+    const range = findPatchRange(markdown, patch.search);
+    if (!range) {
       failed.push(patch.search.slice(0, 80));
       continue;
     }
     markdown =
-      markdown.slice(0, index) +
-      patch.replace +
-      markdown.slice(index + patch.search.length);
+      markdown.slice(0, range.from) + patch.replace + markdown.slice(range.to);
     applied += 1;
   }
   return { markdown, applied, failed };
+}
+
+export type ReplySegment =
+  | { type: "text"; text: string }
+  | { type: "patch"; index: number; search: string; replace: string }
+  /** A patch block still streaming in (no closing marker yet). */
+  | { type: "pending-patch" };
+
+/** Split an assistant reply into prose and patch blocks for rendering. */
+export function splitReplySegments(text: string): ReplySegment[] {
+  const segments: ReplySegment[] = [];
+  const re = new RegExp(PATCH_RE.source, "g");
+  let last = 0;
+  let index = 0;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    const before = text.slice(last, match.index);
+    if (before.trim()) segments.push({ type: "text", text: before });
+    if (match[1].length > 0) {
+      segments.push({
+        type: "patch",
+        index,
+        search: match[1],
+        replace: match[2],
+      });
+      index += 1;
+    }
+    last = match.index + match[0].length;
+  }
+  let rest = text.slice(last);
+  const open = rest.indexOf("<<<SEARCH");
+  if (open !== -1) {
+    const before = rest.slice(0, open);
+    if (before.trim()) segments.push({ type: "text", text: before });
+    segments.push({ type: "pending-patch" });
+    rest = "";
+  }
+  if (rest.trim()) segments.push({ type: "text", text: rest });
+  return segments;
 }
 
 /** Heuristic: reply looks like a full essay (frontmatter or multi-heading body). */
@@ -207,12 +291,4 @@ export function prepareApply(input: {
     reason:
       "Reply does not look like a rewrite, title, or patch. Ask for a revision, or use Tighten / Expand.",
   };
-}
-
-export function applyDiffPreview(
-  before: string,
-  after: string,
-  context = 2
-): ReturnType<typeof compactDiff> {
-  return compactDiff(unifiedLineDiff(before, after), context);
 }

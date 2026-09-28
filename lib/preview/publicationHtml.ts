@@ -7,7 +7,7 @@ import { splitFrontmatter } from "@/lib/markdown/frontmatter";
 import { parseTitle } from "@/lib/markdown/titleFrontmatter";
 import { parseSubtitle } from "@/lib/markdown/subtitle";
 import { parseAuthor } from "@/lib/markdown/author";
-import { renderLatexHtml } from "@/lib/editor/math";
+import { KATEX_CSS_URL, renderLatexHtml } from "@/lib/editor/math";
 import {
   FETCH_BIBLE_ENHANCER_SCRIPT,
   FETCH_BIBLE_TRANSLATION_ID,
@@ -451,7 +451,7 @@ export function buildPublicationDocument(
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${escapeHtml(pageTitle)}</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" />
+<link rel="stylesheet" href="${KATEX_CSS_URL}" />
 ${enhancer}
 <style>
   /* Always light — publication reading, independent of OS theme. */
