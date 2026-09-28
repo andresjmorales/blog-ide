@@ -5,6 +5,7 @@ import { parseBody } from "@/lib/markdown/pipeline";
 import { findInEditor } from "@/lib/editor/findReplaceInEditor";
 import {
   footnoteFindSessionsEqual,
+  getFootnoteFindSession,
   setFootnoteFindSession,
   subscribeFootnoteFindSession,
   syncFootnoteFindSession,
@@ -88,6 +89,35 @@ describe("footnoteFindBridge", () => {
       expect(listener).not.toHaveBeenCalled();
     } finally {
       unsubscribe();
+      editor.destroy();
+    }
+  });
+
+  it("re-scan after an edit keeps an open card but never reopens a closed one", () => {
+    const editor = makeEditor(
+      "See note[^1].\n\n[^1]: alpha in the note.\n"
+    );
+    const opts = { query: "alpha", regex: false, caseSensitive: false };
+    try {
+      const matches = findInEditor(editor, opts, "document");
+      expect(matches[0].footnotePos).toBeDefined();
+
+      syncFootnoteFindSession(editor, matches, 0, opts);
+      const open = getFootnoteFindSession();
+      expect(open).not.toBeNull();
+
+      syncFootnoteFindSession(editor, matches, 0, opts, { openCard: false });
+      expect(getFootnoteFindSession()).toBe(open);
+
+      // Writer closes the card, then types in the essay.
+      setFootnoteFindSession(null);
+      syncFootnoteFindSession(editor, matches, 0, opts, { openCard: false });
+      expect(getFootnoteFindSession()).toBeNull();
+
+      // Explicit navigation still opens it.
+      syncFootnoteFindSession(editor, matches, 0, opts);
+      expect(getFootnoteFindSession()?.footnoteId).toBe(open?.footnoteId);
+    } finally {
       editor.destroy();
     }
   });

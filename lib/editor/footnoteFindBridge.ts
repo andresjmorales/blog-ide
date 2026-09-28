@@ -62,12 +62,18 @@ export function setFootnoteFindSession(
   emit();
 }
 
-/** Derive the active footnote find session from main-doc match list. */
+/**
+ * Derive the active footnote find session from main-doc match list.
+ * With `openCard: false` (re-scan after an essay edit) it only keeps an
+ * already-open card in sync and never opens one — a card the writer closed
+ * must not pop back up on the next keystroke.
+ */
 export function syncFootnoteFindSession(
   editor: Editor,
   matches: FindMatch[],
   activeIndex: number,
-  options: { query: string; regex: boolean; caseSensitive: boolean }
+  options: { query: string; regex: boolean; caseSensitive: boolean },
+  { openCard = true }: { openCard?: boolean } = {}
 ): void {
   if (!options.query || matches.length === 0) {
     setFootnoteFindSession(null);
@@ -85,6 +91,10 @@ export function syncFootnoteFindSession(
   }
   const footnoteId = String(node.attrs.id ?? "");
   if (!footnoteId) {
+    setFootnoteFindSession(null);
+    return;
+  }
+  if (!openCard && session?.footnoteId !== footnoteId) {
     setFootnoteFindSession(null);
     return;
   }

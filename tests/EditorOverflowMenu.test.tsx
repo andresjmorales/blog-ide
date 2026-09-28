@@ -59,6 +59,54 @@ describe("EditorOverflowMenu GitHub submenu", () => {
     expect(labels).toContain("Push to GitHub");
   });
 
+  it("keeps the submenu open when hover is followed by a click, unclipped", () => {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => {
+      root!.render(
+        <EditorOverflowMenu
+          items={[
+            {
+              kind: "submenu",
+              id: "github",
+              label: "GitHub",
+              items: githubActionMenuItems({ mapped: true }).map((item) => ({
+                ...item,
+                onSelect: () => {},
+              })),
+            },
+          ]}
+        />
+      );
+    });
+    act(() => {
+      host!.querySelector<HTMLButtonElement>('button[title="More actions"]')!.click();
+    });
+    const menu = document.querySelector<HTMLElement>('[role="menu"]')!;
+    // A menu that fits must not scroll: overflow would clip the side submenu.
+    expect(menu.style.overflowY).toBe("");
+    const github = menu.querySelector<HTMLButtonElement>(
+      'button[aria-haspopup="menu"]'
+    )!;
+    act(() => {
+      github.dispatchEvent(
+        new MouseEvent("mouseover", {
+          bubbles: true,
+          relatedTarget: document.body,
+        })
+      );
+    });
+    expect(github.getAttribute("aria-expanded")).toBe("true");
+    act(() => {
+      github.click();
+    });
+    expect(github.getAttribute("aria-expanded")).toBe("true");
+    const submenu = menu.querySelector<HTMLElement>('[role="menu"]');
+    expect(submenu?.style.position || submenu?.className).toContain("fixed");
+    expect(submenu?.textContent).toContain("Push to GitHub");
+  });
+
   it("can use a custom trigger and label", () => {
     host = document.createElement("div");
     document.body.appendChild(host);
