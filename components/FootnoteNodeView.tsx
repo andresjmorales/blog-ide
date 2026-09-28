@@ -24,7 +24,10 @@ import {
   setFootnoteFindSession,
   subscribeFootnoteFindSession,
 } from "@/lib/editor/footnoteFindBridge";
-import { consumeFootnoteEditorOpen } from "@/lib/editor/footnoteOpen";
+import {
+  consumeFootnoteEditorOpen,
+  registerFootnoteCardOpener,
+} from "@/lib/editor/footnoteOpen";
 import { FootnoteNoteEditor } from "@/components/FootnoteNoteEditor";
 import { PinnedSurface } from "@/components/pins/PinnedSurface";
 import {
@@ -307,6 +310,16 @@ export function FootnoteNodeView({
       }
     },
     [cancelHoverClose, cancelHoverOpen, footnoteId, isDesktop]
+  );
+
+  // The unlocked sidenote rail opens the card beside the clicked row
+  // without scrolling the essay to the marker.
+  useEffect(
+    () =>
+      registerFootnoteCardOpener(footnoteId, (anchorEl) =>
+        openCard({ sticky: true, anchorEl })
+      ),
+    [footnoteId, openCard]
   );
 
   /**
