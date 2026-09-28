@@ -2,7 +2,12 @@
  * Canned AI actions for the sidebar — short, essay-aware prompts.
  */
 
-export type AiActionId = "critique" | "tighten" | "title" | "expand";
+export type AiActionId =
+  | "proofread"
+  | "critique"
+  | "tighten"
+  | "title"
+  | "expand";
 
 export type AiAction = {
   id: AiActionId;
@@ -16,6 +21,13 @@ export type AiAction = {
 };
 
 export const AI_ACTIONS: AiAction[] = [
+  {
+    id: "proofread",
+    label: "Proofread",
+    title: "Fix spelling, grammar, and punctuation only (no style changes)",
+    expectRewrite: true,
+    preferSelection: true,
+  },
   {
     id: "critique",
     label: "Critique",
@@ -56,6 +68,8 @@ export function actionUserPrompt(
       : "this essay";
 
   switch (action) {
+    case "proofread":
+      return `Proofread ${target} for spelling, grammar, punctuation, and typos only. Do not change style, word choice, or voice, and leave intentional fragments alone. Return one SEARCH/REPLACE patch block per fix (the SEARCH is the smallest unique phrase around the error, copied exactly), each preceded by a short label like "Typo: teh → the". If there is nothing to fix, say so in one line.`;
     case "critique":
       return `Critique ${target}. Be specific and useful: argument, clarity, structure, prose, and footnote use if relevant. Do not rewrite the whole piece — short bullets and a brief overall take.`;
     case "tighten":
@@ -74,6 +88,8 @@ export function actionUserPrompt(
 /** Extra system guidance layered on the essay/selection context. */
 export function actionSystemAddon(action: AiActionId): string {
   switch (action) {
+    case "proofread":
+      return "This is a proofread request: return patch blocks (even for a selection), one per error, and no other rewrites.";
     case "critique":
       return "This is a critique request: answer in prose/bullets. Do not dump a full rewritten essay.";
     case "tighten":

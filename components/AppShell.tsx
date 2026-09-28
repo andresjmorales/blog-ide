@@ -2246,6 +2246,16 @@ function AppShellContent({
         (previewMode || activeNodeId) &&
           !(activeNodeId && isInVault(activeNodeId, nodes))
       )}
+      essayKey={previewMode ? "preview" : activeNodeId}
+      essayLabel={
+        activeNodeId
+          ? docTitles.get(activeNodeId)?.trim() ||
+            fileNameToTitle(
+              nodes.find((node) => node.id === activeNodeId)?.name ?? ""
+            ) ||
+            null
+          : null
+      }
       getDocumentMarkdown={() => getMarkdownForAiRef.current()}
       getSelection={() => getSelectionForAiRef.current()}
       onApplyMarkdown={(markdown) => applyMarkdownRef.current(markdown)}
