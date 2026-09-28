@@ -90,5 +90,7 @@ export type GithubPushResult = {
   branch: string;
   commitSha: string;
   fileCount: number;
+  /** GitHub already matched; no commit was created. */
+  unchanged?: boolean;
   htmlUrl: string;
 };

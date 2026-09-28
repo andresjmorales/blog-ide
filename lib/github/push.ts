@@ -13,6 +13,7 @@ import {
 import { githubPushCommitMessage } from "@/lib/github/commitMessage";
 import { loadGithubSettings } from "@/lib/github/settings";
 import { loadGithubToken } from "@/lib/github/token";
+import { showToast } from "@/lib/ui/toast";
 import type { GithubPushResult } from "@/lib/github/types";
 import { decryptTreeNames, nodesWithDisplayNames } from "@/lib/vault/names";
 import { getVaultNode, vaultSubtreeIds } from "@/lib/vault/membership";
@@ -136,11 +137,32 @@ export async function pushWorkspaceToGithub(input: {
 
   input.onProgress?.({
     phase: "done",
-    message: `Pushed ${results.reduce((n, r) => n + r.fileCount, 0)} file${
-      results.reduce((n, r) => n + r.fileCount, 0) === 1 ? "" : "s"
-    }.`,
+    message: githubPushSummary(results),
   });
   return results;
+}
+
+/** Toast for a finished push: success, or info when nothing changed. */
+export function showGithubPushToast(
+  results: GithubPushResult[],
+  replaceKey = "github-push"
+): void {
+  const unchanged = results.every((r) => r.unchanged);
+  showToast({
+    tone: unchanged ? "info" : "success",
+    message: githubPushSummary(results),
+    replaceKey,
+  });
+}
+
+/** Toast copy for a finished push; says so when nothing changed. */
+export function githubPushSummary(results: GithubPushResult[]): string {
+  const changed = results.filter((r) => !r.unchanged);
+  if (changed.length === 0) {
+    return "Nothing to push. GitHub already matches.";
+  }
+  const files = changed.reduce((n, r) => n + r.fileCount, 0);
+  return `Pushed ${files} file${files === 1 ? "" : "s"} to GitHub.`;
 }
 
 export type GithubPushInspection = {

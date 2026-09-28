@@ -137,6 +137,7 @@ import {
   collectGithubDocumentBodies,
   inspectGithubPush,
   pushWorkspaceToGithubWithStatus,
+  showGithubPushToast,
 } from "@/lib/github/push";
 import { loadGithubMapStatuses } from "@/lib/github/health";
 import {
@@ -157,6 +158,7 @@ import { hydrateAccountSecrets } from "@/lib/secrets/client";
 import { NOTES_CHANGED_EVENT } from "@/lib/capture/seen";
 import type { GithubMapStatus, GithubSyncMap } from "@/lib/github/types";
 import { GitHubPullDialog, type GithubPullApply } from "@/components/GitHubPullDialog";
+import { GitHubDiffDialog } from "@/components/GitHubDiffDialog";
 import {
   GitHubPushWarningDialog,
   type GithubPushRemap,
@@ -441,6 +443,10 @@ function AppShellContent({
   const [githubEpoch, setGithubEpoch] = useState(0);
   const [pullOpen, setPullOpen] = useState(false);
   const [pullFiles, setPullFiles] = useState<GithubPullFile[]>([]);
+  const [diffNodeId, setDiffNodeId] = useState<string | null>(null);
+  const [diffFile, setDiffFile] = useState<GithubPullFile | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
   const [pullUnmapped, setPullUnmapped] = useState<
     Array<{ repo: string; branch: string; path: string; looksLike?: string }>
   >([]);
@@ -1636,12 +1642,7 @@ function AppShellContent({
 
   async function actuallyPush(scope: "workspace" | { nodeId: string }) {
     const results = await pushWorkspaceToGithubWithStatus({ scope });
-    const files = results.reduce((n, r) => n + r.fileCount, 0);
-    showSuccessToast(
-      `Pushed ${files} file${files === 1 ? "" : "s"} to GitHub.`,
-      undefined,
-      "github-push"
-    );
+    showGithubPushToast(results);
     setGithubEpoch((value) => value + 1);
   }
 
@@ -1729,6 +1730,43 @@ function AppShellContent({
       setPullOpen(true);
     } catch (error) {
       showErrorToast(error, "Could not read from GitHub.", "github-pull");
+    }
+  }
+
+  /** Read-only comparison of one essay with its mapped GitHub file. */
+  async function handleDiffWithGithub(nodeId: string) {
+    if (previewMode) return;
+    if (diffNodeId !== nodeId) setDiffFile(null);
+    setDiffNodeId(nodeId);
+    setDiffError(null);
+    setDiffLoading(true);
+    try {
+      await flushDocumentRef.current();
+      const token = loadGithubToken();
+      if (!token) {
+        throw new Error(
+          "Add a GitHub personal access token in Settings. It stays on this device."
+        );
+      }
+      const [settings, bodies] = await Promise.all([
+        loadGithubSettings(),
+        collectGithubDocumentBodies(nodesRef.current),
+      ]);
+      const plan = await prepareGithubPull({
+        nodes: nodesRef.current,
+        settings,
+        token,
+        localBodies: bodies,
+        scope: { nodeId },
+      });
+      setDiffFile(plan.files.find((file) => file.nodeId === nodeId) ?? null);
+    } catch (error) {
+      setDiffFile(null);
+      setDiffError(
+        error instanceof Error ? error.message : "Could not read from GitHub."
+      );
+    } finally {
+      setDiffLoading(false);
     }
   }
 
@@ -2170,6 +2208,9 @@ function AppShellContent({
       onPullFromGithub={
         previewMode ? undefined : (id) => void handlePullFromGithub({ nodeId: id })
       }
+      onDiffWithGithub={
+        previewMode ? undefined : (id) => void handleDiffWithGithub(id)
+      }
       githubByNode={githubByNode}
       loading={treeLoading || (retryInSec != null && nodes.length === 0)}
       loadingLabel={bootLabel}
@@ -2493,6 +2534,11 @@ function AppShellContent({
                     : () =>
                         void handlePullFromGithub({ nodeId: activeNodeId })
                 }
+                onDiffWithGithub={
+                  previewMode || !activeNodeId
+                    ? undefined
+                    : () => void handleDiffWithGithub(activeNodeId)
+                }
                 conflict={activeConflict}
                 onReviewConflict={
                   activeConflict?.resolvable && activeNodeId
@@ -2684,6 +2730,26 @@ function AppShellContent({
             }}
             onApply={(result) => {
               void handleApplyGithubPull(result);
+            }}
+          />
+          <GitHubDiffDialog
+            open={diffNodeId != null}
+            file={diffFile}
+            loading={diffLoading}
+            error={diffError}
+            onClose={() => setDiffNodeId(null)}
+            onRefresh={() => {
+              if (diffNodeId) void handleDiffWithGithub(diffNodeId);
+            }}
+            onPush={() => {
+              const id = diffNodeId;
+              setDiffNodeId(null);
+              if (id) void handlePushToGithub({ nodeId: id });
+            }}
+            onPull={() => {
+              const id = diffNodeId;
+              setDiffNodeId(null);
+              if (id) void handlePullFromGithub({ nodeId: id });
             }}
           />
           <GitHubPushWarningDialog

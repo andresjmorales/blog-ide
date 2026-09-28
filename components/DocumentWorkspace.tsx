@@ -107,7 +107,10 @@ import {
   exportMarkdownAsDocx,
   exportMarkdownAsPdf,
 } from "@/lib/pandoc/client";
-import { pushWorkspaceToGithubWithStatus } from "@/lib/github/push";
+import {
+  pushWorkspaceToGithubWithStatus,
+  showGithubPushToast,
+} from "@/lib/github/push";
 import { githubActionMenuItems } from "@/lib/github/menu";
 import type { GithubMapStatus } from "@/lib/github/types";
 import { bodyStartPos } from "@/lib/editor/bodyStart";
@@ -228,6 +231,7 @@ type Props = {
   githubSettingsEpoch?: number;
   onGithubSettingsChanged?: () => void;
   onPullFromGithub?: () => void;
+  onDiffWithGithub?: () => void;
   onPushToGithub?: () => void;
   /** Pull current essay markdown when the AI sidebar sends / cleans. */
   registerGetMarkdownForAi?: (get: () => string | null) => void;
@@ -262,6 +266,7 @@ export function DocumentWorkspace({
   githubSettingsEpoch = 0,
   onGithubSettingsChanged,
   onPullFromGithub,
+  onDiffWithGithub,
   onPushToGithub,
   registerGetMarkdownForAi,
   registerApplyMarkdown,
@@ -1629,12 +1634,7 @@ export function DocumentWorkspace({
       const results = await pushWorkspaceToGithubWithStatus({
         scope: { nodeId },
       });
-      const files = results.reduce((n, r) => n + r.fileCount, 0);
-      showSuccessToast(
-        `Pushed ${files} file${files === 1 ? "" : "s"} to GitHub.`,
-        undefined,
-        "github-push"
-      );
+      showGithubPushToast(results);
     } catch (error) {
       showErrorToast(error, "Could not push to GitHub.", "github-push");
     }
@@ -1814,6 +1814,7 @@ export function DocumentWorkspace({
               mapped: githubMapped,
               includePull: Boolean(onPullFromGithub),
               includePush: true,
+              includeDiff: Boolean(onDiffWithGithub),
             }).map((item) => ({
               id: item.id,
               label: item.label,
@@ -1821,6 +1822,7 @@ export function DocumentWorkspace({
               onSelect: () => {
                 if (item.id === "map-github") openEssaySettings("github");
                 else if (item.id === "pull-github") onPullFromGithub?.();
+                else if (item.id === "diff-github") onDiffWithGithub?.();
                 else void pushCurrentToGithub();
               },
             })),

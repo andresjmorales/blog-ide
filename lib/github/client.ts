@@ -9,6 +9,7 @@ import type {
   GithubPushResult,
   GithubTreeIndex,
 } from "@/lib/github/types";
+import { gitBlobSha } from "@/lib/github/blobSha";
 
 const API = "https://api.github.com";
 const VERSION = "2022-11-28";
@@ -142,7 +143,7 @@ export function decodeGithubFileContent(
 type GitTreePayload = {
   sha: string;
   truncated?: boolean;
-  tree?: Array<{ path?: string; type?: string }>;
+  tree?: Array<{ path?: string; type?: string; sha?: string }>;
 };
 
 export async function fetchGithubTreeIndex(input: {
@@ -280,6 +281,42 @@ export async function pushFilesToGithub(input: {
     baseTree = commit.tree.sha;
   }
 
+  const unchangedResult = (): GithubPushResult => ({
+    owner,
+    repo,
+    branch,
+    commitSha: parentSha ?? "",
+    fileCount: 0,
+    unchanged: true,
+    htmlUrl: `https://github.com/${owner}/${repo}/tree/${encodeURIComponent(branch)}`,
+  });
+
+  // Upload only files whose content differs from the branch tip.
+  let files = input.files;
+  if (baseTree) {
+    const remote = await githubFetch<GitTreePayload>(
+      input.token,
+      `${base}/git/trees/${baseTree}?recursive=1`
+    );
+    if (!remote.truncated) {
+      const remoteShas = new Map<string, string>();
+      for (const item of remote.tree ?? []) {
+        if (item.type === "blob" && item.path && item.sha) {
+          remoteShas.set(item.path, item.sha);
+        }
+      }
+      const changed: GithubFile[] = [];
+      for (const file of files) {
+        const path = file.path.replace(/^\/+/, "");
+        if (remoteShas.get(path) !== (await gitBlobSha(file.content))) {
+          changed.push(file);
+        }
+      }
+      files = changed;
+    }
+  }
+  if (parentSha && files.length === 0) return unchangedResult();
+
   const treeItems: Array<{
     path: string;
     mode: "100644";
@@ -287,7 +324,7 @@ export async function pushFilesToGithub(input: {
     sha: string;
   }> = [];
 
-  for (const file of input.files) {
+  for (const file of files) {
     const blob = await githubFetch<GitBlob>(input.token, `${base}/git/blobs`, {
       method: "POST",
       body: JSON.stringify({
@@ -310,6 +347,9 @@ export async function pushFilesToGithub(input: {
       tree: treeItems,
     }),
   });
+
+  // Trees are content-addressed: the same sha means nothing changed.
+  if (parentSha && baseTree && tree.sha === baseTree) return unchangedResult();
 
   const commit = await githubFetch<GitCommit>(
     input.token,
@@ -359,7 +399,7 @@ export async function pushFilesToGithub(input: {
     repo,
     branch,
     commitSha: commit.sha,
-    fileCount: input.files.length,
+    fileCount: files.length,
     htmlUrl:
       commit.html_url ||
       `https://github.com/${owner}/${repo}/commit/${commit.sha}`,

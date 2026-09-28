@@ -38,7 +38,8 @@ import {
 import { modelsForProvider, resolveModel } from "@/lib/ai/models";
 import type { AiSelection } from "@/lib/ai/selection";
 import { countWords, formatWordCount } from "@/lib/editor/documentStats";
-import { reviewDiff, wordDiff, type WordSegment } from "@/lib/markdown/wordDiff";
+import { reviewDiff, wordDiff } from "@/lib/markdown/wordDiff";
+import { WordDiffText } from "@/components/WordDiffText";
 import { showCopiedToast, showErrorToast } from "@/lib/ui/toast";
 
 type PatchStatus = "applied" | "missing";
@@ -1142,22 +1143,6 @@ function PatchCard({
   );
 }
 
-function WordDiffText({ segments }: { segments: WordSegment[] }) {
-  return (
-    <div className="ai-diff-text">
-      {segments.map((segment, i) =>
-        segment.type === "add" ? (
-          <ins key={i}>{segment.text}</ins>
-        ) : segment.type === "remove" ? (
-          <del key={i}>{segment.text}</del>
-        ) : (
-          <span key={i}>{segment.text}</span>
-        )
-      )}
-    </div>
-  );
-}
-
 function AssistantFooter({
   message,
   canApply,
@@ -1271,7 +1256,7 @@ function ReviewPanel({
         <div className="max-h-60 space-y-1.5 overflow-auto rounded border border-border bg-background p-2">
           {rows.map((row, i) =>
             row.type === "context" ? (
-              <div key={i} className="ai-diff-context">
+              <div key={i} className="word-diff-context">
                 {row.text}
               </div>
             ) : (

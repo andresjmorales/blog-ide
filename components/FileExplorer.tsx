@@ -60,6 +60,7 @@ type Props = {
   onMapToGithub?: (nodeId: string) => void;
   onPushToGithub?: (nodeId: string) => void;
   onPullFromGithub?: (nodeId: string) => void;
+  onDiffWithGithub?: (nodeId: string) => void;
   githubByNode?: Map<string, GithubMapStatus>;
   loading?: boolean;
   /** Overrides the default "Loading workspace…" copy (retry countdown, etc.). */
@@ -148,6 +149,7 @@ export function FileExplorer({
   onMapToGithub,
   onPushToGithub,
   onPullFromGithub,
+  onDiffWithGithub,
   githubByNode,
   loading,
   loadingLabel,
@@ -322,6 +324,7 @@ export function FileExplorer({
         includeMap: Boolean(onMapToGithub),
         includePull: Boolean(onPullFromGithub),
         includePush: Boolean(onPushToGithub),
+        includeDiff: node.kind === "document" && Boolean(onDiffWithGithub),
       });
       if (githubItems.length > 0) {
         items.push({ kind: "separator", id: "sep-github" });
@@ -336,6 +339,7 @@ export function FileExplorer({
             onSelect: () => {
               if (item.id === "map-github") onMapToGithub?.(node.id);
               else if (item.id === "pull-github") onPullFromGithub?.(node.id);
+              else if (item.id === "diff-github") onDiffWithGithub?.(node.id);
               else onPushToGithub?.(node.id);
             },
           })),
