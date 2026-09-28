@@ -12,7 +12,7 @@ describe("githubPushCommitMessage", () => {
         "https://blogide.com"
       )
     ).toBe(
-      "blogide: sync 1 file\n\n- drafts/new-essay.md\n\nvia BlogIDE (https://blogide.com)"
+      "blogide: sync 1 file (new-essay.md)\n\n- drafts/new-essay.md\n\nvia BlogIDE (https://blogide.com)"
     );
   });
 
@@ -25,7 +25,9 @@ describe("githubPushCommitMessage", () => {
       ],
       "https://writing.example"
     );
-    expect(message.startsWith("blogide: sync 3 files\n\n")).toBe(true);
+    expect(
+      message.startsWith("blogide: sync 3 files (README.md + 2 more)\n\n")
+    ).toBe(true);
     expect(message).toContain("- README.md");
     expect(message).toContain("- drafts/one.md");
     expect(message).toContain("- posts/two.md");

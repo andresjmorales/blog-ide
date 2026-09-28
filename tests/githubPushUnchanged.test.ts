@@ -16,7 +16,7 @@ describe("gitBlobSha", () => {
   });
 });
 
-type Call = { method: string; path: string };
+type Call = { method: string; path: string; body?: string };
 
 async function mockRepo(remoteFiles: Record<string, string>) {
   const tree = await Promise.all(
@@ -32,7 +32,7 @@ async function mockRepo(remoteFiles: Record<string, string>) {
     vi.fn(async (url: string, init: RequestInit = {}) => {
       const path = url.replace("https://api.github.com", "");
       const method = init.method ?? "GET";
-      calls.push({ method, path });
+      calls.push({ method, path, body: init.body as string | undefined });
       const json = (body: unknown) =>
         new Response(JSON.stringify(body), { status: 200 });
       if (path === "/repos/o/r") return json({ default_branch: "main" });
@@ -87,8 +87,12 @@ describe("pushFilesToGithub", () => {
         { path: "essays/b.md", content: "# B, edited\n" },
         { path: "essays/c.md", content: "# C\n" },
       ],
-      message: "m",
+      message: (changed) => changed.map((f) => f.path).join(","),
     });
+    const commit = calls.find(
+      (c) => c.method === "POST" && c.path.endsWith("/git/commits")
+    );
+    expect(JSON.parse(commit!.body!).message).toBe("essays/b.md,essays/c.md");
     expect(result.unchanged).toBeUndefined();
     expect(result.fileCount).toBe(2);
     expect(

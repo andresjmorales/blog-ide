@@ -127,7 +127,7 @@ export async function pushWorkspaceToGithub(input: {
         repo: plan.repo,
         branch: plan.branch,
         files: plan.files,
-        message: githubPushCommitMessage(plan.files),
+        message: (changed) => githubPushCommitMessage(changed),
       });
       results.push(result);
     } catch (error) {

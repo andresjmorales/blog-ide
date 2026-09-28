@@ -232,7 +232,8 @@ export async function pushFilesToGithub(input: {
   repo: string;
   branch: string;
   files: GithubFile[];
-  message: string;
+  /** A function receives only the files that changed (unchanged are skipped). */
+  message: string | ((files: GithubFile[]) => string);
 }): Promise<GithubPushResult> {
   if (input.files.length === 0) {
     throw new Error("Nothing to push.");
@@ -357,7 +358,10 @@ export async function pushFilesToGithub(input: {
     {
       method: "POST",
       body: JSON.stringify({
-        message: input.message,
+        message:
+          typeof input.message === "function"
+            ? input.message(files)
+            : input.message,
         tree: tree.sha,
         parents: parentSha ? [parentSha] : [],
       }),
