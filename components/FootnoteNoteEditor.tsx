@@ -173,19 +173,21 @@ export function FootnoteNoteEditor({
     }
 
     applyNoteHighlights(true);
-    function onNoteUpdate({
+    // "transaction", not "update": external content sync runs setContent with
+    // emitUpdate:false, which maps every highlight away without an update.
+    function onNoteTransaction({
       transaction,
     }: {
-      transaction?: { docChanged?: boolean };
+      transaction: { docChanged: boolean };
     }) {
-      if (transaction && !transaction.docChanged) {
+      if (!transaction.docChanged) {
         return;
       }
       applyNoteHighlights(false);
     }
-    editor.on("update", onNoteUpdate);
+    editor.on("transaction", onNoteTransaction);
     return () => {
-      editor.off("update", onNoteUpdate);
+      editor.off("transaction", onNoteTransaction);
     };
   }, [noteEditor, isFindTarget, findSession]);
 
