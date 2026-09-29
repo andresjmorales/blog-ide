@@ -2,6 +2,7 @@ import type { JSONContent } from "@tiptap/core";
 import { Slice, type Schema } from "@tiptap/pm/model";
 import { parseBody } from "@/lib/markdown/pipeline";
 import { collapseExtraBlankLines } from "@/lib/editor/cleanWhitespace";
+import { normalizeLatexDelimiters } from "@/lib/editor/math";
 import { wrapUnicodeScriptsInHtml } from "@/lib/editor/unicodeScripts";
 import {
   looksLikeFetchBibleHtml,
@@ -67,7 +68,7 @@ export function normalizePastedHtml(html: string): string {
 }
 
 export function jsonFromPastedPlainText(text: string): JSONContent {
-  return parseBody(collapseExtraBlankLines(text));
+  return parseBody(normalizeLatexDelimiters(collapseExtraBlankLines(text)));
 }
 
 /**

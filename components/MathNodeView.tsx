@@ -6,7 +6,8 @@ import {
   NodeViewWrapper,
   type NodeViewProps,
 } from "@tiptap/react";
-import { renderLatexHtml } from "@/lib/editor/math";
+import { Selection, TextSelection } from "@tiptap/pm/state";
+import { renderLatexHtml, takeMathAutoOpen } from "@/lib/editor/math";
 import { claimFloatZ } from "@/lib/pins/pinStore";
 
 const MATH_POPUP_MAX_WIDTH_PX = 448; // min(28rem, …) at 16px root
@@ -23,14 +24,27 @@ export function BlockMathNodeView(props: NodeViewProps) {
   return <MathNodeView {...props} displayMode />;
 }
 
+const IS_MAC =
+  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+const MOD_LABEL = IS_MAC ? "⌘" : "Ctrl";
+
 function MathNodeView({
   node,
+  editor,
+  getPos,
   updateAttributes,
+  deleteNode,
   selected,
   displayMode,
 }: NodeViewProps & { displayMode: boolean }) {
   const latex = String(node.attrs.latex || "");
-  const [open, setOpen] = useState(false);
+  // A node just inserted from the toolbar / shortcut opens straight away with
+  // its placeholder selected, ready to type over.
+  const [autoOpen] = useState(() => takeMathAutoOpen(node));
+  const [open, setOpen] = useState(autoOpen);
+  const [selectAll, setSelectAll] = useState(autoOpen);
+  // Just inserted and never applied: cancelling removes it again.
+  const freshRef = useRef(autoOpen);
   const [pinned, setPinned] = useState(false);
   const [draft, setDraft] = useState(latex);
   const [zIndex, setZIndex] = useState(80);
@@ -41,14 +55,28 @@ function MathNodeView({
     offsetY: number;
   } | null>(null);
   const popupRef = useRef<HTMLDivElement | null>(null);
+  const sourceRef = useRef<HTMLTextAreaElement | null>(null);
 
+  useEffect(() => {
+    if (!open) return;
+    const source = sourceRef.current;
+    if (!source) return;
+    source.focus();
+    if (selectAll) source.select();
+    else source.setSelectionRange(source.value.length, source.value.length);
+    // Only on open: later renders must not steal the caret.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Esc also closes when focus has left the source box (unless pinned).
+  const closeRef = useRef<() => void>(() => {});
   useEffect(() => {
     if (!open || pinned) return;
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        setOpen(false);
+        closeRef.current();
       }
     }
     document.addEventListener("keydown", onKey, true);
@@ -69,11 +97,93 @@ function MathNodeView({
     setDraft(latex);
     setPinned(false);
     setPosition(null);
+    setSelectAll(false);
     setOpen(true);
   }
 
   function apply() {
+    freshRef.current = false;
     updateAttributes({ latex: draft });
+  }
+
+  function hide() {
+    setPinned(false);
+    setPosition(null);
+    setOpen(false);
+  }
+
+  function remove() {
+    hide();
+    deleteNode();
+    editor.commands.focus();
+  }
+
+  /** Close the popup and put the caret just after the math, ready to type. */
+  function close() {
+    if (freshRef.current) {
+      remove();
+      return;
+    }
+    hide();
+    const pos = typeof getPos === "function" ? getPos() : undefined;
+    if (typeof pos !== "number") return;
+    editor
+      .chain()
+      .command(({ tr }) => {
+        const after = Math.min(pos + node.nodeSize, tr.doc.content.size);
+        let selection = Selection.findFrom(tr.doc.resolve(after), 1, true);
+        if (!selection) {
+          // Display math ending the document: give the caret a line.
+          const paragraph = tr.doc.type.schema.nodes.paragraph;
+          if (paragraph) {
+            tr.insert(after, paragraph.create());
+            selection = TextSelection.create(tr.doc, after + 1);
+          }
+        }
+        if (selection) tr.setSelection(selection);
+        return true;
+      })
+      .focus()
+      .run();
+  }
+
+  /** Apply and close; an emptied equation is removed instead. */
+  function done() {
+    if (!draft.trim()) {
+      remove();
+      return;
+    }
+    apply();
+    close();
+  }
+
+  useEffect(() => {
+    closeRef.current = close;
+  });
+
+  function onSourceKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    const mod = event.ctrlKey || event.metaKey;
+    if (event.key === "Enter" && mod && event.shiftKey) {
+      event.preventDefault();
+      apply();
+      return;
+    }
+    if (event.key === "Enter" && mod) {
+      event.preventDefault();
+      done();
+      return;
+    }
+    // Inline math is one line: plain Enter finishes it.
+    if (event.key === "Enter" && !displayMode && !event.shiftKey) {
+      event.preventDefault();
+      done();
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    }
   }
 
   const beginDrag = useCallback(
@@ -173,7 +283,7 @@ function MathNodeView({
                 type="button"
                 className="blogide-math-backdrop"
                 aria-label="Close"
-                onClick={() => setOpen(false)}
+                onClick={close}
               />
             )}
             <div
@@ -203,26 +313,33 @@ function MathNodeView({
                   <button
                     type="button"
                     onClick={apply}
-                    title="Apply to editor"
+                    title={`Apply to editor (${MOD_LABEL}+Shift+Enter)`}
                   >
                     Refresh
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setPinned(false);
-                      setPosition(null);
-                      setOpen(false);
-                    }}
+                    onClick={done}
+                    title={`Apply and close (${MOD_LABEL}+Enter)`}
+                  >
+                    Done
+                  </button>
+                  <button
+                    type="button"
+                    onClick={close}
+                    title="Close without applying (Esc)"
+                    aria-label="Close without applying"
                   >
                     ×
                   </button>
                 </span>
               </header>
               <textarea
+                ref={sourceRef}
                 className="blogide-math-source"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={onSourceKeyDown}
                 spellCheck={false}
                 rows={displayMode ? 5 : 3}
               />
@@ -235,6 +352,10 @@ function MathNodeView({
                   </span>
                 )}
               </div>
+              <p className="blogide-math-hint">
+                <kbd>{displayMode ? `${MOD_LABEL}+Enter` : "Enter"}</kbd> done ·{" "}
+                <kbd>{MOD_LABEL}+Shift+Enter</kbd> refresh · <kbd>Esc</kbd> cancel
+              </p>
             </div>
           </div>,
           document.body

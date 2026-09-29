@@ -16,14 +16,14 @@ export const TEX_INSERT_OPTIONS: {
     id: "inline",
     label: "Inline math",
     hint: "$…$",
-    title: "Math inside a sentence",
+    title: "Math inside a sentence (Ctrl+Shift+E)",
     run: (editor) => editor.chain().focus().insertInlineMath("x").run(),
   },
   {
     id: "display",
     label: "Display math",
     hint: "$$…$$",
-    title: "Centered equation on its own line",
+    title: "Centered equation on its own line (Ctrl+Shift+D)",
     run: (editor) => editor.chain().focus().insertBlockMath("x^2").run(),
   },
 ];
