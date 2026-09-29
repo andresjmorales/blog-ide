@@ -1,0 +1,25 @@
+# Self-host BlogIDE against any Supabase project (hosted or your own).
+#
+#   cp .env.example .env    # fill in the Supabase values
+#   docker compose up -d --build
+#
+# NEXT_PUBLIC_* values are baked in at build time, so rebuild after changing
+# them (`docker compose up -d --build`). Everything else is read at runtime.
+services:
+  blogide:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
+        NEXT_PUBLIC_HOSTED: ${NEXT_PUBLIC_HOSTED:-}
+        NEXT_PUBLIC_BETA_ONLY: ${NEXT_PUBLIC_BETA_ONLY:-}
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
+    image: blogide:local
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "${BLOGIDE_PORT:-3000}:3000"
+    restart: unless-stopped

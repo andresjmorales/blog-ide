@@ -66,7 +66,7 @@ describe("localizeRemoteImages", () => {
 });
 
 describe.skipIf(!hasPandoc())("PANDOC_HARDEN_FILTER", () => {
-  it("drops local-file images and raw TeX / risky HTML", async () => {
+  it("drops local-file images and raw TeX / Typst / risky HTML", async () => {
     dir = await mkdtemp(join(tmpdir(), "blogide-test-"));
     const filter = join(dir, "f.lua");
     const input = join(dir, "in.md");
@@ -77,6 +77,8 @@ describe.skipIf(!hasPandoc())("PANDOC_HARDEN_FILTER", () => {
         "![leak](/etc/passwd) ![rel](secret.png) ![ok](img-1.png)",
         "",
         "`\\input{/etc/hostname}`{=latex}",
+        "",
+        '`#read("/etc/hostname")`{=typst}',
         "",
         '<img src="file:///etc/passwd"> <sup>2</sup>',
       ].join("\n")
@@ -94,6 +96,7 @@ describe.skipIf(!hasPandoc())("PANDOC_HARDEN_FILTER", () => {
     expect(native).not.toContain("/etc/passwd");
     expect(native).not.toContain("secret.png");
     expect(native).not.toContain("RawInline (Format \"latex\")");
+    expect(native).not.toContain("RawInline (Format \"typst\")");
     expect(native).toContain("img-1.png");
     expect(native).toContain("<sup>");
   });

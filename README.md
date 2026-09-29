@@ -1,223 +1,135 @@
 # BlogIDE
 
-An IDE for writing blogs and essays: a cross between a rich WYSIWYG editor and a
-second brain, with first-class footnotes, autosave, a project-style workspace,
-and optional AI. Markdown-native, local-first, MIT licensed, and self-hostable
-by design.
+A writing IDE for essays and blog posts, with a research pad beside the
+draft: footnotes, a source library, citations, and quick notes. Plain
+Markdown, local-first autosave, optional AI. Open source (MIT) and
+self-hostable.
 
-## Features
+## What's in it
 
-- **WYSIWYG editor with a markdown soul** — TipTap rich text, source toggle, and
-  byte-for-byte round-trip for supported constructs
-- **First-class footnotes** — inline notes, sidenote rail or anchored notes,
-  pin/drag cards, delete from the note popup, deleted-note archive,
-  Substack-style paste repair
-- **Library + Cite** — one research panel (right dock, or pop it out).
-  Saved links, PDFs, and BibTeX share a compact list with Zotero search.
-  Paste or upload `.bib` to add entries to the Library (they persist like
-  a PDF or site link). Expand a row for cite / open / remove. PDFs open
-  and pin; they are not formatted citations. Cited here is the essay’s
-  still-used sources (Copy list for a bibliography; deleted footnotes
-  drop off). Links in this essay lists every hyperlink with a use count;
-  expand a row to open or copy. Library links can Copy URL or Add to
-  Zotero when the key can write. Toolbar Cite opens this panel (sheet
-  on a phone).
-- **Workspace** — folder/document/link tree, Trash, Notes channels, a seeded
-  scratchpad you can rename or trash, Notes to self (full screen on phones, a Shell panel on desktop),
-  optional Pushbullet or ntfy capture into those channels (Pushbullet REST
-  goes through this site so ad blockers that block api.pushbullet.com still
-  allow catch-up)
-- **Local-first sync** — IndexedDB autosave, optimistic Supabase sync, conflict
-  copies, hard per-user quota (default 10 MiB combined)
-- **Toasts** — short action outcomes appear bottom-right: clipboard copies
-  (Publish check, essay Copy, Cite, Notes), Files move/restore/delete,
-  Notes refresh, Cite/Zotero, import/export, reader extract, GitHub
-  push, and Settings actions (token tests, saves, storage cleanup).
-  Technical dumps hide behind Details. Field validation in Settings
-  stays next to the control.
-- **Research surfaces** — pop-out documents, link hover/Pin, cloud Library
-  (PDFs + site bookmarks under quota; bookmark or cite from hover/pin),
-  publication Preview, pre-publish link/image check, image compress +
-  Storage upload with progress, clearer errors, alt text on the selected
-  figure, broken-image cards, combined quota accounting, and zip export
-  that bundles owned assets
-- **Optional fetch(bible)** — off until enabled under Settings → Integrations.
-  Highlights English scripture references in the essay (plain text in
-  markdown), hover-previews the Berean Standard Bible, and opens a pinned
-  [fetch.bible](https://fetch.bible/) reader with chapter/verse search.
-  Publication preview can also linkify references.
-- **Optional AI** — BYOK Anthropic / OpenAI keys (device-local), sidebar chat with
-  canned actions (critique / tighten / title / expand), selection context,
-  streaming replies, model picker, smarter Apply (diff / patch), and
-  import cleanup assist
-- **Export / import** — Copy → Rich text is the same formatted paste as
-  selecting the essay and copying; Copy → Markdown copies source; Copy → HTML
-  pastes publication HTML (readable plain text as fallback, not markdown).
-  Prepare
-  publish opens Cleanup → Publish for footnote copy formats (bracketed [1]
-  markers, superscripts + Notes, or linked HTML endnotes). Pasting HTML
-  cannot recreate native footnotes on other editors; Cleanup → Publish can
-  copy `[1]` markers plus a helper script that runs in the Substack editor.
-  Download `.md` or `.html`; PDF (print) uses the
-  browser Save as PDF dialog; optional Word `.docx` and PDF via Pandoc
-  (`PANDOC_PATH`, plus a PDF engine such as `xelatex`). Import markdown or
-  `.docx` / `.odt` from the Files panel. Convert Case, superscript,
-  subscript, inline code, Code block, and Poetry (indents and close line breaks) live under toolbar **Aa+** (reorder
-  under Settings → Editor). Clean
-  whitespace (joins Shift-Enter / PDF wraps to spaces and keeps paragraph
-  breaks) and punctuation normalize (Chicago/MLA dashes, smart quotes)
-  handle messy pastes.
-- **GitHub backup** — optional push (device-local PAT). Map a folder to a
-  repo path or a document to a `.md` file (`README.md`, `drafts/new-essay.md`)
-  from Files → GitHub, or map the open essay under Essay settings → GitHub.
-  Essay maps must end in `.md` so a folder is never replaced by a file.
-  If the `.md` path does not exist yet, the first push creates it; later
-  pushes overwrite that file. Matching files are overwritten, extras in
-  the repo are left alone. Pull is explicit: you review a diff and
-  confirm before the editor is replaced. Mapped items show a GitHub badge
-  (green if the path exists, orange if it is new or git moved it, slash if
-  it was moved or deleted).
-  If you `git mv` a mapped file outside BlogIDE, push warns instead of
-  silently recreating the old path (which would duplicate it). Refreshing
-  BlogIDE never imports a second essay from GitHub; if two Files entries
-  share a name, they already existed in the workspace (or are a sync
-  conflict copy). Supabase stays the source of truth.
-- **Find / replace** — magnifying glass / Ctrl+F with soft highlights (Enter
-  steps matches); sticky find-in-selection; searches footnote bodies; scrolls
-  the active match into view;   regex and headings-only scope; Ω special
-  characters insert into the focused field (title, subtitle, metadata,
-  find/replace)
-- **Optional vault** — one free encrypted folder per account. Titles and
-  essay bodies are encrypted in the browser before they are stored. The
-  passphrase is not your sign-in password; a recovery code is shown once
-  at create. Images in vault essays are stored unencrypted. GitHub and zip
-  skip vault essays while locked (GitHub can include them only when
-  unlocked, the toggle is on, and the repo is private).
-- **Cleanup** (broom) — pinnable tabbed panel: Import (fix footnotes), Text,
-  Punctuation, and Publish (footnote copy formats, Substack native footnote
-  helper, link/image check); Clean whitespace joins Shift-Enter /
-  PDF wraps to spaces and keeps blank lines; paste collapses extra empty
-  paragraphs; Convert Case, superscript, subscript, inline code, and Code
-  block live under toolbar **Aa+**; Cite is separate; paste or
-  drag-drop images into the essay
+**Writing.** A rich-text editor over plain Markdown, with a source toggle
+that round-trips byte for byte. Footnotes are first-class: sidenotes or
+anchored notes, drag-to-pin cards, and a deleted-note archive. Also math,
+tables, poetry blocks, find and replace (regex and in-selection), a writing
+check, and focus mode.
 
-## Stack
+**Research.** A Library panel for saved links, PDFs and BibTeX, with Zotero
+search, citations, and a list of every source the essay still cites. Link hover previews can be pinned open next to the draft. Notes
+channels hold quick captures, optionally fed from Pushbullet or ntfy.
 
-Next.js, TypeScript, Tailwind CSS, TipTap, Supabase, and IndexedDB. GitHub
-backup and model APIs are optional. See [ARCHITECTURE.md](./ARCHITECTURE.md)
-for boundaries, persistence, quota, and the repository map. Differences from
-GFM (frontmatter, captions, footnotes, math/tables) are summarized in
-[docs/MARKDOWN_SPEC.md](./docs/MARKDOWN_SPEC.md). Copying HTML and Markdown,
-and preparing footnotes for other editors, is covered in
-[docs/PUBLISH_EXPORT.md](./docs/PUBLISH_EXPORT.md).
+**Publishing.** Copy as rich text, Markdown or HTML. A Cleanup panel fixes
+messy pastes, checks links and images before you publish, and formats
+footnotes for editors that can't take them natively (including a Substack
+helper). Export to `.md`, `.html`, zip or PDF (print); Word and Pandoc PDF
+when [Pandoc](#word-and-pdf-export-pandoc) is available.
 
-## Getting started
+**Your files.** Every edit saves to the browser first (IndexedDB) and syncs
+to Supabase, with conflict copies and per-document version history.
+Optional GitHub backup maps folders or essays to paths in a repo, and an
+optional vault folder encrypts essays in the browser before they're stored.
 
-### 1. Create / open a Supabase project
+**Optional AI.** Bring your own Anthropic or OpenAI key (kept on the
+device) for a chat sidebar that can critique, tighten, or rewrite a
+selection and apply the change as a diff.
 
-Use any Supabase project you control (hosted or self-hosted).
+It also installs as an app (PWA): long-press the icon for Notes, AI or
+Library, or share a link to BlogIDE from another app to save it to the
+Library.
 
-1. In the Supabase dashboard **SQL Editor**, run the full [`supabase/schema.sql`](./supabase/schema.sql) (or the matching file under `supabase/migrations/`).  
-   **Existing projects:** re-run this file after pulling schema updates — it is additive (`IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`) and creates `workspace_nodes`, `documents`, quota columns, Trash (`system_key`), and move/delete RPCs.
-2. Seed a beta access code (pick any string you want):
+Built with Next.js, TypeScript, TipTap and Supabase.
 
-```sql
-insert into beta_codes (code) values ('YOUR-CODE-HERE');
-```
+## Self-hosting
 
-Codes are single-use: once redeemed at signup they are marked with `redeemed_by` / `redeemed_at`.
-3. Under **Project Settings → API**, copy:
-   - Project URL
-   - **Publishable** key (or legacy `anon`) for the browser
-   - **Secret** key (or legacy `service_role`) for the server only — never put this in client code or commit it
-4. Under **Authentication → URL Configuration**, set the Site URL to
-   `http://localhost:3000` for local work (production: `https://blogide.com`).
-   Add Redirect URLs for `/auth/confirm` and `/reset/confirm` (or
-   `https://your-host/**`). For reliable password reset, also update the
-   **Reset password** email template — see
-   [docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md#password-reset-email).
+You need a Supabase project (hosted or self-hosted) and either Docker or
+Node.js 22.
 
-### 2. Configure the environment
+### 1. Set up Supabase
+
+1. In the Supabase **SQL Editor**, run [`supabase/schema.sql`](./supabase/schema.sql).
+   It is additive, so re-run it after pulling schema changes.
+2. Under **Authentication → URL Configuration**, set the Site URL to where
+   BlogIDE will run (for example `http://localhost:3000`) and add
+   `/auth/confirm` and `/reset/confirm` as redirect URLs (or `https://your-host/**`).
+3. Under **Project Settings → API**, copy the project URL, the publishable
+   (anon) key and the secret (service role) key.
+
+### 2. Configure
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env
 ```
 
-Edit `.env.local` (gitignored — keep secrets here, not in the README):
+Fill in the three Supabase values. Keep the secret key out of client code
+and out of git (`.env*` is gitignored).
+
+### 3a. Run with Docker
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-or-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-secret-or-service-role-key
+docker compose up -d --build
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` is used by the signup API route (and beta-code
-redemption when invite-only). **Self-host:** leave `NEXT_PUBLIC_HOSTED` and
-`NEXT_PUBLIC_BETA_ONLY` unset — open signup, no beta field, large soft quota.
-**Shared hosted / invite-only:** set both `NEXT_PUBLIC_HOSTED=true` and
-`NEXT_PUBLIC_BETA_ONLY=true`, then redeploy (`NEXT_PUBLIC_*` is build-time).
-Details: [docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md).
+BlogIDE is then at http://localhost:3000 (change the port with
+`BLOGIDE_PORT`). The image includes Pandoc and Typst, so Word import/export
+and Pandoc PDF export work with no extra setup.
 
-Add the same variables in Vercel (Production + Preview as needed) and **redeploy** after saving.
+`NEXT_PUBLIC_*` values are compiled into the browser bundle, so rebuild
+(`docker compose up -d --build`) after changing any of them. Other
+variables only need a restart.
 
-### CI migrations (optional)
-
-On every push to `main`, CI can apply new files under [`supabase/migrations/`](./supabase/migrations/) with `supabase db push` after tests pass. Add these **GitHub repository secrets** (Settings → Secrets and variables → Actions):
-
-| Secret | Where to get it |
-| --- | --- |
-| `SUPABASE_ACCESS_TOKEN` | [Account → Access Tokens](https://supabase.com/dashboard/account/tokens) |
-| `SUPABASE_PROJECT_ID` | Project Settings → General → Reference ID |
-| `SUPABASE_DB_PASSWORD` | Project Settings → Database → Database password |
-
-Without those secrets the migrate job skips (tests still run). First-time projects should still run [`supabase/schema.sql`](./supabase/schema.sql) once (or let the migration history catch up via `db push`).
-
-### 3. Run
+### 3b. Run with Node
 
 ```bash
 npm install
-npm run dev
+npm run dev          # or: npm run build && npm start
 ```
 
-Open http://localhost:3000 → **Sign up** → create an account (no beta code on
-self-host). On first editor load, BlogIDE seeds `essays/`, `drafts/`,
-`welcome.md`, and a pinned `scratchpad.md`. Those are ordinary files: rename
-or trash them and they stay gone. Later loads only keep the `Notes` and
-`Trash` sections (and a Notes channel if none remain).
-Edits save to IndexedDB immediately and sync to
-Supabase. On a phone, the header switches between four full-screen views
-(Editor, Notes, AI, Library), with Files in a slide-over drawer; on desktop they
-are dockable panels. Installed as an app, long-press the icon for Notes / AI /
-Library shortcuts, or share a link to BlogIDE to save it to your Library. Optional: Settings →
-Integrations for Pushbullet or ntfy capture into Notes channels. Those tokens
-are encrypted on your account (paste them in Settings, never in a chat).
+Without Supabase credentials the app runs in an unauthenticated preview
+mode: the editor works, with no sign-in or cloud sync.
 
-Optional: open **Account settings** to set a profile photo, display name, a
-GitHub backup repo (PAT stays on the device), or paste Anthropic / OpenAI keys
-for the AI sidebar (keys stay on the device; requests go through a thin proxy).
+### Word and PDF export (Pandoc)
 
-Self-host Word export/import (and optional Pandoc PDF) by installing Pandoc
-and setting `PANDOC_PATH` (for example `/usr/bin/pandoc`) in `.env.local`.
-PDF also needs a PDF engine (`PANDOC_PDF_ENGINE=xelatex`, or WeasyPrint /
-Typst on PATH). Export → PDF (print) works without Pandoc. Details:
-[docs/PUBLISH_EXPORT.md](./docs/PUBLISH_EXPORT.md).
+Export → PDF (print) works everywhere through the browser. Word
+(`.docx`) export and import, and PDF generated on the server, need
+[Pandoc](https://pandoc.org/). The Docker image already has it. On a Node
+host, install Pandoc and a PDF engine (Typst, xelatex or WeasyPrint), then
+set:
 
 ```bash
-npm test   # round-trip + footnote/import suites
+PANDOC_PATH=/usr/bin/pandoc
+PANDOC_PDF_ENGINE=typst
 ```
 
-> Without real Supabase credentials, the app runs in an unauthenticated **preview mode**: auth is skipped and `/editor` shows the shell without cloud sync.
+Vercel doesn't provide Pandoc, so on a Vercel deploy those features stay
+off. See [docs/PUBLISH_EXPORT.md](./docs/PUBLISH_EXPORT.md).
 
-## Security notes
+### Applying migrations from CI (optional)
 
-See [SECURITY.md](./SECURITY.md). Setup, testing, and pull-request guidance
-live in [CONTRIBUTING.md](./CONTRIBUTING.md).
+On pushes to `main`, CI can run `supabase db push` to apply new files in
+[`supabase/migrations/`](./supabase/migrations/). Add these repository
+secrets to turn it on (without them the step is skipped):
+`SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_ID` (the project reference ID)
+and `SUPABASE_DB_PASSWORD`.
+
+### Running a shared instance
+
+Self-host installs have open signup and no billing. For a shared,
+invite-only deploy like blogide.com (beta codes, storage tiers), see
+[docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md).
+
+## Docs
+
+- [ARCHITECTURE.md](./ARCHITECTURE.md): system boundaries, sync, quota, repo map
+- [docs/MARKDOWN_SPEC.md](./docs/MARKDOWN_SPEC.md): how BlogIDE's Markdown differs from GFM
+- [docs/PUBLISH_EXPORT.md](./docs/PUBLISH_EXPORT.md): copy formats, footnotes on other platforms, Pandoc
+- [CONTRIBUTING.md](./CONTRIBUTING.md): setup, tests, pull requests
+- [SECURITY.md](./SECURITY.md): reporting vulnerabilities
+- [PRIVACY.md](./PRIVACY.md)
 
 ## Support
 
-If BlogIDE is useful, you can support development through
+If BlogIDE is useful to you, you can support development through
 [Buy Me a Coffee](https://buymeacoffee.com/andresjmorales).
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT. See [LICENSE](./LICENSE).

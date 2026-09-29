@@ -11,8 +11,8 @@ import { readBodyCapped, safePublicFetch } from "@/lib/preview/ssrf";
  *
  * 1. Remote images are downloaded by us through the SSRF-checked fetcher and
  *    rewritten to files in the job's temp dir.
- * 2. A Lua filter drops every other image and all raw TeX / risky raw HTML,
- *    so pandoc never reads or fetches anything else.
+ * 2. A Lua filter drops every other image and all raw TeX / Typst / risky
+ *    raw HTML, so pandoc never reads or fetches anything else.
  * 3. PDF engines run with kpathsea's paranoid file access (no absolute paths
  *    or `..`) and shell escape off, which also covers math.
  */
@@ -48,7 +48,7 @@ local risky_html = { "file:", "src", "href", "url(", "@import", "<link",
 
 local function drop_raw(el)
   local format = el.format:lower()
-  if format:match("tex") then return {} end
+  if format:match("tex") or format == "typst" then return {} end
   if format == "html" or format == "html5" then
     local text = el.text:lower()
     for _, needle in ipairs(risky_html) do

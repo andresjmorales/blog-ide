@@ -18,6 +18,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Docker builds set NEXT_OUTPUT=standalone for a self-contained server.js;
+  // Vercel and `npm run build` keep the default output.
+  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
   transpilePackages: [
     "@gracious.tech/fetch-client",
     "@gracious.tech/bible-references",
