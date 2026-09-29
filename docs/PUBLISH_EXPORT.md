@@ -181,6 +181,10 @@ paragraphs (`\sqrt[3]{x}`).
 
 Self-host only. Typical Vercel images do not include the binary.
 
+The Docker image (`docker compose up`, see the README) ships Pandoc 3.8 and
+Typst with `PANDOC_PATH` and `PANDOC_PDF_ENGINE=typst` already set, so
+nothing below is needed there. On a Node host:
+
 ```bash
 # Debian/Ubuntu
 sudo apt install pandoc texlive-xetex   # Word + PDF (xelatex)

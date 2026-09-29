@@ -5,4 +5,4 @@
 export const PRODUCT_NAME = "BlogIDE";
 
 export const PRODUCT_DESCRIPTION =
-  "An IDE for writing blogs and essays: a cross between a rich WYSIWYG editor and a second brain, with first-class footnotes, autosave, a project-style workspace, and optional AI. Markdown-native, local-first, MIT licensed, and self-hostable by design.";
+  "A writing IDE for essays and blog posts, with a research pad beside the draft: footnotes, a source library, citations, and quick notes. Plain Markdown, local-first autosave, optional AI. Open source and self-hostable.";

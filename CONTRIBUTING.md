@@ -13,7 +13,8 @@ markdown format are preferred.
    editor runs in preview mode. Pushes to `main` can apply
    `supabase/migrations/` automatically when the CI secrets in the README
    are configured.
-4. Start the app with `npm run dev`.
+4. Start the app with `npm run dev`. To try the production Docker image
+   instead, run `docker compose up --build` (it reads `.env`).
 
 ## Before submitting a change
 

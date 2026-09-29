@@ -1,0 +1,16 @@
+.git
+.github
+.next
+.vercel
+.local
+node_modules
+coverage
+public/vendor/harper/*.wasm
+.env*
+!.env.example
+npm-debug.log*
+*.tsbuildinfo
+next-env.d.ts
+Dockerfile
+compose.yaml
+.dockerignore

@@ -73,8 +73,8 @@ export function HostingOptions({
           <h2 className="mb-1 text-lg font-semibold">Self-host</h2>
           <p className="mb-3 text-sm font-medium text-accent">$0</p>
           <p className="mb-4 flex-1 text-sm text-muted leading-relaxed">
-            Full product on your own Supabase + Next.js deploy. Your data, your
-            keys, no BlogIDE subscription.
+            Full product with Docker or any Node host, on your own Supabase
+            project. Your data, your keys, no BlogIDE subscription.
           </p>
           <a
             href={REPO_URL}
