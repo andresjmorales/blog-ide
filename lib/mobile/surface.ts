@@ -4,7 +4,7 @@
  */
 export type MobileSurface = "editor" | "notes" | "ai" | "library";
 
-/** What a phone lands on at launch (Settings → Editor → Start on phone). */
+/** What a phone lands on at launch (Settings → Editor → Phone → Start on). */
 export type MobileStartSurface = "last" | "editor" | "notes";
 
 export const MOBILE_SURFACES: readonly MobileSurface[] = [

@@ -39,7 +39,7 @@ export type CreateExtensionsOptions = {
   markdownTypingShortcuts?: MarkdownTypingShortcuts;
   /**
    * TipTap Typography + Docs-style smart quotes. Default true.
-   * Cleanup punctuation is a separate pass.
+   * Copyedit (toolbar) is the separate pass for existing text.
    */
   typography?: boolean;
   /** @deprecated Use `typography`. */

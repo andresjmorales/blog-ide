@@ -30,7 +30,7 @@ type Draft = {
   style: CiteStyleId;
 };
 
-function initialStyle(dashStyle: "chicago" | "mla" | undefined): CiteStyleId {
+function initialStyle(dashStyle: "chicago" | "mla" | "ap" | undefined): CiteStyleId {
   if (typeof window !== "undefined") {
     try {
       if (localStorage.getItem("blogide.zotero.style")) {

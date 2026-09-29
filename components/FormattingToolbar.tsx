@@ -30,7 +30,7 @@ import { BlockquoteIcon } from "@/components/tiptap-icons/blockquote-icon";
 import { Undo2Icon } from "@/components/tiptap-icons/undo2-icon";
 import { Redo2Icon } from "@/components/tiptap-icons/redo2-icon";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
-import { CleanupToolbarButton } from "@/components/CleanupDialog";
+import { CopyeditToolbarButton } from "@/components/CopyeditDialog";
 import { FormattingOverflowMenu } from "@/components/FormattingOverflowMenu";
 import { HeadingStyleMenu } from "@/components/HeadingStyleMenu";
 import { ImageInsertMenu } from "@/components/ImageInsertMenu";
@@ -552,7 +552,7 @@ function ToolbarItem({
       if (!handlers.onOpenCleanup) return null;
       return (
         <span data-toolbar-slot="cleanup">
-          <CleanupToolbarButton
+          <CopyeditToolbarButton
             open={handlers.cleanupOpen}
             onOpen={handlers.onOpenCleanup}
           />

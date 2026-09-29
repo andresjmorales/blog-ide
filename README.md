@@ -17,10 +17,14 @@ check, and focus mode.
 search, citations, and a list of every source the essay still cites. Link hover previews can be pinned open next to the draft. Notes
 channels hold quick captures, optionally fed from Pushbullet or ntfy.
 
-**Publishing.** Copy as rich text, Markdown or HTML. A Cleanup panel fixes
-messy pastes, checks links and images before you publish, and formats
-footnotes for editors that can't take them natively (including a Substack
-helper). Export to `.md`, `.html`, zip or PDF (print); Word and Pandoc PDF
+**Copyedit.** A formatting check (quotes, dashes, spacing, repeated words)
+with one-click fixes, a dash converter for house style, AI proofread and
+consistency passes you review fix by fix, and repairs for messy pastes.
+
+**Publishing.** Copy as rich text, Markdown or HTML. The Publish panel walks
+through Substack (native footnotes via a helper, title and subtitle), formats
+footnotes for editors that can't take them natively, and checks links and
+images before you publish. Export to `.md`, `.html`, zip or PDF (print); Word and Pandoc PDF
 when [Pandoc](#word-and-pdf-export-pandoc) is available.
 
 **Your files.** Every edit saves to the browser first (IndexedDB) and syncs

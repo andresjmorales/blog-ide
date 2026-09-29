@@ -8,8 +8,12 @@ import {
   type Toast,
 } from "@/lib/ui/toast";
 
+/** Stable server snapshot (a fresh [] each call makes React loop). */
+const NO_TOASTS: Toast[] = [];
+const getServerToasts = () => NO_TOASTS;
+
 export function ToastHost() {
-  const toasts = useSyncExternalStore(subscribeToasts, getToasts, () => []);
+  const toasts = useSyncExternalStore(subscribeToasts, getToasts, getServerToasts);
   if (toasts.length === 0) return null;
   return (
     <div className="blogide-toasts" aria-label="Notifications">

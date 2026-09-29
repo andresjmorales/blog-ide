@@ -95,7 +95,7 @@ is stripped, the footnote bodies still read correctly.
 ## Hard breaks and paste whitespace
 
 **Shift-Enter** inserts a GFM hard line break (`  \n` / `<br>`), not a
-paragraph. Convert case keeps that break. Clean whitespace (Cleanup → Text)
+paragraph. Convert case keeps that break. Join lines (Copyedit → Import fixes)
 turns those single newlines into spaces and keeps true paragraph breaks
 (blank lines), collapsing extra empty lines to one.
 
@@ -212,7 +212,7 @@ The right pane is a **read-only** TipTap surface (not a second editor).
 
 **Pinned / floating chrome while in split or markdown-only**
 
-- **Stays** (workspace-level): Cleanup dialog, Essay settings, Version history,
+- **Stays** (workspace-level): Copyedit and Publish panels, Essay settings, Version history,
   essay Pop-outs, Shell dock, overflow menu
 - **Goes away** (unmounted with WYSIWYG): pinned footnote cards, link edit
   bubble, find panel, citation dialog, shortcut cheatsheet — reopen after

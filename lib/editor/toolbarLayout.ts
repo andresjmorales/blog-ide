@@ -68,7 +68,7 @@ export const TOOLBAR_ITEM_LABELS: Record<ToolbarItemId, string> = {
   footnote: "Footnote",
   cite: "Cite",
   find: "Find",
-  cleanup: "Cleanup",
+  cleanup: "Copyedit",
 };
 
 /** Items that render as their own menus rather than a single toggle. */

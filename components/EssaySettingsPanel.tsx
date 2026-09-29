@@ -254,7 +254,7 @@ function EssaySettingsDialog({
                   info={
                     !effectiveEnabled
                       ? spellcheckOverride === null && !prefs.spellcheckEnabled
-                        ? "Writing check is off for this essay (Settings default). Turn it on here or under Settings → Editor."
+                        ? "Writing check is off for this essay (Settings default). Turn it on here or under Settings → Writing check."
                         : "Writing check is off for this essay."
                       : `English dialect for Harper (on-device spelling + grammar). Selecting a dialect makes it primary.${
                           inheritingLangs
@@ -330,7 +330,7 @@ function EssaySettingsDialog({
                     <SettingsInfo text="Red underlines are spelling/typos; blue are grammar and style. Click an underline for suggestions, or add a spelling to your dictionary. Runs locally in your browser (WASM)." />
                   </p>
                   <p className="settings-help">
-                    Issue types and your dictionary are under Settings → Editor
+                    Issue types and your dictionary are under Settings → Writing check
                     and apply to every essay.
                   </p>
                 </>

@@ -18,8 +18,8 @@ import {
 import { toggleSpellcheckLanguage } from "@/lib/markdown/spellcheckFrontmatter";
 import { ToolbarLayoutEditor } from "@/components/ToolbarLayoutEditor";
 
-/** Workspace-wide markdown typing and view prefs. */
-export function MarkdownPrefsSection() {
+/** Settings → Editor: typing, footnotes, views, and phone. */
+export function EditorPrefsSection() {
   const { prefs, updatePrefs } = useEditorPrefs();
 
   return (
@@ -30,7 +30,7 @@ export function MarkdownPrefsSection() {
           <SettingsLabel
             info="Auto-transforms while typing in rich text. Conservative keeps lists, headings, and code shortcuts. Full also wraps bold, italic, and strike, and starts blockquotes or horizontal rules from markdown punctuation. Toolbar formatting always works."
           >
-            Shortcuts
+            Markdown shortcuts
           </SettingsLabel>
           <select
             value={prefs.markdownTypingShortcuts}
@@ -47,15 +47,43 @@ export function MarkdownPrefsSection() {
         </div>
         <div className="settings-row">
           <SettingsLabel
-            info="While typing: curly quotes, em dashes from --, ellipsis, arrows, and a few symbols. Backspace or Ctrl+Z right after a replacement restores what you typed. Cleanup → Punctuation is a separate pass on a selection."
+            info="While typing: curly quotes, a dash from --, ellipsis, arrows, and a few symbols. Backspace or Ctrl+Z right after a replacement restores what you typed. To fix text that's already there (a paste, an import), use Copyedit on the toolbar."
           >
-            Typography
+            Smart typography
           </SettingsLabel>
           <input
             type="checkbox"
             checked={prefs.typography}
             onChange={(event) =>
               updatePrefs({ typography: event.target.checked })
+            }
+          />
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <h3>Footnotes</h3>
+        <div className="settings-row">
+          <SettingsLabel info="Open the footnote editor card when the pointer rests on a superscript.">
+            Open footnote on hover
+          </SettingsLabel>
+          <input
+            type="checkbox"
+            checked={prefs.footnoteOpenOnHover}
+            onChange={(event) =>
+              updatePrefs({ footnoteOpenOnHover: event.target.checked })
+            }
+          />
+        </div>
+        <div className="settings-row">
+          <SettingsLabel info="Include footnote text in the outline's word count, character counts, and reading time. Also toggled at the bottom of the outline.">
+            Count footnotes in word count
+          </SettingsLabel>
+          <input
+            type="checkbox"
+            checked={prefs.wordCountFootnotes}
+            onChange={(event) =>
+              updatePrefs({ wordCountFootnotes: event.target.checked })
             }
           />
         </div>
@@ -90,12 +118,45 @@ export function MarkdownPrefsSection() {
           />
         </div>
       </section>
+
+      <section className="settings-section">
+        <h3>Phone</h3>
+        <div className="settings-row">
+          <SettingsLabel
+            info="Which screen a phone-sized window opens to. Switch any time from the Editor / Notes / AI / Library buttons in the header. Home-screen shortcuts open their own screen regardless."
+          >
+            Start on
+          </SettingsLabel>
+          <select
+            value={prefs.mobileStartSurface}
+            onChange={(event) =>
+              updatePrefs({
+                mobileStartSurface: event.target.value as MobileStartSurface,
+              })
+            }
+          >
+            <option value="last">Last used (default)</option>
+            <option value="editor">Editor</option>
+            <option value="notes">Notes</option>
+          </select>
+        </div>
+      </section>
     </>
   );
 }
 
-/** Workspace-wide editor, writing-check, and phone prefs. */
-export function EditorPrefsSection() {
+/** Settings → Toolbar. */
+export function ToolbarPrefsSection() {
+  return (
+    <section className="settings-section">
+      <h3>Toolbar</h3>
+      <ToolbarLayoutEditor />
+    </section>
+  );
+}
+
+/** Settings → Writing check: Harper dialects, issue types, dictionary. */
+export function WritingCheckPrefsSection() {
   const { prefs, updatePrefs } = useEditorPrefs();
   const defaultLangs = prefs.spellcheckLanguages;
   const primary = defaultLangs[0] ?? "en-US";
@@ -118,45 +179,12 @@ export function EditorPrefsSection() {
 
   return (
     <section className="settings-section">
-      <h3>Toolbar</h3>
-      <ToolbarLayoutEditor />
-      <h3>Writing</h3>
-      <div className="settings-row">
-        <SettingsLabel info="Open the footnote editor card when the pointer rests on a superscript.">
-          Open footnote on hover
-        </SettingsLabel>
-        <input
-          type="checkbox"
-          checked={prefs.footnoteOpenOnHover}
-          onChange={(event) =>
-            updatePrefs({ footnoteOpenOnHover: event.target.checked })
-          }
-        />
-      </div>
+      <h3>Spelling and grammar</h3>
       <div className="settings-row">
         <SettingsLabel
-          info="Which screen a phone-sized window opens to. Switch any time from the Editor / Notes / AI / Library buttons in the header. Home-screen shortcuts open their own screen regardless."
+          info="On-device English spelling and grammar via Harper. Nothing leaves your browser. Override per essay under Essay settings. For punctuation, dash style, and AI proofreading, use Copyedit on the toolbar."
         >
-          Start on phone
-        </SettingsLabel>
-        <select
-          value={prefs.mobileStartSurface}
-          onChange={(event) =>
-            updatePrefs({
-              mobileStartSurface: event.target.value as MobileStartSurface,
-            })
-          }
-        >
-          <option value="last">Last used (default)</option>
-          <option value="editor">Editor</option>
-          <option value="notes">Notes</option>
-        </select>
-      </div>
-      <div className="settings-row">
-        <SettingsLabel
-          info="On-device English spelling and grammar via Harper. First selected dialect is primary. Override per essay under Essay settings. Turn off issue types you do not want, and add words to a dictionary shared across every essay."
-        >
-          Writing check
+          Underline issues while writing
         </SettingsLabel>
         <input
           type="checkbox"
@@ -166,8 +194,13 @@ export function EditorPrefsSection() {
           }
         />
       </div>
-      {prefs.spellcheckEnabled && (
+      {prefs.spellcheckEnabled ? (
         <>
+          <p className="settings-section-subhead">
+            <SettingsLabel info="The first selected dialect is primary.">
+              Dialects
+            </SettingsLabel>
+          </p>
           <div className="spellcheck-langs is-detailed">
             {HARPER_LANGUAGE_OPTIONS.map((option) => {
               const checked = defaultLangs.includes(option.code);
@@ -201,9 +234,13 @@ export function EditorPrefsSection() {
             })}
           </div>
           <HarperIssueTypeToggles />
-          <HarperDictionaryField />
         </>
+      ) : (
+        <p className="settings-help">
+          Turn this on to pick dialects and issue types.
+        </p>
       )}
+      <HarperDictionaryField />
     </section>
   );
 }
