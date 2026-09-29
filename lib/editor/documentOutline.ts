@@ -59,7 +59,10 @@ export function outlineSnapshotsEqual(
     left.characters === right.characters &&
     left.charactersNoSpaces === right.charactersNoSpaces &&
     left.paragraphs === right.paragraphs &&
-    left.headings === right.headings
+    left.headings === right.headings &&
+    left.footnotes.words === right.footnotes.words &&
+    left.footnotes.characters === right.footnotes.characters &&
+    left.footnotes.charactersNoSpaces === right.footnotes.charactersNoSpaces
   );
 }
 

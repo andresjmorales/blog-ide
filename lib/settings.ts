@@ -42,6 +42,8 @@ export type EditorPrefs = {
   sidenoteLayout?: SidenoteLayout;
   /** Open the footnote editor card on superscript hover. */
   footnoteOpenOnHover?: boolean;
+  /** Include footnote bodies in the outline word count. */
+  wordCountFootnotes?: boolean;
   /**
    * Reserved: OG chrome on the link edit bubble (Open / Pin and read here / Library).
    * Currently always on in DocumentEditor; pref kept for future toggle.
@@ -117,6 +119,7 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   sidenotes: true,
   sidenoteLayout: "sticky",
   footnoteOpenOnHover: true,
+  wordCountFootnotes: true,
   linkPreviews: false,
   spellcheckEnabled: false,
   spellcheckLanguages: ["en-US"],
