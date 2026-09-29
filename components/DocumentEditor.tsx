@@ -222,6 +222,9 @@ export function DocumentEditor({
     [markdownTypingShortcuts, typography]
   );
 
+  /** Set once the editor mounts; paste/drop hand image files to it. */
+  const insertImageFileRef = useRef<((file: File) => void) | null>(null);
+
   const editor = useEditor(
     {
       // Placeholder is UI-only; it stays out of the shared markdown schema.
@@ -248,6 +251,21 @@ export function DocumentEditor({
           // Browser spellcheck is intentionally off; Harper owns underlines.
           spellcheck: "false",
           lang,
+        },
+        handlePaste(_view, event) {
+          const file = firstImageFile(event.clipboardData?.files);
+          const insert = insertImageFileRef.current;
+          if (!file || !insert) return false;
+          insert(file);
+          return true;
+        },
+        handleDrop(_view, event) {
+          const file = firstImageFile(event.dataTransfer?.files);
+          const insert = insertImageFileRef.current;
+          if (!file || !insert) return false;
+          event.preventDefault();
+          insert(file);
+          return true;
         },
         transformPastedHTML(html) {
           return normalizePastedHtml(transformPastedFootnoteHtml(html));
@@ -376,34 +394,20 @@ export function DocumentEditor({
       });
     }
 
-    function onPaste(event: ClipboardEvent) {
-      const file = firstImageFile(event.clipboardData?.files);
-      if (!file) return;
-      event.preventDefault();
-      event.stopPropagation();
-      void insertFile(file);
-    }
+    // Paste/drop themselves go through editorProps.handlePaste/handleDrop:
+    // a DOM listener here runs after ProseMirror's own handler, which had
+    // already inserted the clipboard's <img> — so every paste made two.
+    insertImageFileRef.current = (file) => void insertFile(file);
 
     function onDragOver(event: DragEvent) {
       if (!firstImageFile(event.dataTransfer?.files)) return;
       event.preventDefault();
     }
 
-    function onDrop(event: DragEvent) {
-      const file = firstImageFile(event.dataTransfer?.files);
-      if (!file) return;
-      event.preventDefault();
-      event.stopPropagation();
-      void insertFile(file);
-    }
-
-    dom.addEventListener("paste", onPaste);
     dom.addEventListener("dragover", onDragOver);
-    dom.addEventListener("drop", onDrop);
     return () => {
-      dom.removeEventListener("paste", onPaste);
+      insertImageFileRef.current = null;
       dom.removeEventListener("dragover", onDragOver);
-      dom.removeEventListener("drop", onDrop);
     };
   }, [editor, dialog]);
 
