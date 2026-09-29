@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -194,6 +195,23 @@ function packDocument(
   return `${fm}\n${body.replace(/^\n+/, "")}`;
 }
 
+/**
+ * Rewrite only the frontmatter block of a raw markdown buffer, leaving the
+ * body byte-for-byte as typed.
+ */
+function replaceSourceFrontmatter(
+  source: string,
+  transform: (frontmatter: string) => string
+): string {
+  const { frontmatter, body } = splitFrontmatter(source);
+  const next = transform(frontmatter);
+  if (next === frontmatter) return source;
+  if (!frontmatter && next && body && !body.startsWith("\n")) {
+    return `${next}\n${body}`;
+  }
+  return next + body;
+}
+
 type Mode = "wysiwyg" | "split" | "source";
 
 function isMarkdownCanonical(mode: Mode): boolean {
@@ -295,6 +313,10 @@ export function DocumentWorkspace({
   const [mode, setMode] = useState<Mode>("wysiwyg");
   const modeRef = useRef(mode);
   const [sourceText, setSourceText] = useState("");
+  const sourceTextRef = useRef(sourceText);
+  useEffect(() => {
+    sourceTextRef.current = sourceText;
+  }, [sourceText]);
   const [outlineOpen, setOutlineOpen] = useState(true);
   /** Outline/sidenotes before entering split/source — restored on exit. */
   const [railsSnapshot, setRailsSnapshot] = useState<{
@@ -335,8 +357,13 @@ export function DocumentWorkspace({
   const prevDocumentNameRef = useRef<string | null | undefined>(documentName);
   const { prefs, updatePrefs } = useEditorPrefs();
   const persistEnabled = isSupabaseConfigured() && !previewMode && !!nodeId;
-  const documentLanguages = parseSpellcheckLangs(frontmatter);
-  const spellcheckOverride = parseSpellcheckOverride(frontmatter);
+  // Split/source: the raw buffer is canonical and `doc` is only refreshed on
+  // the way back to rich text, so settings read the buffer's frontmatter.
+  const liveFrontmatter = isMarkdownCanonical(mode)
+    ? splitFrontmatter(sourceText).frontmatter
+    : frontmatter;
+  const documentLanguages = parseSpellcheckLangs(liveFrontmatter);
+  const spellcheckOverride = parseSpellcheckOverride(liveFrontmatter);
   const spellcheckEnabled = resolveSpellcheckEnabled(
     spellcheckOverride,
     prefs.spellcheckEnabled
@@ -347,7 +374,7 @@ export function DocumentWorkspace({
       : prefs.spellcheckLanguages;
   const spellcheckLang = primaryLang(spellcheckLanguages);
   const essayTitle =
-    parseTitle(frontmatter) ??
+    parseTitle(liveFrontmatter) ??
     (documentName ? fileNameToTitle(documentName) : "Untitled");
   const persistMarkdownRef = useRef<(full: string) => void>(() => {});
   const onRenameRef = useRef(onRenameDocument);
@@ -357,6 +384,30 @@ export function DocumentWorkspace({
   useEffect(() => {
     docRef.current = { frontmatter, subtitle, author, publication, body };
   });
+
+  /**
+   * In split/source, apply a frontmatter edit (Essay settings, Files rename)
+   * to the raw buffer and return it; null in rich text. Packing from `doc`
+   * there would save the body as it was when split view opened, silently
+   * discarding everything typed since.
+   */
+  const rewriteSourceFrontmatter = useCallback(
+    (
+      transform: (frontmatter: string) => string,
+      { persist = true }: { persist?: boolean } = {}
+    ): string | null => {
+      if (!isMarkdownCanonical(modeRef.current)) return null;
+      const current = sourceTextRef.current;
+      const next = replaceSourceFrontmatter(current, transform);
+      if (next !== current) {
+        sourceTextRef.current = next;
+        setSourceText(next);
+        if (persist) persistMarkdownRef.current(next);
+      }
+      return next;
+    },
+    []
+  );
 
   // Reset during render when switching docs so the previous essay never paints /
   // autosaves under the new id (avoids setState-in-effect).
@@ -969,13 +1020,16 @@ export function DocumentWorkspace({
     const fromFile = fileNameToTitle(documentName);
     const timer = window.setTimeout(() => {
       if (loading) return;
+      const retitled = (fm: string) => {
+        const current = parseTitle(fm);
+        if (current === fromFile) return fm;
+        if (current && fileNameMatchesTitle(documentName, current)) return fm;
+        return writeTitle(fm, fromFile);
+      };
+      if (rewriteSourceFrontmatter(retitled) != null) return;
       setDoc((prev) => {
-        const current = parseTitle(prev.frontmatter);
-        if (current === fromFile) return prev;
-        if (current && fileNameMatchesTitle(documentName, current)) {
-          return prev;
-        }
-        const nextFrontmatter = writeTitle(prev.frontmatter, fromFile);
+        const nextFrontmatter = retitled(prev.frontmatter);
+        if (nextFrontmatter === prev.frontmatter) return prev;
         const next = {
           frontmatter: nextFrontmatter,
           subtitle: prev.subtitle,
@@ -996,9 +1050,21 @@ export function DocumentWorkspace({
       });
     }, 0);
     return () => window.clearTimeout(timer);
-      }, [documentName, loading, conflict?.unresolved, inVault]);
+  }, [
+    documentName,
+    loading,
+    conflict?.unresolved,
+    inVault,
+    rewriteSourceFrontmatter,
+  ]);
 
   const setDocumentLanguages = useCallback((languages: string[]) => {
+    if (
+      rewriteSourceFrontmatter((fm) => writeSpellcheckLangs(fm, languages)) !=
+      null
+    ) {
+      return;
+    }
     setDoc((current) => {
       const nextFrontmatter = writeSpellcheckLangs(
         current.frontmatter,
@@ -1022,9 +1088,15 @@ export function DocumentWorkspace({
       );
       return next;
     });
-  }, []);
+  }, [rewriteSourceFrontmatter]);
 
   const setSpellcheckOverride = useCallback((override: SpellcheckOverride) => {
+    if (
+      rewriteSourceFrontmatter((fm) => writeSpellcheckOverride(fm, override)) !=
+      null
+    ) {
+      return;
+    }
     setDoc((current) => {
       const nextFrontmatter = writeSpellcheckOverride(
         current.frontmatter,
@@ -1048,29 +1120,37 @@ export function DocumentWorkspace({
       );
       return next;
     });
-  }, []);
+  }, [rewriteSourceFrontmatter]);
 
   const setEssayTitle = useCallback(
     (title: string) => {
       const cleaned = title.trim() || "Untitled";
-      const current = docRef.current;
-      const nextFrontmatter = writeTitle(current.frontmatter, cleaned);
-      const next = {
-        frontmatter: nextFrontmatter,
-        subtitle: current.subtitle,
-        author: current.author,
-        publication: current.publication,
-        body: current.body,
-      };
-      const packed = packDocument(
-        next.frontmatter,
-        next.subtitle,
-        next.author,
-        next.publication,
-        next.body
+      // Saved directly below (not debounced), so don't queue a persist here.
+      let packed = rewriteSourceFrontmatter(
+        (fm) => writeTitle(fm, cleaned),
+        { persist: false }
       );
-      setDoc(next);
-      docRef.current = next;
+      if (packed == null) {
+        const current = docRef.current;
+        const nextFrontmatter = writeTitle(current.frontmatter, cleaned);
+        const next = {
+          frontmatter: nextFrontmatter,
+          subtitle: current.subtitle,
+          author: current.author,
+          publication: current.publication,
+          body: current.body,
+        };
+        packed = packDocument(
+          next.frontmatter,
+          next.subtitle,
+          next.author,
+          next.publication,
+          next.body
+        );
+        setDoc(next);
+        docRef.current = next;
+      }
+      const savedMarkdown = packed;
       if (nodeId) onExplorerTitleChange?.(nodeId, cleaned);
 
       if (!persistEnabled || !nodeId) return;
@@ -1083,10 +1163,10 @@ export function DocumentWorkspace({
         saveTimer.current = null;
       }
       pendingLocalRef.current = null;
-      lastPersistedRef.current = packed;
+      lastPersistedRef.current = savedMarkdown;
 
       void (async () => {
-        await saveLocal(nodeId, packed, baseVersionRef.current);
+        await saveLocal(nodeId, savedMarkdown, baseVersionRef.current);
 
         if (
           canRenameDocument &&
@@ -1127,6 +1207,7 @@ export function DocumentWorkspace({
       onExplorerTitleChange,
       onRequestTreeRefresh,
       setBaseVersion,
+      rewriteSourceFrontmatter,
     ]
   );
 
@@ -1502,13 +1583,22 @@ export function DocumentWorkspace({
     );
   }
 
-  const sourceLossy = isMarkdownCanonical(mode) && isLossy(sourceText);
-  const lossyDiffLines = sourceLossy
-    ? compactDiff(
-        unifiedLineDiff(sourceText, previewRoundTrip(sourceText)),
-        2
-      )
-    : [];
+  // Markdown-only view's banner. Split view runs its own (debounced) check,
+  // so don't re-parse the whole essay here on every split keystroke.
+  const sourceLossy = useMemo(
+    () => mode === "source" && isLossy(sourceText),
+    [mode, sourceText]
+  );
+  const lossyDiffLines = useMemo(
+    () =>
+      sourceLossy && lossyDiffOpen
+        ? compactDiff(
+            unifiedLineDiff(sourceText, previewRoundTrip(sourceText)),
+            2
+          )
+        : [],
+    [sourceLossy, lossyDiffOpen, sourceText]
+  );
 
   function currentMarkdown(): string {
     flushMarkdownRef.current?.();

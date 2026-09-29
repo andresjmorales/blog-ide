@@ -77,6 +77,18 @@ export function MarkdownPrefsSection() {
             }
           />
         </div>
+        <div className="settings-row">
+          <SettingsLabel info="In split view, scrolling the markdown keeps the preview on the same passage, and the other way round. Also toggled from the split view header.">
+            Sync split view scrolling
+          </SettingsLabel>
+          <input
+            type="checkbox"
+            checked={prefs.markdownSplitSyncScroll ?? true}
+            onChange={(event) =>
+              updatePrefs({ markdownSplitSyncScroll: event.target.checked })
+            }
+          />
+        </div>
       </section>
     </>
   );

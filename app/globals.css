@@ -1432,6 +1432,12 @@ body {
   box-shadow: 0 0 0 1px color-mix(in oklab, #d97706 50%, transparent);
 }
 
+/* Split view: highlights live in a text-transparent mirror behind the
+   markdown textarea, so only the mark backgrounds show through. */
+.source-mirror mark {
+  color: transparent;
+}
+
 .footnote-ref.blogide-find-match,
 .blogide-find-match.is-footnote {
   background: color-mix(in oklab, #eab308 40%, transparent);

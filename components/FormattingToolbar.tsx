@@ -35,6 +35,7 @@ import { FormattingOverflowMenu } from "@/components/FormattingOverflowMenu";
 import { HeadingStyleMenu } from "@/components/HeadingStyleMenu";
 import { ImageInsertMenu } from "@/components/ImageInsertMenu";
 import { ConvertCaseMenu } from "@/components/ConvertCaseMenu";
+import { TexInsertMenu } from "@/components/TexInsertMenu";
 import { PoetryIcon } from "@/components/icons";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 
@@ -518,12 +519,9 @@ function ToolbarItem({
       );
     case "tex":
       return (
-        <ToolButton
-          title="Insert inline math"
-          onClick={() => editor.chain().focus().insertInlineMath("x").run()}
-        >
-          TeX
-        </ToolButton>
+        <span data-toolbar-slot="tex">
+          <TexInsertMenu editor={editor} />
+        </span>
       );
     case "footnote":
       return (

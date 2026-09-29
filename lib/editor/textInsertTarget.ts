@@ -66,6 +66,38 @@ export function insertIntoTextControl(
 }
 
 /**
+ * Replace `[from, to)` in a textarea as if typed, so Ctrl+Z undoes it
+ * (assigning `.value` wipes the native undo stack). Falls back to a plain
+ * value write where `insertText` is unsupported.
+ */
+export function replaceTextControlRange(
+  input: HTMLInputElement | HTMLTextAreaElement,
+  from: number,
+  to: number,
+  text: string
+): void {
+  input.focus({ preventScroll: true });
+  input.setSelectionRange(from, to);
+  let ok = false;
+  try {
+    ok = text
+      ? document.execCommand("insertText", false, text)
+      : document.execCommand("delete", false);
+  } catch {
+    ok = false;
+  }
+  if (ok) return;
+  const value = input.value.slice(0, from) + text + input.value.slice(to);
+  const proto =
+    input instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+  Object.getOwnPropertyDescriptor(proto, "value")?.set?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.setSelectionRange(from + text.length, from + text.length);
+}
+
+/**
  * Returns true if a focused text control or a registered target consumed
  * the insert. Focused inputs/textareas win so title/subtitle work even
  * while Find is mounted.
