@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { generateHTML } from "@tiptap/core";
+import { normalizeChatMathDelimiters, renderChatMath } from "@/lib/ai/chatMath";
 import { unwrapMarkdownReply } from "@/lib/ai/client";
 import { decodeFootnoteValue } from "@/lib/editor/footnote";
 import { createExtensions } from "@/lib/editor/extensions";
@@ -32,15 +33,10 @@ function labelFromId(id: string): string | null {
  * come from the essay the model was given.
  */
 function numberFootnotes(
-  html: string,
+  root: Element,
   essayNotes: Record<string, string> | undefined
-): string {
-  if (!html.includes("footnote-ref") || typeof DOMParser === "undefined") {
-    return html;
-  }
-  const doc = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
-  const root = doc.body.firstElementChild;
-  if (!root) return html;
+): void {
+  if (!root.querySelector("sup.footnote-ref")) return;
   const items: string[] = [];
   const listed = new Set<string>();
   root.querySelectorAll("sup.footnote-ref").forEach((sup, index) => {
@@ -60,7 +56,20 @@ function numberFootnotes(
       items.push(`<li class="is-missing">${marker}(note not found)</li>`);
     }
   });
-  return `${root.innerHTML}<ul class="ai-chat-notes">${items.join("")}</ul>`;
+  root.insertAdjacentHTML("beforeend", `<ul class="ai-chat-notes">${items.join("")}</ul>`);
+}
+
+/** Fill in what static HTML leaves empty: math and footnote numbers. */
+function finishHtml(html: string, essayNotes: Record<string, string> | undefined): string {
+  const needsMath = html.includes("data-inline-math") || html.includes("data-block-math");
+  const needsNotes = html.includes("footnote-ref");
+  if ((!needsMath && !needsNotes) || typeof DOMParser === "undefined") return html;
+  const doc = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
+  const root = doc.body.firstElementChild;
+  if (!root) return html;
+  if (needsMath) renderChatMath(root);
+  if (needsNotes) numberFootnotes(root, essayNotes);
+  return root.innerHTML;
 }
 
 /** Latest value, but updated at most every `ms` while `active`. */
@@ -90,9 +99,9 @@ export function ChatMarkdown({
   const source = useThrottled(markdown, STREAM_RENDER_MS, streaming);
   const html = useMemo(() => {
     try {
-      const text = unwrapMarkdownReply(source);
+      const text = normalizeChatMathDelimiters(unwrapMarkdownReply(source));
       if (!text.trim()) return "";
-      return numberFootnotes(generateHTML(parseBody(text), CHAT_EXTENSIONS), notes);
+      return finishHtml(generateHTML(parseBody(text), CHAT_EXTENSIONS), notes);
     } catch {
       return null;
     }
