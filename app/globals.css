@@ -1989,6 +1989,39 @@ body {
   padding: 0.65rem 0.75rem;
   text-align: center;
 }
+/* Drawn caret before inline math with no text in front of it (browsers
+   don't paint one there). Zero-width so it never shifts the line. */
+.blogide-math-caret {
+  display: none;
+}
+.ProseMirror-focused .blogide-math-caret {
+  display: inline-block;
+  position: relative;
+  width: 0;
+}
+.ProseMirror-focused .blogide-math-caret::after {
+  animation: blogide-math-caret-blink 1.06s steps(1) infinite;
+  border-left: 1.5px solid var(--foreground);
+  content: "";
+  height: 1.15em;
+  left: -1px;
+  position: absolute;
+  top: -0.95em;
+}
+@keyframes blogide-math-caret-blink {
+  50% {
+    visibility: hidden;
+  }
+}
+.blogide-math-hint {
+  color: var(--muted);
+  font-size: 0.72rem;
+  margin: 0;
+}
+.blogide-math-hint kbd {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+}
 .editor-prose a {
   color: var(--accent);
   text-decoration: underline;

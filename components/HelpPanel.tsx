@@ -157,6 +157,14 @@ export function HelpPanel({ open, onClose }: Props) {
               <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd>: footnote
             </li>
             <li>
+              <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> /{" "}
+              <kbd>D</kbd>: inline / display math (turns selected text into
+              math). In the LaTeX box, Enter (inline) or{" "}
+              <kbd>Ctrl</kbd>+<kbd>Enter</kbd> applies and closes; Esc cancels.
+              Pasting <code>$…$</code>, <code>$$…$$</code>, or rendered math
+              inserts it as math.
+            </li>
+            <li>
               <kbd>Ctrl</kbd>+<kbd>F</kbd> / <kbd>H</kbd>: find / replace
               (soft highlights; Enter = next match)
             </li>

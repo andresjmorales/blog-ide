@@ -1,9 +1,12 @@
 import {
+  type Editor,
   Extension,
   Node,
   mergeAttributes,
   type JSONContent,
 } from "@tiptap/core";
+import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import katex from "katex";
 
 /** base64url — same scheme as image captions. */
@@ -32,6 +35,28 @@ export function decodeMath(value: string): string {
   } catch {
     return "";
   }
+}
+
+/** Fenced blocks and inline code spans — never rewrite math inside these. */
+const CODE_RE = /(```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)|`[^`\n]*`)/g;
+
+/**
+ * LaTeX's `\[…\]` / `\(…\)` delimiters (common in AI output and copied
+ * notes) would parse as bare brackets (`\[` is an escaped `[`). Rewrite them
+ * to the `$$…$$` / `$…$` forms `prepareMath` understands, leaving code alone.
+ */
+export function normalizeLatexDelimiters(text: string): string {
+  if (!text.includes("\\[") && !text.includes("\\(")) return text;
+  return text
+    .split(CODE_RE)
+    .map((part, index) => {
+      // Odd indexes are the captured code segments.
+      if (index % 2 === 1) return part;
+      return part
+        .replace(/\\\[([\s\S]+?)\\\]/g, (_raw, latex: string) => `\n$$${latex.trim()}$$\n`)
+        .replace(/\\\(([\s\S]+?)\\\)/g, (_raw, latex: string) => `$${latex.trim()}$`);
+    })
+    .join("");
 }
 
 const BLOCK_MATH_RE = /\$\$([\s\S]+?)\$\$/g;
@@ -139,6 +164,85 @@ export function renderLatexHtml(
   }
 }
 
+/**
+ * Math nodes just inserted by a command: their node view opens the LaTeX
+ * editor with the placeholder selected. Keyed by node identity, which a
+ * ProseMirror insert keeps.
+ */
+const autoOpenNodes = new WeakSet<object>();
+
+/** True once for a node inserted by `insertInlineMath` / `insertBlockMath`. */
+export function takeMathAutoOpen(node: object): boolean {
+  if (!autoOpenNodes.has(node)) return false;
+  // Deferred so StrictMode's double-invoked state initializer sees it too.
+  setTimeout(() => autoOpenNodes.delete(node), 0);
+  return true;
+}
+
+/**
+ * Insert math from a shortcut: the selected text becomes its LaTeX (spaces
+ * around the selection stay in the sentence); otherwise the placeholder.
+ */
+function insertMathFromSelection(editor: Editor, display: boolean): boolean {
+  const { from, to, empty } = editor.state.selection;
+  const raw = empty ? "" : editor.state.doc.textBetween(from, to, " ");
+  const latex = raw.trim();
+  const chain = editor.chain();
+  if (latex && raw.length === to - from) {
+    const lead = raw.length - raw.trimStart().length;
+    const trail = raw.length - raw.trimEnd().length;
+    chain.setTextSelection({ from: from + lead, to: to - trail });
+  }
+  const text = latex || undefined;
+  return (display ? chain.insertBlockMath(text) : chain.insertInlineMath(text)).run();
+}
+
+/**
+ * Browsers can't hold (or draw) a caret right before a non-editable inline
+ * node with no text before it — e.g. math at the start of a line — so arrow
+ * keys bounce past it and there's no way to type in front of it. Step over
+ * inline math explicitly and draw our own caret in that spot.
+ */
+function inlineMathCaretPlugin(typeName: string): Plugin {
+  const isMath = (node: { type: { name: string } } | null | undefined) =>
+    node?.type.name === typeName;
+  return new Plugin({
+    key: new PluginKey("inlineMathCaret"),
+    props: {
+      handleKeyDown(view, event) {
+        if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) {
+          return false;
+        }
+        const { selection } = view.state;
+        if (!selection.empty) return false;
+        const { $from } = selection;
+        let target: number | null = null;
+        if (event.key === "ArrowLeft" && isMath($from.nodeBefore)) {
+          target = $from.pos - 1;
+        } else if (event.key === "ArrowRight" && isMath($from.nodeAfter)) {
+          target = $from.pos + 1;
+        }
+        if (target === null) return false;
+        view.dispatch(
+          view.state.tr.setSelection(TextSelection.create(view.state.doc, target))
+        );
+        return true;
+      },
+      decorations(state) {
+        const { selection } = state;
+        if (!selection.empty) return null;
+        const { $from } = selection;
+        if (!isMath($from.nodeAfter) || $from.nodeBefore?.isText) return null;
+        const caret = document.createElement("span");
+        caret.className = "blogide-math-caret";
+        return DecorationSet.create(state.doc, [
+          Decoration.widget($from.pos, caret, { side: -1, key: "math-caret" }),
+        ]);
+      },
+    },
+  });
+}
+
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
     math: {
@@ -188,15 +292,25 @@ export const InlineMath = Node.create({
     return `$${String(node.attrs?.latex ?? "")}$`;
   },
 
+  addProseMirrorPlugins() {
+    return [inlineMathCaretPlugin(this.name)];
+  },
+
+  addKeyboardShortcuts() {
+    return {
+      "Mod-Shift-e": () => insertMathFromSelection(this.editor, false),
+    };
+  },
+
   addCommands() {
     return {
       insertInlineMath:
         (latex = "x") =>
-        ({ commands }) =>
-          commands.insertContent({
-            type: this.name,
-            attrs: { latex },
-          }),
+        ({ commands }) => {
+          const node = this.type.create({ latex });
+          autoOpenNodes.add(node);
+          return commands.insertContent(node);
+        },
     };
   },
 });
@@ -244,15 +358,21 @@ export const BlockMath = Node.create({
     return `$$\n${latex}\n$$`;
   },
 
+  addKeyboardShortcuts() {
+    return {
+      "Mod-Shift-d": () => insertMathFromSelection(this.editor, true),
+    };
+  },
+
   addCommands() {
     return {
       insertBlockMath:
         (latex = "x^2") =>
-        ({ commands }) =>
-          commands.insertContent({
-            type: this.name,
-            attrs: { latex },
-          }),
+        ({ commands }) => {
+          const node = this.type.create({ latex });
+          autoOpenNodes.add(node);
+          return commands.insertContent(node);
+        },
     };
   },
 });

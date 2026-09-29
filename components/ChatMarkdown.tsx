@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { generateHTML } from "@tiptap/core";
-import { normalizeChatMathDelimiters, renderChatMath } from "@/lib/ai/chatMath";
+import { renderChatMath } from "@/lib/ai/chatMath";
 import { unwrapMarkdownReply } from "@/lib/ai/client";
 import { decodeFootnoteValue } from "@/lib/editor/footnote";
 import { createExtensions } from "@/lib/editor/extensions";
+import { normalizeLatexDelimiters } from "@/lib/editor/math";
 import { parseBody } from "@/lib/markdown/pipeline";
 
 const CHAT_EXTENSIONS = createExtensions();
@@ -99,7 +100,7 @@ export function ChatMarkdown({
   const source = useThrottled(markdown, STREAM_RENDER_MS, streaming);
   const html = useMemo(() => {
     try {
-      const text = normalizeChatMathDelimiters(unwrapMarkdownReply(source));
+      const text = normalizeLatexDelimiters(unwrapMarkdownReply(source));
       if (!text.trim()) return "";
       return finishHtml(generateHTML(parseBody(text), CHAT_EXTENSIONS), notes);
     } catch {

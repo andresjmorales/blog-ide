@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { generateHTML } from "@tiptap/core";
-import { normalizeChatMathDelimiters, renderChatMath } from "@/lib/ai/chatMath";
+import { renderChatMath } from "@/lib/ai/chatMath";
+import { normalizeLatexDelimiters } from "@/lib/editor/math";
 import { createExtensions } from "@/lib/editor/extensions";
 import { parseBody } from "@/lib/markdown/pipeline";
 
 function render(markdown: string): HTMLElement {
   const html = generateHTML(
-    parseBody(normalizeChatMathDelimiters(markdown)),
+    parseBody(normalizeLatexDelimiters(markdown)),
     createExtensions()
   );
   const root = document.createElement("div");
@@ -15,15 +16,15 @@ function render(markdown: string): HTMLElement {
   return root;
 }
 
-describe("normalizeChatMathDelimiters", () => {
+describe("normalizeLatexDelimiters", () => {
   it("rewrites LaTeX delimiters to dollar forms", () => {
-    expect(normalizeChatMathDelimiters("a \\(x^2\\) b")).toBe("a $x^2$ b");
-    expect(normalizeChatMathDelimiters("\\[ E = mc^2 \\]")).toBe("\n$$E = mc^2$$\n");
+    expect(normalizeLatexDelimiters("a \\(x^2\\) b")).toBe("a $x^2$ b");
+    expect(normalizeLatexDelimiters("\\[ E = mc^2 \\]")).toBe("\n$$E = mc^2$$\n");
   });
 
   it("leaves code alone", () => {
     const code = "`\\(x\\)` and\n```\n\\[y\\]\n```";
-    expect(normalizeChatMathDelimiters(code)).toBe(code);
+    expect(normalizeLatexDelimiters(code)).toBe(code);
   });
 });
 

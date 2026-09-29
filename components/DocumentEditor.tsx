@@ -56,6 +56,7 @@ import { primaryLang } from "@/lib/markdown/spellcheckFrontmatter";
 import { EDITOR_WORK_MS } from "@/lib/editor/workSchedule";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
 import { transformPastedFootnoteHtml } from "@/lib/import/footnotePaste";
+import { convertPastedMathHtml } from "@/lib/editor/mathPaste";
 import {
   collapseExtraBlankLines,
   normalizePastedHtml,
@@ -268,7 +269,9 @@ export function DocumentEditor({
           return true;
         },
         transformPastedHTML(html) {
-          return normalizePastedHtml(transformPastedFootnoteHtml(html));
+          return normalizePastedHtml(
+            convertPastedMathHtml(transformPastedFootnoteHtml(html))
+          );
         },
         transformPastedText(text) {
           return collapseExtraBlankLines(text);

@@ -12,6 +12,8 @@ const ROWS: { keys: string; action: string }[] = [
   { keys: "Ctrl+. / ,", action: "Superscript / subscript" },
   { keys: "Ctrl+K", action: "Link" },
   { keys: "Ctrl+Shift+F", action: "Footnote" },
+  { keys: "Ctrl+Shift+E / D", action: "Inline / display math" },
+  { keys: "Ctrl+Enter", action: "Apply & close math (in LaTeX box)" },
   { keys: "Ctrl+F", action: "Find (soft highlights)" },
   { keys: "Ctrl+H", action: "Find & replace" },
   { keys: "Ctrl+\\", action: "Toggle markdown split / rich text" },
