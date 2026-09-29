@@ -14,6 +14,7 @@ import {
   type OverflowItem,
 } from "@/components/EditorOverflowMenu";
 import { CONVERT_CASE_OPTIONS } from "@/components/ConvertCaseMenu";
+import { TEX_INSERT_OPTIONS } from "@/components/TexInsertMenu";
 import { FormattingAaIcon } from "@/components/icons";
 import { promptForLink } from "@/lib/editor/linkShortcut";
 
@@ -299,9 +300,14 @@ function overflowItemsFor(
     case "tex":
       return [
         {
+          kind: "submenu",
           id,
           label: TOOLBAR_ITEM_LABELS[id],
-          onSelect: () => editor.chain().focus().insertInlineMath("x").run(),
+          items: TEX_INSERT_OPTIONS.map((option) => ({
+            id: `tex-${option.id}`,
+            label: `${option.label} ${option.hint}`,
+            onSelect: () => option.run(editor),
+          })),
         },
       ];
     case "footnote":

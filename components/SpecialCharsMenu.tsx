@@ -117,24 +117,6 @@ const GROUPS: CharGroup[] = [
       { label: "¾", insert: "¾", title: "Three quarters" },
     ],
   },
-  {
-    heading: "LaTeX / math markers",
-    items: [
-      {
-        label: "$…$",
-        insert: "$$",
-        title: "Inline math delimiters",
-        wrap: { before: "$", after: "$" },
-      },
-      {
-        label: "$$…$$",
-        insert: "$$$$",
-        title: "Display math delimiters",
-        wrap: { before: "$$", after: "$$" },
-      },
-      { label: "\\", insert: "\\", title: "Backslash (LaTeX command start)" },
-    ],
-  },
 ];
 
 const PANEL_WIDTH = 352;
@@ -362,7 +344,7 @@ export function SpecialCharsMenu({ editor }: { editor: Editor }) {
       <button
         ref={buttonRef}
         type="button"
-        title="Special characters, dashes, accents, LaTeX"
+        title="Special characters, dashes, accents"
         aria-expanded={open}
         aria-haspopup="dialog"
         onMouseDown={(event) => event.preventDefault()}

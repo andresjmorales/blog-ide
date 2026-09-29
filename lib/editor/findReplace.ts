@@ -88,6 +88,29 @@ export function findMatchesInText(
 }
 
 /**
+ * Replacement text for the single match starting at `from` (regex captures
+ * expanded). Null when the pattern no longer matches there.
+ */
+export function replacementAt(
+  haystack: string,
+  from: number,
+  options: FindReplaceOptions
+): { to: number; text: string } | null {
+  const re = buildMatcher(options.query, options.regex, options.caseSensitive);
+  if (!re) return null;
+  const sticky = new RegExp(re.source, re.flags.replace("g", "") + "y");
+  sticky.lastIndex = from;
+  const match = sticky.exec(haystack);
+  if (!match || match[0].length === 0) return null;
+  return {
+    to: from + match[0].length,
+    text: options.regex
+      ? applyReplacement(match, options.replacement)
+      : options.replacement,
+  };
+}
+
+/**
  * Compute replacements for a haystack string (for unit tests / preview).
  * Returns the new string after replace-all.
  */

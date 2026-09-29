@@ -79,6 +79,8 @@ export type EditorPrefs = {
   fetchBibleEnabled?: boolean;
   /** Width (px) of the editable markdown pane in split view. */
   markdownSplitWidth?: number;
+  /** Split view: scrolling either pane keeps the other on the same passage. */
+  markdownSplitSyncScroll?: boolean;
   /**
    * When true, overflow offers “Markdown only” (full-pane source) and narrow
    * viewports may auto-open that mode. Default off: View raw markdown → split.
@@ -124,6 +126,7 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   smartQuotes: true,
   fetchBibleEnabled: false,
   markdownSplitWidth: 480,
+  markdownSplitSyncScroll: true,
   allowMarkdownOnly: false,
   harperDisabledKinds: [],
   harperDictionary: [],
