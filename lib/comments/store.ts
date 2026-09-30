@@ -87,6 +87,18 @@ export function useCommentSession(): CommentSession {
   );
 }
 
+/**
+ * Subscribe to one field. Placements change after every typing pause, so
+ * the editor tree selects only what it needs (return stable values).
+ */
+export function useCommentSessionValue<T>(select: (session: CommentSession) => T): T {
+  return useSyncExternalStore(
+    subscribeCommentSession,
+    () => select(state),
+    () => select(EMPTY)
+  );
+}
+
 /** Test helper. */
 export function resetCommentSession(): void {
   loadSeq += 1;

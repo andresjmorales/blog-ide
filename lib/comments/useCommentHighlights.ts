@@ -15,7 +15,7 @@ import {
 import {
   getCommentSession,
   setThreadPlacements,
-  useCommentSession,
+  useCommentSessionValue,
 } from "@/lib/comments/store";
 import { footnoteIndexKey } from "@/lib/editor/footnoteNumbers";
 import { openFootnoteCardNear } from "@/lib/editor/footnoteOpen";
@@ -55,7 +55,9 @@ function onDocChange(
  * keep placements (document order, detached) current for the rail.
  */
 export function useCommentHighlights(editor: Editor | null, enabled = true): void {
-  const { threads, activeThreadId, revealNonce } = useCommentSession();
+  const threads = useCommentSessionValue((s) => s.threads);
+  const activeThreadId = useCommentSessionValue((s) => s.activeThreadId);
+  const revealNonce = useCommentSessionValue((s) => s.revealNonce);
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
@@ -124,7 +126,9 @@ export function useFootnoteCommentHighlights(
   noteEditor: Editor | null,
   footnoteId: string
 ): void {
-  const { threads, activeThreadId, revealNonce } = useCommentSession();
+  const threads = useCommentSessionValue((s) => s.threads);
+  const activeThreadId = useCommentSessionValue((s) => s.activeThreadId);
+  const revealNonce = useCommentSessionValue((s) => s.revealNonce);
   const hasThreads = threads.some(
     (t) => t.root.anchor.scope === "footnote" && t.root.anchor.footnoteId === footnoteId
   );

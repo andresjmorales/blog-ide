@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { getTheme, setTheme, type ThemeMode } from "@/lib/theme";
 
@@ -115,6 +116,17 @@ export function UserMenu({
           >
             Settings
           </button>
+
+          {!previewMode && (
+            <Link
+              href="/shared"
+              role="menuitem"
+              className="user-menu-item block"
+              onClick={() => setOpen(false)}
+            >
+              Shared with me
+            </Link>
+          )}
 
           <label className="user-menu-item user-menu-toggle">
             <span>Dark mode</span>

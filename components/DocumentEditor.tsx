@@ -65,8 +65,10 @@ import {
 import { sliceFromPoetryPlainText } from "@/lib/editor/poetry";
 import { TableControls } from "@/components/TableControls";
 import { CommentHighlights } from "@/lib/comments/highlights";
-import { setActiveThread, useCommentSession } from "@/lib/comments/store";
+import { setActiveThread, useCommentSessionValue } from "@/lib/comments/store";
 import { useCommentHighlights } from "@/lib/comments/useCommentHighlights";
+import { registerCommentSurface } from "@/lib/comments/surfaces";
+import { requestCommentsPanel } from "@/lib/comments/panelBridge";
 import {
   firstImageFile,
   insertEssayImageFromFile,
@@ -250,7 +252,10 @@ export function DocumentEditor({
         BibleRefHighlight,
         // Decoration-only; comments never write into the markdown.
         CommentHighlights.configure({
-          onActivate: (threadId) => setActiveThread(threadId),
+          onActivate: (threadId) => {
+            setActiveThread(threadId);
+            requestCommentsPanel("show");
+          },
         }),
       ],
       content: initialContent,
@@ -309,11 +314,16 @@ export function DocumentEditor({
     [markdownTypingShortcuts, typography]
   );
 
-  const commentSession = useCommentSession();
+  const commentSessionNodeId = useCommentSessionValue((s) => s.nodeId);
   useCommentHighlights(
     editor,
-    commentNodeId != null && commentSession.nodeId === commentNodeId
+    commentNodeId != null && commentSessionNodeId === commentNodeId
   );
+
+  useEffect(() => {
+    if (!editor) return;
+    return registerCommentSurface(editor, null);
+  }, [editor]);
 
   function openFind() {
     if (editor) {

@@ -27,6 +27,12 @@ import {
 } from "@/components/CopyeditDialog";
 import { PublishDialog } from "@/components/PublishDialog";
 import { splitFrontmatter } from "@/lib/markdown/frontmatter";
+import { CommentsToolbarButton } from "@/components/comments/OwnerComments";
+import {
+  clearCommentSession,
+  loadComments,
+  refreshComments,
+} from "@/lib/comments/store";
 import { compactDiff, unifiedLineDiff } from "@/lib/markdown/diff";
 import {
   isLossy,
@@ -360,6 +366,31 @@ export function DocumentWorkspace({
   const prevDocumentNameRef = useRef<string | null | undefined>(documentName);
   const { prefs, updatePrefs } = useEditorPrefs();
   const persistEnabled = isSupabaseConfigured() && !previewMode && !!nodeId;
+  // Vault essays can't be shared, so they never carry comment threads.
+  const commentNodeId = persistEnabled && !inVault ? nodeId : null;
+
+  // Comment threads from people this essay is shared with. Re-checked when
+  // the tab comes back and every few minutes while it is visible (there is
+  // no realtime channel; the rail also has a refresh button).
+  useEffect(() => {
+    if (!commentNodeId) {
+      clearCommentSession();
+      return;
+    }
+    void loadComments(commentNodeId);
+    function onVisible() {
+      if (document.visibilityState === "visible") void refreshComments();
+    }
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refreshComments();
+    }, 3 * 60 * 1000);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [commentNodeId]);
+  useEffect(() => () => clearCommentSession(), []);
   // Split/source: the raw buffer is canonical and `doc` is only refreshed on
   // the way back to rich text, so settings read the buffer's frontmatter.
   const liveFrontmatter = isMarkdownCanonical(mode)
@@ -2027,6 +2058,7 @@ export function DocumentWorkspace({
           Pop out
         </button>
       )}
+      <CommentsToolbarButton nodeId={commentNodeId} />
       <EditorOverflowMenu
         items={overflowItems}
         trigger={<KebabIcon />}
@@ -2258,6 +2290,7 @@ export function DocumentWorkspace({
         outlineOpen={outlineOpen}
         onOutlineOpenChange={setOutlineOpen}
         inVault={inVault}
+        commentNodeId={commentNodeId}
       />
       <EssaySettingsPanel
         open={essaySettingsOpen}

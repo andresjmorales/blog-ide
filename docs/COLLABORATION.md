@@ -1,8 +1,8 @@
 # Sharing, comments, and suggestions
 
 Plan for letting an essay's owner invite specific people to read, comment on,
-and suggest edits to a draft. Phase 1 is implemented; later phases are the
-working plan.
+and suggest edits to a draft. Phases 1 and 2 are implemented; later phases
+are the working plan.
 
 ## Principles
 
@@ -58,7 +58,39 @@ working plan.
   text) and the Sharing tab offers "Email them an invite" when adding
   someone. Without them, "Email invite" opens the owner's mail app.
 
-## Phase 2 — comments
+## Phase 2 — comments (done)
+
+What shipped (migration `20260930210000_document_comments.sql`):
+
+- `document_comments` + definer RPCs `list_document_comments`,
+  `add_document_comment`, `reply_to_comment`, `edit_comment` (author),
+  `delete_comment` (author; a root takes its replies), `set_thread_status`
+  (owner, or the thread's author while they can still write), and
+  `document_comment_participants`. Access goes through the internal
+  `document_comment_access` helper: the owner, or a *claimed* share.
+  **Viewers can read threads but not write.** Vault and trashed essays give
+  `not_found`. 500 threads per essay, 200 replies per thread, 5,000
+  characters per comment; not counted against quota.
+- `lib/comments/anchors.ts` (text-quote anchors, pure), `resolveThreads.ts`,
+  `highlights.ts` (the `CommentHighlights` decoration plugin),
+  `useCommentHighlights.ts` (re-resolves on the `commentAnchors` lane,
+  300ms), `store.ts` (one comment session per page), `surfaces.ts` (which
+  editor holds the selection: body or an open footnote card).
+- Invitee view (`/s/<token>`) is a read-only TipTap editor with the shared
+  extension set and the real footnote node views (read-only: no drag,
+  delete, or edits), a **Notes** list after the essay, a refresh button next
+  to "updated …", a floating **Comment** button under a selection, and the
+  rail (right on desktop, bottom sheet on phones).
+- Owner: **Comments** is a dockable panel (Panels menu, or the comment count
+  in the essay toolbar, which appears once the essay has threads). Threads
+  are in document order with "Footnote n" chips and All · Body · Footnotes
+  filters; resolved threads collapse; detached threads keep their quote and
+  a "Text changed" chip. Clicking a highlight opens the panel on its thread;
+  clicking a thread scrolls to its highlight or opens its footnote card.
+  The owner can also start a thread on a selection ("+ Comment"). Threads
+  refresh when the tab becomes visible and every 3 minutes (no realtime).
+- `GET /api/comments/participants?node=` returns names and 1-hour signed
+  photo URLs for participants only; initials otherwise.
 
 ### Data
 
@@ -190,6 +222,8 @@ Suggest mode for `suggester` invitees (Google Docs "Suggesting"):
   collapsed by default ("Notes (12) ▸"). The invitee view defaults to End of
   essay on narrow screens. Comment highlights and footnote threads work in
   either layout because anchors are per-footnote, not per-layout.
+- Endnotes can reuse the invitee view's Notes list (phase 2 renders one
+  after the essay in the shared view).
 - Unread badge for the owner: count threads with activity newer than the
   owner's last view (stored per user per document; not presence).
 - Essay settings → General can host the footnote display override for one

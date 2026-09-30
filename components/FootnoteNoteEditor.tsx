@@ -22,6 +22,8 @@ import { createFootnoteExtensions } from "@/lib/editor/footnoteSchema";
 import { CommentHighlights } from "@/lib/comments/highlights";
 import { setActiveThread } from "@/lib/comments/store";
 import { useFootnoteCommentHighlights } from "@/lib/comments/useCommentHighlights";
+import { registerCommentSurface } from "@/lib/comments/surfaces";
+import { requestCommentsPanel } from "@/lib/comments/panelBridge";
 import { firstImageFile } from "@/lib/editor/insertEssayImage";
 import {
   footnoteAttrSyncDelay,
@@ -68,7 +70,10 @@ export function FootnoteNoteEditor({
       extensions: [
         ...createFootnoteExtensions({ typography }),
         CommentHighlights.configure({
-          onActivate: (threadId) => setActiveThread(threadId),
+          onActivate: (threadId) => {
+            setActiveThread(threadId);
+            requestCommentsPanel("show");
+          },
         }),
       ],
       content,
@@ -102,6 +107,10 @@ export function FootnoteNoteEditor({
   );
 
   useFootnoteCommentHighlights(noteEditor, footnoteId);
+  useEffect(() => {
+    if (!noteEditor) return;
+    return registerCommentSurface(noteEditor, footnoteId);
+  }, [noteEditor, footnoteId]);
 
   const contentRef = useRef(content);
   const attrSyncTimer = useRef(0);
