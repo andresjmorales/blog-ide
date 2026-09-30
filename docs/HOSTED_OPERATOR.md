@@ -83,9 +83,12 @@ password** — replace the button/link with a BlogIDE URL that carries
 </p>
 ```
 
-Flow: `/auth/confirm` verifies the token server-side → redirects to
-`/reset/confirm` → user sets a new password. The link never opens on
-`*.supabase.co`.
+Flow: `/auth/confirm` (GET) forwards to `/auth/continue`, a page with a
+Continue button → the button POSTs to `/auth/confirm`, which verifies the
+token server-side → redirects to `/reset/confirm` → user sets a new
+password. The link never opens on `*.supabase.co`, and mail scanners that
+prefetch the link cannot spend the one-time token (they only load the
+Continue page). No template change is needed for this.
 
 ---
 
