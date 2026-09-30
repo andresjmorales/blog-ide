@@ -130,6 +130,8 @@ export default async function SharedEssayPage({ params }: Props) {
 
   return (
     <SharedEssayView
+      nodeId={result.node_id}
+      name={result.name}
       markdown={markdown}
       role={result.role}
       ownerName={result.owner_name}

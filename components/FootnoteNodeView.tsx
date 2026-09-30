@@ -61,6 +61,8 @@ const cardPositions = new Map<
   { left: number; top: number; width?: number; height?: number }
 >();
 
+function ignoreFootnoteEdit() {}
+
 export function FootnoteNodeView({
   node,
   editor: outerEditor,
@@ -71,6 +73,8 @@ export function FootnoteNodeView({
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const sidenoteRef = useRef<HTMLSpanElement | null>(null);
   const footnoteId = String(node.attrs.id ?? "");
+  // Invitee view: the essay is read-only, so no drag, delete, or edits.
+  const readOnly = !outerEditor.isEditable;
   const [open, setOpen] = useState(() => {
     if (consumeFootnoteEditorOpen(footnoteId)) {
       stickyFootnoteIds.add(footnoteId);
@@ -530,7 +534,7 @@ export function FootnoteNodeView({
   const beginRefDrag = useCallback(
     (event: React.PointerEvent<HTMLButtonElement>) => {
       event.stopPropagation();
-      if (event.button !== 0) return;
+      if (event.button !== 0 || readOnly) return;
       refDrag.current = {
         pointerId: event.pointerId,
         originX: event.clientX,
@@ -543,7 +547,7 @@ export function FootnoteNodeView({
         /* jsdom / already captured */
       }
     },
-    []
+    [readOnly]
   );
 
   const onRefDragMove = useCallback(
@@ -630,7 +634,8 @@ export function FootnoteNodeView({
       footnoteId={footnoteId}
       typography={prefs.typography}
       spellLang={spellLang}
-      updateAttributes={updateAttributes}
+      updateAttributes={readOnly ? ignoreFootnoteEdit : updateAttributes}
+      editable={!readOnly}
       isFindTarget={isFindTarget}
       findSession={findSession}
       pendingFocusRef={pendingFocusRef}
@@ -649,7 +654,9 @@ export function FootnoteNodeView({
         ref={buttonRef}
         type="button"
         className={`footnote-ref${refDragGhost ? " is-dragging" : ""}`}
-        aria-label={`Edit footnote ${number}. Drag to move.`}
+        aria-label={
+          readOnly ? `Footnote ${number}` : `Edit footnote ${number}. Drag to move.`
+        }
         aria-expanded={cardOpen}
         aria-grabbed={refDragGhost ? true : undefined}
         draggable={false}
@@ -732,6 +739,7 @@ export function FootnoteNodeView({
             }}
             headerActions={
               <>
+                {!readOnly && (
                 <button
                   type="button"
                   className="pinned-surface-btn footnote-card-delete"
@@ -741,6 +749,7 @@ export function FootnoteNodeView({
                 >
                   <TrashIcon />
                 </button>
+                )}
                 <button
                   type="button"
                   className="pinned-surface-btn"
@@ -785,6 +794,7 @@ export function FootnoteNodeView({
                   <span>Footnote {number}</span>
                 </span>
                 <span className="footnote-card-actions">
+                  {!readOnly && (
                   <button
                     type="button"
                     className="footnote-card-delete"
@@ -794,6 +804,7 @@ export function FootnoteNodeView({
                   >
                     <TrashIcon />
                   </button>
+                  )}
                   <button
                     type="button"
                     onClick={commitAndClose}

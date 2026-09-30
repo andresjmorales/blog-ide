@@ -236,6 +236,11 @@ import {
   type PanelLayout,
 } from "@/lib/panels/layout";
 import { OPEN_LIBRARY_CITE_EVENT } from "@/lib/citations/openLibraryCite";
+import { OwnerCommentsPanel } from "@/components/comments/OwnerComments";
+import {
+  COMMENTS_PANEL_EVENT,
+  type CommentsPanelRequest,
+} from "@/lib/comments/panelBridge";
 
 const MIN_PANEL = 180;
 const MAX_PANEL = 480;
@@ -416,6 +421,7 @@ function AppShellContent({
   // Mobile drawers are session-local and default closed: phones open to a
   // clean editor, and toggling them never rewrites the synced desktop layout.
   const [mobileLeftOpen, setMobileLeftOpen] = useState(false);
+  const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
   // Phones show one full-screen surface; the Editor stays mounted underneath.
   const [mobileSurface, setMobileSurfaceState] =
     useState<MobileSurface>("editor");
@@ -743,7 +749,7 @@ function AppShellContent({
 
   /** Keep in-memory pin windows aligned with persisted layout.floating. */
   const syncFloatingPins = useCallback((layout: PanelLayout) => {
-    for (const id of ["files", "ai", "shell", "library"] as PanelId[]) {
+    for (const id of ["files", "ai", "shell", "library", "comments"] as PanelId[]) {
       const shouldFloat = layout.floating.includes(id);
       const open = isDockablePanelPinOpen(id);
       if (shouldFloat === open) continue;
@@ -777,6 +783,32 @@ function AppShellContent({
       window.removeEventListener(OPEN_LIBRARY_CITE_EVENT, onOpenLibraryCite);
     };
   }, [applyLayout]);
+
+  useEffect(() => {
+    function onCommentsPanel(event: Event) {
+      const action = (event as CustomEvent<CommentsPanelRequest>).detail;
+      if (isMobile) {
+        setMobileCommentsOpen((open) => (action === "show" ? true : !open));
+        return;
+      }
+      if (isDockablePanelPinOpen("comments")) {
+        openToolPanelPin("comments", PANEL_LABELS.comments);
+        return;
+      }
+      const layout = prefsRef.current.panelLayout;
+      if (action === "show") {
+        const shown =
+          layout.visible.comments &&
+          layout.docks[layout.home.comments]?.includes("comments") &&
+          layout.active[layout.home.comments] === "comments";
+        if (!shown) applyLayout(showPanel(layout, "comments"));
+        return;
+      }
+      applyLayout(togglePanel(layout, "comments"));
+    }
+    window.addEventListener(COMMENTS_PANEL_EVENT, onCommentsPanel);
+    return () => window.removeEventListener(COMMENTS_PANEL_EVENT, onCommentsPanel);
+  }, [applyLayout, isMobile]);
 
   // Prefs restore floating ids across refresh; pin windows are session-only
   // until this runs and re-opens them.
@@ -2800,6 +2832,11 @@ function AppShellContent({
             onResolved={handleConflictResolved}
           />
           {isMobile && <MobilePinViewer />}
+          {isMobile && mobileCommentsOpen && (
+            <div className="comments-sheet-owner" role="dialog" aria-label="Comments">
+              <OwnerCommentsPanel onClose={() => setMobileCommentsOpen(false)} />
+            </div>
+          )}
           {!isMobile && (
             <>
               <PersistentPanel
@@ -2819,6 +2856,9 @@ function AppShellContent({
                 className="min-h-0 flex-1 overflow-y-auto"
               >
                 {libraryPanel}
+              </PersistentPanel>
+              <PersistentPanel target={panelTargets.comments}>
+                <OwnerCommentsPanel />
               </PersistentPanel>
               <PopOutLayer
                 onOpenInEditor={setActiveNodeId}

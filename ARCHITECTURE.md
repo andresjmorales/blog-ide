@@ -34,8 +34,11 @@ markdown.
   (view / comment / suggest). Invitees read through the
   `open_shared_document` RPC, never the `documents` table; the first
   account whose email matches claims the link. Vault essays cannot be
-  shared. Plan and later phases (comments, suggestions):
-  [docs/COLLABORATION.md](./docs/COLLABORATION.md).
+  shared. Comment threads live in `document_comments` (definer RPCs only,
+  owner or claimed share; viewers read-only), anchored by quoted text, never
+  written into the markdown. Invitees read the essay in a read-only TipTap
+  editor built from the shared extension set, so anchors line up with the
+  owner's text model.
 - Row-level security on every user-owned table and object path. Writes that
   carry invariants (document versions, quota counters, tree structure) are
   revoked for direct table access and must go through definer RPCs.
@@ -202,6 +205,7 @@ lib/zotero/           Zotero Web API client (search + optional write) and device
 lib/citations/        BibTeX format, Library Cite helpers, clipboard copy
 lib/ui/               Session toasts (bottom-right action outcomes)
 lib/sharing/          Essay share links, invite helpers, shared-image signing
+lib/comments/         Comment anchors, highlight decorations, thread store
 lib/secrets/          Encrypted account vault for capture integrations
 lib/pushbullet/       Optional Pushbullet → Notes channel capture
 lib/ntfy/             Optional ntfy → Notes channel capture
@@ -245,14 +249,16 @@ A letter in the essay body, not inside a footnote:
 4. **Find decorations** — `DecorationSet.map` of existing marks. No rescan.
 5. **Harper underlines** — map decorations; drop squiggles on the edited word.
    WASM lint is *scheduled* (`harperLint`).
-6. **Bible refs** (if enabled) — remap hits; rescan a window of
+6. **Comment highlights** (if the essay has threads) — map decorations.
+   Anchor re-resolution is *scheduled* (`commentAnchors`).
+7. **Bible refs** (if enabled) — remap hits; rescan a window of
    `BIBLE_SCAN_RADIUS` (160 characters) on each side of the change, sliced
    out of the edited text node. A reference that only clips that window is
    left mapped. Map decorations instead of rebuilding the set.
-7. **36 footnote node views** — numbers come from plugin state (`byId`).
+8. **36 footnote node views** — numbers come from plugin state (`byId`).
    Nested TipTap editors exist only for *open* cards, not every mark.
    Inline sidenote HTML is not mounted while the footnote rail is on.
-8. React listeners: FormattingToolbar `useEditorState` (mark actives),
+9. React listeners: FormattingToolbar `useEditorState` (mark actives),
    Harper/Bible hover cards (cheap if nothing is active), TableControls only
    while the caret is in a table.
 
@@ -271,11 +277,16 @@ or a regex over the essay or the whole paragraph (`detect_references` on
 | 160ms | `DocumentEditor.onUpdate` | `serializeBody` → parent `persistMarkdown` |
 | 180ms | Outline | Headings + word counts (`takeOutlineSnapshot`) |
 | 250ms | Find (if open) | Full `findInEditor` + replace mapped highlights |
+| 300ms | Comments (only with threads) | Re-resolve anchors (body + footnote text), repaint highlights, update rail order |
 | 320ms | Cite rail (if mounted) | Used sources. Link inventory **only while "Links in this essay" is expanded** |
 | 320ms | Deletion tracker | `pruneEssayCitations` if the trailer might be stale |
 | 400ms | Harper | Extract textblocks, lint dirty ones (block cache), rebuild underlines |
 | 1s | `persistMarkdown` | IndexedDB `saveLocal` |
 | +1.5s | sync engine | Supabase optimistic save |
+
+The footnote Notes section (Settings → Footnotes → End of essay / Both)
+reads the footnote index plugin's list, like the margin rail; collapsed, it
+renders only its header.
 
 Closing Find, collapsing Cite sections, or turning Harper / bible / sidenotes
 off removes that lane's work.

@@ -57,7 +57,7 @@ export type ShellPin = PinBase & {
 /** Floating Files / AI / Library panels. */
 export type ToolPanelPin = PinBase & {
   kind: "toolPanel";
-  panelId: "files" | "ai" | "library";
+  panelId: "files" | "ai" | "library" | "comments";
 };
 
 /** fetch(bible) web app reader. */
@@ -76,7 +76,7 @@ export type PinWindow =
 export const SHELL_PIN_ID = "shell:inbox";
 
 export function toolPanelPinId(
-  panelId: "files" | "ai" | "library"
+  panelId: "files" | "ai" | "library" | "comments"
 ): string {
   return `toolPanel:${panelId}`;
 }
@@ -558,20 +558,20 @@ export function isShellPinOpen(): boolean {
 }
 
 export function isToolPanelPinOpen(
-  panelId: "files" | "ai" | "library"
+  panelId: "files" | "ai" | "library" | "comments"
 ): boolean {
   return windows.some((w) => w.id === toolPanelPinId(panelId));
 }
 
 export function isDockablePanelPinOpen(
-  panelId: "files" | "ai" | "shell" | "library"
+  panelId: "files" | "ai" | "shell" | "library" | "comments"
 ): boolean {
   if (panelId === "shell") return isShellPinOpen();
   return isToolPanelPinOpen(panelId);
 }
 
 export function openToolPanelPin(
-  panelId: "files" | "ai" | "library",
+  panelId: "files" | "ai" | "library" | "comments",
   title: string
 ): void {
   hydratePinLayout();
@@ -600,13 +600,13 @@ export function openToolPanelPin(
 }
 
 export function closeToolPanelPin(
-  panelId: "files" | "ai" | "library"
+  panelId: "files" | "ai" | "library" | "comments"
 ): void {
   closePin(toolPanelPinId(panelId));
 }
 
 export function closeDockablePanelPin(
-  panelId: "files" | "ai" | "shell" | "library"
+  panelId: "files" | "ai" | "shell" | "library" | "comments"
 ): void {
   if (panelId === "shell") closeShellPin();
   else closeToolPanelPin(panelId);

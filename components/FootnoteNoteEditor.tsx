@@ -19,6 +19,11 @@ import {
   isFootnoteHistoryTarget,
 } from "@/lib/editor/footnoteHistoryKeys";
 import { createFootnoteExtensions } from "@/lib/editor/footnoteSchema";
+import { CommentHighlights } from "@/lib/comments/highlights";
+import { setActiveThread } from "@/lib/comments/store";
+import { useFootnoteCommentHighlights } from "@/lib/comments/useCommentHighlights";
+import { registerCommentSurface } from "@/lib/comments/surfaces";
+import { requestCommentsPanel } from "@/lib/comments/panelBridge";
 import { firstImageFile } from "@/lib/editor/insertEssayImage";
 import {
   footnoteAttrSyncDelay,
@@ -38,6 +43,8 @@ type Props = {
   pendingFocusRef: MutableRefObject<boolean>;
   commitRef: MutableRefObject<(() => void) | null>;
   dragSuppressUntilRef: MutableRefObject<number>;
+  /** False in the invitee's read-only view. */
+  editable?: boolean;
 };
 
 /**
@@ -56,11 +63,21 @@ export function FootnoteNoteEditor({
   pendingFocusRef,
   commitRef,
   dragSuppressUntilRef,
+  editable = true,
 }: Props) {
   const noteEditor = useEditor(
     {
-      extensions: createFootnoteExtensions({ typography }),
+      extensions: [
+        ...createFootnoteExtensions({ typography }),
+        CommentHighlights.configure({
+          onActivate: (threadId) => {
+            setActiveThread(threadId);
+            requestCommentsPanel("show");
+          },
+        }),
+      ],
       content,
+      editable,
       contentType: "markdown",
       immediatelyRender: false,
       editorProps: {
@@ -86,8 +103,14 @@ export function FootnoteNoteEditor({
         },
       },
     },
-    [typography]
+    [typography, editable]
   );
+
+  useFootnoteCommentHighlights(noteEditor, footnoteId);
+  useEffect(() => {
+    if (!noteEditor) return;
+    return registerCommentSurface(noteEditor, footnoteId);
+  }, [noteEditor, footnoteId]);
 
   const contentRef = useRef(content);
   const attrSyncTimer = useRef(0);
@@ -102,6 +125,10 @@ export function FootnoteNoteEditor({
 
   useEffect(() => {
     if (!noteEditor) return;
+    if (!editable) {
+      pendingFocusRef.current = false;
+      return;
+    }
     if (pendingFocusRef.current) {
       pendingFocusRef.current = false;
       dragSuppressUntilRef.current = performance.now() + 280;
@@ -109,7 +136,7 @@ export function FootnoteNoteEditor({
         noteEditor.commands.focus("end");
       });
     }
-  }, [noteEditor, pendingFocusRef, dragSuppressUntilRef]);
+  }, [noteEditor, pendingFocusRef, dragSuppressUntilRef, editable]);
 
   // Mobile: the sheet shrinks when the on-screen keyboard opens. Bring the
   // caret back into view inside the note once the viewport settles.
@@ -201,6 +228,12 @@ export function FootnoteNoteEditor({
       if (!anchor || !current.view.dom.contains(anchor)) return;
       const href = (anchor as HTMLAnchorElement).getAttribute("href") || "";
       event.preventDefault();
+      if (!current.isEditable) {
+        if (/^https?:\/\//i.test(href)) {
+          window.open(href, "_blank", "noopener,noreferrer");
+        }
+        return;
+      }
       window.requestAnimationFrame(() => {
         openLinkEditor(current, { allowPreview: true, href });
       });
@@ -316,7 +349,7 @@ export function FootnoteNoteEditor({
 
   return (
     <>
-      <FootnoteToolbar editor={noteEditor} />
+      {editable && <FootnoteToolbar editor={noteEditor} />}
       <EditorContent
         editor={noteEditor}
         className="footnote-card-editor-shell"

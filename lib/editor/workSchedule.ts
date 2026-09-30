@@ -21,6 +21,8 @@ export const EDITOR_WORK_MS = {
   findShortQuery: 150,
   /** Cite / Zotero "Cited here" + optional link inventory + citation prune. */
   citeInventory: 320,
+  /** Re-resolve comment anchors and repaint highlights (only with threads). */
+  commentAnchors: 300,
   /** Harper WASM lint of dirty textblocks. Squiggles stay mapped meanwhile. */
   harperLint: 400,
   /** IndexedDB write after markdown is emitted. */

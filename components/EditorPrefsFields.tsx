@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { SettingsLabel } from "@/components/SettingsInfo";
 import type { MobileStartSurface } from "@/lib/mobile/surface";
-import type { MarkdownTypingShortcuts } from "@/lib/settings";
+import type { FootnoteDisplay, MarkdownTypingShortcuts } from "@/lib/settings";
 import { HARPER_LANGUAGE_OPTIONS } from "@/lib/editor/harper/dialect";
 import {
   addHarperDictionaryWord,
@@ -63,6 +63,25 @@ export function EditorPrefsSection() {
 
       <section className="settings-section">
         <h3>Footnotes</h3>
+        <div className="settings-row">
+          <SettingsLabel info="Margin rail: notes in a column beside the essay (wide screens). End of essay: a Notes section after the last paragraph that scrolls with the essay, with links back to each reference; collapse or expand it from its header. Both: the rail plus that section, collapsed until you open it.">
+            Show footnotes
+          </SettingsLabel>
+          <select
+            value={prefs.footnoteDisplay}
+            onChange={(event) =>
+              updatePrefs({
+                footnoteDisplay: event.target.value as FootnoteDisplay,
+                // Each layout starts from its own default (open / collapsed).
+                endnotesExpanded: null,
+              })
+            }
+          >
+            <option value="rail">Margin rail</option>
+            <option value="end">End of essay</option>
+            <option value="both">Both</option>
+          </select>
+        </div>
         <div className="settings-row">
           <SettingsLabel info="Open the footnote editor card when the pointer rests on a superscript.">
             Open footnote on hover

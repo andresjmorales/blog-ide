@@ -3,7 +3,7 @@
  * Pure helpers — AppShell owns prefs persistence.
  */
 
-export type PanelId = "files" | "ai" | "shell" | "library";
+export type PanelId = "files" | "ai" | "shell" | "library" | "comments";
 export type DockSide = "left" | "right" | "bottom";
 
 export type PanelLayout = {
@@ -16,7 +16,13 @@ export type PanelLayout = {
   sizes: { left: number; right: number; bottom: number };
 };
 
-export const PANEL_IDS: PanelId[] = ["files", "ai", "shell", "library"];
+export const PANEL_IDS: PanelId[] = [
+  "files",
+  "ai",
+  "shell",
+  "library",
+  "comments",
+];
 
 export const PANEL_LABELS: Record<PanelId, string> = {
   files: "Files",
@@ -25,6 +31,7 @@ export const PANEL_LABELS: Record<PanelId, string> = {
   // folder's capture channels.
   shell: "Notes",
   library: "Library",
+  comments: "Comments",
 };
 
 export const DOCK_SIDES: DockSide[] = ["left", "right", "bottom"];
@@ -46,6 +53,8 @@ export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
     ai: true,
     shell: true,
     library: true,
+    // Shown from the toolbar comment count or the Panels menu.
+    comments: false,
   },
   floating: [],
   home: {
@@ -53,6 +62,7 @@ export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
     ai: "right",
     shell: "right",
     library: "right",
+    comments: "right",
   },
   sizes: {
     left: 240,
