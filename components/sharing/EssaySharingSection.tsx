@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { SettingsInfo } from "@/components/SettingsInfo";
 import { copyPlainText } from "@/lib/citations/clipboard";
 import {
+  fetchInviteEmailEnabled,
   listDocumentShares,
   resetDocumentShareLink,
   revokeDocumentShare,
+  sendShareInvite,
   shareDocument,
   updateDocumentShare,
 } from "@/lib/sharing/api";
@@ -63,7 +65,22 @@ export function EssaySharingSection({
   const [role, setRole] = useState<ShareRole>("commenter");
   const [inputError, setInputError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** null while checking; true when the server sends invites via Resend. */
+  const [canSendEmail, setCanSendEmail] = useState<boolean | null>(null);
+  const [sendOnShare, setSendOnShare] = useState(true);
+  const [sendingId, setSendingId] = useState<string | null>(null);
   const disabled = previewMode || inVault;
+
+  useEffect(() => {
+    if (disabled) return;
+    let cancelled = false;
+    void fetchInviteEmailEnabled().then((enabled) => {
+      if (!cancelled) setCanSendEmail(enabled);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [disabled]);
 
   useEffect(() => {
     if (disabled) return;
@@ -105,7 +122,21 @@ export function EssaySharingSection({
       }
       setEmail("");
       await refresh();
-      if (typeof result.token === "string") {
+      if (canSendEmail && sendOnShare && typeof result.id === "string") {
+        try {
+          await sendShareInvite(result.id);
+          showSettingsSuccess(
+            `Shared with ${normalized}. Invite emailed.`,
+            SETTINGS_TOAST.essaySharing
+          );
+        } catch (error) {
+          showSettingsError(
+            error,
+            `Shared with ${normalized}, but the invite email failed. Use Copy link instead.`,
+            SETTINGS_TOAST.essaySharing
+          );
+        }
+      } else if (typeof result.token === "string") {
         const link = shareLink(result.token);
         const copied = await copyPlainText(link);
         showSettingsSuccess(
@@ -173,6 +204,21 @@ export function EssaySharingSection({
     }
   }
 
+  async function emailInvite(share: DocumentShare) {
+    setSendingId(share.id);
+    try {
+      await sendShareInvite(share.id);
+      showSettingsSuccess(
+        `Invite emailed to ${share.grantee_email}.`,
+        SETTINGS_TOAST.essaySharing
+      );
+    } catch (error) {
+      showSettingsError(error, "Could not send the invite.", SETTINGS_TOAST.essaySharing);
+    } finally {
+      setSendingId(null);
+    }
+  }
+
   async function copyLink(share: DocumentShare) {
     if (await copyPlainText(shareLink(share.token))) {
       showCopiedToast(`Copied ${share.grantee_email}'s link.`);
@@ -231,6 +277,16 @@ export function EssaySharingSection({
           Share
         </button>
       </form>
+      {canSendEmail && (
+        <label className="flex items-center gap-2 text-xs text-muted">
+          <input
+            type="checkbox"
+            checked={sendOnShare}
+            onChange={(event) => setSendOnShare(event.target.checked)}
+          />
+          Email them an invite
+        </label>
+      )}
       {inputError && (
         <p className="settings-help text-red-600 dark:text-red-400" role="alert">
           {inputError}
@@ -284,18 +340,29 @@ export function EssaySharingSection({
                 >
                   Copy link
                 </button>
-                <a
-                  className={SMALL_BUTTON}
-                  href={shareInviteMailto({
-                    email: share.grantee_email,
-                    title,
-                    link: shareLink(share.token),
-                    role: share.role,
-                    senderName,
-                  })}
-                >
-                  Email invite
-                </a>
+                {canSendEmail ? (
+                  <button
+                    type="button"
+                    className={SMALL_BUTTON}
+                    disabled={busy || sendingId === share.id}
+                    onClick={() => void emailInvite(share)}
+                  >
+                    {sendingId === share.id ? "Sending…" : "Email invite"}
+                  </button>
+                ) : (
+                  <a
+                    className={SMALL_BUTTON}
+                    href={shareInviteMailto({
+                      email: share.grantee_email,
+                      title,
+                      link: shareLink(share.token),
+                      role: share.role,
+                      senderName,
+                    })}
+                  >
+                    Email invite
+                  </a>
+                )}
                 <button
                   type="button"
                   className={SMALL_BUTTON}

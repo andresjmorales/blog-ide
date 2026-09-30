@@ -82,3 +82,27 @@ export async function listSharedWithMe(): Promise<SharedWithMe[]> {
     isShareRole(row.role)
   );
 }
+
+/** True when this instance sends invites itself (Resend configured). */
+export async function fetchInviteEmailEnabled(): Promise<boolean> {
+  try {
+    const res = await fetch("/api/share/invite", { cache: "no-store" });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { enabled?: boolean };
+    return data.enabled === true;
+  } catch {
+    return false;
+  }
+}
+
+export async function sendShareInvite(shareId: string): Promise<void> {
+  const res = await fetch("/api/share/invite", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ shareId }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not send the invite.");
+  }
+}

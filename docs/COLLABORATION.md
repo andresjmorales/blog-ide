@@ -52,8 +52,11 @@ working plan.
 - Essay settings: **Title** tab became **General** (title + a Versions
   shortcut into Version history; the ⋯ menu item stays).
 
-Not in phase 1: BlogIDE sending the email itself. There is no transactional
-mail provider in the stack; see Phase 5.
+- Invite email: when `RESEND_API_KEY` and `BLOGIDE_EMAIL_FROM` are set,
+  `POST /api/share/invite` sends the invite through Resend (owner-only via
+  RLS, 20 per owner per hour, reply-to is the owner, never includes essay
+  text) and the Sharing tab offers "Email them an invite" when adding
+  someone. Without them, "Email invite" opens the owner's mail app.
 
 ## Phase 2 — comments
 
@@ -192,13 +195,12 @@ Suggest mode for `suggester` invitees (Google Docs "Suggesting"):
 - Essay settings → General can host the footnote display override for one
   essay once the preference exists.
 
-## Phase 5 — email delivery (optional)
+## Phase 5 — comment notifications
 
-Today "Email invite" opens the owner's mail app. To have BlogIDE send
-invites and "new comment" digests itself, add an optional provider behind
-an env var (e.g. `RESEND_API_KEY`, or SMTP), sent from a server route after
-the RPC succeeds. Self-hosters without it keep the mailto flow. Rate-limit
-per owner; never include essay text in the email body.
+Invites already go through Resend when configured (`lib/email/resend.ts`).
+Reuse it for "new comment / reply" digests to the owner and thread
+participants: batched (at most one email per document per hour), with an
+unsubscribe setting, never including essay text.
 
 ## Profile photos in threads
 
