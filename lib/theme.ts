@@ -2,6 +2,27 @@ const STORAGE_KEY = "blogide.theme";
 
 export type ThemeMode = "light" | "dark";
 
+/**
+ * Browser / OS bar colour per in-app theme (the page --background). The app
+ * theme can differ from the OS, so this is one meta set by script rather than
+ * Next's viewport themeColor, which can only follow prefers-color-scheme and
+ * re-renders on navigation. public/theme-init.js mirrors these values.
+ */
+export const THEME_BAR_COLORS: Record<ThemeMode, string> = {
+  light: "#faf9f6",
+  dark: "#14130f",
+};
+
+function setThemeBarColor(mode: ThemeMode): void {
+  let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  if (!meta) {
+    meta = document.createElement("meta");
+    meta.name = "theme-color";
+    document.head.appendChild(meta);
+  }
+  meta.content = THEME_BAR_COLORS[mode];
+}
+
 function systemTheme(): ThemeMode {
   if (typeof window === "undefined") return "light";
   try {
@@ -32,6 +53,7 @@ export function setTheme(next: ThemeMode): void {
   root.style.colorScheme = next;
   // TipTap UI Components key dark styles off `.dark`.
   root.classList.toggle("dark", next === "dark");
+  setThemeBarColor(next);
   try {
     localStorage.setItem(STORAGE_KEY, next);
   } catch {
