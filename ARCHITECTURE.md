@@ -30,6 +30,12 @@ markdown.
   Postgres. The operator sees sizes, timestamps, and tree shape, not
   titles or prose. Images stay unencrypted. The vault is free on every
   account; the passphrase is not the sign-in password.
+- Essay sharing (`document_shares`): per-person link tokens with a role
+  (view / comment / suggest). Invitees read through the
+  `open_shared_document` RPC, never the `documents` table; the first
+  account whose email matches claims the link. Vault essays cannot be
+  shared. Plan and later phases (comments, suggestions):
+  [docs/COLLABORATION.md](./docs/COLLABORATION.md).
 - Row-level security on every user-owned table and object path. Writes that
   carry invariants (document versions, quota counters, tree structure) are
   revoked for direct table access and must go through definer RPCs.
@@ -195,6 +201,7 @@ lib/github/           One-way GitHub backup (PAT, maps, Git Data push)
 lib/zotero/           Zotero Web API client (search + optional write) and device-local key
 lib/citations/        BibTeX format, Library Cite helpers, clipboard copy
 lib/ui/               Session toasts (bottom-right action outcomes)
+lib/sharing/          Essay share links, invite helpers, shared-image signing
 lib/secrets/          Encrypted account vault for capture integrations
 lib/pushbullet/       Optional Pushbullet → Notes channel capture
 lib/ntfy/             Optional ntfy → Notes channel capture

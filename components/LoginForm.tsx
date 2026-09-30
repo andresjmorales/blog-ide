@@ -5,12 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { requiresBetaCode } from "@/lib/hosted";
 import { createClient } from "@/lib/supabase/client";
+import { inviteSignupHref, shareTokenFromNextPath } from "@/lib/sharing/invite";
 import { safeNextPath } from "@/lib/siteUrl";
 
 export function LoginForm() {
   const betaRequired = requiresBetaCode();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const inviteToken = shareTokenFromNextPath(searchParams.get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -84,10 +86,18 @@ export function LoginForm() {
       <p className="mt-6 text-sm text-muted text-center">
         New here?{" "}
         <Link
-          href={betaRequired ? "/" : "/signup"}
+          href={
+            inviteToken
+              ? inviteSignupHref(inviteToken)
+              : betaRequired
+                ? "/"
+                : "/signup"
+          }
           className="text-accent underline underline-offset-4"
         >
-          {betaRequired ? "Enter a beta code" : "Create an account"}
+          {inviteToken || !betaRequired
+            ? "Create an account"
+            : "Enter a beta code"}
         </Link>
       </p>
       <p className="mt-2 text-sm text-muted text-center">

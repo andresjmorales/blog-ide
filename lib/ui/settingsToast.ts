@@ -22,6 +22,7 @@ export const SETTINGS_TOAST = {
   pushbullet: "settings-pushbullet",
   ntfy: "settings-ntfy",
   essayGithub: "settings-essay-github",
+  essaySharing: "settings-essay-sharing",
 } as const;
 
 export function showSettingsSuccess(message: string, replaceKey: string): number {

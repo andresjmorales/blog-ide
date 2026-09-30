@@ -330,7 +330,7 @@ export function DocumentWorkspace({
   >(null);
   const [lossyDiffOpen, setLossyDiffOpen] = useState(false);
   const [essaySettingsOpen, setEssaySettingsOpen] = useState(false);
-  const [essaySettingsTab, setEssaySettingsTab] = useState<EssayTab>("title");
+  const [essaySettingsTab, setEssaySettingsTab] = useState<EssayTab>("general");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [cleanupOpen, setCleanupOpen] = useState(false);
   const [cleanupTab, setCleanupTab] = useState<CopyeditTab>("check");
@@ -1746,7 +1746,7 @@ export function DocumentWorkspace({
     setCleanupOpen(true);
   }
 
-  function openEssaySettings(tab: EssayTab = "title") {
+  function openEssaySettings(tab: EssayTab = "general") {
     setEssaySettingsTab(tab);
     setEssaySettingsOpen(true);
   }
@@ -1942,10 +1942,19 @@ export function DocumentWorkspace({
           },
         ]
       : []),
+    ...(persistEnabled && nodeId && !inVault
+      ? [
+          {
+            id: "share",
+            label: "Share…",
+            onSelect: () => openEssaySettings("sharing"),
+          },
+        ]
+      : []),
     {
       id: "essay-settings",
       label: "Essay settings",
-      onSelect: () => openEssaySettings("title"),
+      onSelect: () => openEssaySettings("general"),
     },
   ];
 
@@ -2078,6 +2087,10 @@ export function DocumentWorkspace({
         githubStatus={githubStatus}
         githubSettingsEpoch={githubSettingsEpoch}
         onGithubSettingsChanged={onGithubSettingsChanged}
+        inVault={inVault}
+        onOpenHistory={
+          persistEnabled && nodeId ? () => setHistoryOpen(true) : undefined
+        }
       />
       <VersionHistoryPanel
         open={historyOpen}
@@ -2263,6 +2276,10 @@ export function DocumentWorkspace({
         githubStatus={githubStatus}
         githubSettingsEpoch={githubSettingsEpoch}
         onGithubSettingsChanged={onGithubSettingsChanged}
+        inVault={inVault}
+        onOpenHistory={
+          persistEnabled && nodeId ? () => setHistoryOpen(true) : undefined
+        }
       />
       <VersionHistoryPanel
         open={historyOpen}

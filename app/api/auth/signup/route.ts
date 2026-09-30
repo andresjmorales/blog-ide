@@ -11,6 +11,7 @@ import {
   clientIpFromRequest,
   hitRateLimit,
 } from "@/lib/rateLimit";
+import { isShareToken } from "@/lib/sharing/invite";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -19,7 +20,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * Failed beta guesses are rate-limited per client IP (best-effort in-memory).
  */
 export async function POST(request: Request) {
-  let body: { email?: string; password?: string; betaCode?: string };
+  let body: {
+    email?: string;
+    password?: string;
+    betaCode?: string;
+    inviteToken?: string;
+  };
   try {
     body = await request.json();
   } catch {
@@ -29,8 +35,11 @@ export async function POST(request: Request) {
   const email = body.email?.trim().toLowerCase();
   const password = body.password;
   const betaCode = body.betaCode?.trim();
+  const inviteToken = isShareToken(body.inviteToken) ? body.inviteToken : null;
   const hosted = isHostedDeployment();
-  const betaRequired = requiresBetaCode();
+  // An essay share invite (token + matching email) stands in for a beta code.
+  const useInvite = requiresBetaCode() && !betaCode && inviteToken !== null;
+  const betaRequired = requiresBetaCode() && !useInvite;
 
   if (!email || !password) {
     return NextResponse.json(
@@ -63,7 +72,7 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
-  const guessKey = betaRequired
+  const guessKey = betaRequired || useInvite
     ? `beta-guess:${clientIpFromRequest(request)}`
     : null;
 
@@ -109,6 +118,32 @@ export async function POST(request: Request) {
       }
       return NextResponse.json(
         { error: "Invalid or already-redeemed beta code." },
+        { status: 403 }
+      );
+    }
+  }
+
+  if (useInvite) {
+    const { data: allowed, error: inviteError } = await admin.rpc(
+      "share_invite_allows_signup",
+      { p_token: inviteToken, p_email: email }
+    );
+    if (inviteError) {
+      console.error("signup: share invite lookup failed", inviteError);
+      return NextResponse.json(
+        { error: "Could not verify the invite. Try again later." },
+        { status: 500 }
+      );
+    }
+    if (allowed !== true) {
+      if (guessKey) {
+        hitRateLimit(guessKey, BETA_GUESS_WINDOW_MS);
+      }
+      return NextResponse.json(
+        {
+          error:
+            "This invite was sent to a different email address, or it has already been used.",
+        },
         { status: 403 }
       );
     }

@@ -5,11 +5,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { requiresBetaCode } from "@/lib/hosted";
+import { isShareToken } from "@/lib/sharing/invite";
+import { safeNextPath } from "@/lib/siteUrl";
 
 export function SignupForm() {
-  const betaRequired = requiresBetaCode();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const inviteParam = searchParams.get("invite");
+  const inviteToken = isShareToken(inviteParam) ? inviteParam : null;
+  // A share invite stands in for a beta code (checked server-side against
+  // the invited email).
+  const betaRequired = requiresBetaCode() && !inviteToken;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [betaCode, setBetaCode] = useState(searchParams.get("code") ?? "");
@@ -28,7 +34,9 @@ export function SignupForm() {
         body: JSON.stringify(
           betaRequired
             ? { email, password, betaCode }
-            : { email, password }
+            : inviteToken
+              ? { email, password, inviteToken }
+              : { email, password }
         ),
       });
 
@@ -48,7 +56,7 @@ export function SignupForm() {
         return;
       }
 
-      router.push("/editor");
+      router.push(safeNextPath(searchParams.get("next"), "/editor"));
       router.refresh();
     } finally {
       setBusy(false);
@@ -59,7 +67,9 @@ export function SignupForm() {
     <form onSubmit={handleSubmit} className="w-full max-w-sm">
       <h1 className="text-2xl font-semibold mb-1">Create your account</h1>
       <p className="text-sm text-muted mb-8">
-        {betaRequired
+        {inviteToken
+          ? "You were invited to a draft. Sign up with the email address the invite was sent to."
+          : betaRequired
           ? "A valid beta code is required to create an account on this instance."
           : "Create an account on this self-hosted install. Storage is limited by your Supabase project, not a BlogIDE free-tier cap."}
       </p>
@@ -118,7 +128,15 @@ export function SignupForm() {
 
       <p className="mt-6 text-sm text-muted text-center">
         Already have an account?{" "}
-        <Link href="/login" className="text-accent underline underline-offset-4">
+        <Link
+          href={
+            searchParams.get("next")
+              ? `/login?next=${encodeURIComponent(
+                  safeNextPath(searchParams.get("next"), "/editor")
+                )}`
+              : "/login"
+          }
+          className="text-accent underline underline-offset-4">
           Sign in
         </Link>
       </p>
