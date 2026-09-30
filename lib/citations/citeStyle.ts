@@ -91,7 +91,7 @@ export function citeStyleToLocal(style: CiteStyleId): LocalCiteStyle {
 }
 
 export function citeStyleFromDashPref(
-  dashStyle: "chicago" | "mla" | undefined
+  dashStyle: "chicago" | "mla" | "ap" | undefined
 ): CiteStyleId {
   return dashStyle === "mla"
     ? "modern-language-association"

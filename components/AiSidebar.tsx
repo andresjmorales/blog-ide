@@ -19,10 +19,8 @@ import {
   type PreparedApply,
 } from "@/lib/ai/apply";
 import {
-  chatCompletion,
   chatCompletionStream,
   essayChatSystem,
-  IMPORT_CLEANUP_SYSTEM,
   selectionChatSystem,
   unwrapMarkdownReply,
   type ChatContentPart,
@@ -35,7 +33,6 @@ import {
   saveAiKeys,
   maskKey,
   type AiKeys,
-  type AiProvider,
 } from "@/lib/ai/keys";
 import { modelsForProvider, resolveModel } from "@/lib/ai/models";
 import type { AiSelection } from "@/lib/ai/selection";
@@ -82,7 +79,7 @@ type UndoState = {
 };
 
 type Props = {
-  /** True when an essay is open (enables Include essay / Clean import). */
+  /** True when an essay is open (enables Include essay). */
   essayAvailable?: boolean;
   /** Fresh markdown snapshot — called only on Send / Apply / context refresh. */
   getDocumentMarkdown?: () => string | null;
@@ -511,58 +508,6 @@ export function AiSidebar({
     });
   }
 
-  async function cleanImport() {
-    const documentMarkdown = getDocumentMarkdown?.()?.trim() || null;
-    if (!documentMarkdown) {
-      setError("Open an essay first.");
-      return;
-    }
-    setError(null);
-    setBusy(true);
-    setPendingApply(null);
-    try {
-      const reply = await chatCompletion({
-        messages: [
-          {
-            role: "user",
-            content: `Clean up this pasted essay for BlogIDE:\n\n${documentMarkdown}`,
-          },
-        ],
-        system: IMPORT_CLEANUP_SYSTEM,
-        provider: (provider ?? "anthropic") as AiProvider,
-        model: modelId ?? undefined,
-      });
-      const assistantId = nextId();
-      setMessages((current) => [
-        ...current,
-        {
-          id: nextId(),
-          role: "user",
-          content: "Clean up this pasted essay (footnotes, headings, quotes).",
-        },
-        { id: assistantId, role: "assistant", content: reply, scope: "essay" },
-      ]);
-      const cleaned = unwrapMarkdownReply(reply);
-      if (cleaned && onApplyMarkdown) {
-        const prepared = prepareApply({
-          reply: cleaned,
-          essayMarkdown: documentMarkdown,
-          selectionText: null,
-          scope: "essay",
-        });
-        if (prepared.kind !== "none") {
-          setPendingApply({ messageId: assistantId, prepared, selection: null });
-        } else {
-          setError("The cleanup returned no changes.");
-        }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Cleanup failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   /** Remember the pre-apply essay so this reply's edits can be undone. */
   function rememberUndo(messageId: string | null, before: string) {
     setUndo((current) => ({
@@ -792,14 +737,6 @@ export function AiSidebar({
       label: keyHint,
       disabled: true,
       onSelect: () => {},
-    },
-    {
-      id: "clean",
-      label: "Clean import",
-      disabled: busy || !hasEssay,
-      onSelect: () => {
-        void cleanImport();
-      },
     },
     {
       id: "keys",

@@ -77,7 +77,7 @@ describe("EssaySettingsPanel", () => {
   it("points at Settings for issue types and the dictionary", () => {
     render({ initialTab: "writing", spellcheckOverride: "on" });
     expect(host!.textContent).toContain(
-      "Issue types and your dictionary are under Settings → Editor"
+      "Issue types and your dictionary are under Settings → Writing check"
     );
   });
 });

@@ -6,7 +6,6 @@ import {
   findInEditor,
   replaceAllInEditor,
 } from "@/lib/editor/findReplaceInEditor";
-import { applyNormalizePunctuation } from "@/lib/editor/applyNormalizePunctuation";
 
 function makeEditor(body: string): Editor {
   const element = document.createElement("div");
@@ -113,58 +112,3 @@ describe("findReplaceInEditor", () => {
     }
   });
 });
-
-describe("applyNormalizePunctuation", () => {
-  it("normalizes spaced pause dashes per textblock without flattening the doc", () => {
-    const editor = makeEditor("Yes - really.\n\nAlso - this.\n");
-    try {
-      applyNormalizePunctuation(editor, {
-        dashStyle: "chicago",
-        smartQuotes: false,
-      });
-      const md = serializeBody(editor.getJSON());
-      expect(md).toContain("Yes—really.");
-      expect(md).toContain("Also—this.");
-      expect(md.split("\n\n").length).toBeGreaterThanOrEqual(2);
-    } finally {
-      editor.destroy();
-    }
-  });
-
-  it("preserves footnote atoms and compound hyphens while normalizing pause dashes", () => {
-    const editor = makeEditor(
-      "Claim - one[^1] and good-faith.\n\n[^1]: Survives normalize.\n"
-    );
-    try {
-      applyNormalizePunctuation(editor, {
-        dashStyle: "chicago",
-        smartQuotes: false,
-      });
-      const md = serializeBody(editor.getJSON());
-      expect(md).toContain("Claim—one");
-      expect(md).toContain("good-faith");
-      expect(md).toMatch(/\[\^[^\]]+\]/);
-      expect(md).toContain("Survives normalize.");
-    } finally {
-      editor.destroy();
-    }
-  });
-
-  it("normalizes a spaced pause dash immediately after a hyperlink mark", () => {
-    const editor = makeEditor(
-      "See [the article](https://example.com) - really.\n"
-    );
-    try {
-      applyNormalizePunctuation(editor, {
-        dashStyle: "chicago",
-        smartQuotes: false,
-      });
-      const md = serializeBody(editor.getJSON());
-      expect(md).toContain("](https://example.com)—really.");
-      expect(md).not.toMatch(/\) - /);
-    } finally {
-      editor.destroy();
-    }
-  });
-});
-

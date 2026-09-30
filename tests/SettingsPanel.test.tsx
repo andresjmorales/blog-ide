@@ -22,7 +22,7 @@ describe("SettingsPanel", () => {
     clearToasts();
   });
 
-  function render(initialTab?: "account" | "editor" | "markdown" | "integrations") {
+  function render(initialTab?: "account" | "editor" | "toolbar" | "writing" | "integrations") {
     host = document.createElement("div");
     document.body.appendChild(host);
     root = createRoot(host);
@@ -47,7 +47,8 @@ describe("SettingsPanel", () => {
     expect(tabLabels()).toEqual([
       "Account",
       "Editor",
-      "Markdown",
+      "Writing check",
+      "Toolbar",
       "Storage",
       "Vault",
       "Integrations",
@@ -55,16 +56,23 @@ describe("SettingsPanel", () => {
     expect(host!.textContent).not.toContain("Preferences");
   });
 
-  it("keeps Start on phone on Editor, not Account", () => {
+  it("keeps phone and typing prefs on Editor, not Account", () => {
     render();
-    expect(host!.textContent).not.toContain("Start on phone");
+    expect(host!.textContent).not.toContain("Phone");
     const editorTab = [...host!.querySelectorAll('[role="tab"]')].find(
       (tab) => tab.textContent === "Editor"
     ) as HTMLButtonElement;
     act(() => {
       editorTab.click();
     });
-    expect(host!.textContent).toContain("Start on phone");
+    expect(host!.textContent).toContain("Phone");
+    expect(host!.textContent).toContain("Markdown shortcuts");
+    expect(host!.textContent).toContain("Count footnotes in word count");
+    expect(host!.textContent).not.toContain("Rearrange toolbar");
+  });
+
+  it("gives the toolbar layout its own tab", () => {
+    render("toolbar");
     expect(host!.textContent).toContain("Rearrange toolbar");
     expect(host!.textContent).toContain("Aa+");
   });
@@ -82,8 +90,8 @@ describe("SettingsPanel", () => {
   });
 
   it("moves long setting copy behind info controls", () => {
-    render("markdown");
-    expect(host!.textContent).toContain("Shortcuts");
+    render("editor");
+    expect(host!.textContent).toContain("Markdown shortcuts");
     expect(host!.textContent).not.toContain("Auto-transforms while typing");
     expect(
       host!.querySelectorAll('button[aria-label="More information"]').length
@@ -104,7 +112,7 @@ describe("SettingsPanel", () => {
             open
             onClose={() => {}}
             previewMode
-            initialTab="editor"
+            initialTab="writing"
           />
         </EditorPrefsProvider>
       );

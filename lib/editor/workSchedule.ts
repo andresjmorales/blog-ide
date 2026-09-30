@@ -13,6 +13,8 @@ export const EDITOR_WORK_MS = {
   markdownSerialize: 160,
   /** Outline headings + word counts. */
   outlineStats: 180,
+  /** Outline "Selection" readout while a highlight is being dragged. */
+  selectionStats: 120,
   /** Re-scan Find matches; mapped highlights stay during the wait. */
   findRescan: 250,
   /** Find-bar typing for 1–2 char queries (thousands of hits to decorate). */

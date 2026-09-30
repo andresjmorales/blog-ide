@@ -103,9 +103,9 @@ export function HelpPanel({ open, onClose }: Props) {
             publication-style HTML. Copy → Rich text is the same formatted
             paste as selecting the essay and copying. Copy → Markdown copies
             the source. Copy → HTML pastes publication HTML. Prepare publish
-            opens Cleanup → Publish
-            for footnote copy formats (bracketed [1], superscripts, linked
-            endnotes) and Substack native-footnote steps. Export Word when Pandoc is
+            opens the Publish panel: Substack steps (native footnotes, title
+            and subtitle, the helper), copy formats for other editors
+            (bracketed [1], superscripts, linked endnotes), and a link check. Export Word when Pandoc is
             installed, or Push to GitHub. An optional Vault folder (Settings →
             Vault) encrypts titles and essay bodies in this browser before they
             are stored; it is free and the passphrase is not your sign-in
@@ -172,11 +172,14 @@ export function HelpPanel({ open, onClose }: Props) {
               <kbd>Ctrl</kbd>+<kbd>\</kbd>: toggle markdown split / rich text
             </li>
             <li>
-              Broom / Cleanup: pinnable tabs for Import, Text, Punctuation,
-              and Publish check; Text → Clean whitespace joins wrapped lines
-              to spaces and keeps blank lines; Aa+ = extra formatting (inline
-              code, superscript, subscript, code block, convert case) and is
-              customizable under Settings → Editor; Cite opens the
+              Copyedit (pencil): a formatting check (straight quotes, dashes
+              off house style, double spaces, repeated words) with Find and
+              one-click fixes, a dash converter (e.g. British “ – ” to “—”),
+              AI proofread and consistency passes you review one by one, and
+              Import fixes for pasted text (footnote links, wrapped lines);
+              Aa+ = extra formatting (inline code, superscript, subscript,
+              code block, convert case), customizable under Settings →
+              Toolbar; Cite opens the
               Library panel (or a sheet on a phone) to search Zotero,
               saved items, or paste BibTeX into the Library, insert a footnote, Copy URL, or
               Add to Zotero

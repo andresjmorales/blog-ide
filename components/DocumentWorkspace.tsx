@@ -22,9 +22,10 @@ import {
 } from "@/lib/preview/publicationHtml";
 import { openBiblePin } from "@/lib/pins/pinStore";
 import {
-  CleanupDialog,
-  type CleanupTab,
-} from "@/components/CleanupDialog";
+  CopyeditDialog,
+  type CopyeditTab,
+} from "@/components/CopyeditDialog";
+import { PublishDialog } from "@/components/PublishDialog";
 import { splitFrontmatter } from "@/lib/markdown/frontmatter";
 import { compactDiff, unifiedLineDiff } from "@/lib/markdown/diff";
 import {
@@ -332,7 +333,9 @@ export function DocumentWorkspace({
   const [essaySettingsTab, setEssaySettingsTab] = useState<EssayTab>("title");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [cleanupOpen, setCleanupOpen] = useState(false);
-  const [cleanupTab, setCleanupTab] = useState<CleanupTab>("import");
+  const [cleanupTab, setCleanupTab] = useState<CopyeditTab>("check");
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishSnapshot, setPublishSnapshot] = useState("");
   const [cleanupEditor, setCleanupEditor] = useState<Editor | null>(null);
   const [loading, setLoading] = useState(false);
   const [openingSlow, setOpeningSlow] = useState(false);
@@ -972,7 +975,7 @@ export function DocumentWorkspace({
     await dialog.confirm({
       title: "Nothing to convert",
       message:
-        "No Substack-style footnote links or split note blocks matched. Re-paste from Substack, or add an API key and use Cleanup → Import → Clean with AI.",
+        "No Substack-style footnote links or split note blocks matched. Re-paste from Substack, or add an API key and use Copyedit → Import fixes → Clean with AI.",
       confirmLabel: "OK",
       cancelLabel: "Close",
     });
@@ -1737,7 +1740,7 @@ export function DocumentWorkspace({
     }
   }
 
-  function openCleanup(tab: CleanupTab = "import") {
+  function openCleanup(tab: CopyeditTab = "check") {
     setCleanupEditor(mode === "wysiwyg" ? editorRef.current : null);
     setCleanupTab(tab);
     setCleanupOpen(true);
@@ -1855,7 +1858,10 @@ export function DocumentWorkspace({
     {
       id: "prepare-publish",
       label: "Prepare publish",
-      onSelect: () => openCleanup("publish"),
+      onSelect: () => {
+        setPublishSnapshot(currentMarkdown());
+        setPublishOpen(true);
+      },
     },
     {
       kind: "submenu",
@@ -2080,14 +2086,24 @@ export function DocumentWorkspace({
         onRestore={restoreRevision}
         getCurrentMarkdown={currentMarkdown}
       />
-      <CleanupDialog
+      <CopyeditDialog
         open={cleanupOpen}
         onClose={() => setCleanupOpen(false)}
         editor={cleanupEditor}
         initialTab={cleanupTab}
         getMarkdown={currentMarkdown}
+        applyMarkdown={applyMarkdown}
         onFixFootnotes={() => void convertFootnoteLinks()}
         onAiCleanup={inVault ? undefined : () => void runAiImportCleanup()}
+        allowAi={!inVault}
+      />
+      <PublishDialog
+        open={publishOpen}
+        onClose={() => setPublishOpen(false)}
+        getMarkdown={currentMarkdown}
+        snapshot={publishSnapshot}
+        title={essayTitle}
+        subtitle={subtitle}
         allowServerChecks={!inVault}
       />
     </>
@@ -2225,7 +2241,7 @@ export function DocumentWorkspace({
         spellcheckLanguages={spellcheckLanguages}
         toolbarExtra={toolbarActions}
         cleanupOpen={cleanupOpen}
-        onOpenCleanup={() => openCleanup("import")}
+        onOpenCleanup={() => openCleanup("check")}
         outlineOpen={outlineOpen}
         onOutlineOpenChange={setOutlineOpen}
         inVault={inVault}
@@ -2255,14 +2271,24 @@ export function DocumentWorkspace({
         onRestore={restoreRevision}
         getCurrentMarkdown={currentMarkdown}
       />
-      <CleanupDialog
+      <CopyeditDialog
         open={cleanupOpen}
         onClose={() => setCleanupOpen(false)}
         editor={cleanupEditor}
         initialTab={cleanupTab}
         getMarkdown={currentMarkdown}
+        applyMarkdown={applyMarkdown}
         onFixFootnotes={() => void convertFootnoteLinks()}
         onAiCleanup={inVault ? undefined : () => void runAiImportCleanup()}
+        allowAi={!inVault}
+      />
+      <PublishDialog
+        open={publishOpen}
+        onClose={() => setPublishOpen(false)}
+        getMarkdown={currentMarkdown}
+        snapshot={publishSnapshot}
+        title={essayTitle}
+        subtitle={subtitle}
         allowServerChecks={!inVault}
       />
     </>

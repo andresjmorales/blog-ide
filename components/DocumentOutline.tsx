@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { PanelCaret } from "@/components/icons";
+import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import {
   collectRangeStats,
   formatReadingTime,
   formatWordCount,
+  withFootnotes,
   type DocumentStats,
 } from "@/lib/editor/documentStats";
 import {
@@ -85,51 +87,52 @@ function DocumentOutlineLive({
     };
   }, [editor]);
 
-  const [hasSelection, setHasSelection] = useState(false);
-  /** One-shot selection readout; cleared by the next editor or page action. */
+  const { prefs, updatePrefs } = useEditorPrefs();
+  const countFootnotes = prefs.wordCountFootnotes;
+
+  /** Live readout of the highlighted text; null when nothing (or one word) is selected. */
   const [selectionStats, setSelectionStats] = useState<DocumentStats | null>(
     null
   );
 
   useEffect(() => {
-    const onSelection = () => {
-      setHasSelection(!editor.state.selection.empty);
-      setSelectionStats(null);
+    const workId = `outline-selection-${editor.view.dom.id || "essay"}`;
+    const refresh = () => {
+      const { from, to, empty } = editor.state.selection;
+      if (empty) {
+        setSelectionStats(null);
+        return;
+      }
+      const next = collectRangeStats(editor.state.doc, from, to);
+      const words = next.words + next.footnotes.words;
+      setSelectionStats(words > 1 ? next : null);
     };
-    onSelection();
+    const onSelection = () => {
+      // Collapsing the selection returns to the essay at once; ranges are
+      // re-measured once a drag or shift-arrow run settles.
+      if (editor.state.selection.empty) {
+        cancelEditorWork(workId);
+        setSelectionStats(null);
+        return;
+      }
+      scheduleEditorWork(workId, EDITOR_WORK_MS.selectionStats, refresh);
+    };
+    refresh();
     editor.on("selectionUpdate", onSelection);
     editor.on("update", onSelection);
     return () => {
       editor.off("selectionUpdate", onSelection);
       editor.off("update", onSelection);
+      cancelEditorWork(workId);
     };
   }, [editor]);
 
-  useEffect(() => {
-    if (!selectionStats) return;
-    const clear = () => setSelectionStats(null);
-    // Arm after the click that opened the readout has finished.
-    const timer = window.setTimeout(() => {
-      window.addEventListener("pointerdown", clear, true);
-      window.addEventListener("keydown", clear, true);
-      window.addEventListener("wheel", clear, { capture: true, passive: true });
-    }, 0);
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener("pointerdown", clear, true);
-      window.removeEventListener("keydown", clear, true);
-      window.removeEventListener("wheel", clear, true);
-    };
-  }, [selectionStats]);
-
-  function showSelectionStats() {
-    const { from, to, empty } = editor.state.selection;
-    if (empty) return;
-    setSelectionStats(collectRangeStats(editor.state.doc, from, to));
-  }
-
   const headings = snapshot.headings;
-  const stats = selectionStats ?? snapshot.stats;
+  const essayStats = withFootnotes(snapshot.stats, countFootnotes);
+  const stats = selectionStats
+    ? withFootnotes(selectionStats, countFootnotes)
+    : essayStats;
+  const footnoteWords = (selectionStats ?? snapshot.stats).footnotes.words;
 
   const minLevel =
     headings.length > 0
@@ -193,8 +196,11 @@ function DocumentOutlineLive({
           <DocumentStatsFooter
             stats={stats}
             isSelection={selectionStats != null}
-            canShowSelection={hasSelection}
-            onShowSelection={showSelectionStats}
+            footnoteWords={footnoteWords}
+            countFootnotes={countFootnotes}
+            onCountFootnotesChange={(next) =>
+              updatePrefs({ wordCountFootnotes: next })
+            }
           />
         </>
       )}
@@ -202,9 +208,9 @@ function DocumentOutlineLive({
       {!open && (
         <p
           className="doc-outline-collapsed-words"
-          title={formatWordCount(stats.words)}
+          title={formatWordCount(essayStats.words)}
         >
-          {stats.words.toLocaleString("en-US")}
+          {essayStats.words.toLocaleString("en-US")}
         </p>
       )}
     </aside>
@@ -214,13 +220,15 @@ function DocumentOutlineLive({
 function DocumentStatsFooter({
   stats,
   isSelection,
-  canShowSelection,
-  onShowSelection,
+  footnoteWords,
+  countFootnotes,
+  onCountFootnotesChange,
 }: {
   stats: DocumentStats;
   isSelection: boolean;
-  canShowSelection: boolean;
-  onShowSelection: () => void;
+  footnoteWords: number;
+  countFootnotes: boolean;
+  onCountFootnotesChange: (next: boolean) => void;
 }) {
   return (
     <div
@@ -233,21 +241,8 @@ function DocumentStatsFooter({
           <span className="doc-stats-words">
             {formatWordCount(stats.words)}
           </span>
-          {isSelection ? (
+          {isSelection && (
             <span className="doc-stats-scope">Selection</span>
-          ) : (
-            canShowSelection && (
-              <button
-                type="button"
-                className="doc-stats-selection-btn"
-                // Keep the editor selection intact.
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={onShowSelection}
-                title="Count the selected text (returns to the essay on your next action)"
-              >
-                Selection
-              </button>
-            )
           )}
         </div>
         <span className="doc-stats-read">
@@ -272,6 +267,22 @@ function DocumentStatsFooter({
           <dd>{stats.charactersNoSpaces.toLocaleString("en-US")}</dd>
         </div>
       </dl>
+      <label
+        className="doc-stats-footnotes"
+        title="Include footnote text in the word count, characters, and reading time"
+        // Keep the editor selection intact.
+        onMouseDown={(event) => event.preventDefault()}
+      >
+        <input
+          type="checkbox"
+          checked={countFootnotes}
+          onChange={(event) => onCountFootnotesChange(event.target.checked)}
+        />
+        <span>Count footnotes</span>
+        <span className="doc-stats-footnotes-n">
+          {footnoteWords.toLocaleString("en-US")}
+        </span>
+      </label>
     </div>
   );
 }

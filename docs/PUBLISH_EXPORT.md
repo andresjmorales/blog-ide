@@ -15,7 +15,7 @@ Essay menu → **Copy**:
 - **Markdown** — source only. Substack will treat this as plain text.
 - **HTML** — publication HTML with linked endnotes.
 
-**Prepare publish** opens Cleanup → Publish, where the copy buttons describe
+**Prepare publish** opens the Publish panel. Its Other editors tab has copy buttons that describe
 the footnote shape rather than a platform name:
 
 1. **Bracketed numbers `[1]`** — `[1]` in the body and a Notes list at the
@@ -113,9 +113,9 @@ Two paths:
 | Copy → Rich text | Editor HTML + plain | — | BlogIDE footnote marks |
 | Copy → Markdown | Markdown | — | GFM `[^1]` |
 | Copy → HTML | HTML + readable plain | — | Linked endnotes |
-| Cleanup → Superscript numbers | HTML + readable plain | — | Static `<sup>` + Notes |
-| Cleanup → Bracketed numbers [1] | HTML with helper markers + Notes list | — | For the Substack helper |
-| Cleanup → Linked HTML endnotes | HTML + readable plain | — | Linked endnotes |
+| Publish → Superscript numbers | HTML + readable plain | — | Static `<sup>` + Notes |
+| Publish → Bracketed numbers [1] | HTML with helper markers + Notes list | — | For the Substack helper |
+| Publish → Linked HTML endnotes | HTML + readable plain | — | Linked endnotes |
 | Export → Markdown | — | `.md` | GFM |
 | Export → HTML | — | `.html` | Preview endnotes |
 | Export → PDF (print) | — | via browser | Preview endnotes |
@@ -127,7 +127,7 @@ never the markdown source.
 
 ## Substack checklist and helper
 
-Cleanup → Publish → **Substack** scans the essay and lists only what will
+Publish → **Substack** scans the essay and lists only what will
 not survive a plain paste. Each item is a checkbox: checked leaves a marker
 the helper finishes; unchecked pastes a static fallback that reads fine on
 its own.

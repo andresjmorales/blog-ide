@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import {
   EditorPrefsSection,
-  MarkdownPrefsSection,
+  ToolbarPrefsSection,
+  WritingCheckPrefsSection,
 } from "@/components/EditorPrefsFields";
 import { SettingsInfo } from "@/components/SettingsInfo";
 import {
@@ -65,7 +66,8 @@ type GithubSettingsProps = {
 export type SettingsTab =
   | "account"
   | "editor"
-  | "markdown"
+  | "writing"
+  | "toolbar"
   | "storage"
   | "vault"
   | "integrations";
@@ -85,7 +87,8 @@ type Props = {
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: "account", label: "Account" },
   { id: "editor", label: "Editor" },
-  { id: "markdown", label: "Markdown" },
+  { id: "writing", label: "Writing check" },
+  { id: "toolbar", label: "Toolbar" },
   { id: "storage", label: "Storage" },
   { id: "vault", label: "Vault" },
   { id: "integrations", label: "Integrations" },
@@ -463,7 +466,9 @@ function SettingsDialog({
 
           {tab === "editor" && <EditorPrefsSection />}
 
-          {tab === "markdown" && <MarkdownPrefsSection />}
+          {tab === "writing" && <WritingCheckPrefsSection />}
+
+          {tab === "toolbar" && <ToolbarPrefsSection />}
 
           {tab === "vault" && (
             <VaultSettingsSection
@@ -613,7 +618,7 @@ function SettingsDialog({
               <section className="settings-section">
                 <h3>
                   AI API keys
-                  <SettingsInfo text="Bring your own Anthropic and/or OpenAI key. Keys are stored only in this browser and sent to the provider when you use the assistant, never saved to BlogIDE's database. Hosted BlogIDE keeps BYOK as the default so model usage stays on your API bill. With a key saved, Cleanup → Import offers Clean with AI for messy Substack or Docs paste." />
+                  <SettingsInfo text="Bring your own Anthropic and/or OpenAI key. Keys are stored only in this browser and sent to the provider when you use the assistant, never saved to BlogIDE's database. Hosted BlogIDE keeps BYOK as the default so model usage stays on your API bill. A key also turns on Copyedit → AI copyedit (proofread, consistency) and Import fixes → Clean with AI." />
                 </h3>
                 <label className="settings-row">
                   <span>Provider</span>

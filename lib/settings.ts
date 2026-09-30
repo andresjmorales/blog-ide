@@ -42,6 +42,8 @@ export type EditorPrefs = {
   sidenoteLayout?: SidenoteLayout;
   /** Open the footnote editor card on superscript hover. */
   footnoteOpenOnHover?: boolean;
+  /** Include footnote bodies in the outline word count. */
+  wordCountFootnotes?: boolean;
   /**
    * Reserved: OG chrome on the link edit bubble (Open / Pin and read here / Library).
    * Currently always on in DocumentEditor; pref kept for future toggle.
@@ -52,10 +54,10 @@ export type EditorPrefs = {
   /** Default BCP-47 language tags when a document has none set. */
   spellcheckLanguages?: string[];
   /**
-   * Dash style for Cleanup punctuation normalize / citation defaults.
-   * Chicago: em dash without spaces; MLA: spaced en dash.
+   * House dash style for Copyedit (check + converter) and citation defaults.
+   * Chicago: closed em dash; MLA: spaced en dash; AP: spaced em dash.
    */
-  dashStyle?: "chicago" | "mla";
+  dashStyle?: "chicago" | "mla" | "ap";
   /**
    * Markdown auto-transforms while typing in rich text.
    * `conservative` (default): lists, headings, code only.
@@ -64,7 +66,7 @@ export type EditorPrefs = {
   markdownTypingShortcuts?: MarkdownTypingShortcuts;
   /**
    * TipTap Typography while typing: curly quotes, `--` → em dash, `...` →
-   * ellipsis, arrows, and a few symbols. Independent of Cleanup punctuation.
+   * ellipsis, arrows, and a few symbols. Independent of the Copyedit panel.
    * Default on. Immediate Backspace / Ctrl+Z restores the original characters.
    */
   typography?: boolean;
@@ -98,7 +100,7 @@ export type EditorPrefs = {
   harperDictionary?: string[];
   /**
    * Essay formatting toolbar order: visible items, dividers, and the Aa+
-   * overflow folder. Missing ids become unused chips in Settings → Editor.
+   * overflow folder. Missing ids become unused chips in Settings → Toolbar.
    */
   toolbarLayout?: ToolbarLayout;
 };
@@ -117,6 +119,7 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   sidenotes: true,
   sidenoteLayout: "sticky",
   footnoteOpenOnHover: true,
+  wordCountFootnotes: true,
   linkPreviews: false,
   spellcheckEnabled: false,
   spellcheckLanguages: ["en-US"],

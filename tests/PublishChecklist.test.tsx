@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { EditorPrefsProvider } from "@/components/EditorPrefsContext";
-import { CleanupDialog } from "@/components/CleanupDialog";
+import { PublishDialog } from "@/components/PublishDialog";
 import { mergePrefs } from "@/lib/settings";
 
 const ESSAY = `---
@@ -21,7 +21,7 @@ A line
 [^1]: Note.
 `;
 
-describe("Publish tab checklist", () => {
+describe("Publish dialog Substack checklist", () => {
   let root: Root | null = null;
 
   afterEach(() => {
@@ -37,12 +37,13 @@ describe("Publish tab checklist", () => {
     act(() => {
       root!.render(
         <EditorPrefsProvider prefs={mergePrefs({})} updatePrefs={() => {}}>
-          <CleanupDialog
+          <PublishDialog
             open
             onClose={() => {}}
-            editor={null}
-            initialTab="publish"
             getMarkdown={() => markdown}
+            snapshot={markdown}
+            title="Checklist"
+            subtitle=""
             allowServerChecks={false}
           />
         </EditorPrefsProvider>
@@ -81,6 +82,6 @@ describe("Publish tab checklist", () => {
     render("# Plain\n\nJust text.\n");
     expect(document.querySelector(".blogide-publish-checklist")).toBeNull();
     expect(document.body.textContent).toContain("Nothing risky found");
-    expect(document.body.textContent).toContain("Copy helper script (optional)");
+    expect(document.body.textContent).toContain("Run the helper (not needed)");
   });
 });
