@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import {
+  AUTH_LINK_ERROR_COPY,
+  authLinkErrorCode,
+} from "@/lib/auth/confirmLink";
 import { createClient } from "@/lib/supabase/client";
 import { VAULT_PASSWORD_RESET_NOTE } from "@/lib/vault/copy";
 
@@ -25,14 +29,11 @@ export function ResetConfirmForm() {
   useEffect(() => {
     let cancelled = false;
     async function verify() {
-      const authError = searchParams.get("error");
-      const authDescription = searchParams.get("error_description");
+      // Fixed copy per error code; never echo text from the URL.
+      const authError = authLinkErrorCode(searchParams.get("error"));
       if (authError) {
         if (!cancelled) {
-          setError(
-            authDescription?.replace(/\+/g, " ") ||
-              "This reset link is invalid or has expired."
-          );
+          setError(AUTH_LINK_ERROR_COPY[authError]);
           setStage("invalid");
         }
         return;
@@ -45,7 +46,7 @@ export function ResetConfirmForm() {
           await supabase.auth.exchangeCodeForSession(code);
         if (cancelled) return;
         if (exchangeError) {
-          setError(exchangeError.message);
+          setError(AUTH_LINK_ERROR_COPY.expired);
           setStage("invalid");
           return;
         }

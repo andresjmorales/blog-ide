@@ -1,59 +1,87 @@
-import { type EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  classifyVerifyError,
+  isEmailOtpType,
+  type AuthLinkError,
+} from "@/lib/auth/confirmLink";
 import { createClient } from "@/lib/supabase/server";
 import { safeNextPath } from "@/lib/siteUrl";
 
 /**
  * Email confirmation / password-recovery landing.
  *
- * Prefer Supabase Auth email templates that link here with token_hash
- * (see docs/HOSTED_OPERATOR.md) so the user never lands on *.supabase.co
- * and recovery works across devices. Also accepts ?code= from the default
- * ConfirmationURL redirect for same-browser PKCE.
+ * Auth email templates link here with token_hash (see
+ * docs/HOSTED_OPERATOR.md) so the user never lands on *.supabase.co and
+ * recovery works across devices.
+ *
+ * GET never spends a token_hash: mail security scanners open links before
+ * people do, and a one-time token used by a scanner leaves the real click
+ * with "link expired". GET forwards to /auth/continue, whose button POSTs
+ * back here to verify. A `?code=` (same-browser PKCE) is still exchanged on
+ * GET because it only works with this browser's code verifier cookie.
  */
+function failure(origin: string, code: AuthLinkError): NextResponse {
+  const url = new URL("/reset/confirm", origin);
+  url.searchParams.set("error", code);
+  return NextResponse.redirect(url, 303);
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const tokenHash = searchParams.get("token_hash");
-  const type = searchParams.get("type") as EmailOtpType | null;
+  const type = searchParams.get("type");
   const code = searchParams.get("code");
   const next = safeNextPath(searchParams.get("next"), "/reset/confirm");
 
-  const success = new URL(next, origin);
-  const failure = new URL("/reset/confirm", origin);
-  failure.searchParams.set("error", "auth");
-
-  const supabase = await createClient();
-
-  if (tokenHash && type) {
-    const { error } = await supabase.auth.verifyOtp({
-      type,
-      token_hash: tokenHash,
-    });
-    if (!error) {
-      return NextResponse.redirect(success);
-    }
-    failure.searchParams.set(
-      "error_description",
-      error.message || "Could not verify the link."
-    );
-    return NextResponse.redirect(failure);
+  if (tokenHash && isEmailOtpType(type)) {
+    const url = new URL("/auth/continue", origin);
+    url.searchParams.set("token_hash", tokenHash);
+    url.searchParams.set("type", type);
+    url.searchParams.set("next", next);
+    return NextResponse.redirect(url, 303);
   }
 
   if (code) {
+    const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return NextResponse.redirect(success);
-    }
-    failure.searchParams.set(
-      "error_description",
-      error.message || "Could not verify the link."
-    );
-    return NextResponse.redirect(failure);
+    if (!error) return NextResponse.redirect(new URL(next, origin), 303);
+    return failure(origin, classifyVerifyError(error.message));
   }
 
-  failure.searchParams.set(
-    "error_description",
-    "This link is missing a verification token. Request a new password reset."
+  return failure(origin, "missing");
+}
+
+export async function POST(request: NextRequest) {
+  const { origin } = new URL(request.url);
+
+  // Only our own Continue page may post here; a cross-site form could
+  // otherwise sign a visitor into someone else's account.
+  const sentOrigin = request.headers.get("origin");
+  if (sentOrigin !== origin) {
+    return NextResponse.json({ error: "Bad origin." }, { status: 403 });
+  }
+
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return failure(origin, "missing");
+  }
+  const tokenHash = form.get("token_hash");
+  const type = form.get("type");
+  const next = safeNextPath(
+    typeof form.get("next") === "string" ? (form.get("next") as string) : null,
+    "/reset/confirm"
   );
-  return NextResponse.redirect(failure);
+  if (typeof tokenHash !== "string" || !tokenHash || !isEmailOtpType(type)) {
+    return failure(origin, "missing");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.verifyOtp({
+    type,
+    token_hash: tokenHash,
+  });
+  if (error) return failure(origin, classifyVerifyError(error.message));
+  return NextResponse.redirect(new URL(next, origin), 303);
 }

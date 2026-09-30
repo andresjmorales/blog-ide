@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   "/reset",
   "/reset/confirm",
   "/auth/confirm",
+  "/auth/continue",
   "/hosting",
 ];
 
