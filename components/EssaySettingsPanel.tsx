@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { GitHubEssayMapSection } from "@/components/GitHubEssayMapSection";
+import { EssaySharingSection } from "@/components/sharing/EssaySharingSection";
 import { SettingsInfo, SettingsLabel } from "@/components/SettingsInfo";
 import type { GithubMapStatus } from "@/lib/github/types";
 import {
@@ -32,15 +33,25 @@ type Props = {
   githubStatus?: GithubMapStatus;
   githubSettingsEpoch?: number;
   onGithubSettingsChanged?: () => void;
+  /** Vault essays are E2EE and cannot be shared. */
+  inVault?: boolean;
+  /** Owner's display name, used in the invite email. */
+  senderName?: string | null;
+  /** Opens the Version history dialog (General tab shortcut). */
+  onOpenHistory?: () => void;
 };
 
-export type EssayTab = "title" | "writing" | "github";
+export type EssayTab = "general" | "sharing" | "writing" | "github";
 
 const TABS: { id: EssayTab; label: string }[] = [
-  { id: "title", label: "Title" },
+  { id: "general", label: "General" },
+  { id: "sharing", label: "Sharing" },
   { id: "writing", label: "Writing check" },
   { id: "github", label: "GitHub" },
 ];
+
+/** Tabs that need a synced essay (a node id). */
+const NODE_TABS: EssayTab[] = ["sharing", "github"];
 
 export function EssaySettingsPanel({
   open,
@@ -52,13 +63,16 @@ export function EssaySettingsPanel({
   spellcheckOverride,
   onSpellcheckOverrideChange,
   canEditTitle = true,
-  initialTab = "title",
+  initialTab = "general",
   nodeId = null,
   documentName = null,
   previewMode = false,
   githubStatus,
   githubSettingsEpoch = 0,
   onGithubSettingsChanged,
+  inVault = false,
+  senderName = null,
+  onOpenHistory,
 }: Props) {
   useEffect(() => {
     if (!open) return;
@@ -90,6 +104,9 @@ export function EssaySettingsPanel({
       githubStatus={githubStatus}
       githubSettingsEpoch={githubSettingsEpoch}
       onGithubSettingsChanged={onGithubSettingsChanged}
+      inVault={inVault}
+      senderName={senderName}
+      onOpenHistory={onOpenHistory}
     />
   );
 }
@@ -110,6 +127,9 @@ function EssaySettingsDialog({
   githubStatus,
   githubSettingsEpoch,
   onGithubSettingsChanged,
+  inVault,
+  senderName,
+  onOpenHistory,
 }: {
   title: string;
   onClose: () => void;
@@ -126,13 +146,18 @@ function EssaySettingsDialog({
   githubStatus?: GithubMapStatus;
   githubSettingsEpoch: number;
   onGithubSettingsChanged?: () => void;
+  inVault: boolean;
+  senderName: string | null;
+  onOpenHistory?: () => void;
 }) {
   const { prefs } = useEditorPrefs();
   const [draftTitle, setDraftTitle] = useState(title);
-  const [tab, setTab] = useState<EssayTab>(initialTab);
   const visibleTabs = nodeId
     ? TABS
-    : TABS.filter((item) => item.id !== "github");
+    : TABS.filter((item) => !NODE_TABS.includes(item.id));
+  const [tab, setTab] = useState<EssayTab>(
+    visibleTabs.some((item) => item.id === initialTab) ? initialTab : "general"
+  );
 
   const defaultLangs = prefs.spellcheckLanguages;
   const essayLangs =
@@ -222,7 +247,7 @@ function EssaySettingsDialog({
         </div>
 
         <div className="settings-panel-body" role="tabpanel">
-          {tab === "title" && (
+          {tab === "general" && (
             <section className="settings-section">
               <div className="settings-row settings-row-stack">
                 <SettingsLabel info="Same as the Title field at the top of the essay. Changing it renames the file in the Files panel.">
@@ -244,6 +269,37 @@ function EssaySettingsDialog({
                   className="settings-text-input"
                 />
               </div>
+              {onOpenHistory && (
+                <>
+                  <h3>Versions</h3>
+                  <p className="settings-help">
+                    The last 20 saved versions are kept in the cloud. Compare
+                    any of them with the current draft, or restore one.
+                  </p>
+                  <button
+                    type="button"
+                    className="self-start rounded border border-border px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent"
+                    onClick={() => {
+                      onClose();
+                      onOpenHistory();
+                    }}
+                  >
+                    Open version history…
+                  </button>
+                </>
+              )}
+            </section>
+          )}
+
+          {tab === "sharing" && nodeId && (
+            <section className="settings-section">
+              <EssaySharingSection
+                nodeId={nodeId}
+                title={title}
+                previewMode={previewMode}
+                inVault={inVault}
+                senderName={senderName}
+              />
             </section>
           )}
 

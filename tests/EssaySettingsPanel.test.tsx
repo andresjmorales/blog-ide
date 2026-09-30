@@ -20,7 +20,7 @@ describe("EssaySettingsPanel", () => {
 
   function render(props: {
     nodeId?: string | null;
-    initialTab?: "title" | "writing" | "github";
+    initialTab?: "general" | "sharing" | "writing" | "github";
     spellcheckOverride?: "on" | "off" | null;
   } = {}) {
     host = document.createElement("div");
@@ -49,12 +49,27 @@ describe("EssaySettingsPanel", () => {
     });
   }
 
-  it("adds a GitHub tab next to Title and Writing check", () => {
+  it("lists General, Sharing, Writing check, and GitHub", () => {
     render();
     const tabs = [...host!.querySelectorAll('[role="tab"]')].map(
       (tab) => tab.textContent
     );
-    expect(tabs).toEqual(["Title", "Writing check", "GitHub"]);
+    expect(tabs).toEqual(["General", "Sharing", "Writing check", "GitHub"]);
+  });
+
+  it("opens on the Sharing tab from the essay kebab's Share item", () => {
+    render({ initialTab: "sharing" });
+    const sharingTab = [...host!.querySelectorAll('[role="tab"]')].find(
+      (tab) => tab.textContent === "Sharing"
+    );
+    expect(sharingTab?.getAttribute("aria-selected")).toBe("true");
+    expect(host!.textContent).toContain("Sign in to share this essay");
+  });
+
+  it("falls back to General when a document-only tab has no document", () => {
+    render({ nodeId: null, initialTab: "sharing" });
+    const selected = host!.querySelector('[role="tab"][aria-selected="true"]');
+    expect(selected?.textContent).toBe("General");
   });
 
   it("opens on the GitHub mapping tab from the essay kebab", () => {
@@ -66,12 +81,12 @@ describe("EssaySettingsPanel", () => {
     expect(host!.textContent).toContain("Sign in to map this essay");
   });
 
-  it("hides GitHub when there is no document", () => {
+  it("hides Sharing and GitHub when there is no document", () => {
     render({ nodeId: null });
     const tabs = [...host!.querySelectorAll('[role="tab"]')].map(
       (tab) => tab.textContent
     );
-    expect(tabs).toEqual(["Title", "Writing check"]);
+    expect(tabs).toEqual(["General", "Writing check"]);
   });
 
   it("points at Settings for issue types and the dictionary", () => {
