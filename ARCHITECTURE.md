@@ -36,8 +36,9 @@ markdown.
   account whose email matches claims the link. Vault essays cannot be
   shared. Comment threads live in `document_comments` (definer RPCs only,
   owner or claimed share; viewers read-only), anchored by quoted text, never
-  written into the markdown. Plan and later phases (suggestions):
-  [docs/COLLABORATION.md](./docs/COLLABORATION.md).
+  written into the markdown. Invitees read the essay in a read-only TipTap
+  editor built from the shared extension set, so anchors line up with the
+  owner's text model.
 - Row-level security on every user-owned table and object path. Writes that
   carry invariants (document versions, quota counters, tree structure) are
   revoked for direct table access and must go through definer RPCs.
@@ -282,6 +283,10 @@ or a regex over the essay or the whole paragraph (`detect_references` on
 | 400ms | Harper | Extract textblocks, lint dirty ones (block cache), rebuild underlines |
 | 1s | `persistMarkdown` | IndexedDB `saveLocal` |
 | +1.5s | sync engine | Supabase optimistic save |
+
+The footnote Notes section (Settings → Footnotes → End of essay / Both)
+reads the footnote index plugin's list, like the margin rail; collapsed, it
+renders only its header.
 
 Closing Find, collapsing Cite sections, or turning Harper / bible / sidenotes
 off removes that lane's work.

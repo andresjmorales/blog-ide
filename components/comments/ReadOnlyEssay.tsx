@@ -1,20 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   EditorContent,
   ReactNodeViewRenderer,
   useEditor,
-  useEditorState,
 } from "@tiptap/react";
 import type { AnyExtension, Editor } from "@tiptap/core";
 import { createExtensions } from "@/lib/editor/extensions";
 import { parseBody } from "@/lib/markdown/pipeline";
 import { renderLatexHtml } from "@/lib/editor/math";
-import { collectRailNotes } from "@/lib/editor/footnoteNumbers";
-import { openFootnoteCardNear } from "@/lib/editor/footnoteOpen";
 import { FootnoteNodeView } from "@/components/FootnoteNodeView";
-import { FootnoteSidenote } from "@/components/FootnoteSidenote";
+import { EndnotesSection } from "@/components/EndnotesSection";
 import { CommentHighlights } from "@/lib/comments/highlights";
 import { setActiveThread } from "@/lib/comments/store";
 import { useCommentHighlights } from "@/lib/comments/useCommentHighlights";
@@ -150,36 +147,18 @@ export function ReadOnlyEssay({ body, commentsEnabled, onEditor }: Props) {
     return registerCommentSurface(editor, null);
   }, [editor]);
 
-  const notes = useEditorState({
-    editor,
-    selector: ({ editor: current }) =>
-      current ? collectRailNotes(current.state.doc) : [],
-  });
+  // Readers get the notes after the essay, open, like a printed piece.
+  const [notesOpen, setNotesOpen] = useState(true);
 
   return (
     <>
       <EditorContent editor={editor} />
-      {notes && notes.length > 0 && (
-        <section className="shared-essay-notes" aria-label="Notes">
-          <h2>Notes</h2>
-          <ol>
-            {notes.map((note) => (
-              <li key={note.id || note.number} data-footnote-id={note.id}>
-                <FootnoteSidenote
-                  number={note.number}
-                  markdown={note.content}
-                  onActivate={() => {
-                    const ref = editor?.view.dom.querySelector<HTMLElement>(
-                      `[data-footnote-id="${CSS.escape(note.id)}"] .footnote-ref`
-                    );
-                    ref?.scrollIntoView({ behavior: "smooth", block: "center" });
-                    openFootnoteCardNear(note.id, ref ?? null);
-                  }}
-                />
-              </li>
-            ))}
-          </ol>
-        </section>
+      {editor && (
+        <EndnotesSection
+          editor={editor}
+          expanded={notesOpen}
+          onExpandedChange={setNotesOpen}
+        />
       )}
     </>
   );

@@ -44,6 +44,8 @@ import { DocumentOutline } from "@/components/DocumentOutline";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { useAppDialog } from "@/components/AppDialog";
 import { SidenoteRail } from "@/components/SidenoteRail";
+import { EndnotesSection } from "@/components/EndnotesSection";
+import { endnotesOpenByDefault } from "@/lib/settings";
 import { DeletedFootnotesPanel } from "@/components/DeletedFootnotesPanel";
 import { LinkEditCard } from "@/components/editor/LinkEditCard";
 import { EssaySpellcheckProvider } from "@/components/EssaySpellcheckContext";
@@ -194,7 +196,12 @@ export function DocumentEditor({
   const [findStickyRange, setFindStickyRange] = useState<DocRange | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   // Anchored layout is hidden for now — always use the sidenote rail.
-  const railEnabled = prefs.sidenotes;
+  const footnoteDisplay = prefs.footnoteDisplay;
+  // "End of essay" lists notes after the text instead of in the margin.
+  const railEnabled = prefs.sidenotes && footnoteDisplay !== "end";
+  const endnotesShown = footnoteDisplay !== "rail";
+  const endnotesExpanded =
+    prefs.endnotesExpanded ?? endnotesOpenByDefault(footnoteDisplay);
   const spellcheckOn = spellcheckEnabled ?? prefs.spellcheckEnabled;
   const markdownTypingShortcuts = prefs.markdownTypingShortcuts;
   const typography = prefs.typography;
@@ -624,7 +631,7 @@ export function DocumentEditor({
           {/* Prose + optional bottom dock — between Outline and Notes rail. */}
           <div
             className={`relative flex min-h-0 min-w-0 flex-1 flex-col ${
-              prefs.sidenotes ? "show-sidenotes" : ""
+              prefs.sidenotes && footnoteDisplay !== "end" ? "show-sidenotes" : ""
             } ${railEnabled ? "sidenotes-rail" : ""}`}
           >
             <div
@@ -651,7 +658,7 @@ export function DocumentEditor({
               <div
                 ref={pageRef}
                 className={`mx-auto px-6 py-10 ${
-                  railEnabled
+                  railEnabled || footnoteDisplay === "end"
                     ? "max-w-2xl"
                     : prefs.sidenotes
                       ? "max-w-5xl"
@@ -661,6 +668,15 @@ export function DocumentEditor({
                 {titleSlot}
                 <EditorContent editor={editor} />
                 {editor && <TableControls editor={editor} />}
+                {editor && endnotesShown && (
+                  <EndnotesSection
+                    editor={editor}
+                    expanded={endnotesExpanded}
+                    onExpandedChange={(next) =>
+                      updatePrefs({ endnotesExpanded: next })
+                    }
+                  />
+                )}
                 {/* Anchored / sidenotes-off: keep restore UI per-essay. */}
                 {!railEnabled && (
                   <DeletedFootnotesPanel variant="inline" defaultOpen={false} />
@@ -687,7 +703,7 @@ export function DocumentEditor({
               onCollapse={() => updatePrefs({ sidenotes: false })}
             />
           )}
-          {!railEnabled && editor && (
+          {!railEnabled && editor && footnoteDisplay !== "end" && (
             <aside className="footnote-rail-collapsed" aria-label="Footnotes">
               <button
                 type="button"

@@ -15,6 +15,8 @@ import {
 } from "@/lib/editor/toolbarLayout";
 
 export type SidenoteLayout = "anchored" | "sticky";
+/** Where footnote bodies are listed: margin rail, a Notes section, or both. */
+export type FootnoteDisplay = "rail" | "end" | "both";
 
 /** Rich-text markdown typing shortcuts (TipTap input rules). */
 export type MarkdownTypingShortcuts = "conservative" | "full";
@@ -40,6 +42,13 @@ export type EditorPrefs = {
   sidenotes?: boolean;
   /** Anchored beside each mark, or a scrollable rail of all notes. */
   sidenoteLayout?: SidenoteLayout;
+  /**
+   * Margin rail (default), a collapsible Notes section after the essay that
+   * scrolls with it, or both (the section starts collapsed).
+   */
+  footnoteDisplay?: FootnoteDisplay;
+  /** Notes section open/closed; null follows footnoteDisplay's default. */
+  endnotesExpanded?: boolean | null;
   /** Open the footnote editor card on superscript hover. */
   footnoteOpenOnHover?: boolean;
   /** Include footnote bodies in the outline word count. */
@@ -118,6 +127,8 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   mobileStartSurface: "last",
   sidenotes: true,
   sidenoteLayout: "sticky",
+  footnoteDisplay: "rail",
+  endnotesExpanded: null,
   footnoteOpenOnHover: true,
   wordCountFootnotes: true,
   linkPreviews: false,
@@ -157,6 +168,15 @@ function normalizeMobileStartSurface(
   return DEFAULT_EDITOR_PREFS.mobileStartSurface;
 }
 
+export function normalizeFootnoteDisplay(value: unknown): FootnoteDisplay {
+  return value === "end" || value === "both" ? value : "rail";
+}
+
+/** Whether the Notes section starts open for this display mode. */
+export function endnotesOpenByDefault(display: FootnoteDisplay): boolean {
+  return display === "end";
+}
+
 export function mergePrefs(partial: EditorPrefs = {}): Required<EditorPrefs> {
   const merged = { ...DEFAULT_EDITOR_PREFS, ...partial };
   const typography =
@@ -170,6 +190,9 @@ export function mergePrefs(partial: EditorPrefs = {}): Required<EditorPrefs> {
   return {
     ...merged,
     mobileStartSurface: normalizeMobileStartSurface(partial),
+    footnoteDisplay: normalizeFootnoteDisplay(merged.footnoteDisplay),
+    endnotesExpanded:
+      typeof merged.endnotesExpanded === "boolean" ? merged.endnotesExpanded : null,
     typography,
     smartQuotes: typography,
     panelLayout,

@@ -103,7 +103,7 @@ describe("SharedEssayView", () => {
     expect(prose?.getAttribute("contenteditable")).toBe("false");
     expect(prose?.textContent).toContain("Roses grow in spring.");
     expect(dom.querySelector(".footnote-ref")?.textContent).toBe("1");
-    expect(dom.querySelector(".shared-essay-notes")?.textContent).toContain(
+    expect(dom.querySelector(".endnotes")?.textContent).toContain(
       "A note on tulips."
     );
     expect(listDocumentComments).toHaveBeenCalledWith("node-1");
