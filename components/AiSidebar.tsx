@@ -26,6 +26,7 @@ import {
   type ChatContentPart,
   type ChatMessage,
 } from "@/lib/ai/client";
+import { loadStoredChats, saveStoredChats } from "@/lib/ai/chatStore";
 import { essayImageParts } from "@/lib/ai/images";
 import {
   getActiveProvider,
@@ -77,6 +78,12 @@ type UndoState = {
   /** Essay markdown just after the latest apply (captured after the editor settles). */
   after: string | null;
 };
+
+function warnChatLoss(event: BeforeUnloadEvent) {
+  event.preventDefault();
+  // Legacy browsers only show the prompt when returnValue is set.
+  event.returnValue = "";
+}
 
 type Props = {
   /** True when an essay is open (enables Include essay). */
@@ -156,12 +163,56 @@ export function AiSidebar({
   const nearBottomRef = useRef(true);
   const abortRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  /** Chats of essays you switched away from (kept for this session). */
+  /** Chats of essays you switched away from (kept for this tab session). */
   const threadsRef = useRef(new Map<string, Thread>());
   const threadKeyRef = useRef(essayKey ?? "");
   const liveThreadRef = useRef<Thread>({ messages, undo });
+  /** Stored chats are loaded; until then, don't overwrite them with []. */
+  const restoredRef = useRef(false);
 
   const hasEssay = essayAvailable;
+
+  // Bring back this tab's chats after a reload (after mount, so SSR matches).
+  // Undo isn't restored: the editor it would roll back has been rebuilt.
+  useEffect(() => {
+    const stored = loadStoredChats<Message>();
+    for (const [key, stale] of Object.entries(stored)) {
+      if (!threadsRef.current.has(key)) {
+        threadsRef.current.set(key, { messages: stale, undo: null });
+      }
+    }
+    const current = stored[threadKeyRef.current];
+    if (current) setMessages((live) => (live.length > 0 ? live : current));
+    restoredRef.current = true;
+  }, []);
+
+  // Keep the stored copy current once each reply has finished.
+  useEffect(() => {
+    if (!restoredRef.current || busy) return;
+    const chats: Record<string, Message[]> = {};
+    threadsRef.current.forEach((thread, key) => {
+      chats[key] = thread.messages;
+    });
+    chats[threadKeyRef.current] = messages.filter(
+      (m) => m.role === "user" || m.content.trim()
+    );
+    saveStoredChats(chats, threadKeyRef.current);
+  }, [messages, busy]);
+
+  // Chats survive a reload but not closing the tab, and a reply still
+  // streaming survives neither. The browser can't tell reload from close, so
+  // ask on both whenever there's a chat to lose.
+  useEffect(() => {
+    const hasChat =
+      busy ||
+      messages.length > 0 ||
+      [...threadsRef.current.entries()].some(
+        ([key, thread]) => key !== threadKeyRef.current && thread.messages.length > 0
+      );
+    if (!hasChat) return;
+    window.addEventListener("beforeunload", warnChatLoss);
+    return () => window.removeEventListener("beforeunload", warnChatLoss);
+  }, [messages, busy]);
 
   // Declared before the swap below so it still holds the outgoing chat.
   useEffect(() => {
@@ -849,8 +900,8 @@ export function AiSidebar({
                 at a time, then undo.
               </li>
               <li>
-                Each essay keeps its own chat until you close the tab; switching
-                essays switches chats.
+                Each essay keeps its own chat until you close the tab (a reload
+                keeps it); switching essays switches chats.
               </li>
             </ul>
           </div>

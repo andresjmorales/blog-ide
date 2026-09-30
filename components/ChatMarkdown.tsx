@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { generateHTML } from "@tiptap/core";
 import { renderChatMath } from "@/lib/ai/chatMath";
 import { unwrapMarkdownReply } from "@/lib/ai/client";
@@ -73,15 +73,30 @@ function finishHtml(html: string, essayNotes: Record<string, string> | undefined
   return root.innerHTML;
 }
 
-/** Latest value, but updated at most every `ms` while `active`. */
+/**
+ * Latest value, but updated at most every `ms` while `active`. A throttle, not
+ * a debounce: a steady stream of chunks must still repaint every `ms`, or the
+ * reply freezes after its first words until the stream pauses.
+ */
 function useThrottled<T>(value: T, ms: number, active: boolean): T {
   const [shown, setShown] = useState(value);
+  const latestRef = useRef(value);
+  const timerRef = useRef<number | null>(null);
   useEffect(() => {
+    latestRef.current = value;
     // When not streaming the live value is returned directly below.
-    if (!active) return;
-    const timer = window.setTimeout(() => setShown(value), ms);
-    return () => window.clearTimeout(timer);
+    if (!active || timerRef.current !== null) return;
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      setShown(latestRef.current);
+    }, ms);
   }, [value, ms, active]);
+  useEffect(
+    () => () => {
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    },
+    []
+  );
   return active ? shown : value;
 }
 
