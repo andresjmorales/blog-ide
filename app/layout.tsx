@@ -29,11 +29,9 @@ export const metadata: Metadata = {
   },
 };
 
+// No themeColor here: the bar colour follows the in-app theme, which can
+// differ from the OS, so public/theme-init.js and lib/theme.ts set it.
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#faf9f6" },
-    { media: "(prefers-color-scheme: dark)", color: "#14130f" },
-  ],
   // Shrink the layout viewport when the on-screen keyboard opens (instead of
   // panning the page), so the app header and toolbar stay anchored.
   interactiveWidget: "resizes-content",
