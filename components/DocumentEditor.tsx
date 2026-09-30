@@ -64,6 +64,9 @@ import {
 } from "@/lib/editor/normalizePastedWhitespace";
 import { sliceFromPoetryPlainText } from "@/lib/editor/poetry";
 import { TableControls } from "@/components/TableControls";
+import { CommentHighlights } from "@/lib/comments/highlights";
+import { setActiveThread, useCommentSession } from "@/lib/comments/store";
+import { useCommentHighlights } from "@/lib/comments/useCommentHighlights";
 import {
   firstImageFile,
   insertEssayImageFromFile,
@@ -100,6 +103,8 @@ type Props = {
   onOpenCleanup?: () => void;
   /** When true, skip Open Graph / reader requests (vault essays). */
   inVault?: boolean;
+  /** Essay whose comment threads may paint here (owner view). */
+  commentNodeId?: string | null;
   /** Controlled outline rail (split mode snapshots / restores this). */
   outlineOpen?: boolean;
   onOutlineOpenChange?: (open: boolean) => void;
@@ -163,6 +168,7 @@ export function DocumentEditor({
   outlineOpen: outlineOpenProp,
   onOutlineOpenChange,
   inVault = false,
+  commentNodeId = null,
 }: Props) {
   const { prefs, updatePrefs } = useEditorPrefs();
   const dialog = useAppDialog();
@@ -242,6 +248,10 @@ export function DocumentEditor({
         // Editor-only: not part of the shared markdown schema / round-trip set.
         HarperHighlight,
         BibleRefHighlight,
+        // Decoration-only; comments never write into the markdown.
+        CommentHighlights.configure({
+          onActivate: (threadId) => setActiveThread(threadId),
+        }),
       ],
       content: initialContent,
       immediatelyRender: false,
@@ -297,6 +307,12 @@ export function DocumentEditor({
       },
     },
     [markdownTypingShortcuts, typography]
+  );
+
+  const commentSession = useCommentSession();
+  useCommentHighlights(
+    editor,
+    commentNodeId != null && commentSession.nodeId === commentNodeId
   );
 
   function openFind() {
