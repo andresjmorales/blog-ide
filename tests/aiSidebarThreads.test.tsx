@@ -147,3 +147,61 @@ describe("follow-ups after applying edits", () => {
     expect(last.content).toContain("Anything else?");
   });
 });
+
+describe("AI chat across a reload", () => {
+  let root: Root | null = null;
+  let host: HTMLDivElement | null = null;
+  afterEach(() => {
+    act(() => root?.unmount());
+    host?.remove();
+    localStorage.clear();
+    sessionStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it("restores this tab's chat after remounting and guards unload", async () => {
+    localStorage.setItem(
+      "blogide.aiKeys",
+      JSON.stringify({ anthropic: "sk-ant-test-key-1234" })
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(JSON.stringify({ text: "Remembered reply" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      )
+    );
+    const mount = async () => {
+      host = document.createElement("div");
+      document.body.appendChild(host);
+      root = createRoot(host);
+      await act(async () =>
+        root!.render(
+          <AiSidebar essayAvailable essayKey="a" getDocumentMarkdown={() => "# A\n"} />
+        )
+      );
+    };
+    await mount();
+    const textarea = host!.querySelector("textarea")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!
+        .set!.call(textarea, "First question");
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => host!.querySelector("form")!.requestSubmit());
+    await act(async () => {});
+    expect(host!.textContent).toContain("Remembered reply");
+
+    const unload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+
+    act(() => root?.unmount());
+    host?.remove();
+    await mount();
+    expect(host!.textContent).toContain("First question");
+    expect(host!.textContent).toContain("Remembered reply");
+  });
+});
