@@ -12,13 +12,26 @@ import {
   footnoteIndexKey,
   railNotesEqual,
 } from "@/lib/editor/footnoteNumbers";
+import {
+  buildScrollMap,
+  essayForRail,
+  railForEssay,
+  type ScrollAnchor,
+  type ScrollMap,
+} from "@/lib/editor/railScrollMap";
 
 /** Ease toward the other pane (lower = slower / smoother). */
 const LINK_EASE = 0.22;
+/**
+ * Reading line, as a fraction of the essay viewport height. A marker on this
+ * line has its note level with it in the rail.
+ */
+const FOCUS_LINE = 0.3;
 
 /**
- * Scrollable gutter of every footnote. When linked, essay ↔ rail scroll stay
- * in proportion (either pane can drive the other) and clicking a note scrolls
+ * Scrollable gutter of every footnote. When linked, the rail keeps the notes
+ * for the markers on screen beside them (either pane can drive the other; see
+ * `railScrollMap`) and clicking a note scrolls
  * the essay to it. When unlocked, the rail is fully independent: clicking a
  * note opens it in place without moving the essay.
  */
@@ -75,19 +88,66 @@ export function SidenoteRail({
       return Math.max(0, el.scrollHeight - el.clientHeight);
     }
 
-    function progressOf(el: HTMLElement): number {
-      const max = maxScroll(el);
-      return max <= 0 ? 0 : el.scrollTop / max;
+    /** Anchor map, rebuilt lazily whenever layout may have moved. */
+    let map: ScrollMap | null = null;
+    let mapEssayHeight = -1;
+    let mapRailHeight = -1;
+
+    function invalidate() {
+      map = null;
     }
 
-    function setProgress(el: HTMLElement, progress: number) {
-      const max = maxScroll(el);
-      el.scrollTop = Math.min(max, Math.max(0, progress * max));
+    function buildMap(): ScrollMap {
+      const essayRect = essayPane.getBoundingClientRect();
+      const railRect = notesPane.getBoundingClientRect();
+      // A shared reading line, in client coordinates, expressed per pane.
+      const focusEssay = essayPane.clientHeight * FOCUS_LINE;
+      const focusRail = focusEssay + essayRect.top - railRect.top;
+      const anchors: ScrollAnchor[] = [];
+      const items = notesPane.querySelectorAll<HTMLElement>("[data-rail-id]");
+      for (const item of items) {
+        const id = item.dataset.railId;
+        if (!id) continue;
+        const ref = essayPane.querySelector<HTMLElement>(
+          `.footnote-node[data-footnote-id="${CSS.escape(id)}"] .footnote-ref`
+        );
+        if (!ref) continue;
+        const note = item.querySelector<HTMLElement>(".footnote-sidenote") ?? item;
+        const refY =
+          ref.getBoundingClientRect().top - essayRect.top + essayPane.scrollTop;
+        const noteY =
+          note.getBoundingClientRect().top - railRect.top + notesPane.scrollTop;
+        anchors.push({ essay: refY - focusEssay, rail: noteY - focusRail });
+      }
+      mapEssayHeight = essayPane.scrollHeight;
+      mapRailHeight = notesPane.scrollHeight;
+      return buildScrollMap(anchors, maxScroll(essayPane), maxScroll(notesPane));
     }
 
-    function easeToward(el: HTMLElement, progress: number) {
-      const max = maxScroll(el);
-      const target = progress * max;
+    function currentMap(): ScrollMap {
+      if (
+        !map ||
+        essayPane.scrollHeight !== mapEssayHeight ||
+        notesPane.scrollHeight !== mapRailHeight
+      ) {
+        map = buildMap();
+      }
+      return map;
+    }
+
+    function railTarget(): number {
+      return railForEssay(currentMap(), essayPane.scrollTop);
+    }
+
+    function essayTarget(): number {
+      return essayForRail(currentMap(), notesPane.scrollTop);
+    }
+
+    function snapRail() {
+      notesPane.scrollTop = railTarget();
+    }
+
+    function easeToward(el: HTMLElement, target: number) {
       const delta = target - el.scrollTop;
       if (Math.abs(delta) <= 0.5) {
         el.scrollTop = target;
@@ -103,9 +163,9 @@ export function SidenoteRail({
 
       let needsMore = false;
       if (driver === "essay") {
-        needsMore = easeToward(notesPane, progressOf(essayPane));
+        needsMore = easeToward(notesPane, railTarget());
       } else {
-        needsMore = easeToward(essayPane, progressOf(notesPane));
+        needsMore = easeToward(essayPane, essayTarget());
       }
 
       if (needsMore) {
@@ -144,7 +204,7 @@ export function SidenoteRail({
       // Programmatic essay motion (Find, outline): snap the rail only.
       // Never let a leftover rail `scroll` event drive the essay back —
       // that is the opposite-direction jump after a long wheel flick.
-      setProgress(notesPane, progressOf(essayPane));
+      snapRail();
     }
 
     function onRailScroll() {
@@ -163,13 +223,17 @@ export function SidenoteRail({
       driver = null;
     };
 
-    // Relink: snap rail to the essay immediately.
-    setProgress(notesPane, progressOf(essayPane));
+    // Relink (or notes changed): snap rail to the essay immediately.
+    snapRail();
 
     function onResize() {
+      invalidate();
       if (!linkedRef.current) return;
-      setProgress(notesPane, progressOf(essayPane));
+      snapRail();
     }
+
+    // Typing can move markers without changing either scroll height.
+    editor.on("update", invalidate);
 
     const armEssay = armFromUser("essay");
     const armRail = armFromUser("rail");
@@ -203,8 +267,9 @@ export function SidenoteRail({
       notesPane.removeEventListener("touchstart", armRail, userOpts);
       notesPane.removeEventListener("keydown", armRail, userOpts);
       window.removeEventListener("resize", onResize);
+      editor.off("update", invalidate);
     };
-  }, [scrollRoot, linked]);
+  }, [editor, scrollRoot, linked, notes]);
 
   /**
    * Linked: scroll the essay to the marker (the rail follows) and open it.
@@ -219,7 +284,13 @@ export function SidenoteRail({
     );
     if (!ref) return;
     releaseToEssayRef.current();
-    ref.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Land the marker on the reading line, where its note lines up.
+    const offset =
+      ref.getBoundingClientRect().top - scrollRoot.getBoundingClientRect().top;
+    scrollRoot.scrollTo({
+      top: scrollRoot.scrollTop + offset - scrollRoot.clientHeight * FOCUS_LINE,
+      behavior: "smooth",
+    });
     ref.click();
   }
 

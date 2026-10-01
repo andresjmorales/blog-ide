@@ -28,7 +28,93 @@ function push(out: WordSegment[], type: WordSegment["type"], text: string) {
   else out.push({ type, text });
 }
 
+/** Change runs bigger than this (in words) read as one replaced block. */
+const BLOCK_CHANGE_WORDS = 3;
+/** Matches this short (in words) between big changes fold into the block. */
+const MAX_GLUE_WORDS = 2;
+
+function countWords(text: string): number {
+  return text.match(/\S+/g)?.length ?? 0;
+}
+
+type Group =
+  | { kind: "same"; text: string }
+  | { kind: "change"; remove: string; add: string };
+
+function changeWords(group: Group): number {
+  if (group.kind !== "change") return 0;
+  return Math.max(countWords(group.remove), countWords(group.add));
+}
+
+/**
+ * Fold incidental matches (spaces, "a", "the") between changes into the
+ * changes, so a rewritten sentence reads as one struck-through block and one
+ * inserted block instead of alternating red/green words. Small edits
+ * (a word or three) stay word-level.
+ */
+export function coalesceWordDiff(segments: WordSegment[]): WordSegment[] {
+  const groups: Group[] = [];
+  for (const segment of segments) {
+    const last = groups[groups.length - 1];
+    if (segment.type === "same") {
+      groups.push({ kind: "same", text: segment.text });
+    } else if (last?.kind === "change") {
+      if (segment.type === "remove") last.remove += segment.text;
+      else last.add += segment.text;
+    } else {
+      groups.push({
+        kind: "change",
+        remove: segment.type === "remove" ? segment.text : "",
+        add: segment.type === "add" ? segment.text : "",
+      });
+    }
+  }
+
+  let merged = true;
+  while (merged) {
+    merged = false;
+    for (let i = 1; i < groups.length - 1; i += 1) {
+      const left = groups[i - 1];
+      const glue = groups[i];
+      const right = groups[i + 1];
+      if (
+        glue.kind !== "same" ||
+        left.kind !== "change" ||
+        right.kind !== "change"
+      ) {
+        continue;
+      }
+      const glueWords = countWords(glue.text);
+      const big = changeWords(left) + changeWords(right) > BLOCK_CHANGE_WORDS;
+      if (glueWords === 0 || (big && glueWords <= MAX_GLUE_WORDS)) {
+        groups.splice(i - 1, 3, {
+          kind: "change",
+          remove: left.remove + glue.text + right.remove,
+          add: left.add + glue.text + right.add,
+        });
+        merged = true;
+        i -= 1;
+      }
+    }
+  }
+
+  const out: WordSegment[] = [];
+  for (const group of groups) {
+    if (group.kind === "same") {
+      push(out, "same", group.text);
+    } else {
+      push(out, "remove", group.remove);
+      push(out, "add", group.add);
+    }
+  }
+  return out;
+}
+
 export function wordDiff(before: string, after: string): WordSegment[] {
+  return coalesceWordDiff(rawWordDiff(before, after));
+}
+
+function rawWordDiff(before: string, after: string): WordSegment[] {
   const a = tokenize(before);
   const b = tokenize(after);
   let start = 0;

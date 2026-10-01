@@ -63,6 +63,26 @@ describe("word diff", () => {
     ]);
   });
 
+  it("keeps a two-word edit word-level", () => {
+    const segments = wordDiff("a quick brown fox", "a slow brown cat");
+    expect(segments.filter((s) => s.type !== "same")).toEqual([
+      { type: "remove", text: "quick" },
+      { type: "add", text: "slow" },
+      { type: "remove", text: "fox" },
+      { type: "add", text: "cat" },
+    ]);
+  });
+
+  it("shows a rewrite as one removed block and one added block", () => {
+    const before = "I have provided an argument for why Christians should avoid the evil of factory farms.";
+    const after = "My core argument is that Christians have a duty to avoid the products of factory farms.";
+    const segments = wordDiff(before, after);
+    const changes = segments.filter((s) => s.type !== "same");
+    expect(changes.map((s) => s.type)).toEqual(["remove", "add"]);
+    expect(segments.map((s) => (s.type === "add" ? "" : s.text)).join("")).toBe(before);
+    expect(segments.map((s) => (s.type === "remove" ? "" : s.text)).join("")).toBe(after);
+  });
+
   it("groups changed lines into word-level rows with context", () => {
     const rows = reviewDiff("# T\n\nkeep\n\nold words here", "# T\n\nkeep\n\nnew words here");
     const change = rows.find((row) => row.type === "change");
