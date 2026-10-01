@@ -1,6 +1,6 @@
 /**
- * Nested footnote editor schema: text asides only — no images, headings,
- * or nested footnotes.
+ * Nested footnote editor schema: text asides (and LaTeX) only — no images,
+ * headings, or nested footnotes.
  */
 
 import StarterKit from "@tiptap/starter-kit";
@@ -14,6 +14,12 @@ import { SmartQuotes } from "@/lib/editor/smartQuotes";
 import { UndoReplace, DEFAULT_TYPOGRAPHY_LOCK_MS } from "@/lib/editor/undoReplace";
 import { FindHighlight } from "@/lib/editor/findHighlight";
 import { Subscript, Superscript } from "@/lib/editor/scriptMarks";
+import {
+  BlockMath,
+  InlineMath,
+  MathBlockMarkdown,
+  MathInlineMarkdown,
+} from "@/lib/editor/math";
 
 export function createFootnoteExtensions(options: {
   typography?: boolean;
@@ -34,6 +40,10 @@ export function createFootnoteExtensions(options: {
     Superscript,
     Subscript,
     StrictOrderedList,
+    InlineMath,
+    BlockMath,
+    MathInlineMarkdown,
+    MathBlockMarkdown,
     LinkShortcut,
     UndoReplace.configure({
       lockAfterMs: options.typographyLockAfterMs ?? DEFAULT_TYPOGRAPHY_LOCK_MS,

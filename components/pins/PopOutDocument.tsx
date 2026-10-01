@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { generateHTML } from "@tiptap/core";
 import { createExtensions } from "@/lib/editor/extensions";
 import { parseBody } from "@/lib/markdown/pipeline";
+import { renderMathPlaceholders } from "@/lib/editor/math";
 import { splitFrontmatter } from "@/lib/markdown/frontmatter";
 import { parseTitle } from "@/lib/markdown/titleFrontmatter";
 import { openDocument } from "@/lib/sync/engine";
@@ -24,7 +25,7 @@ function bodyHtml(markdown: string): string {
     return `<p class="popout-empty">Empty document.</p>`;
   }
   try {
-    return generateHTML(parseBody(trimmed), POP_EXTENSIONS);
+    return renderMathPlaceholders(generateHTML(parseBody(trimmed), POP_EXTENSIONS));
   } catch {
     return `<pre class="popout-fallback">${escapeHtml(trimmed)}</pre>`;
   }

@@ -7,7 +7,7 @@ import { splitFrontmatter } from "@/lib/markdown/frontmatter";
 import { parseTitle } from "@/lib/markdown/titleFrontmatter";
 import { parseSubtitle } from "@/lib/markdown/subtitle";
 import { parseAuthor } from "@/lib/markdown/author";
-import { KATEX_CSS_URL, renderLatexHtml } from "@/lib/editor/math";
+import { KATEX_CSS_URL, renderMathPlaceholders } from "@/lib/editor/math";
 import {
   FETCH_BIBLE_ENHANCER_SCRIPT,
   FETCH_BIBLE_TRANSLATION_ID,
@@ -390,27 +390,7 @@ export function buildPublicationPreview(markdown: string): PublicationPreview {
 
 /** Turn TipTap math placeholders into KaTeX HTML for publication preview. */
 export function enhancePublicationMath(html: string): string {
-  if (typeof DOMParser === "undefined") return html;
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  doc.querySelectorAll("[data-inline-math]").forEach((el) => {
-    const latex = el.getAttribute("data-latex") || "";
-    const { html: rendered } = renderLatexHtml(latex, false);
-    const span = doc.createElement("span");
-    span.className = "blogide-inline-math";
-    span.setAttribute("data-latex", latex);
-    span.innerHTML = rendered || escapeHtml(`$${latex}$`);
-    el.replaceWith(span);
-  });
-  doc.querySelectorAll("[data-block-math]").forEach((el) => {
-    const latex = el.getAttribute("data-latex") || "";
-    const { html: rendered } = renderLatexHtml(latex, true);
-    const div = doc.createElement("div");
-    div.className = "blogide-block-math";
-    div.setAttribute("data-latex", latex);
-    div.innerHTML = rendered || escapeHtml(`$$${latex}$$`);
-    el.replaceWith(div);
-  });
-  return doc.body.innerHTML;
+  return renderMathPlaceholders(html);
 }
 
 export type PublicationDocumentOptions = {

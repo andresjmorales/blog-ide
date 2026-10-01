@@ -9,6 +9,8 @@ export type LintTextMap = {
   posAt: (offset: number) => number | null;
   /** Map an exclusive end offset; clamps into the last mapped character. */
   endPosAt: (offset: number) => number | null;
+  /** True when `[start, end)` touches a stand-in for an atom (inline math). */
+  touchesStandIn?: (start: number, end: number) => boolean;
 };
 
 export type LintBlock = LintTextMap & {
@@ -17,6 +19,19 @@ export type LintBlock = LintTextMap & {
   /** Exclusive end of the last mapped character. */
   to: number;
 };
+
+/**
+ * Inline math has no text, so dropping it leaves "the  value" (double space)
+ * or "'s" after nothing. Harper reads a variable-like word in its place; the
+ * stand-in maps to no position and lints touching it are dropped.
+ */
+export const INLINE_MATH_STAND_IN = "x";
+
+type StandIn = { start: number; end: number };
+
+function touchesAny(standIns: StandIn[], start: number, end: number): boolean {
+  return standIns.some((s) => start < s.end && end > s.start);
+}
 
 type MappedRange = {
   textStart: number;
@@ -64,7 +79,11 @@ function makeMappers(ranges: MappedRange[]): Pick<LintTextMap, "posAt" | "endPos
   return { posAt, endPosAt };
 }
 
-function finishBlock(text: string, ranges: MappedRange[]): LintBlock | null {
+function finishBlock(
+  text: string,
+  ranges: MappedRange[],
+  standIns: StandIn[]
+): LintBlock | null {
   if (!text || ranges.length === 0) return null;
   const last = ranges[ranges.length - 1];
   const { posAt, endPosAt } = makeMappers(ranges);
@@ -74,6 +93,7 @@ function finishBlock(text: string, ranges: MappedRange[]): LintBlock | null {
     to: last.pmPos + (last.textEnd - last.textStart),
     posAt,
     endPosAt,
+    touchesStandIn: (start, end) => touchesAny(standIns, start, end),
   };
 }
 
@@ -82,17 +102,25 @@ export function extractLintBlocks(doc: WalkNode): LintBlock[] {
   const blocks: LintBlock[] = [];
   let text = "";
   let ranges: MappedRange[] = [];
+  let standIns: StandIn[] = [];
 
   function flush() {
-    const block = finishBlock(text, ranges);
+    const block = finishBlock(text, ranges, standIns);
     if (block) blocks.push(block);
     text = "";
     ranges = [];
+    standIns = [];
   }
 
   doc.descendants((node, pos) => {
     if (node.type.name === "codeBlock") return false;
     if (node.type.name === "footnoteRef") return false;
+    if (node.type.name === "inlineMath") {
+      const start = text.length;
+      text += INLINE_MATH_STAND_IN;
+      standIns.push({ start, end: text.length });
+      return false;
+    }
     if (node.isText && node.text) {
       const textStart = text.length;
       text += node.text;
@@ -142,7 +170,19 @@ export function joinLintBlocks(blocks: LintBlock[]): LintTextMap {
     return null;
   }
 
-  return { text, posAt, endPosAt };
+  function touchesStandIn(start: number, end: number): boolean {
+    for (let i = 0; i < blocks.length; i++) {
+      const blockStart = blockStarts[i];
+      const blockEnd = blockStart + blocks[i].text.length;
+      if (end <= blockStart || start >= blockEnd) continue;
+      if (blocks[i].touchesStandIn?.(start - blockStart, end - blockStart)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  return { text, posAt, endPosAt, touchesStandIn };
 }
 
 export function extractLintText(doc: WalkNode): LintTextMap {
@@ -155,6 +195,7 @@ export function mapSpanToRange(
   end: number
 ): { from: number; to: number } | null {
   if (end <= start) return null;
+  if (map.touchesStandIn?.(start, end)) return null;
   const from = map.posAt(start);
   const to = map.endPosAt(end);
   if (from == null || to == null || to <= from) return null;

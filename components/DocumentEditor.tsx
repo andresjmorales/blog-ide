@@ -25,6 +25,7 @@ import { ImageCaptionNodeView } from "@/components/ImageCaptionNodeView";
 import {
   BlockMathNodeView,
   InlineMathNodeView,
+  MATH_NODE_VIEW_OPTIONS,
 } from "@/components/MathNodeView";
 import {
   isFindHotkeyTarget,
@@ -142,14 +143,14 @@ function withEditorNodeViews(extension: AnyExtension): AnyExtension {
   if (extension.name === "inlineMath") {
     return extension.extend({
       addNodeView() {
-        return ReactNodeViewRenderer(InlineMathNodeView);
+        return ReactNodeViewRenderer(InlineMathNodeView, MATH_NODE_VIEW_OPTIONS);
       },
     });
   }
   if (extension.name === "blockMath") {
     return extension.extend({
       addNodeView() {
-        return ReactNodeViewRenderer(BlockMathNodeView);
+        return ReactNodeViewRenderer(BlockMathNodeView, MATH_NODE_VIEW_OPTIONS);
       },
     });
   }

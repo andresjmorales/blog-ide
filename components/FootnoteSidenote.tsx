@@ -4,6 +4,7 @@ import { useMemo, type Ref } from "react";
 import { generateHTML } from "@tiptap/core";
 import { createExtensions } from "@/lib/editor/extensions";
 import { parseBody } from "@/lib/markdown/pipeline";
+import { renderMathPlaceholders } from "@/lib/editor/math";
 
 /** Shared schema — creating TipTap extensions per sidenote render is costly. */
 const SIDENOTE_EXTENSIONS = createExtensions();
@@ -13,7 +14,9 @@ export function footnoteHtml(markdown: string): string {
   const trimmed = markdown.trim();
   if (!trimmed) return "";
   try {
-    return generateHTML(parseBody(trimmed), SIDENOTE_EXTENSIONS);
+    return renderMathPlaceholders(
+      generateHTML(parseBody(trimmed), SIDENOTE_EXTENSIONS)
+    );
   } catch {
     return "";
   }

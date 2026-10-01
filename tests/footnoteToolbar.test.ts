@@ -52,6 +52,7 @@ describe("fitToolbarItems", () => {
       "format",
       "sep-extra",
       "chars",
+      "tex",
     ]);
 
     const main: string[] = [];
@@ -75,6 +76,7 @@ describe("fitToolbarItems", () => {
       "codeBlock",
       "case",
       "chars",
+      "tex",
       "cleanup",
     ];
     let index = 0;

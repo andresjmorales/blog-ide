@@ -5,7 +5,12 @@ import {
   mergeAttributes,
   type JSONContent,
 } from "@tiptap/core";
-import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
+import {
+  type EditorState,
+  Plugin,
+  PluginKey,
+  TextSelection,
+} from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import katex from "katex";
 
@@ -64,9 +69,20 @@ const BLOCK_MATH_RE = /\$\$([\s\S]+?)\$\$/g;
 /** Currency-ish / price-range bodies — not math (e.g. `1-` from `$1-$2`). */
 const CURRENCY_LIKE_BODY = /^[\d.,\-]+$/;
 
+/** `$` after an odd run of backslashes is an escaped, literal dollar. */
+function isEscapedAt(text: string, index: number): boolean {
+  let slashes = 0;
+  for (let k = index - 1; k >= 0 && text[k] === "\\"; k--) slashes += 1;
+  return slashes % 2 === 1;
+}
+
 function isPlausibleInlineMath(latex: string): boolean {
   if (!latex || /^\s|\s$/.test(latex)) return false;
   if (CURRENCY_LIKE_BODY.test(latex)) return false;
+  // A bare `$` inside means the delimiters paired up wrong (`$a $b$`).
+  for (let k = 0; k < latex.length; k++) {
+    if (latex[k] === "$" && !isEscapedAt(latex, k)) return false;
+  }
   return true;
 }
 
@@ -93,9 +109,14 @@ export function prepareMath(body: string): string {
       i += 1;
       continue;
     }
-    // Opening `$` must be followed by a non-space, non-`$`.
+    // Opening `$` must be unescaped and followed by a non-space, non-`$`.
     const afterOpen = next[i + 1];
-    if (!afterOpen || afterOpen === "$" || /\s/.test(afterOpen)) {
+    if (
+      isEscapedAt(next, i) ||
+      !afterOpen ||
+      afterOpen === "$" ||
+      /\s/.test(afterOpen)
+    ) {
       out += "$";
       i += 1;
       continue;
@@ -105,7 +126,7 @@ export function prepareMath(body: string): string {
     while (j < next.length) {
       const ch = next[j];
       if (ch === "\n") break;
-      if (ch === "$") {
+      if (ch === "$" && !isEscapedAt(next, j)) {
         const before = next[j - 1];
         const after = next[j + 1];
         // Closing `$` may not be preceded by whitespace or followed by a digit.
@@ -243,6 +264,50 @@ function inlineMathCaretPlugin(typeName: string): Plugin {
   });
 }
 
+/** Decoration spec flag the math node views read (`is-in-selection`). */
+export const MATH_IN_SELECTION = "blogideMathInSelection";
+
+const MATH_NODE_NAMES = new Set(["inlineMath", "blockMath"]);
+
+/**
+ * Math nodes fully inside a non-empty selection. The browser's selection
+ * highlight skips these non-editable atoms, so a range being copied or cut
+ * would look like it leaves the math behind.
+ */
+export function mathInSelectionDecorations(
+  state: EditorState
+): DecorationSet | null {
+  const { selection } = state;
+  if (selection.empty) return null;
+  const { from, to } = selection;
+  const decorations: Decoration[] = [];
+  state.doc.nodesBetween(from, to, (node, pos) => {
+    if (!MATH_NODE_NAMES.has(node.type.name)) return true;
+    if (pos >= from && pos + node.nodeSize <= to) {
+      decorations.push(
+        Decoration.node(
+          pos,
+          pos + node.nodeSize,
+          {},
+          { [MATH_IN_SELECTION]: true }
+        )
+      );
+    }
+    return false;
+  });
+  if (decorations.length === 0) return null;
+  return DecorationSet.create(state.doc, decorations);
+}
+
+function mathSelectionPlugin(): Plugin {
+  return new Plugin({
+    key: new PluginKey("mathInSelection"),
+    props: {
+      decorations: (state) => mathInSelectionDecorations(state),
+    },
+  });
+}
+
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
     math: {
@@ -293,7 +358,8 @@ export const InlineMath = Node.create({
   },
 
   addProseMirrorPlugins() {
-    return [inlineMathCaretPlugin(this.name)];
+    // Registered once (here) for both inline and display math.
+    return [inlineMathCaretPlugin(this.name), mathSelectionPlugin()];
   },
 
   addKeyboardShortcuts() {
@@ -453,6 +519,37 @@ export function renderMathInMarkdownHtml(html: string): string {
     }
   );
   return next;
+}
+
+/**
+ * TipTap HTML (`generateHTML`) leaves math as empty `data-inline-math` /
+ * `data-block-math` placeholders; render them with KaTeX.
+ */
+export function renderMathPlaceholders(html: string): string {
+  if (!html.includes("data-inline-math") && !html.includes("data-block-math")) {
+    return html;
+  }
+  if (typeof DOMParser === "undefined") return html;
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  doc.querySelectorAll("[data-inline-math]").forEach((el) => {
+    const latex = el.getAttribute("data-latex") || "";
+    const { html: rendered } = renderLatexHtml(latex, false);
+    const span = doc.createElement("span");
+    span.className = "blogide-inline-math";
+    span.setAttribute("data-latex", latex);
+    span.innerHTML = rendered || escapeHtml(`$${latex}$`);
+    el.replaceWith(span);
+  });
+  doc.querySelectorAll("[data-block-math]").forEach((el) => {
+    const latex = el.getAttribute("data-latex") || "";
+    const { html: rendered } = renderLatexHtml(latex, true);
+    const div = doc.createElement("div");
+    div.className = "blogide-block-math";
+    div.setAttribute("data-latex", latex);
+    div.innerHTML = rendered || escapeHtml(`$$${latex}$$`);
+    el.replaceWith(div);
+  });
+  return doc.body.innerHTML;
 }
 
 function escapeHtml(value: string): string {

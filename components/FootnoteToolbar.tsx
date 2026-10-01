@@ -178,6 +178,14 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
       overflowLabel: "Special characters",
       render: () => <SpecialCharsMenu editor={editor} />,
     },
+    {
+      id: "tex",
+      kind: "item",
+      title: "Inline math (Ctrl+Shift+E)",
+      overflowLabel: "Inline math",
+      onClick: () => editor.chain().focus().insertInlineMath("x").run(),
+      render: () => <span className="footnote-toolbar-tex">TeX</span>,
+    },
   ];
 
   useLayoutEffect(() => {

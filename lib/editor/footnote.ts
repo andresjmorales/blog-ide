@@ -18,6 +18,8 @@ declare module "@tiptap/core" {
       restoreDeletedFootnote: (id: string) => ReturnType;
       dismissDeletedFootnote: (id: string) => ReturnType;
       deleteFootnote: (id: string) => ReturnType;
+      /** Replace a footnote's markdown body (edited outside its card). */
+      updateFootnoteContent: (id: string, content: string) => ReturnType;
       /** Move the footnote atom at `from` to insert position `to`. */
       moveFootnoteRef: (from: number, to: number) => ReturnType;
     };
@@ -237,6 +239,32 @@ export const FootnoteRef = Node.create({
           if (pos == null) return false;
           if (dispatch) {
             dispatch(state.tr.delete(pos, pos + size));
+          }
+          return true;
+        },
+
+      updateFootnoteContent:
+        (id: string, content: string) =>
+        ({ state, dispatch }) => {
+          let pos: number | null = null;
+          let attrs: Record<string, unknown> = {};
+          state.doc.descendants((node, nodePos) => {
+            if (pos != null) return false;
+            if (node.type.name === this.name && String(node.attrs.id) === id) {
+              pos = nodePos;
+              attrs = node.attrs;
+              return false;
+            }
+            return true;
+          });
+          if (pos == null) return false;
+          if (String(attrs.content ?? "") === content) return true;
+          if (dispatch) {
+            // setNodeMarkup (like a node view's updateAttributes), not an
+            // AttrStep: the footnote index only sees ranged steps.
+            dispatch(
+              state.tr.setNodeMarkup(pos, undefined, { ...attrs, content })
+            );
           }
           return true;
         },
