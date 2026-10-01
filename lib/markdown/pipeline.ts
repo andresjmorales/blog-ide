@@ -62,12 +62,68 @@ export function footnoteNeedsBlockForm(content: string): boolean {
   return /^(?:[-*+] |\d+\. |> |```|~~~)/.test(trimmed);
 }
 
+/** Collapse tabs / runs of spaces outside inline code spans. */
+function tidyInlineWhitespace(line: string): string {
+  const indent = line.match(/^[ \t]*/)?.[0] ?? "";
+  const rest = line
+    .slice(indent.length)
+    .split(/(`+[^`]*`+)/)
+    .map((part, i) => (i % 2 === 1 ? part : part.replace(/[ \t]{2,}|\t/g, " ")))
+    .join("");
+  return indent + rest;
+}
+
+/**
+ * Tidy footnote markdown so definitions read cleanly in the source: no
+ * leading/trailing whitespace, no stray tabs or doubled spaces, no trailing
+ * spaces on lines (hard breaks become a visible `\`), and at most one blank
+ * line between paragraphs. Fenced code is left untouched. Applied on both
+ * parse and serialize, so existing files don't read as lossy.
+ */
+export function tidyFootnoteContent(content: string): string {
+  const lines = content.replace(/\r\n?/g, "\n").split("\n");
+  const out: string[] = [];
+  let fence: string | null = null;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    const fenceMatch = line.match(/^[ \t]*(`{3,}|~{3,})/);
+    if (fence) {
+      out.push(line);
+      if (fenceMatch && fenceMatch[1]!.startsWith(fence)) fence = null;
+      continue;
+    }
+    if (fenceMatch) {
+      fence = fenceMatch[1]!;
+      out.push(line.replace(/[ \t]+$/, ""));
+      continue;
+    }
+    const next = lines[i + 1];
+    const hardBreak =
+      /(?: {2,}|\\)$/.test(line) &&
+      line.trim() !== "" &&
+      next !== undefined &&
+      next.trim() !== "";
+    let tidy = tidyInlineWhitespace(line).replace(/[ \t]+$/, "");
+    if (hardBreak && !tidy.endsWith("\\")) tidy += "\\";
+    if (!hardBreak && tidy.endsWith("\\") && !tidy.endsWith("\\\\")) {
+      // A dangling break before a blank line / end of note does nothing.
+      tidy = tidy.slice(0, -1).replace(/[ \t]+$/, "");
+    }
+    out.push(tidy.trim() === "" ? "" : tidy);
+  }
+  return out
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/^\s+/, "")
+    .replace(/\s+$/, "");
+}
+
 /** Emit a GFM footnote definition, indenting block content by four spaces. */
 export function formatFootnoteDefinition(
   label: string | number,
   content: string
 ): string {
-  const trimmed = content.replace(/\n+$/, "");
+  const trimmed = tidyFootnoteContent(content);
   if (!trimmed) return `[^${label}]:`;
   if (!footnoteNeedsBlockForm(trimmed)) {
     return `[^${label}]: ${trimmed}`;
@@ -141,7 +197,7 @@ function prepareFootnotes(body: string): PreparedFootnotes {
     }
 
     definitions.set(label, {
-      content: contentParts.join("\n").replace(/^\n+/, "").replace(/\n+$/, ""),
+      content: tidyFootnoteContent(contentParts.join("\n")),
       raw: rawLines.join("\n"),
       order,
     });
@@ -310,6 +366,12 @@ export function normalize(markdown: string): string {
   return canonicalizeTables(normalizeSerialized(markdown));
 }
 
+/** Fold footnote definitions into their (tidied) sentinel form. */
+function canonicalizeFootnotes(markdown: string): string {
+  const prepared = prepareFootnotes(markdown);
+  return [prepared.markdown, ...prepared.orphans.map((o) => o.raw)].join("\n");
+}
+
 /** TipTap escapes literal emphasis markers during Markdown serialization. */
 function canonicalizeLiteralEmphasisEscapes(markdown: string): string {
   return markdown.replace(LITERAL_EMPHASIS_ESCAPE_RE, "$1");
@@ -341,6 +403,14 @@ export function roundTrip(markdown: string): string {
 export function isLossy(markdown: string): boolean {
   const tripped = roundTrip(markdown);
   if (normalize(tripped) === normalize(markdown)) return false;
+  // Footnote definitions are re-emitted tidied; whitespace-only cleanup
+  // there is cosmetic, not loss.
+  if (
+    normalize(canonicalizeFootnotes(tripped)) ===
+    normalize(canonicalizeFootnotes(markdown))
+  ) {
+    return false;
+  }
   if (
     canonicalizeLiteralEmphasisEscapes(normalize(tripped)) !==
     canonicalizeLiteralEmphasisEscapes(normalize(markdown))
