@@ -93,9 +93,27 @@ function MathNodeView({
     if (!open) return;
     const source = sourceRef.current;
     if (!source) return;
-    source.focus();
-    if (selectAll) source.select();
-    else source.setSelectionRange(source.value.length, source.value.length);
+    const place = () => {
+      source.focus();
+      if (selectAll) source.select();
+      else source.setSelectionRange(source.value.length, source.value.length);
+    };
+    place();
+    // Inserting from a menu runs `chain().focus()` on an unfocused editor,
+    // which TipTap defers a frame; that would pull the caret back into the
+    // editor and send the LaTeX you type into the text. Reclaim it once.
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => {
+        if (document.activeElement !== source && !popupRef.current?.contains(document.activeElement)) {
+          place();
+        }
+      });
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
     // Only on open: later renders must not steal the caret.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);

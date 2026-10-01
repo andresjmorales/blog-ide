@@ -5030,11 +5030,6 @@ body.is-dragging-footnote-ref.is-footnote-drop-blocked {
 .endnote-editor .footnote-card-editor {
   min-height: 2.5rem;
 }
-.footnote-toolbar-tex {
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
 .endnote-backlink {
   color: var(--muted);
   font-size: 0.8125rem;

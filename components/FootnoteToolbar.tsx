@@ -9,6 +9,7 @@ import { applyCleanWhitespace } from "@/lib/editor/applyCleanWhitespace";
 import { fitToolbarItems } from "@/lib/editor/footnoteToolbar";
 import { EditorOverflowMenu, type OverflowItem } from "@/components/EditorOverflowMenu";
 import { SpecialCharsMenu } from "@/components/SpecialCharsMenu";
+import { TEX_INSERT_OPTIONS, TexInsertMenu } from "@/components/TexInsertMenu";
 import { FormattingOverflowMenu } from "@/components/FormattingOverflowMenu";
 import {
   BulletListIcon,
@@ -180,11 +181,10 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
     },
     {
       id: "tex",
-      kind: "item",
-      title: "Inline math (Ctrl+Shift+E)",
-      overflowLabel: "Inline math",
-      onClick: () => editor.chain().focus().insertInlineMath("x").run(),
-      render: () => <span className="footnote-toolbar-tex">TeX</span>,
+      kind: "slot",
+      title: "Insert math",
+      overflowLabel: "Math",
+      render: () => <TexInsertMenu editor={editor} />,
     },
   ];
 
@@ -261,6 +261,13 @@ export function FootnoteToolbar({ editor }: { editor: Editor }) {
           { kind: "separator", id: "sep-ws" },
           cleanWhitespaceItem,
         ];
+      }
+      if (tool.id === "tex") {
+        return TEX_INSERT_OPTIONS.map((option) => ({
+          id: `tex-${option.id}`,
+          label: option.label,
+          onSelect: () => option.run(editor),
+        }));
       }
       if (tool.id === "chars") {
         return [
