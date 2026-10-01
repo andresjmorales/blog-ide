@@ -308,6 +308,23 @@ function mathSelectionPlugin(): Plugin {
   });
 }
 
+/**
+ * Inline `$…$` can't span lines (the parser stops at a newline, and markdown
+ * would split it into paragraphs), so multi-line LaTeX typed into the inline
+ * editor (a `cases` block, say) is written on one line. A newline is only
+ * whitespace to TeX; `\\` row breaks are kept.
+ */
+export function inlineLatexForMarkdown(latex: string): string {
+  if (!latex.includes("\n")) return latex;
+  return (
+    latex
+      // A `%` comment would swallow the rest once lines are joined.
+      .replace(/(^|[^\\])%[^\n]*/g, "$1")
+      .replace(/[ \t]*\r?\n\s*/g, " ")
+      .trim()
+  );
+}
+
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
     math: {
@@ -354,7 +371,7 @@ export const InlineMath = Node.create({
   },
 
   renderMarkdown(node: JSONContent) {
-    return `$${String(node.attrs?.latex ?? "")}$`;
+    return `$${inlineLatexForMarkdown(String(node.attrs?.latex ?? ""))}$`;
   },
 
   addProseMirrorPlugins() {

@@ -172,3 +172,94 @@ describe("prepareMath dollar escapes", () => {
     expect(mathBodies("Path \\\\$x$ end.\n")).toEqual(["x"]);
   });
 });
+
+describe("multi-line LaTeX", () => {
+  const CASES =
+    "\\mathrm{Need}_\\text{spir} = \\begin{cases}\n0 \\text{ to } 100 & \\text{believer}\\\\\n\\omega & \\text{unbeliever}\n\\end{cases}";
+
+  function noteContent(doc: ReturnType<typeof parseBody>): string {
+    let content = "";
+    JSON.stringify(doc, (_key, value) => {
+      if (value?.type === "footnoteRef") content = value.attrs.content;
+      return value;
+    });
+    return content;
+  }
+
+  it("writes inline math on one line so it survives a reload", () => {
+    const editor = mount({
+      extensions: createFootnoteExtensions(),
+      content: "",
+      contentType: "markdown",
+    });
+    editor.commands.insertContent([
+      { type: "text", text: "Need is " },
+      { type: "inlineMath", attrs: { latex: CASES } },
+      { type: "text", text: " here." },
+    ]);
+    const markdown = editor.getMarkdown().trim();
+    expect(markdown).not.toContain("\n");
+    expect(markdown).not.toContain("\\\\mathrm");
+    // Back through the essay pipeline: still one math node, same TeX tokens.
+    const body = `Claim.[^1]\n\n[^1]: ${markdown}\n`;
+    const content = noteContent(parseBody(serializeBody(parseBody(body))));
+    const reopened = mount({
+      extensions: createFootnoteExtensions(),
+      content: prepareFootnoteMarkdown(content),
+      contentType: "markdown",
+    });
+    const names = nodeNames(reopened);
+    expect(names.filter((n) => n === "inlineMath")).toHaveLength(1);
+    expect(reopened.getMarkdown().trim()).toBe(markdown);
+    expect(footnoteHtml(content)).toContain("katex");
+    expect(footnoteHtml(content)).not.toContain("katex-error");
+    editor.destroy();
+    reopened.destroy();
+  });
+
+  it("keeps display math in a footnote through save and reload", () => {
+    const editor = mount({
+      extensions: createFootnoteExtensions(),
+      content: "",
+      contentType: "markdown",
+    });
+    editor.commands.insertContent([
+      { type: "paragraph", content: [{ type: "text", text: "The totalizing view:" }] },
+      { type: "blockMath", attrs: { latex: CASES } },
+    ]);
+    const content = editor.getMarkdown().trim();
+    // Put the note on the ref, then save and reload the essay twice.
+    const essay = parseBody("Claim.[^1]\n\n[^1]: x\n");
+    JSON.stringify(essay, (_k, v) => {
+      if (v?.type === "footnoteRef") v.attrs.content = content;
+      return v;
+    });
+    const once = serializeBody(essay);
+    const twice = serializeBody(parseBody(once));
+    expect(twice).toBe(once);
+    const reloaded = noteContent(parseBody(twice));
+    expect(reloaded).toBe(content);
+    const reopened = mount({
+      extensions: createFootnoteExtensions(),
+      content: prepareFootnoteMarkdown(reloaded),
+      contentType: "markdown",
+    });
+    let latex = "";
+    reopened.state.doc.descendants((node) => {
+      if (node.type.name === "blockMath") latex = node.attrs.latex;
+    });
+    expect(latex).toBe(CASES);
+    const html = footnoteHtml(reloaded);
+    expect(html).toContain("katex-display");
+    expect(html).not.toContain("katex-error");
+    editor.destroy();
+    reopened.destroy();
+  });
+
+  it("drops % comments when joining inline lines", async () => {
+    const { inlineLatexForMarkdown } = await import("@/lib/editor/math");
+    expect(inlineLatexForMarkdown("a + b % note\n+ c")).toBe("a + b + c");
+    expect(inlineLatexForMarkdown("50\\% \n off")).toBe("50\\% off");
+    expect(inlineLatexForMarkdown("x^2")).toBe("x^2");
+  });
+});
