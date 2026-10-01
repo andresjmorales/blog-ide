@@ -39,7 +39,7 @@ export function isFootnoteHistoryTarget(
   if (!(target instanceof Element)) return false;
   if (target.closest("input, textarea, select")) return false;
   const owner = target
-    .closest(".footnote-pin, .footnote-card")
+    .closest(".footnote-pin, .footnote-card, .endnote-editor")
     ?.getAttribute("data-footnote-id");
   return owner === footnoteId;
 }

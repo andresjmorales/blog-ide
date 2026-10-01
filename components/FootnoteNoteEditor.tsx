@@ -1,8 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, type MutableRefObject } from "react";
-import { EditorContent, useEditor } from "@tiptap/react";
-import type { Editor } from "@tiptap/core";
+import {
+  EditorContent,
+  ReactNodeViewRenderer,
+  useEditor,
+} from "@tiptap/react";
+import type { AnyExtension, Editor } from "@tiptap/core";
+import type { Slice } from "@tiptap/pm/model";
 import { openLinkEditor } from "@/lib/editor/linkShortcut";
 import { FootnoteToolbar } from "@/components/FootnoteToolbar";
 import {
@@ -19,6 +24,16 @@ import {
   isFootnoteHistoryTarget,
 } from "@/lib/editor/footnoteHistoryKeys";
 import { createFootnoteExtensions } from "@/lib/editor/footnoteSchema";
+import {
+  prepareFootnoteMarkdown,
+  sliceFromFootnotePlainText,
+  transformFootnotePastedHtml,
+} from "@/lib/editor/footnoteNoteContent";
+import {
+  BlockMathNodeView,
+  InlineMathNodeView,
+  MATH_NODE_VIEW_OPTIONS,
+} from "@/components/MathNodeView";
 import { CommentHighlights } from "@/lib/comments/highlights";
 import { setActiveThread } from "@/lib/comments/store";
 import { useFootnoteCommentHighlights } from "@/lib/comments/useCommentHighlights";
@@ -30,6 +45,25 @@ import {
   shouldApplyExternalFootnoteContent,
   shouldCommitFootnoteAttrs,
 } from "@/lib/editor/footnoteCard";
+
+/** Math in a note gets the same click-to-edit KaTeX view as the essay. */
+function withNoteNodeViews(extension: AnyExtension): AnyExtension {
+  if (extension.name === "inlineMath") {
+    return extension.extend({
+      addNodeView() {
+        return ReactNodeViewRenderer(InlineMathNodeView, MATH_NODE_VIEW_OPTIONS);
+      },
+    });
+  }
+  if (extension.name === "blockMath") {
+    return extension.extend({
+      addNodeView() {
+        return ReactNodeViewRenderer(BlockMathNodeView, MATH_NODE_VIEW_OPTIONS);
+      },
+    });
+  }
+  return extension;
+}
 
 type Props = {
   content: string;
@@ -45,6 +79,8 @@ type Props = {
   dragSuppressUntilRef: MutableRefObject<number>;
   /** False in the invitee's read-only view. */
   editable?: boolean;
+  /** Formatting toolbar above the note (on by default). */
+  toolbar?: boolean;
 };
 
 /**
@@ -64,11 +100,12 @@ export function FootnoteNoteEditor({
   commitRef,
   dragSuppressUntilRef,
   editable = true,
+  toolbar = true,
 }: Props) {
   const noteEditor = useEditor(
     {
       extensions: [
-        ...createFootnoteExtensions({ typography }),
+        ...createFootnoteExtensions({ typography }).map(withNoteNodeViews),
         CommentHighlights.configure({
           onActivate: (threadId) => {
             setActiveThread(threadId);
@@ -76,7 +113,7 @@ export function FootnoteNoteEditor({
           },
         }),
       ],
-      content,
+      content: prepareFootnoteMarkdown(content),
       editable,
       contentType: "markdown",
       immediatelyRender: false,
@@ -101,6 +138,10 @@ export function FootnoteNoteEditor({
           }
           return false;
         },
+        transformPastedHTML: (html) => transformFootnotePastedHtml(html),
+        clipboardTextParser: (text, _context, _plain, view) =>
+          // Null falls back to ProseMirror's default plain-text paste.
+          sliceFromFootnotePlainText(view.state.schema, text) as Slice,
       },
     },
     [typography, editable]
@@ -260,7 +301,7 @@ export function FootnoteNoteEditor({
         tr.setMeta("addToHistory", false);
         return true;
       })
-      .setContent(content, {
+      .setContent(prepareFootnoteMarkdown(content), {
         contentType: "markdown",
         emitUpdate: false,
       })
@@ -349,7 +390,7 @@ export function FootnoteNoteEditor({
 
   return (
     <>
-      {editable && <FootnoteToolbar editor={noteEditor} />}
+      {editable && toolbar && <FootnoteToolbar editor={noteEditor} />}
       <EditorContent
         editor={noteEditor}
         className="footnote-card-editor-shell"

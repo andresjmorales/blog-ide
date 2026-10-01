@@ -1,9 +1,13 @@
 "use client";
 
-import { memo, useId, useMemo } from "react";
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
 import { footnoteHtml } from "@/components/FootnoteSidenote";
+import { FootnoteNoteEditor } from "@/components/FootnoteNoteEditor";
+import { useEditorPrefs } from "@/components/EditorPrefsContext";
+import { useEssaySpellcheck } from "@/components/EssaySpellcheckContext";
+import { isFootnoteOutsidePointerTarget } from "@/lib/editor/footnoteCard";
 import {
   collectRailNotes,
   footnoteIndexKey,
@@ -56,6 +60,93 @@ function commentedFootnoteIds(threads: CommentThread[]): Set<string> {
   return ids;
 }
 
+/**
+ * The note's body, edited right in the list (same nested schema as the card:
+ * no headings, images, or nested footnotes). Escape or a click elsewhere
+ * commits and returns to the rendered note.
+ */
+function EndnoteInlineEditor({
+  editor,
+  note,
+  onDone,
+}: {
+  editor: Editor;
+  note: RailNote;
+  onDone: () => void;
+}) {
+  const { prefs } = useEditorPrefs();
+  const spellLang = useEssaySpellcheck().lang;
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const pendingFocusRef = useRef(true);
+  const commitRef = useRef<(() => void) | null>(null);
+  const dragSuppressUntilRef = useRef(0);
+  const noteId = note.id;
+
+  const updateAttributes = useCallback(
+    ({ content }: { content: string }) => {
+      if (editor.isDestroyed) return;
+      editor.commands.updateFootnoteContent(noteId, content);
+    },
+    [editor, noteId]
+  );
+
+  const finish = useCallback(() => {
+    commitRef.current?.();
+    onDone();
+  }, [onDone]);
+
+  useEffect(() => {
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (target instanceof globalThis.Node && rootRef.current?.contains(target)) {
+        return;
+      }
+      if (isFootnoteOutsidePointerTarget(target, noteId)) finish();
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      const target = event.target;
+      if (!(target instanceof globalThis.Node) || !rootRef.current?.contains(target)) {
+        return;
+      }
+      event.preventDefault();
+      finish();
+    }
+    // Deferred so the click that opened the editor cannot close it.
+    const timer = window.setTimeout(() => {
+      document.addEventListener("pointerdown", onPointerDown);
+    }, 0);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [finish, noteId]);
+
+  return (
+    <div
+      ref={rootRef}
+      className="endnote-editor"
+      data-footnote-id={noteId}
+    >
+      <FootnoteNoteEditor
+        content={note.content}
+        number={note.number}
+        footnoteId={noteId}
+        typography={prefs.typography}
+        spellLang={spellLang}
+        updateAttributes={updateAttributes}
+        isFindTarget={false}
+        findSession={null}
+        pendingFocusRef={pendingFocusRef}
+        commitRef={commitRef}
+        dragSuppressUntilRef={dragSuppressUntilRef}
+      />
+    </div>
+  );
+}
+
 const Endnote = memo(function Endnote({
   editor,
   note,
@@ -67,8 +158,23 @@ const Endnote = memo(function Endnote({
 }) {
   const html = useMemo(() => footnoteHtml(note.content), [note.content]);
   const readOnly = !editor.isEditable;
+  const [editing, setEditing] = useState(false);
+  const stopEditing = useCallback(() => setEditing(false), []);
+
+  /** Owners edit in place; invitees open the read-only card. */
+  function activate(anchor: HTMLElement) {
+    if (readOnly) {
+      openFootnoteCardNear(note.id, anchor);
+      return;
+    }
+    setEditing(true);
+  }
+
   return (
-    <li className="endnote" data-endnote-id={note.id}>
+    <li
+      className={`endnote${editing ? " is-editing" : ""}`}
+      data-endnote-id={note.id}
+    >
       <button
         type="button"
         className={`endnote-number${commented ? " has-comment-thread" : ""}`}
@@ -78,25 +184,29 @@ const Endnote = memo(function Endnote({
       >
         {note.number}
       </button>
-      <div
-        role="button"
-        tabIndex={0}
-        className={`endnote-body${html ? "" : " is-empty"}`}
-        title={readOnly ? "Open footnote" : "Edit footnote"}
-        aria-label={`${readOnly ? "Open" : "Edit"} footnote ${note.number}`}
-        onClick={(event) => {
-          event.preventDefault();
-          openFootnoteCardNear(note.id, event.currentTarget);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
+      {editing && !readOnly ? (
+        <EndnoteInlineEditor editor={editor} note={note} onDone={stopEditing} />
+      ) : (
+        <div
+          role="button"
+          tabIndex={0}
+          className={`endnote-body${html ? "" : " is-empty"}`}
+          title={readOnly ? "Open footnote" : "Edit footnote"}
+          aria-label={`${readOnly ? "Open" : "Edit"} footnote ${note.number}`}
+          onClick={(event) => {
             event.preventDefault();
-            openFootnoteCardNear(note.id, event.currentTarget);
-          }
-        }}
-      >
-        {html ? <span dangerouslySetInnerHTML={{ __html: html }} /> : "Empty footnote"}
-      </div>
+            activate(event.currentTarget);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              activate(event.currentTarget);
+            }
+          }}
+        >
+          {html ? <span dangerouslySetInnerHTML={{ __html: html }} /> : "Empty footnote"}
+        </div>
+      )}
       <button
         type="button"
         className="endnote-backlink"
@@ -113,8 +223,8 @@ const Endnote = memo(function Endnote({
 /**
  * Footnotes listed after the essay, scrolling with it (not a fixed-height
  * rail). Collapsed, it renders only the header, so a long notes list costs
- * nothing while you write. Numbers link back to each reference; a note's
- * text opens its card (editable for the owner, read-only for invitees).
+ * nothing while you write. Numbers link back to each reference; clicking a
+ * note's text edits it in place (invitees get the read-only card instead).
  */
 export function EndnotesSection({ editor, expanded, onExpandedChange }: Props) {
   const listId = useId();

@@ -62,8 +62,11 @@ export function HelpPanel({ open, onClose }: Props) {
             every note; keep it Linked to scroll with the essay, or Free to
             browse notes on their own. Deleted notes for the current essay stay
             in a collapsed section at the bottom of the rail so you can restore
-            or dismiss them. Document and link pins keep their layout if you
-            reload the tab.
+            or dismiss them. In the Notes list at the end of the essay, click a
+            note to edit it right there; Esc or a click elsewhere finishes.
+            Notes can hold inline math (TeX button or Ctrl+Shift+E) but not
+            headings, images, or other footnotes. Document and link pins keep
+            their layout if you reload the tab.
           </p>
         </section>
 

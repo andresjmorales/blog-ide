@@ -5,9 +5,14 @@ import { createPortal } from "react-dom";
 import {
   NodeViewWrapper,
   type NodeViewProps,
+  type ReactNodeViewRendererOptions,
 } from "@tiptap/react";
 import { Selection, TextSelection } from "@tiptap/pm/state";
-import { renderLatexHtml, takeMathAutoOpen } from "@/lib/editor/math";
+import {
+  MATH_IN_SELECTION,
+  renderLatexHtml,
+  takeMathAutoOpen,
+} from "@/lib/editor/math";
 import { claimFloatZ } from "@/lib/pins/pinStore";
 
 const MATH_POPUP_MAX_WIDTH_PX = 448; // min(28rem, …) at 16px root
@@ -15,6 +20,30 @@ const MATH_POPUP_EDGE_PAD_PX = 8;
 const MATH_POPUP_MIN_VISIBLE_HEIGHT_PX = 120;
 
 type PopupPos = { left: number; top: number };
+
+function hasSelectionTint(
+  decorations: readonly { spec?: Record<string, unknown> }[]
+): boolean {
+  return decorations.some(
+    (decoration) => decoration.spec?.[MATH_IN_SELECTION] === true
+  );
+}
+
+/**
+ * ReactNodeViewRenderer options for math: TipTap skips re-rendering when
+ * only decorations change, which would leave the selection tint stale.
+ */
+export const MATH_NODE_VIEW_OPTIONS: Partial<ReactNodeViewRendererOptions> = {
+  update: ({ oldNode, newNode, oldDecorations, newDecorations, updateProps }) => {
+    if (
+      oldNode !== newNode ||
+      hasSelectionTint(oldDecorations) !== hasSelectionTint(newDecorations)
+    ) {
+      updateProps();
+    }
+    return true;
+  },
+};
 
 export function InlineMathNodeView(props: NodeViewProps) {
   return <MathNodeView {...props} displayMode={false} />;
@@ -35,9 +64,12 @@ function MathNodeView({
   updateAttributes,
   deleteNode,
   selected,
+  decorations,
   displayMode,
 }: NodeViewProps & { displayMode: boolean }) {
   const latex = String(node.attrs.latex || "");
+  // Inside a text selection (copy / cut): tint like selected text.
+  const inSelection = hasSelectionTint(decorations);
   // A node just inserted from the toolbar / shortcut opens straight away with
   // its placeholder selected, ready to type over.
   const [autoOpen] = useState(() => takeMathAutoOpen(node));
@@ -93,6 +125,8 @@ function MathNodeView({
   );
 
   function openEditor() {
+    // Read-only views (invitee footnote cards) show the math, no editor.
+    if (!editor.isEditable) return;
     setZIndex(claimFloatZ());
     setDraft(latex);
     setPinned(false);
@@ -256,7 +290,7 @@ function MathNodeView({
       as={displayMode ? "div" : "span"}
       className={`blogide-math ${displayMode ? "is-block" : "is-inline"}${
         selected ? " is-selected" : ""
-      }`}
+      }${inSelection ? " is-in-selection" : ""}`}
       contentEditable={false}
     >
       <button

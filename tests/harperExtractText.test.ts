@@ -102,6 +102,35 @@ describe("harper extractText", () => {
     expect(blocks[0]?.from).toBe(1);
     expect(blocks[1]?.from).toBe(10);
   });
+
+  it("reads inline math as a word Harper can't flag", () => {
+    const math: FakeNode = {
+      isText: false,
+      isBlock: false,
+      nodeSize: 1,
+      type: { name: "inlineMath" },
+      descendants() {},
+    };
+    // "Let " [math] " be its value" / "The " [math] "'s sign"
+    const [first, second] = extractLintBlocks(
+      doc([
+        paragraph([text("Let ", 1), { node: math, pos: 5 }, text(" be it", 6)]),
+        paragraph([text("The ", 20), { node: math, pos: 24 }, text("'s sign", 25)]),
+      ])
+    );
+    expect(first?.text).toBe("Let x be it");
+    expect(second?.text).toBe("The x's sign");
+    // Text after the stand-in still maps past the math node.
+    expect(mapSpanToRange(first!, 6, 8)).toEqual({ from: 7, to: 9 });
+    // A lint touching the stand-in (e.g. "x's" spelling) is dropped.
+    expect(mapSpanToRange(second!, 4, 7)).toBeNull();
+    expect(mapSpanToRange(first!, 3, 5)).toBeNull();
+    const joined = extractLintText(
+      doc([paragraph([text("Let ", 1), { node: math, pos: 5 }, text(" be", 6)])])
+    );
+    expect(mapSpanToRange(joined, 4, 5)).toBeNull();
+    expect(mapSpanToRange(joined, 0, 3)).toEqual({ from: 1, to: 4 });
+  });
 });
 
 describe("harper dialect", () => {

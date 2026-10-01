@@ -56,12 +56,35 @@ describe("EndnotesSection", () => {
     expect(host.querySelectorAll(".endnote-backlink")).toHaveLength(2);
   });
 
-  it("opens the footnote card from a note's text", () => {
+  it("edits a note in place from its text", async () => {
     const open = vi.spyOn(footnoteOpen, "openFootnoteCardNear").mockReturnValue(true);
+    act(() => root.render(<Harness editor={editor} initial />));
+    const body = host.querySelector<HTMLElement>('[data-endnote-id="n2"] .endnote-body')!;
+    await act(async () => body.click());
+    expect(open).not.toHaveBeenCalled();
+    const item = host.querySelector<HTMLElement>('[data-endnote-id="n2"]')!;
+    expect(item.classList.contains("is-editing")).toBe(true);
+    const prose = item.querySelector<HTMLElement>(".endnote-editor .ProseMirror");
+    expect(prose?.textContent).toBe("Source two.");
+
+    // Escape commits and returns to the rendered note.
+    await act(async () => {
+      prose!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      );
+    });
+    expect(item.classList.contains("is-editing")).toBe(false);
+    expect(item.querySelector(".endnote-body")?.textContent).toBe("Source two.");
+  });
+
+  it("opens the read-only card for invitees", () => {
+    const open = vi.spyOn(footnoteOpen, "openFootnoteCardNear").mockReturnValue(true);
+    editor.setEditable(false);
     act(() => root.render(<Harness editor={editor} initial />));
     const body = host.querySelector<HTMLElement>('[data-endnote-id="n2"] .endnote-body')!;
     act(() => body.click());
     expect(open).toHaveBeenCalledWith("n2", body);
+    expect(host.querySelector(".endnote-editor")).toBeNull();
   });
 
   it("follows footnote edits", () => {

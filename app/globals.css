@@ -2062,15 +2062,21 @@ body {
   margin-top: 0;
 }
 
-.editor-prose .blogide-math.is-inline {
+.editor-prose .blogide-math.is-inline,
+.footnote-card-editor .blogide-math.is-inline {
   display: inline;
 }
-.editor-prose .blogide-math.is-block {
+.editor-prose .blogide-math.is-block,
+.footnote-card-editor .blogide-math.is-block {
   display: block;
   margin: 1.25em 0;
   text-align: center;
 }
-.editor-prose .blogide-math-render {
+.footnote-card-editor .blogide-math.is-block {
+  margin: 0.6em 0;
+}
+.editor-prose .blogide-math-render,
+.footnote-card-editor .blogide-math-render {
   background: transparent;
   border: 0;
   border-radius: 4px;
@@ -2079,11 +2085,25 @@ body {
   font: inherit;
   padding: 0.1em 0.15em;
 }
+.footnote-card-editor[contenteditable="false"] .blogide-math-render {
+  cursor: default;
+}
+/* Node-selected, or inside a text selection (copy / cut / drag): math is an
+   atom the browser's selection paint skips, so tint it like the selection. */
 .editor-prose .blogide-math.is-selected .blogide-math-render,
-.editor-prose .blogide-math-render:hover {
+.editor-prose .blogide-math-render:hover,
+.footnote-card-editor .blogide-math.is-selected .blogide-math-render,
+.footnote-card-editor[contenteditable="true"] .blogide-math-render:hover {
   background: color-mix(in oklab, var(--accent) 12%, transparent);
 }
-.editor-prose .blogide-math-fallback {
+/* Only while that editor has focus, like the native selection it extends. */
+.editor-prose.ProseMirror-focused .blogide-math.is-in-selection .blogide-math-render,
+.footnote-card-editor.ProseMirror-focused .blogide-math.is-in-selection .blogide-math-render {
+  background: color-mix(in oklab, var(--accent) 22%, transparent);
+  border-radius: 2px;
+}
+.editor-prose .blogide-math-fallback,
+.footnote-card-editor .blogide-math-fallback {
   color: var(--muted);
   font-family: var(--font-mono), monospace;
   font-size: 0.9em;
@@ -4996,6 +5016,24 @@ body.is-dragging-footnote-ref.is-footnote-drop-blocked {
 .endnote-body a {
   color: var(--accent);
   text-decoration: underline;
+}
+.endnote.is-editing {
+  align-items: start;
+}
+.endnote.is-editing .endnote-number {
+  padding-top: 0.55rem;
+}
+.endnote-editor {
+  color: var(--foreground);
+  min-width: 0;
+}
+.endnote-editor .footnote-card-editor {
+  min-height: 2.5rem;
+}
+.footnote-toolbar-tex {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 .endnote-backlink {
   color: var(--muted);
