@@ -5,12 +5,12 @@ own writing. Leave `NEXT_PUBLIC_HOSTED` unset, ignore Stripe, and use the
 [README](../README.md) getting-started path.
 
 This page is only for someone running a **shared, multi-user** deploy (the
-blogide.com-shaped setup): invite codes, a public landing page, and optional
+blogide.com-shaped setup): a public landing page, optional signup codes, and optional
 higher storage tiers so cloud Storage costs stay bounded. It is operator
 configuration, not a product pitch.
 
 Quota defaults and list prices are in [`lib/billing/plans.ts`](../lib/billing/plans.ts)
-(public constants). Self-host installs: open signup (no beta code), no upgrade
+(public constants). Self-host installs: open signup, no upgrade
 UI, and a large BlogIDE quota so Supabase is the practical limit.
 
 ---
@@ -21,21 +21,20 @@ On the shared deploy only:
 
 ```bash
 NEXT_PUBLIC_HOSTED=true
-NEXT_PUBLIC_BETA_ONLY=true
 NEXT_PUBLIC_SITE_URL=https://your-host.example
 ```
 
 `NEXT_PUBLIC_HOSTED` enables hosted landing copy, `/hosting`, and footer links.
-`NEXT_PUBLIC_BETA_ONLY` shows the beta-code field and enforces it on signup
-(also falls back to “required if hosted” when unset). Set **both** on
-blogide.com and **redeploy** after changing either — `NEXT_PUBLIC_*` values are
-baked into the client at build time.
+Signup is open by default. To gate it behind single-use codes, also set
+`NEXT_PUBLIC_BETA_ONLY=true`: that shows the code field and enforces it on the
+signup API. **Redeploy** after changing either flag — `NEXT_PUBLIC_*` values
+are baked into the client at build time.
 
 Without the Stripe variables below, Pro stays “not configured” and nobody can
-upgrade. Self-host leaves `HOSTED` and `BETA_ONLY` unset (open signup, large
+upgrade. Self-host leaves both flags unset (open signup, large
 soft quota).
 
-`SUPABASE_SERVICE_ROLE_KEY` is required for beta-code signup (and for plan
+`SUPABASE_SERVICE_ROLE_KEY` is required for signup (and for plan
 updates if you enable Stripe webhooks).
 
 ---

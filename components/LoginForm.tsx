@@ -97,7 +97,7 @@ export function LoginForm() {
         >
           {inviteToken || !betaRequired
             ? "Create an account"
-            : "Enter a beta code"}
+            : "Enter a signup code"}
         </Link>
       </p>
       <p className="mt-2 text-sm text-muted text-center">

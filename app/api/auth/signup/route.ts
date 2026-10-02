@@ -15,7 +15,7 @@ import { isShareToken } from "@/lib/sharing/invite";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
- * Signup. Beta codes when `requiresBetaCode()` (BETA_ONLY or hosted fallback).
+ * Signup. Signup codes only when `requiresBetaCode()` (NEXT_PUBLIC_BETA_ONLY=true).
  * Self-host (not hosted) gets a large quota; hosted gets the free-tier default.
  * Failed beta guesses are rate-limited per client IP (best-effort in-memory).
  */
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   const betaCode = body.betaCode?.trim();
   const inviteToken = isShareToken(body.inviteToken) ? body.inviteToken : null;
   const hosted = isHostedDeployment();
-  // An essay share invite (token + matching email) stands in for a beta code.
+  // An essay share invite (token + matching email) stands in for a signup code.
   const useInvite = requiresBetaCode() && !betaCode && inviteToken !== null;
   const betaRequired = requiresBetaCode() && !useInvite;
 
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   }
   if (betaRequired && !betaCode) {
     return NextResponse.json(
-      { error: "Email, password, and beta code are required." },
+      { error: "Email, password, and signup code are required." },
       { status: 400 }
     );
   }
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     if (!limited.ok) {
       return NextResponse.json(
         {
-          error: `Too many beta code attempts. Try again in ${limited.retryAfterSec}s.`,
+          error: `Too many signup code attempts. Try again in ${limited.retryAfterSec}s.`,
         },
         {
           status: 429,
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Could not verify beta code (database lookup failed). Check that SUPABASE_SERVICE_ROLE_KEY is the Secret/service_role key for the same project as NEXT_PUBLIC_SUPABASE_URL, and that schema.sql has been run.",
+            "Could not verify signup code (database lookup failed). Check that SUPABASE_SERVICE_ROLE_KEY is the Secret/service_role key for the same project as NEXT_PUBLIC_SUPABASE_URL, and that schema.sql has been run.",
         },
         { status: 500 }
       );
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
         hitRateLimit(guessKey, BETA_GUESS_WINDOW_MS);
       }
       return NextResponse.json(
-        { error: "Invalid or already-redeemed beta code." },
+        { error: "Invalid or already-redeemed signup code." },
         { status: 403 }
       );
     }
@@ -179,7 +179,7 @@ export async function POST(request: Request) {
         hitRateLimit(guessKey, BETA_GUESS_WINDOW_MS);
       }
       return NextResponse.json(
-        { error: "Beta code was just redeemed by someone else." },
+        { error: "Signup code was just redeemed by someone else." },
         { status: 409 }
       );
     }

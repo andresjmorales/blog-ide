@@ -41,12 +41,12 @@ describe("hosted deployment flag", () => {
 });
 
 describe("requiresBetaCode", () => {
-  it("falls back to hosted when BETA_ONLY unset", () => {
+  it("is off when BETA_ONLY is unset, hosted or not", () => {
     expect(requiresBetaCode({})).toBe(false);
-    expect(requiresBetaCode({ NEXT_PUBLIC_HOSTED: "true" })).toBe(true);
+    expect(requiresBetaCode({ NEXT_PUBLIC_HOSTED: "true" })).toBe(false);
   });
 
-  it("lets NEXT_PUBLIC_BETA_ONLY override hosted", () => {
+  it("follows NEXT_PUBLIC_BETA_ONLY when set", () => {
     expect(
       requiresBetaCode({
         NEXT_PUBLIC_HOSTED: "true",

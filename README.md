@@ -27,10 +27,16 @@ footnotes for editors that can't take them natively, and checks links and
 images before you publish. Export to `.md`, `.html`, zip or PDF (print); Word and Pandoc PDF
 when [Pandoc](#word-and-pdf-export-pandoc) is available.
 
+**Sharing and comments.** Share a draft with a reader by email, with view
+or comment access. They open a read-only copy and leave
+comments anchored to the text they quote; you see the threads in a rail
+beside your draft and can reply or resolve them.
+
 **Your files.** Every edit saves to the browser first (IndexedDB) and syncs
 to Supabase, with conflict copies and per-document version history.
-Optional GitHub backup maps folders or essays to paths in a repo, and an
-optional vault folder encrypts essays in the browser before they're stored.
+GitHub backup maps folders or essays to paths in a repo you choose and
+pushes them as plain Markdown, and an optional vault folder encrypts essays
+in the browser before they're stored.
 
 **Optional AI.** Bring your own Anthropic or OpenAI key (kept on the
 device) for a chat sidebar that can critique, tighten, or rewrite a
@@ -117,7 +123,8 @@ and `SUPABASE_DB_PASSWORD`.
 ### Running a shared instance
 
 Self-host installs have open signup and no billing. For a shared,
-invite-only deploy like blogide.com (beta codes, storage tiers), see
+multi-user deploy like blogide.com (storage tiers, optional signup codes),
+see
 [docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md).
 
 ## Docs
