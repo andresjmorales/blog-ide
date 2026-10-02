@@ -62,9 +62,9 @@ export function HostingOptions({
         <h1 className="mb-3 text-3xl font-semibold tracking-tight">
           Hosting options
         </h1>
-        <p className="text-muted leading-relaxed">
-          Run {PRODUCT_NAME} yourself, or use the hosted beta (free or Pro) with
-          a beta code.
+        <p className="text-muted leading-relaxed text-balance">
+          Run {PRODUCT_NAME} yourself, or let us host it for you on the Free or
+          Pro plan.
         </p>
       </div>
 
@@ -87,28 +87,27 @@ export function HostingOptions({
         </article>
 
         <article className="flex flex-col rounded-lg border border-border bg-panel/40 p-5 text-left">
-          <h2 className="mb-1 text-lg font-semibold">Hosted Free (beta)</h2>
-          <p className="mb-3 text-sm font-medium text-accent">$0 · beta code</p>
+          <h2 className="mb-1 text-lg font-semibold">Hosted Free</h2>
+          <p className="mb-3 text-sm font-medium text-accent">$0</p>
           <p className="mb-4 flex-1 text-sm text-muted leading-relaxed">
-            We host it for you. Invite-only during beta.{" "}
-            {formatQuotaMib(FREE_QUOTA_BYTES)} combined storage (markdown +
-            files).
+            We host it for you, with {formatQuotaMib(FREE_QUOTA_BYTES)} of
+            combined storage (Markdown and files).
           </p>
           <Link
             href="/signup"
             className="text-sm text-accent underline underline-offset-4"
           >
-            Sign up with a beta code
+            Create a free account
           </Link>
         </article>
 
         <article className="flex flex-col rounded-lg border border-accent/50 bg-accent/5 p-5 text-left">
-          <h2 className="mb-1 text-lg font-semibold">Hosted Pro (beta)</h2>
+          <h2 className="mb-1 text-lg font-semibold">Hosted Pro</h2>
           <p className="mb-3 text-sm font-medium text-accent">
             {HOSTED_PRO_PRICE_LABEL}
           </p>
           <p className="mb-4 flex-1 text-sm text-muted leading-relaxed">
-            Same beta access, with {formatQuotaMib(PRO_QUOTA_BYTES)} storage.
+            Everything in Free, with {formatQuotaMib(PRO_QUOTA_BYTES)} of storage.
             Cancel anytime in the billing portal.
           </p>
           {!signedIn ? (

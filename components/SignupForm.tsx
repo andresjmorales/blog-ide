@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { requiresBetaCode } from "@/lib/hosted";
+import { formatQuotaMib, FREE_QUOTA_BYTES } from "@/lib/billing/plans";
+import { isHostedDeployment, requiresBetaCode } from "@/lib/hosted";
 import { isShareToken } from "@/lib/sharing/invite";
 import { safeNextPath } from "@/lib/siteUrl";
 
@@ -13,7 +14,7 @@ export function SignupForm() {
   const searchParams = useSearchParams();
   const inviteParam = searchParams.get("invite");
   const inviteToken = isShareToken(inviteParam) ? inviteParam : null;
-  // A share invite stands in for a beta code (checked server-side against
+  // A share invite stands in for a signup code (checked server-side against
   // the invited email).
   const betaRequired = requiresBetaCode() && !inviteToken;
   const [email, setEmail] = useState("");
@@ -66,12 +67,14 @@ export function SignupForm() {
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-sm">
       <h1 className="text-2xl font-semibold mb-1">Create your account</h1>
-      <p className="text-sm text-muted mb-8">
+      <p className="text-sm text-muted mb-8 text-balance">
         {inviteToken
           ? "You were invited to a draft. Sign up with the email address the invite was sent to."
           : betaRequired
-          ? "A valid beta code is required to create an account on this instance."
-          : "Create an account on this self-hosted install. Storage is limited by your Supabase project, not a BlogIDE free-tier cap."}
+            ? "You need a signup code to create an account here."
+            : isHostedDeployment()
+              ? `New accounts include ${formatQuotaMib(FREE_QUOTA_BYTES)} of storage.`
+              : "Your drafts are stored in this install's Supabase project."}
       </p>
 
       <label className="block mb-4">
@@ -101,7 +104,7 @@ export function SignupForm() {
 
       {betaRequired ? (
         <label className="block mb-6">
-          <span className="block text-sm mb-1.5">Beta code</span>
+          <span className="block text-sm mb-1.5">Signup code</span>
           <input
             type="text"
             value={betaCode}

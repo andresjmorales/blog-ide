@@ -15,7 +15,7 @@ markdown.
 
 ### Supabase
 
-- Auth and beta-code-gated signup.
+- Auth and signup (optionally gated by signup codes).
 - Postgres source of truth for the workspace tree, markdown documents,
   metadata, user settings, optimistic versions, and quota accounting.
 - Server-side revision history: every save snapshots the replaced version
@@ -45,7 +45,7 @@ markdown.
 
 ### Next.js server
 
-- Beta-code redemption using the server-only Supabase service-role key.
+- Signup-code redemption using the server-only Supabase service-role key.
 - SSRF-hardened link metadata and reader extract (`/api/link-preview`,
   `/api/reader`).
 - Thin AI chat proxy (`/api/ai/chat`) — the user’s key is sent per request and
@@ -149,7 +149,7 @@ client-provided counters. The `assets` bucket is **private**; essay images
 and Library PDFs are served with signed URLs. Shared hosted deploys may
 raise per-user `quota_bytes` via optional Stripe wiring — operator notes in
 [docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md). Self-host omits billing UI,
-skips beta codes at signup, and uses a large soft quota so Supabase is the
+skips signup codes, and uses a large soft quota so Supabase is the
 practical storage limit.
 
 **Library vs essay images:** same Storage bucket, different `user_assets.kind`

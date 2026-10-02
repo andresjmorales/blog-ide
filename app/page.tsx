@@ -4,6 +4,33 @@ import { GitHubFooter } from "@/components/GitHubFooter";
 import { PRODUCT_DESCRIPTION, PRODUCT_NAME } from "@/lib/brand";
 import { isHostedDeployment, requiresBetaCode } from "@/lib/hosted";
 
+const FEATURES: { title: string; body: string }[] = [
+  {
+    title: "Footnotes first",
+    body: "Sidenotes or anchored notes, drag-to-pin cards, and an archive of deleted notes.",
+  },
+  {
+    title: "Research beside the draft",
+    body: "A Library for links, PDFs and BibTeX, with Zotero search, citations and pinned previews.",
+  },
+  {
+    title: "Share and get comments",
+    body: "Send a draft to a reader with view or comment access. Comments anchor to the text they quote.",
+  },
+  {
+    title: "Backed up to GitHub",
+    body: "Map folders or essays to paths in a repo and push plain Markdown whenever you like.",
+  },
+  {
+    title: "Local-first sync",
+    body: "Every edit saves in the browser first, then syncs, with version history and conflict copies.",
+  },
+  {
+    title: "Ready to publish",
+    body: "Copy for Substack with native footnotes, check links, or export Markdown, HTML or PDF.",
+  },
+];
+
 export default function LandingPage() {
   const hosted = isHostedDeployment();
   const betaRequired = requiresBetaCode();
@@ -17,16 +44,16 @@ export default function LandingPage() {
         <h1 className="mb-4 text-5xl font-semibold tracking-tight">
           {PRODUCT_NAME}
         </h1>
-        <p className="mb-6 text-lg leading-relaxed text-muted">
+        <p className="mb-6 text-lg leading-relaxed text-muted text-balance">
           {PRODUCT_DESCRIPTION}
         </p>
 
         {hosted ? (
-          <p className="mb-10 text-sm leading-relaxed text-muted">
-            This is the{" "}
-            <span className="text-foreground">blogide.com</span> hosted
-            instance: invite-only for now.<br></br>
-            If you prefer to run it yourself, see{" "}
+          <p className="mb-10 text-sm leading-relaxed text-muted text-balance">
+            This is the hosted instance at{" "}
+            <span className="text-foreground">blogide.com</span>.
+            <br />
+            Prefer to run it yourself? See{" "}
             <Link
               href="/hosting"
               className="text-accent underline underline-offset-4"
@@ -80,12 +107,28 @@ export default function LandingPage() {
         </p>
       </div>
 
+      <section className="mt-16 w-full max-w-3xl border-t border-border pt-10">
+        <h2 className="mb-6 text-center text-sm font-semibold uppercase tracking-wider text-muted">
+          What&apos;s inside
+        </h2>
+        <ul className="grid gap-x-8 gap-y-6 text-left sm:grid-cols-2">
+          {FEATURES.map((f) => (
+            <li key={f.title}>
+              <h3 className="mb-1 text-sm font-semibold">{f.title}</h3>
+              <p className="text-sm leading-relaxed text-muted text-pretty">
+                {f.body}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       {hosted ? (
         <section className="mt-16 w-full max-w-3xl border-t border-border pt-10 text-center">
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted">
             Screenshots
           </h2>
-          <p className="mb-6 text-sm text-muted">
+          <p className="mb-6 text-sm text-muted text-balance">
             Editor workspace with Library, footnotes, and research pins.
           </p>
           <div className="grid gap-4 sm:grid-cols-2">

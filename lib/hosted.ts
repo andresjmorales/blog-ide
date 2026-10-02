@@ -3,8 +3,8 @@
  * Default is self-host — only blogide.com (or other hosted deploys) set
  * NEXT_PUBLIC_HOSTED=true.
  *
- * Beta codes: prefer NEXT_PUBLIC_BETA_ONLY=true on invite-only hosted deploys
- * (redundant with HOSTED). Self-host leaves both unset.
+ * Signup codes: NEXT_PUBLIC_BETA_ONLY=true gates signup behind a code. Off by
+ * default everywhere, hosted included (signup is open).
  *
  * IMPORTANT: Next.js only inlines NEXT_PUBLIC_* into the client bundle when
  * accessed as a literal (`process.env.NEXT_PUBLIC_HOSTED`). Dynamic lookups
@@ -42,9 +42,8 @@ export function isHostedDeployment(
 }
 
 /**
- * Whether signup requires a beta code (UI field + API validation).
- * - NEXT_PUBLIC_BETA_ONLY=true/false wins when set
- * - otherwise falls back to hosted (invite-only while beta lasts)
+ * Whether signup requires a signup code (UI field + API validation).
+ * Only when NEXT_PUBLIC_BETA_ONLY is explicitly true; open signup otherwise.
  */
 export function requiresBetaCode(
   env?: Record<string, string | undefined>
@@ -52,9 +51,7 @@ export function requiresBetaCode(
   const raw = env
     ? env.NEXT_PUBLIC_BETA_ONLY
     : process.env.NEXT_PUBLIC_BETA_ONLY;
-  const explicit = parseFlag(raw);
-  if (explicit !== undefined) return explicit;
-  return isHostedDeployment(env);
+  return parseFlag(raw) === true;
 }
 
 export function getDeploymentMode(

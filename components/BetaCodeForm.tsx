@@ -21,8 +21,8 @@ export function BetaCodeForm() {
         type="text"
         value={code}
         onChange={(e) => setCode(e.target.value)}
-        placeholder="Enter beta code"
-        aria-label="Beta code"
+        placeholder="Enter signup code"
+        aria-label="Signup code"
         className="flex-1 rounded-md border border-border bg-panel px-4 py-2.5 text-sm outline-none focus:border-accent"
         required
       />
