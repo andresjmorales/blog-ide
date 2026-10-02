@@ -51,8 +51,7 @@ export default function LandingPage() {
         {hosted ? (
           <p className="mb-10 text-sm leading-relaxed text-muted text-balance">
             This is the hosted instance at{" "}
-            <span className="text-foreground">blogide.com</span>, free to
-            start.
+            <span className="text-foreground">blogide.com</span>.
             <br />
             Prefer to run it yourself? See{" "}
             <Link

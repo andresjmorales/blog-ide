@@ -73,7 +73,7 @@ export function SignupForm() {
           : betaRequired
             ? "You need a signup code to create an account here."
             : isHostedDeployment()
-              ? `Free to start, with ${formatQuotaMib(FREE_QUOTA_BYTES)} of storage. No card needed.`
+              ? `New accounts include ${formatQuotaMib(FREE_QUOTA_BYTES)} of storage.`
               : "Your drafts are stored in this install's Supabase project."}
       </p>
 
