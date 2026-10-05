@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  bibleQuoteClipboardText,
   looksLikeFetchBibleHtml,
   prepareBibleQuoteHtml,
   wrapBibleQuoteAsBlockquote,
@@ -82,5 +83,53 @@ describe("prepareBibleQuoteHtml", () => {
     } finally {
       editor.destroy();
     }
+  });
+});
+
+describe("bibleQuoteClipboardText", () => {
+  const PSALM = `
+<div class="fb-chapter" data-c="23">
+<h3 data-c="23">23</h3>
+<h4 class="fb-s">The LORD Is My Shepherd</h4>
+<p class="fb-q1"><sup data-v="1">1</sup>The LORD is my shepherd;</p>
+<p class="fb-q2">I shall not want.</p>
+</div>
+<div class="fb-attribution"><a href="#">Berean</a></div>
+`;
+
+  it("copies plain verse text with the citation", () => {
+    const text = bibleQuoteClipboardText(JOHN_316, {
+      markers: false,
+      citation: "John 3:16–17 (BSB)",
+    });
+    expect(text).toBe(
+      "For God so loved the world that He gave His one and only Son, that everyone who believes in Him shall not perish but have eternal life.\n\n" +
+        "For God did not send His Son into the world to condemn the world.\n\n" +
+        "— John 3:16–17 (BSB)"
+    );
+  });
+
+  it("copies chapter, heading, verse and footnote markers", () => {
+    const text = bibleQuoteClipboardText(JOHN_316, {
+      markers: true,
+      citation: "John 3:16–17 (BSB)",
+    });
+    expect(text).toBe(
+      "Chapter 3\n\n" +
+        "For God So Loved\n\n" +
+        "[16] For God so loved the world that He gave His one and only [a] Son, that everyone who believes in Him shall not perish but have eternal life.\n\n" +
+        "[17] For God did not send His Son into the world to condemn the world.\n\n" +
+        "[a] Or unique\n\n" +
+        "— John 3:16–17 (BSB)"
+    );
+  });
+
+  it("keeps poetry lines together and drops attribution", () => {
+    expect(bibleQuoteClipboardText(PSALM, { markers: false })).toBe(
+      "The LORD is my shepherd;\nI shall not want."
+    );
+    expect(bibleQuoteClipboardText(PSALM, { markers: true })).toBe(
+      "Chapter 23\n\nThe LORD Is My Shepherd\n\n[1] The LORD is my shepherd;\nI shall not want."
+    );
   });
 });
