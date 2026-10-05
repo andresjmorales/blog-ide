@@ -25,6 +25,7 @@ import {
   SUBSTACK_FOOTNOTE_HELPER,
   substackFootnoteBookmarklet,
 } from "@/lib/export/substackEditorHelper";
+import { substackIntroFromMarkdown } from "@/lib/markdown/substackIntro";
 import { SendIcon } from "@/components/icons";
 import {
   ActionButton,
@@ -54,6 +55,8 @@ type Props = {
   subtitle: string;
   /** When false, skip link/image fetch (vault essays). */
   allowServerChecks?: boolean;
+  /** Save the Substack-only intro to frontmatter. Unset: read-only. */
+  onSubstackIntroChange?: (intro: string) => void;
 };
 
 /** "Prepare publish": copy the essay out to Substack or another editor. */
@@ -70,6 +73,7 @@ function PublishPanel({
   title,
   subtitle,
   allowServerChecks = true,
+  onSubstackIntroChange,
 }: Omit<Props, "open"> & { initialTab: PublishTab }) {
   const [tab, setTab] = useState<PublishTab>(initialTab);
   const [linkRunId, setLinkRunId] = useState(0);
@@ -93,6 +97,7 @@ function PublishPanel({
           snapshot={snapshot}
           title={title}
           subtitle={subtitle}
+          onIntroChange={onSubstackIntroChange}
         />
       )}
       {tab === "other" && <OtherEditorsTab getMarkdown={getMarkdown} />}
@@ -153,16 +158,26 @@ function SubstackTab({
   snapshot,
   title,
   subtitle,
+  onIntroChange,
 }: {
   getMarkdown: () => string;
   snapshot: string;
   title: string;
   subtitle: string;
+  onIntroChange?: (intro: string) => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [options, setOptions] = useState<MarkersCopyOptions>(
     DEFAULT_MARKERS_OPTIONS
   );
+  const [intro, setIntro] = useState(() => substackIntroFromMarkdown(snapshot));
+  const [savedIntro, setSavedIntro] = useState(intro);
+
+  function saveIntro() {
+    if (!onIntroChange || intro.trim() === savedIntro.trim()) return;
+    onIntroChange(intro.trim());
+    setSavedIntro(intro.trim());
+  }
   const inventory = useMemo<PublishInventory>(() => {
     try {
       return analyzePublishInventory(snapshot);
@@ -241,6 +256,27 @@ function SubstackTab({
           <p>Substack keeps these in their own fields, above the body.</p>
         </li>
         <li>
+          <label className="blogide-publish-step-row" htmlFor="blogide-substack-intro">
+            <span>Substack-only intro (optional)</span>
+          </label>
+          <textarea
+            id="blogide-substack-intro"
+            className="blogide-publish-intro"
+            rows={2}
+            value={intro}
+            readOnly={!onIntroChange}
+            placeholder="Crossposted from my site, which has hoverable footnotes."
+            onChange={(event) => setIntro(event.target.value)}
+            onBlur={saveIntro}
+          />
+          <p>
+            Pasted above a divider, after the opening image if there is
+            one. Markdown links and *italics* work. Saved as{" "}
+            <code>substack_intro</code> in the frontmatter; nothing else
+            uses it.
+          </p>
+        </li>
+        <li>
           <div className="blogide-publish-step-row">
             <span>
               Copy text with markers
@@ -250,9 +286,13 @@ function SubstackTab({
               label={busy === "markers" ? "Copying…" : "Copy text with markers"}
               disabled={busy === "markers"}
               onClick={() =>
-                void run("markers", () =>
-                  copyFormatted(getMarkdown, "markers", options)
-                )
+                void run("markers", () => {
+                  saveIntro();
+                  return copyFormatted(getMarkdown, "markers", {
+                    ...options,
+                    intro,
+                  });
+                })
               }
             />
           </div>

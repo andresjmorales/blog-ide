@@ -151,9 +151,15 @@ no-break-space indents because pasted HTML collapses `pre-wrap` newlines.
 
 Steps:
 
-1. Tick what you want, then **Copy text with markers (and images)**.
-2. Paste into a Substack draft (the title field stays separate).
-3. **Copy helper script**, open DevTools on that tab (F12) → Console,
+1. Optional: write a **Substack-only intro** (e.g. "Crossposted to my
+   personal site, which has hoverable footnotes"). It is saved as
+   `substack_intro:` in the frontmatter (quoted, since it is markdown) and
+   pasted as a paragraph plus a divider, after the essay's opening image if
+   it has one, else at the top. Only the Substack copy uses it, so you can
+   select the whole draft body and replace it on every update.
+2. Tick what you want, then **Copy text with markers (and images)**.
+3. Paste into a Substack draft (the title field stays separate).
+4. **Copy helper script**, open DevTools on that tab (F12) → Console,
    paste, Enter. Or save **Copy bookmarklet** as a bookmark URL.
 
 The helper is one script (one bookmarklet) that runs five independent
@@ -176,6 +182,24 @@ are flattened, and each Notes item is flattened to one paragraph so a path
 URL on its own line does not split the item and shift later numbers. The
 footnote pass ignores `[n]` inside the Notes section, code, and `$$`
 paragraphs (`\sqrt[3]{x}`).
+
+How the footnote pass matches notes: it never compares text with the
+BlogIDE essay. It finds the next `[n]` (or `[^n]`) in the draft before
+the Notes heading, deletes it, calls `insertFootnote()` there, and fills
+the new footnote with item *n* of the Notes list (the first ordered list
+after a "Notes" / "Footnotes" paragraph). So edits made in Substack after
+pasting are fine as long as each `[n]` and the Notes list are intact; a
+deleted marker just leaves its note unused, and a `[n]` with no item *n*
+is reported as "had no matching note".
+
+The new footnote block is found by an attribute it shares with its anchor
+(its number), else as the one block that was not there before, never by
+"the last footnote in the post". Substack keeps footnote blocks in anchor
+order, so footnotes already in the draft (left over from text you replaced
+when re-pasting an update) can sit after the new one; the helper used to
+fill those and leave the new ones empty. It now reports how many footnotes
+were already in the draft so you can delete leftovers, and keeps the Notes
+list whenever an insert failed.
 
 ## Pandoc
 

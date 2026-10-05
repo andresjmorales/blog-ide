@@ -71,6 +71,11 @@ export type MarkersCopyOptions = {
   math: boolean;
   /** `{poetry}` … `{/poetry}` around poems (off: line breaks only). */
   poetry: boolean;
+  /**
+   * Substack-only intro (markdown, from frontmatter `substack_intro`),
+   * pasted above a divider after a leading image. Unset: left out.
+   */
+  intro?: string;
 };
 
 export const DEFAULT_MARKERS_OPTIONS: MarkersCopyOptions = {
@@ -545,6 +550,36 @@ function formatMarkers(
   sanitizeMarkersHtml(doc, root);
 }
 
+function isImageBlock(el: Element | null): boolean {
+  if (!el) return false;
+  if (el.matches("img, figure")) return true;
+  return (
+    el.matches("p") &&
+    el.querySelector("img") !== null &&
+    !el.textContent?.trim()
+  );
+}
+
+/**
+ * The Substack-only intro paragraph(s) and a divider, after a leading
+ * image if the essay opens with one, else at the top.
+ */
+function insertSubstackIntro(
+  doc: Document,
+  root: HTMLElement,
+  intro: string
+): void {
+  const html = buildPublicationPreview(intro).bodyHtml;
+  const holder = doc.createElement("div");
+  holder.innerHTML = html;
+  holder.querySelectorAll(".preview-fn-tip").forEach((el) => el.remove());
+  if (!holder.textContent?.trim()) return;
+  const first = root.firstElementChild;
+  const anchor = isImageBlock(first) ? first!.nextSibling : root.firstChild;
+  const nodes = [...holder.childNodes, doc.createElement("hr")];
+  for (const node of nodes) root.insertBefore(node, anchor);
+}
+
 /** Linked endnotes for HTML files / CMSs that keep href + id. */
 function formatHtml(doc: Document, root: HTMLElement): void {
   root.querySelectorAll(".preview-fn").forEach((wrap) => {
@@ -607,6 +642,8 @@ export function htmlForPublishTarget(
   if (format === "html") formatHtml(prepared.doc, prepared.root);
   else if (format === "markers") {
     formatMarkers(prepared.doc, prepared.root, markersOptions);
+    const intro = markersOptions.intro?.trim();
+    if (intro) insertSubstackIntro(prepared.doc, prepared.root, intro);
   }
   else formatSuperscripts(prepared.doc, prepared.root);
 

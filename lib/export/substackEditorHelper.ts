@@ -27,6 +27,12 @@ export const SUBSTACK_POETRY_END = "{/poetry}";
  *
  * Substack's node names are not documented, so 2 and 3 look node types up
  * by name at run time and report what they found instead of guessing.
+ *
+ * Pass 4 fills the footnote block insertFootnote() just made, found by an
+ * attribute it shares with the new anchor (its number), else as the one
+ * block that was not there before. Not simply the last block: Substack
+ * keeps notes in anchor order, so a footnote already in the draft (left
+ * over from replaced text) can sit after it.
  */
 export const SUBSTACK_FOOTNOTE_HELPER = `(() => {
   const pm = document.querySelector(".ProseMirror");
@@ -260,6 +266,35 @@ export const SUBSTACK_FOOTNOTE_HELPER = `(() => {
     return found;
   }
 
+  function footnoteBlocks() {
+    const out = [];
+    view.state.doc.descendants((node, pos) => {
+      if (node.type.name === "footnote") {
+        out.push({ node: node, pos: pos, size: node.nodeSize });
+        return false;
+      }
+    });
+    return out;
+  }
+
+  function newFootnote(before, at) {
+    const after = footnoteBlocks();
+    const anchor = view.state.doc.nodeAt(at);
+    if (anchor && /anchor/i.test(anchor.type.name)) {
+      for (const key of Object.keys(anchor.attrs || {})) {
+        const value = anchor.attrs[key];
+        if (value === null || value === undefined || value === "") continue;
+        const hits = after.filter((fn) => fn.node.attrs && fn.node.attrs[key] === value);
+        if (hits.length === 1) return hits[0];
+      }
+    }
+    const fresh = after.filter((fn) => before.indexOf(fn.node) < 0);
+    if (fresh.length === 1) return fresh[0];
+    const empty = fresh.filter((fn) => !fn.node.textContent.trim());
+    if (empty.length === 1) return empty[0];
+    return null;
+  }
+
   function runFootnotes() {
     const packed = findNotesList();
     if (!findMarker()) return;
@@ -275,21 +310,28 @@ export const SUBSTACK_FOOTNOTE_HELPER = `(() => {
     packed.list.items.forEach((item, i) => {
       notes[i + 1] = item;
     });
+    const existing = footnoteBlocks().length;
     let inserted = 0;
     let missing = 0;
+    let failed = 0;
+    let unmatched = 0;
     for (let i = 0; i < 500; i++) {
       const marker = findMarker();
       if (!marker) break;
       const entry = notes[marker.num];
       if (!entry) missing += 1;
+      const before = footnoteBlocks().map((fn) => fn.node);
       view.dispatch(view.state.tr.delete(marker.from, marker.to));
       editor.commands.setTextSelection(marker.from);
-      if (!editor.commands.insertFootnote()) continue;
-      let lastFn = null;
-      view.state.doc.descendants((node, nodePos) => {
-        if (node.type.name === "footnote") lastFn = { pos: nodePos, size: node.nodeSize };
-      });
-      if (!lastFn) continue;
+      if (!editor.commands.insertFootnote()) {
+        failed += 1;
+        continue;
+      }
+      const fn = newFootnote(before, marker.from);
+      if (!fn) {
+        unmatched += 1;
+        continue;
+      }
       let nodes;
       try {
         nodes = entry && entry.contentJSON
@@ -302,10 +344,10 @@ export const SUBSTACK_FOOTNOTE_HELPER = `(() => {
         const text = entry && entry.text ? String(entry.text).replace(/^\\s*\\d+[.)]\\s*/, "") : "";
         nodes = [schema.nodes.paragraph.create(null, text ? schema.text(text) : undefined)];
       }
-      view.dispatch(view.state.tr.replaceWith(lastFn.pos + 1, lastFn.pos + lastFn.size - 1, nodes));
+      view.dispatch(view.state.tr.replaceWith(fn.pos + 1, fn.pos + fn.size - 1, nodes));
       inserted += 1;
     }
-    if (inserted) {
+    if (inserted && !failed && !unmatched) {
       const leftover = findNotesList();
       if (leftover) {
         const from = leftover.heading ? leftover.heading.pos : leftover.list.pos;
@@ -314,6 +356,9 @@ export const SUBSTACK_FOOTNOTE_HELPER = `(() => {
       }
     }
     report.push("Footnotes: " + inserted + " inserted" + (missing ? ", " + missing + " had no matching note" : "") + ".");
+    if (failed) report.push("Footnotes: Substack refused " + failed + " insert(s) at the marker position; those markers were removed. Notes list kept so you can add them by hand.");
+    if (unmatched) report.push("Footnotes: " + unmatched + " footnote(s) inserted but left empty (could not tell which note was new). Notes list kept so you can fill them in.");
+    if (existing) report.push("Footnotes: " + existing + " footnote" + (existing === 1 ? " was" : "s were") + " already in the draft before this run (left over from replaced text?). Check the end of the post and delete any you don't want.");
   }
 
   function auditImages() {
