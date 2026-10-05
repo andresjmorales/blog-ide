@@ -105,3 +105,111 @@ export function wrapBibleQuoteAsBlockquote(
   const body = passageHtml.trim() || "<p></p>";
   return `<blockquote>${body}<p>— ${escapeHtml(citation)}</p></blockquote>`;
 }
+
+const CHAPTER_SELECTOR = "h1[data-c], h2[data-c], h3[data-c], h4[data-c]";
+const BLOCK_SELECTOR = "h1, h2, h3, h4, h5, h6, p, div, li";
+const POETRY_CLASS = /\bfb-(?:q\d?|qm\d?|qr|qc|pi\d?|li\d?)\b/;
+
+function collapseSpace(value: string): string {
+  return value.replace(/[\s ]+/g, " ").trim();
+}
+
+function noteLabel(index: number): string {
+  let n = index;
+  let label = "";
+  do {
+    label = String.fromCharCode(97 + (n % 26)) + label;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return label;
+}
+
+/**
+ * fetch(bible) passage HTML → clipboard text.
+ *
+ * Plain: verse text only (no verse numbers, chapter numbers, headings or
+ * footnotes), one paragraph per block and one line per poetry line.
+ * Markers: also keeps `Chapter N` lines, section headings, `[16]` verse
+ * numbers and footnotes as `[a]` markers listed under the passage.
+ * Both end with a `— Reference (Translation)` line when `citation` is given.
+ */
+export function bibleQuoteClipboardText(
+  html: string,
+  options: { markers: boolean; citation?: string }
+): string {
+  const { markers, citation } = options;
+  const lines: string[] = [];
+  const notes: string[] = [];
+  let prevPoetry = false;
+
+  const push = (text: string, poetry = false) => {
+    if (!text) return;
+    if (lines.length) lines.push(poetry && prevPoetry ? "\n" : "\n\n");
+    lines.push(text);
+    prevPoetry = poetry;
+  };
+
+  if (typeof DOMParser === "undefined") {
+    push(collapseSpace(html.replace(/<[^>]+>/g, " ")));
+  } else {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const root = doc.body;
+    root.querySelectorAll(".fb-attribution").forEach((el) => el.remove());
+
+    const blocks = [...root.querySelectorAll(BLOCK_SELECTOR)].filter(
+      (el) => !el.querySelector(BLOCK_SELECTOR)
+    );
+    for (const block of blocks) {
+      if (block.matches(CHAPTER_SELECTOR)) {
+        if (markers) {
+          const chapter =
+            block.getAttribute("data-c") || collapseSpace(block.textContent ?? "");
+          push(`Chapter ${chapter}`);
+        }
+        continue;
+      }
+      if (block.matches(HEADING_SELECTOR)) {
+        if (markers) {
+          const clone = block.cloneNode(true) as Element;
+          clone.querySelectorAll(NOTE_SELECTOR).forEach((el) => el.remove());
+          push(collapseSpace(clone.textContent ?? ""));
+        }
+        continue;
+      }
+
+      const clone = block.cloneNode(true) as Element;
+      clone.querySelectorAll(".fb-note").forEach((note) => {
+        if (!markers) {
+          note.remove();
+          return;
+        }
+        const body = collapseSpace(note.textContent ?? "");
+        if (!body) {
+          note.remove();
+          return;
+        }
+        const label = noteLabel(notes.length);
+        notes.push(`[${label}] ${body}`);
+        note.replaceWith(doc.createTextNode(`[${label}]`));
+      });
+      clone.querySelectorAll(NOTE_SELECTOR).forEach((el) => el.remove());
+      clone.querySelectorAll("sup[data-v]").forEach((sup) => {
+        if (!markers) {
+          sup.remove();
+          return;
+        }
+        const number = collapseSpace(sup.textContent ?? "");
+        sup.replaceWith(doc.createTextNode(number ? ` [${number}] ` : " "));
+      });
+      push(
+        collapseSpace(clone.textContent ?? ""),
+        POETRY_CLASS.test(block.getAttribute("class") ?? "")
+      );
+    }
+  }
+
+  let out = lines.join("");
+  if (notes.length) out += `\n\n${notes.join("\n")}`;
+  if (citation && out) out += `\n\n— ${citation}`;
+  return out;
+}

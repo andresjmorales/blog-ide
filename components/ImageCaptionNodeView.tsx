@@ -17,7 +17,8 @@ import { promptForLink } from "@/lib/editor/linkShortcut";
 import { ItalicIcon, LinkIcon } from "@/components/icons";
 
 /**
- * Substack-style image with a gray “Add caption” field under the image.
+ * Substack-style image with a gray “Add caption” field under the image
+ * (shown only while the figure is selected, unless a caption exists).
  * Caption is stored on the image node (markdown string: bold / italic / link
  * only) and serialized as an adjacent markdown line (no blank line). Broken
  * or empty src shows a card with the URL and Retry; select the figure to
@@ -120,6 +121,9 @@ export function ImageCaptionNodeView({
 
   const showPlaceholder =
     !normalizeCaptionMarkdown(caption) && editorEmpty !== false;
+  // The empty "Add caption" field only appears with the alt editor (figure
+  // selected) or while the caption itself has focus.
+  const hideCaption = showPlaceholder && !selected && !focused;
 
   function retryLoad() {
     setBrokenSrc(null);
@@ -195,7 +199,8 @@ export function ImageCaptionNodeView({
       <div
         className={`blogide-figcaption${showPlaceholder ? " is-empty" : ""}${
           focused ? " is-focused" : ""
-        }`}
+        }${hideCaption ? " is-hidden" : ""}`}
+        aria-hidden={hideCaption || undefined}
         contentEditable={false}
         onMouseDown={(event) => event.stopPropagation()}
       >

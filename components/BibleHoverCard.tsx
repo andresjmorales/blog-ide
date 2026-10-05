@@ -6,9 +6,12 @@ import type { Editor } from "@tiptap/core";
 import "@gracious.tech/fetch-client/client.css";
 import { fetchBiblePassage } from "@/lib/bible/client";
 import {
+  bibleQuoteClipboardText,
   prepareBibleQuoteHtml,
   wrapBibleQuoteAsBlockquote,
 } from "@/lib/bible/quoteHtml";
+import { copyPlainText } from "@/lib/citations/clipboard";
+import { showCopiedToast, showErrorToast } from "@/lib/ui/toast";
 import {
   FETCH_BIBLE_TRANSLATION_ABBREV,
   FETCH_BIBLE_TRANSLATION_NAME,
@@ -157,6 +160,23 @@ export function BibleHoverCard({ editor }: Props) {
     currentEditor.commands.setBibleRefActive(null);
   }
 
+  async function copyPassage(markers: boolean) {
+    const citation = `${hit.label} (${FETCH_BIBLE_TRANSLATION_ABBREV})`;
+    const text = loaded?.html
+      ? bibleQuoteClipboardText(loaded.html, { markers, citation })
+      : loaded?.text
+        ? `${loaded.text}\n\n— ${citation}`
+        : "";
+    if (!text) return;
+    if (await copyPlainText(text)) {
+      showCopiedToast(
+        markers ? "Copied passage with markers." : "Copied passage."
+      );
+    } else {
+      showErrorToast(null, "Could not copy the passage.");
+    }
+  }
+
   return createPortal(
     <div
       className="bible-ref-card"
@@ -201,6 +221,22 @@ export function BibleHoverCard({ editor }: Props) {
           onClick={insertQuote}
         >
           Insert quote
+        </button>
+        <button
+          type="button"
+          disabled={!loaded?.text}
+          title="Copy the passage text with its reference"
+          onClick={() => void copyPassage(false)}
+        >
+          Copy
+        </button>
+        <button
+          type="button"
+          disabled={!loaded?.text}
+          title="Copy with chapter, verse numbers, headings and footnotes"
+          onClick={() => void copyPassage(true)}
+        >
+          Copy with markers
         </button>
         <button
           type="button"
