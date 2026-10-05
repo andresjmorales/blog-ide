@@ -163,10 +163,19 @@ const FootnoteAnchor = Node.create({
   renderHTML: () => ["sup", { class: "anchor" }],
 });
 
+/**
+ * "append" adds each new footnote block at the end of the doc. "sorted"
+ * puts it among the other footnote blocks in anchor order, the way a
+ * renumbering editor does, so a stale footnote left at the end of the
+ * draft sits after the new one.
+ */
+let footnoteOrder: "append" | "sorted" = "append";
+
 const Footnote = Node.create({
   name: "footnote",
   group: "block",
   content: "paragraph+",
+  parseHTML: () => [{ tag: "div.fn" }],
   renderHTML: () => ["div", { class: "fn" }, 0],
   addCommands() {
     return {
@@ -174,17 +183,29 @@ const Footnote = Node.create({
         () =>
         ({ state, dispatch }) => {
           if (dispatch) {
+            const at = state.selection.from;
             const tr = state.tr.replaceSelectionWith(
               state.schema.nodes.footnoteAnchor.create(),
               false
             );
-            tr.insert(
-              tr.doc.content.size,
-              state.schema.nodes.footnote.create(
-                null,
-                state.schema.nodes.paragraph.create()
-              )
+            const block = state.schema.nodes.footnote.create(
+              null,
+              state.schema.nodes.paragraph.create()
             );
+            let insertAt = tr.doc.content.size;
+            if (footnoteOrder === "sorted") {
+              let anchorsBefore = 0;
+              tr.doc.descendants((node, pos) => {
+                if (node.type.name === "footnoteAnchor" && pos < at) anchorsBefore += 1;
+              });
+              let seen = 0;
+              tr.doc.forEach((node, offset) => {
+                if (node.type.name !== "footnote") return;
+                if (seen === anchorsBefore && insertAt === tr.doc.content.size) insertAt = offset;
+                seen += 1;
+              });
+            }
+            tr.insert(insertAt, block);
             dispatch(tr);
           }
           return true;
@@ -225,6 +246,7 @@ function runHelper(): string {
 }
 
 afterEach(() => {
+  footnoteOrder = "append";
   vi.unstubAllGlobals();
   document.body.innerHTML = "";
 });
@@ -292,6 +314,33 @@ describe("Substack helper", () => {
       runHelper();
       expect(editor.state.doc.textContent).toContain("First note.");
       expect(editor.state.doc.textContent).toContain("Notes");
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it("fills the right footnote when the draft still has an old one at the end", () => {
+    // Intro kept from the original post, the new text pasted below the
+    // divider, and a footnote block the old text left behind.
+    footnoteOrder = "sorted";
+    const { html } = htmlForPublishTarget(ESSAY, "markers", DEFAULT_MARKERS_OPTIONS);
+    const editor = substackEditor(
+      `<p>Crossposted to my personal site.</p><hr>${html}<div class="fn"><p>Old note.</p></div>`
+    );
+    try {
+      const message = runHelper();
+      const footnotes: string[] = [];
+      editor.state.doc.descendants((node) => {
+        if (node.type.name === "footnote") footnotes.push(node.textContent);
+      });
+      expect(footnotes).toEqual([
+        "First note.",
+        "Second note with emphasis.",
+        "Old note.",
+      ]);
+      expect(message).toContain("Footnotes: 2 inserted");
+      expect(message).toContain("1 footnote was already in the draft");
+      expect(editor.state.doc.textContent).toContain("Crossposted");
     } finally {
       editor.destroy();
     }

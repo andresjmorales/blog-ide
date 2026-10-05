@@ -2028,6 +2028,21 @@ body {
   color: var(--muted);
   margin-top: 0.35rem;
 }
+.blogide-publish-intro {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  color: var(--foreground);
+  display: block;
+  font: inherit;
+  margin-top: 0.3rem;
+  padding: 0.3rem 0.45rem;
+  resize: vertical;
+  width: 100%;
+}
+.blogide-publish-intro[readonly] {
+  color: var(--muted);
+}
 .blogide-publish-copy-btn {
   align-items: center;
   background: var(--panel);

@@ -83,6 +83,7 @@ import {
   writeSubtitle,
 } from "@/lib/markdown/subtitle";
 import { parseAuthor, writeAuthor } from "@/lib/markdown/author";
+import { writeSubstackIntro } from "@/lib/markdown/substackIntro";
 import {
   parsePublication,
   writePublication,
@@ -1292,6 +1293,16 @@ export function DocumentWorkspace({
     });
   }, []);
 
+  const saveSubstackIntro = useCallback(
+    (intro: string) => {
+      const transform = (fm: string) => writeSubstackIntro(fm, intro);
+      if (rewriteSourceFrontmatter(transform) === null) {
+        commitFrontmatter(transform(docRef.current.frontmatter));
+      }
+    },
+    [rewriteSourceFrontmatter, commitFrontmatter]
+  );
+
   const conflictNotice = conflict ? (
     <div
       role={conflict.unresolved ? "status" : undefined}
@@ -2150,6 +2161,7 @@ export function DocumentWorkspace({
         title={essayTitle}
         subtitle={subtitle}
         allowServerChecks={!inVault}
+        onSubstackIntroChange={saveSubstackIntro}
       />
     </>
   );
@@ -2340,6 +2352,7 @@ export function DocumentWorkspace({
         title={essayTitle}
         subtitle={subtitle}
         allowServerChecks={!inVault}
+        onSubstackIntroChange={saveSubstackIntro}
       />
     </>
   );
