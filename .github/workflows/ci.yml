@@ -32,6 +32,38 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
 
+  # Build the Docker image and boot it once, so Dockerfile or entrypoint rot
+  # shows up in the PR rather than on someone's server.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: blogide:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Compose file renders
+        run: docker compose config --quiet
+      - name: Boot with runtime Supabase config
+        run: |
+          docker run -d --name blogide -p 3000:3000 \
+            -e NEXT_PUBLIC_SUPABASE_URL=https://ci-check.supabase.co \
+            -e NEXT_PUBLIC_SUPABASE_ANON_KEY=ci-anon-key \
+            blogide:ci
+          for i in $(seq 1 30); do
+            curl -fsS -o /dev/null http://127.0.0.1:3000/manifest.webmanifest && break
+            sleep 2
+          done
+          docker logs blogide
+          curl -fsS -o /dev/null http://127.0.0.1:3000/manifest.webmanifest
+          # Every build-time sentinel must have been replaced.
+          ! docker exec blogide grep -rqF blogide-runtime-supabase .next
+          docker exec blogide grep -rqF https://ci-check.supabase.co .next/static
+
   # Apply pending files in supabase/migrations to the linked project.
   # Requires repo secrets (see README). Skips cleanly when unset (e.g. forks).
   migrate:

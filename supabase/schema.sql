@@ -744,7 +744,7 @@ grant execute on function public.create_workspace_node(text, text, uuid, text, t
 
 -- Optimistic document save with quota accounting.
 drop function if exists public.save_document(uuid, text, bigint);
-create function public.save_document(
+create or replace function public.save_document(
   p_node_id uuid,
   p_markdown text,
   p_base_version bigint,
@@ -1332,6 +1332,44 @@ revoke all on function public.resolve_document_conflict(uuid, text, bigint) from
 revoke all on function public.resolve_document_conflict(uuid, text, bigint) from anon;
 grant execute on function public.resolve_document_conflict(uuid, text, bigint) to authenticated;
 
+-- Assets bucket (migrations 20260717153000, 20260723220000, 20260915163000) --
+-- Essay images and Library PDFs. Private: reads go through signed URLs, and
+-- each user may only touch objects under their own user-id prefix.
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'assets',
+  'assets',
+  false,
+  5242880, -- 5 MiB
+  array['image/webp', 'image/jpeg', 'image/png', 'image/gif', 'application/pdf']
+)
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "assets_select_own" on storage.objects;
+drop policy if exists "assets_insert_own" on storage.objects;
+drop policy if exists "assets_update_own" on storage.objects;
+drop policy if exists "assets_delete_own" on storage.objects;
+
+create policy "assets_select_own"
+  on storage.objects for select to authenticated
+  using (bucket_id = 'assets' and (storage.foldername(name))[1] = auth.uid()::text);
+
+create policy "assets_insert_own"
+  on storage.objects for insert to authenticated
+  with check (bucket_id = 'assets' and (storage.foldername(name))[1] = auth.uid()::text);
+
+create policy "assets_update_own"
+  on storage.objects for update to authenticated
+  using (bucket_id = 'assets' and (storage.foldername(name))[1] = auth.uid()::text);
+
+create policy "assets_delete_own"
+  on storage.objects for delete to authenticated
+  using (bucket_id = 'assets' and (storage.foldername(name))[1] = auth.uid()::text);
+
 -- Storage inventory + Library (see migration 20260723220000_*) --------------
 
 create table if not exists user_assets (
@@ -1502,7 +1540,7 @@ grant execute on function public.release_asset_path(text) to authenticated;
 -- Vault RPCs (also in 20260915163000_vault_and_private_assets.sql)
 drop function if exists public.create_document_conflict_copy(uuid, bigint, text);
 
-create function public.create_document_conflict_copy(
+create or replace function public.create_document_conflict_copy(
   p_origin_id uuid,
   p_base_version bigint,
   p_markdown text,

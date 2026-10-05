@@ -3,9 +3,11 @@
 #
 #   docker compose up --build        (reads .env; see README → Docker)
 #
-# NEXT_PUBLIC_* values are inlined into the browser bundle by `next build`,
-# so they are build args here. Change one and rebuild; setting it only at
-# runtime has no effect on the client.
+# The Supabase URL and anon key are read when the container starts (see
+# docker/entrypoint.sh), so one image works against any Supabase project and
+# can be published as-is. The other NEXT_PUBLIC_* values are inlined into the
+# browser bundle by `next build`, so they stay build args: change one and
+# rebuild.
 
 ARG NODE_IMAGE=node:22-alpine3.23
 # Same Alpine release as NODE_IMAGE, so the libstdc++ copied below matches.
@@ -30,8 +32,10 @@ ARG NEXT_PUBLIC_SITE_URL
 ARG NEXT_PUBLIC_HOSTED
 ARG NEXT_PUBLIC_BETA_ONLY
 ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-ENV NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL} \
-    NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY} \
+# Left empty, the Supabase pair builds as sentinels that the entrypoint
+# replaces at startup. Pass real values only for a single-project image.
+ENV NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-https://blogide-runtime-supabase-url.invalid} \
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:-blogide-runtime-supabase-anon-key} \
     NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL} \
     NEXT_PUBLIC_HOSTED=${NEXT_PUBLIC_HOSTED} \
     NEXT_PUBLIC_BETA_ONLY=${NEXT_PUBLIC_BETA_ONLY} \
@@ -59,11 +63,13 @@ ENV NODE_ENV=production \
 COPY --from=builder --chown=blogide:blogide /app/.next/standalone ./
 COPY --from=builder --chown=blogide:blogide /app/.next/static ./.next/static
 COPY --from=builder --chown=blogide:blogide /app/public ./public
+# Executable bit comes from git; plain COPY keeps it (no BuildKit needed).
+COPY docker/entrypoint.sh /usr/local/bin/blogide-entrypoint
 
 USER blogide
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -q -O /dev/null http://127.0.0.1:3000/manifest.webmanifest || exit 1
-# The base image's entrypoint is pandoc; run the server instead.
-ENTRYPOINT []
+# Replaces the base image's pandoc entrypoint.
+ENTRYPOINT ["blogide-entrypoint"]
 CMD ["node", "server.js"]
