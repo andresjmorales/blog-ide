@@ -82,9 +82,16 @@ BlogIDE is then at http://localhost:3000 (change the port with
 `BLOGIDE_PORT`). The image includes Pandoc and Typst, so Word import/export
 and Pandoc PDF export work with no extra setup.
 
-`NEXT_PUBLIC_*` values are compiled into the browser bundle, so rebuild
-(`docker compose up -d --build`) after changing any of them. Other
-variables only need a restart.
+The Supabase URL and keys are read when the container starts, so after
+changing them `docker compose up -d` is enough. The other `NEXT_PUBLIC_*`
+values (site URL, hosted and signup-code flags, Stripe key) are compiled
+into the browser bundle, so rebuild (`docker compose up -d --build`) after
+changing any of those.
+
+Because the image carries no Supabase project, one build can serve any
+instance: to run a published image instead of building, set
+`BLOGIDE_IMAGE` (for example `ghcr.io/<owner>/blog-ide:latest`) in `.env`,
+then `docker compose pull && docker compose up -d`.
 
 ### 3b. Run with Node
 

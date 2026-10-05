@@ -3,23 +3,40 @@
 #   cp .env.example .env    # fill in the Supabase values
 #   docker compose up -d --build
 #
-# NEXT_PUBLIC_* values are baked in at build time, so rebuild after changing
-# them (`docker compose up -d --build`). Everything else is read at runtime.
+# The Supabase URL and keys are read when the container starts, so changing
+# them only needs `docker compose up -d`. The other NEXT_PUBLIC_* values are
+# baked in at build time: rebuild after changing them (`up -d --build`).
+#
+# To run a published image instead of building, set BLOGIDE_IMAGE (for
+# example ghcr.io/<owner>/blog-ide:latest) and run `docker compose pull`
+# before `docker compose up -d`.
 services:
   blogide:
     build:
       context: .
       args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
         NEXT_PUBLIC_HOSTED: ${NEXT_PUBLIC_HOSTED:-}
         NEXT_PUBLIC_BETA_ONLY: ${NEXT_PUBLIC_BETA_ONLY:-}
         NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
-    image: blogide:local
+    image: ${BLOGIDE_IMAGE:-blogide:local}
     env_file:
       - path: .env
         required: false
     ports:
       - "${BLOGIDE_PORT:-3000}:3000"
     restart: unless-stopped
+    # The entrypoint writes the Supabase values into the build output once at
+    # startup, so the root filesystem stays writable; everything else is locked.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      # Pandoc's scratch files for import/export.
+      - /tmp
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
