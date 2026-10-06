@@ -2090,6 +2090,25 @@ body {
 .footnote-card-editor .blogide-math.is-block {
   margin: 0.6em 0;
 }
+/* A formula wider than the column scrolls on its own instead of widening
+   the page (phones). Overflowing centered content starts at the left edge,
+   so the scroll reaches all of it. */
+.editor-prose .blogide-math.is-block,
+.footnote-card-editor .blogide-math.is-block,
+.blogide-block-math {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+}
+.blogide-block-math {
+  text-align: center;
+}
+/* Room for tall glyphs (integrals, \boxed) that overflow-y would clip. */
+.editor-prose .blogide-math.is-block .blogide-math-render,
+.footnote-card-editor .blogide-math.is-block .blogide-math-render {
+  padding-block: 0.2em;
+}
 .editor-prose .blogide-math-render,
 .footnote-card-editor .blogide-math-render {
   background: transparent;

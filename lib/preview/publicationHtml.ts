@@ -512,7 +512,7 @@ ${enhancer}
     border: 1px solid var(--border); padding: 0.4em 0.65em; text-align: left;
   }
   .editor-prose th { background: var(--panel); font-weight: 600; }
-  .blogide-block-math { margin: 1.25em 0; overflow-x: auto; text-align: center; }
+  .blogide-block-math { margin: 1.25em 0; max-width: 100%; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; text-align: center; }
   .blogide-inline-math { display: inline; }
   .preview-fn {
     position: relative;

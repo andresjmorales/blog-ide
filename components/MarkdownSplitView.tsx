@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type RefObject,
 } from "react";
 import {
@@ -46,6 +47,7 @@ import {
   type ScrollAnchor,
 } from "@/lib/editor/splitScrollSync";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
+import { DEFAULT_EDITOR_PREFS } from "@/lib/settings";
 import { FootnotePreviewNodeView } from "@/components/FootnotePreviewNodeView";
 import { ImageCaptionNodeView } from "@/components/ImageCaptionNodeView";
 import {
@@ -93,6 +95,32 @@ const MIN_PANE = 220;
 const MAX_PANE = 900;
 /** Dragging the gutter never squeezes the preview below this. */
 const MIN_PREVIEW = 240;
+/** Arrow-key step on the focused gutter (Shift for a bigger one). */
+const KEY_STEP = 24;
+/** Below md the panes don't fit side by side: one at a time, with a toggle. */
+const NARROW_QUERY = "(max-width: 767px)";
+
+function subscribeNarrow(onChange: () => void) {
+  const media = window.matchMedia(NARROW_QUERY);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
+function useNarrowViewport() {
+  return useSyncExternalStore(
+    subscribeNarrow,
+    () => window.matchMedia(NARROW_QUERY).matches,
+    () => false
+  );
+}
+
+/** Widest the source pane may be while leaving the preview usable. */
+function maxPaneFor(containerWidth: number) {
+  return Math.max(
+    MIN_PANE,
+    Math.min(MAX_PANE, containerWidth ? containerWidth - MIN_PREVIEW : MAX_PANE)
+  );
+}
 /** Max chars to seed Find from the markdown selection (single-line only). */
 const SEED_QUERY_MAX_CHARS = 80;
 
@@ -137,9 +165,9 @@ const SOURCE_TEXT_CLASS =
 
 /**
  * Markdown-canonical split: editable source | debounced read-only TipTap preview.
- * Preview never writes back into the buffer. On narrow screens the source pane
- * keeps its saved width, so the preview is a sliver; Rich text returns to
- * the full editor.
+ * Preview never writes back into the buffer. On narrow screens the panes
+ * stack and a Markdown / Preview toggle shows one at a time; the hidden one
+ * keeps its layout so scroll sync lands the other on the same spot.
  *
  * Behind the textarea sits a transparent mirror of its text: it paints Find
  * highlights and tells scroll sync where each source line lands.
@@ -164,7 +192,14 @@ export function MarkdownSplitView({
     null
   );
   const debounceRef = useRef(0);
-  const paneWidth = dragWidth ?? prefs.markdownSplitWidth;
+  const narrow = useNarrowViewport();
+  const [narrowPane, setNarrowPane] = useState<Pane>("source");
+  /** Panes row width, so a saved width never crowds the preview out. */
+  const [panesWidth, setPanesWidth] = useState(0);
+  const paneWidth = Math.min(
+    dragWidth ?? prefs.markdownSplitWidth,
+    maxPaneFor(panesWidth)
+  );
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const panesRef = useRef<HTMLDivElement | null>(null);
@@ -308,7 +343,15 @@ export function MarkdownSplitView({
     }
   }, [revealNonce, mirrorHtml, matches, activeIndex]);
 
+  function showNarrowPane(pane: Pane) {
+    // A hidden textarea can keep focus (and the phone keyboard) otherwise.
+    if (pane === "preview") textareaRef.current?.blur();
+    setNarrowPane(pane);
+  }
+
   function openFind() {
+    // Find works on the markdown, so show it on phones.
+    setNarrowPane("source");
     const textarea = textareaRef.current;
     if (textarea) {
       findOriginRef.current = textarea.selectionStart;
@@ -614,13 +657,34 @@ export function MarkdownSplitView({
 
   // ------------------------------------------------------------- resize
 
+  useEffect(() => {
+    const panes = panesRef.current;
+    if (!panes || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() =>
+      setPanesWidth(panes.clientWidth)
+    );
+    observer.observe(panes);
+    return () => observer.disconnect();
+  }, []);
+
+  function onSeparatorKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const step = event.shiftKey ? KEY_STEP * 4 : KEY_STEP;
+    const maxW = maxPaneFor(panesWidth);
+    let next: number;
+    if (event.key === "ArrowLeft") next = paneWidth - step;
+    else if (event.key === "ArrowRight") next = paneWidth + step;
+    else if (event.key === "Home") next = MIN_PANE;
+    else if (event.key === "End") next = maxW;
+    else return;
+    event.preventDefault();
+    updatePrefs({
+      markdownSplitWidth: Math.min(maxW, Math.max(MIN_PANE, next)),
+    });
+  }
+
   function beginResize(event: React.PointerEvent<HTMLDivElement>) {
     event.preventDefault();
-    const containerWidth = panesRef.current?.clientWidth ?? 0;
-    const maxW = Math.max(
-      MIN_PANE,
-      Math.min(MAX_PANE, containerWidth ? containerWidth - MIN_PREVIEW : MAX_PANE)
-    );
+    const maxW = maxPaneFor(panesRef.current?.clientWidth ?? 0);
     dragRef.current = { startX: event.clientX, startW: paneWidth, maxW };
     const target = event.currentTarget;
     target.setPointerCapture(event.pointerId);
@@ -661,9 +725,34 @@ export function MarkdownSplitView({
     <div ref={rootRef} className="flex h-full flex-col">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-1.5">
         <span className="flex min-w-0 items-center gap-2">
-          <span className="text-xs font-mono uppercase tracking-wider text-muted">
-            Markdown · preview
-          </span>
+          {narrow ? (
+            <span
+              role="tablist"
+              aria-label="Split view pane"
+              className="inline-flex rounded border border-border p-0.5"
+            >
+              {(["source", "preview"] as const).map((pane) => (
+                <button
+                  key={pane}
+                  type="button"
+                  role="tab"
+                  aria-selected={narrowPane === pane}
+                  onClick={() => showNarrowPane(pane)}
+                  className={`h-6 rounded-sm px-2.5 text-xs ${
+                    narrowPane === pane
+                      ? "bg-accent/15 text-accent"
+                      : "text-muted hover:text-foreground"
+                  }`}
+                >
+                  {pane === "source" ? "Markdown" : "Preview"}
+                </button>
+              ))}
+            </span>
+          ) : (
+            <span className="text-xs font-mono uppercase tracking-wider text-muted">
+              Markdown · preview
+            </span>
+          )}
           {lossy && (
             // Inline (not a banner) so it can't shove the textarea down
             // mid-keystroke when a half-typed `*` briefly normalizes.
@@ -775,10 +864,14 @@ export function MarkdownSplitView({
         />
       )}
 
-      <div ref={panesRef} className="flex min-h-0 flex-1">
+      <div ref={panesRef} className="relative flex min-h-0 flex-1">
         <div
-          className="relative flex min-h-0 shrink-0 flex-col border-r border-border"
-          style={{ width: paneWidth }}
+          className={`flex min-h-0 shrink-0 flex-col ${
+            narrow
+              ? `absolute inset-0 ${narrowPane === "source" ? "" : "invisible"}`
+              : "relative border-r border-border"
+          }`}
+          style={narrow ? undefined : { width: paneWidth }}
         >
           <div
             ref={mirrorRef}
@@ -796,17 +889,35 @@ export function MarkdownSplitView({
             className={`relative min-h-0 w-full flex-1 resize-none bg-transparent outline-none ${SOURCE_TEXT_CLASS}`}
           />
         </div>
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize markdown pane"
-          onPointerDown={beginResize}
-          className="hidden w-1 shrink-0 cursor-col-resize hover:bg-accent/40 md:block"
-        />
+        {!narrow && (
+          <div
+            role="separator"
+            tabIndex={0}
+            aria-orientation="vertical"
+            aria-label="Resize markdown pane"
+            aria-valuemin={MIN_PANE}
+            aria-valuemax={maxPaneFor(panesWidth)}
+            aria-valuenow={Math.round(paneWidth)}
+            title="Drag to resize · double-click to reset"
+            onPointerDown={beginResize}
+            onDoubleClick={() =>
+              updatePrefs({ markdownSplitWidth: DEFAULT_EDITOR_PREFS.markdownSplitWidth })
+            }
+            onKeyDown={onSeparatorKeyDown}
+            className="relative w-1.5 shrink-0 cursor-col-resize touch-none outline-none hover:bg-accent/40 focus-visible:bg-accent/40"
+          >
+            {/* Wider invisible hit area than the visible line. */}
+            <span className="absolute inset-y-0 -left-1.5 -right-1.5" />
+          </div>
+        )}
         <div
           ref={previewScrollRef}
           onScroll={() => onPaneScroll("preview")}
-          className="min-h-0 min-w-0 flex-1 overflow-y-auto"
+          className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${
+            narrow
+              ? `absolute inset-0 ${narrowPane === "preview" ? "" : "invisible"}`
+              : ""
+          }`}
         >
           <div className="mx-auto max-w-2xl px-6 py-10">
             <div className="essay-title-block pointer-events-none select-text">
