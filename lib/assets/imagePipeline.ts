@@ -1,15 +1,43 @@
 /** Client-side resize/compress before insert or upload. */
+import type { ImageDimensions } from "@/lib/assets/imagePreflight";
 
 const MAX_WIDTH = 1600;
 const TARGET_BYTES = 500_000;
 
-export async function compressImageFile(file: File): Promise<{
+/**
+ * Decode straight to (at most) MAX_WIDTH when the header size is known, so a
+ * huge photo is scaled inside the browser's decoder instead of being drawn
+ * full-size onto a canvas on the main thread.
+ */
+async function decodeImage(
+  file: File,
+  dimensions: ImageDimensions | null
+): Promise<ImageBitmap> {
+  if (dimensions && dimensions.width > MAX_WIDTH) {
+    const scale = MAX_WIDTH / dimensions.width;
+    try {
+      return await createImageBitmap(file, {
+        resizeWidth: MAX_WIDTH,
+        resizeHeight: Math.max(1, Math.round(dimensions.height * scale)),
+        resizeQuality: "high",
+      });
+    } catch {
+      // Resize options unsupported (older Safari): plain decode below.
+    }
+  }
+  return createImageBitmap(file);
+}
+
+export async function compressImageFile(
+  file: File,
+  dimensions: ImageDimensions | null = null
+): Promise<{
   blob: Blob;
   mime: string;
   width: number;
   height: number;
 }> {
-  const bitmap = await createImageBitmap(file);
+  const bitmap = await decodeImage(file, dimensions);
   const scale = Math.min(1, MAX_WIDTH / bitmap.width);
   const width = Math.max(1, Math.round(bitmap.width * scale));
   const height = Math.max(1, Math.round(bitmap.height * scale));

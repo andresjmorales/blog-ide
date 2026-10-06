@@ -3,6 +3,7 @@
  */
 import type { Editor } from "@tiptap/core";
 import { compressImageFile } from "@/lib/assets/imagePipeline";
+import { preflightImageFile } from "@/lib/assets/imagePreflight";
 import {
   classifyStorageError,
   isBrowserOffline,
@@ -15,6 +16,12 @@ import {
   QuotaExceededError,
   uploadUserAsset,
 } from "@/lib/assets/upload";
+
+/**
+ * Largest image kept inline as a data: URL when upload fails. Anything bigger
+ * bloats the markdown enough to stall autosave and cloud sync.
+ */
+export const MAX_INLINE_IMAGE_BYTES = 750_000;
 
 function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -45,9 +52,15 @@ export async function insertEssayImageFromFile(
   dialogs: InsertEssayImageDialogs
 ): Promise<boolean> {
   if (!file.type.startsWith("image/")) return false;
+  const preflight = await preflightImageFile(file);
+  if (!preflight.ok) {
+    beginUploadStatus("error", preflight.message);
+    await dialogs.alertError(preflight.message);
+    return false;
+  }
   const statusId = beginUploadStatus("compressing", "Compressing image…");
   try {
-    const compressed = await compressImageFile(file);
+    const compressed = await compressImageFile(file, preflight.dimensions);
     let src: string;
     let usedDataUrl = false;
     try {
@@ -81,6 +94,12 @@ export async function insertEssayImageFromFile(
           message: "Storage quota exceeded.",
         });
         await dialogs.alertQuota();
+        return false;
+      }
+      if (compressed.blob.size > MAX_INLINE_IMAGE_BYTES) {
+        const message = `${classifyStorageError(uploadErr)} The image was not inserted.`;
+        updateUploadStatus(statusId, { phase: "error", message });
+        await dialogs.alertError(message);
         return false;
       }
       src = await blobToDataUrl(compressed.blob);
