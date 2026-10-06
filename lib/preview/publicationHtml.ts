@@ -203,6 +203,8 @@ export function toInlineTipHtml(noteHtml: string, doc?: Document): string {
 /**
  * TipTap generateHTML emits <img data-caption="…">; turn those into
  * <figure>/<figcaption> for Preview (and any other HTML consumers).
+ * Alt doubles as the hover tooltip unless the image has its own title,
+ * matching the published site.
  */
 export function enhancePublicationCaptions(rawHtml: string): string {
   if (!rawHtml || typeof DOMParser === "undefined") return rawHtml;
@@ -213,6 +215,13 @@ export function enhancePublicationCaptions(rawHtml: string): string {
   );
   const root = doc.getElementById("root");
   if (!root) return rawHtml;
+
+  for (const img of [...root.querySelectorAll("img")]) {
+    const alt = (img.getAttribute("alt") || "").trim();
+    if (alt && !(img.getAttribute("title") || "").trim()) {
+      img.setAttribute("title", alt);
+    }
+  }
 
   for (const img of [
     ...root.querySelectorAll("img[data-caption]"),
