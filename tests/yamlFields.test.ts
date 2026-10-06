@@ -69,6 +69,29 @@ describe("yamlFields", () => {
     expect(removed).toContain("title: Essay");
   });
 
+  it("quotes values YAML would misread, and round-trips them", () => {
+    const fm = '---\ntitle: Essay\nsubstack_intro: "*Old*"\n---\n';
+    const intro = "*Crossposted to [my site](https://a.b/c) with \"notes\".*";
+    const next = writeFrontmatterField(fm, "substack_intro", intro, {
+      keepEmpty: true,
+    });
+    expect(next).toContain(
+      'substack_intro: "*Crossposted to [my site](https://a.b/c) with \\"notes\\".*"'
+    );
+    expect(parseFrontmatterField(next, "substack_intro")).toBe(intro);
+    for (const value of ["- item", "[x]", "a: b", "a #b", "ends:"]) {
+      const line = writeFrontmatterField(fm, "x", value, { create: true });
+      expect(line).toContain(`x: "${value}"`);
+    }
+    const bare = writeFrontmatterField(fm, "canonical", "https://a.b/c", {
+      create: true,
+    });
+    expect(writeFrontmatterField(bare, "tags", "vegan, christian", { create: true })).toContain(
+      "tags: vegan, christian"
+    );
+    expect(bare).toContain("canonical: https://a.b/c");
+  });
+
   it("unquotes stored scalars", () => {
     const fm = '---\ndescription: "A: summary"\n---\n';
     expect(parseFrontmatterField(fm, "description")).toBe("A: summary");

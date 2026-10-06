@@ -22,15 +22,9 @@ export function substackIntroFromMarkdown(markdown: string): string {
 
 /**
  * The intro is markdown (`*italics*`, `[links](…)`), which a YAML parser
- * would read as an alias or a list, so quote it like the title.
+ * would read as an alias or a list; writeFrontmatterField quotes it.
  */
 export function writeSubstackIntro(frontmatter: string, intro: string): string {
   const value = intro.replace(/\s*\n\s*/g, " ").trim();
-  const needsQuoting =
-    /[:#{}[\],&*!|>%@`"']/.test(value) || /^[\s-]|\s$/.test(value);
-  const scalar =
-    value && needsQuoting
-      ? `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
-      : value;
-  return writeFrontmatterField(frontmatter, SUBSTACK_INTRO_KEY, scalar);
+  return writeFrontmatterField(frontmatter, SUBSTACK_INTRO_KEY, value);
 }
