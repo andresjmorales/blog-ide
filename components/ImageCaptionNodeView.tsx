@@ -34,6 +34,28 @@ function releaseOuterSelection(captionDom: HTMLElement) {
 }
 
 /**
+ * ProseMirror marks every image node view draggable, and Safari / Firefox
+ * won't place the caret or drag-select text inside a draggable element (the
+ * caret lands at the start of the caption). Lift that for the length of a
+ * press in the caption or alt field.
+ */
+function suspendNodeDrag(target: EventTarget | null) {
+  const host =
+    target instanceof Element
+      ? target.closest<HTMLElement>('[draggable="true"]')
+      : null;
+  if (!host) return;
+  host.draggable = false;
+  window.addEventListener(
+    "mouseup",
+    () => {
+      host.draggable = true;
+    },
+    { once: true, capture: true }
+  );
+}
+
+/**
  * Substack-style image with a gray “Add caption” field under the image
  * (shown only while the figure is selected, unless a caption exists).
  * Caption is stored on the image node (markdown string: bold / italic / link
@@ -70,6 +92,7 @@ export function ImageCaptionNodeView({
       handleDOMEvents: {
         mousedown: (view, event) => {
           event.stopPropagation();
+          suspendNodeDrag(event.target);
           releaseOuterSelection(view.dom);
           return false;
         },
@@ -246,7 +269,10 @@ function FigureAltField({
         type="text"
         value={draft}
         placeholder="Describe the image (accessibility)"
-        onMouseDown={(event) => event.stopPropagation()}
+        onMouseDown={(event) => {
+          event.stopPropagation();
+          suspendNodeDrag(event.target);
+        }}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={() => {
           if (draft !== alt) onCommit(draft);
