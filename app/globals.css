@@ -2370,20 +2370,20 @@ body {
 .editor-prose .blogide-figcaption.is-hidden {
   display: none;
 }
-/* Floats above the caption: an in-flow toolbar appearing on focus pushed the
-   text down mid-drag, so the first mouse drag selected nothing. */
+/* Floats below the caption (above would cover the Alt field): an in-flow
+   toolbar appearing on focus pushed the text down mid-drag. */
 .editor-prose .blogide-figcaption-toolbar {
   align-items: center;
   background: var(--background);
   border: 1px solid var(--border);
   border-radius: 6px;
-  bottom: calc(100% + 0.25rem);
   box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
   display: flex;
   gap: 0.2rem;
   left: 50%;
   padding: 0.15rem;
   position: absolute;
+  top: calc(100% + 0.25rem);
   transform: translateX(-50%);
   z-index: 2;
 }
@@ -2410,6 +2410,15 @@ body {
 }
 .editor-prose .blogide-figcaption-editor p {
   margin: 0;
+}
+/* A selected figure puts ProseMirror-hideselection on the essay root, which
+   would make caption highlights and caret invisible. */
+.editor-prose .blogide-figcaption-editor {
+  caret-color: auto;
+}
+.editor-prose .blogide-figcaption-editor *::selection {
+  background: Highlight;
+  color: HighlightText;
 }
 .editor-prose .blogide-figcaption-editor a {
   color: var(--accent);
@@ -2508,6 +2517,18 @@ html.app-shell-lock body {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-radius: 3px;
   outline: none;
+}
+/* Selected (clicked / arrowed onto): stronger than hover so it reads as active. */
+.footnote-node.is-selected .footnote-ref {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+/* Inside a text selection: the marker is user-select:none, so the browser
+   skips it; match the selection highlight (see footnoteSelection.ts). */
+.is-in-selection .footnote-ref {
+  background: Highlight;
+  border-radius: 2px;
+  color: HighlightText;
 }
 .footnote-ref.is-dragging {
   opacity: 0.35;

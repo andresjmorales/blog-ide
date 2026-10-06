@@ -51,6 +51,7 @@ import { DeletedFootnotesPanel } from "@/components/DeletedFootnotesPanel";
 import { LinkEditCard } from "@/components/editor/LinkEditCard";
 import { EssaySpellcheckProvider } from "@/components/EssaySpellcheckContext";
 import { HarperLintCard } from "@/components/HarperLintCard";
+import { FootnoteSelectionHighlight } from "@/lib/editor/footnoteSelection";
 import { HarperHighlight } from "@/lib/editor/harper/HarperHighlight";
 import { BibleRefHighlight } from "@/lib/editor/bible/BibleRefHighlight";
 import { dialectFromLang } from "@/lib/editor/harper/dialect";
@@ -258,6 +259,7 @@ export function DocumentEditor({
         // Editor-only: not part of the shared markdown schema / round-trip set.
         HarperHighlight,
         BibleRefHighlight,
+        FootnoteSelectionHighlight,
         // Decoration-only; comments never write into the markdown.
         CommentHighlights.configure({
           onActivate: (threadId) => {
