@@ -86,9 +86,22 @@ function unquoteScalar(raw: string): string {
   return value;
 }
 
+/**
+ * Double-quote values a YAML parser would misread as plain scalars: a leading
+ * indicator (`*` alias, `&` anchor, `-` list, `[`/`{` flow, quotes…), `: ` or
+ * ` #` mid-value, or a trailing colon. URLs and comma lists stay bare.
+ */
+export function yamlScalar(value: string): string {
+  const needsQuoting =
+    /^[-?:,[\]{}#&*!|>'"%@`]/.test(value) ||
+    /:(\s|$)|\s#/.test(value);
+  if (!needsQuoting) return value;
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
 function fieldLine(key: string, value: string): string {
   const cleaned = value.replace(/\s+$/g, "").trimStart().replace(/\s*\n\s*/g, " ");
-  return cleaned ? `${key}: ${cleaned}` : `${key}:`;
+  return cleaned ? `${key}: ${yamlScalar(cleaned)}` : `${key}:`;
 }
 
 export function parseFrontmatterFields(
