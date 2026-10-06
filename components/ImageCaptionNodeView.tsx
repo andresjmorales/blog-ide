@@ -17,6 +17,23 @@ import { promptForLink } from "@/lib/editor/linkShortcut";
 import { ItalicIcon, LinkIcon } from "@/components/icons";
 
 /**
+ * A selected figure owns the DOM selection, which spans the caption, so the
+ * browser treats a press in the caption as dragging that selection and never
+ * starts a text selection. Drop it so a mouse drag selects caption text.
+ */
+function releaseOuterSelection(captionDom: HTMLElement) {
+  const selection = window.getSelection();
+  if (
+    selection &&
+    !selection.isCollapsed &&
+    selection.containsNode(captionDom, true) &&
+    !captionDom.contains(selection.anchorNode)
+  ) {
+    selection.removeAllRanges();
+  }
+}
+
+/**
  * Substack-style image with a gray “Add caption” field under the image
  * (shown only while the figure is selected, unless a caption exists).
  * Caption is stored on the image node (markdown string: bold / italic / link
@@ -51,8 +68,9 @@ export function ImageCaptionNodeView({
         "aria-label": "Image caption",
       },
       handleDOMEvents: {
-        mousedown: (_view, event) => {
+        mousedown: (view, event) => {
           event.stopPropagation();
+          releaseOuterSelection(view.dom);
           return false;
         },
       },
