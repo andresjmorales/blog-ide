@@ -2518,6 +2518,18 @@ html.app-shell-lock body {
   border-radius: 3px;
   outline: none;
 }
+/* Selected (clicked / arrowed onto): stronger than hover so it reads as active. */
+.footnote-node.is-selected .footnote-ref {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+/* Inside a text selection: the marker is user-select:none, so the browser
+   skips it; match the selection highlight (see footnoteSelection.ts). */
+.is-in-selection .footnote-ref {
+  background: Highlight;
+  border-radius: 2px;
+  color: HighlightText;
+}
 .footnote-ref.is-dragging {
   opacity: 0.35;
 }
