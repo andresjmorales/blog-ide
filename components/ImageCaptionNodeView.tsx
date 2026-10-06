@@ -151,7 +151,13 @@ export function ImageCaptionNodeView({
     <FigureAltField
       key={alt}
       alt={alt}
-      onCommit={(next) => updateAttributes({ alt: next })}
+      // A title that only mirrors the alt (Substack paste) would freeze the
+      // hover text; drop it so the hover follows the new alt.
+      onCommit={(next) =>
+        updateAttributes(
+          title?.trim() === alt.trim() ? { alt: next, title: null } : { alt: next }
+        )
+      }
     />
   ) : null;
 
@@ -209,7 +215,7 @@ export function ImageCaptionNodeView({
       <img
         src={src}
         alt={alt}
-        title={title}
+        title={title || alt || undefined}
         draggable={false}
         onError={() => setBrokenSrc(src)}
       />
@@ -245,7 +251,7 @@ function FigureAltField({
       <input
         type="text"
         value={draft}
-        placeholder="Describe the image (accessibility)"
+        placeholder="Describe the image (also the hover text)"
         onMouseDown={(event) => event.stopPropagation()}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={() => {

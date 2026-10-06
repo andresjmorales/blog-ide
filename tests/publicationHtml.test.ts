@@ -195,6 +195,17 @@ describe("enhancePublicationCaptions", () => {
     expect(html).toContain('<a href="https://example.com">link</a>');
     expect(html).not.toContain("data-caption");
   });
+
+  it("uses alt as the hover title unless the image has its own", () => {
+    const html = enhancePublicationCaptions(
+      `<p><img src="a.png" alt="A hen (https://example.com/hen)"></p>` +
+        `<p><img src="b.png" alt="Alt" title="Explicit hover"></p>` +
+        `<p><img src="c.png" alt=""></p>`
+    );
+    expect(html).toContain('title="A hen (https://example.com/hen)"');
+    expect(html).toContain('title="Explicit hover"');
+    expect(html).not.toContain('src="c.png" alt="" title');
+  });
 });
 
 describe("buildPublicationPreview captions", () => {
