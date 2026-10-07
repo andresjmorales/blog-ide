@@ -8,7 +8,8 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import type { Editor } from "@tiptap/core";
+import { getMarkRange, type Editor } from "@tiptap/core";
+import { TextSelection } from "@tiptap/pm/state";
 import { fetchLinkPreview } from "@/lib/preview/client";
 import type { LinkPreview } from "@/lib/preview/openGraph";
 import { openLinkPin } from "@/lib/pins/pinStore";
@@ -68,6 +69,69 @@ function anchorRectForLink(editor: Editor): DOMRect | null {
   }
 }
 
+/**
+ * Doc position inside the tapped/clicked link. Prefers the pointer coords,
+ * falling back to the anchor's start when the coords land outside the mark.
+ */
+function linkPosFromClick(
+  editor: Editor,
+  anchor: Element,
+  event: MouseEvent
+): number | null {
+  const { view, state } = editor;
+  const type = state.schema.marks.link;
+  if (!type) return null;
+  const candidates: number[] = [];
+  try {
+    const hit = view.posAtCoords({ left: event.clientX, top: event.clientY });
+    if (hit) candidates.push(hit.pos);
+  } catch {
+    // no layout (e.g. coords off-screen)
+  }
+  try {
+    candidates.push(view.posAtDOM(anchor, 0));
+  } catch {
+    // anchor not mapped
+  }
+  for (const pos of candidates) {
+    if (pos < 0 || pos > state.doc.content.size) continue;
+    if (getMarkRange(state.doc.resolve(pos), type)) return pos;
+  }
+  return null;
+}
+
+/**
+ * Touch browsers sync the native caret into ProseMirror after `click` (often
+ * a frame or more later), so the editor selection can still sit outside the
+ * tapped link. Move it into the link so text/range reads match the tap.
+ */
+function selectTappedLink(editor: Editor, pos: number) {
+  if (editor.isDestroyed) return;
+  const { state } = editor;
+  const type = state.schema.marks.link;
+  if (!type || pos > state.doc.content.size) return;
+  const target = getMarkRange(state.doc.resolve(pos), type);
+  if (!target) return;
+  const current = getMarkRange(state.selection.$from, type);
+  if (
+    current &&
+    current.from === target.from &&
+    current.to === target.to &&
+    state.selection.to <= target.to
+  ) {
+    return;
+  }
+  // Strictly inside the mark: links are non-inclusive, so an edge caret
+  // would not count as "in" the link for Clear / getAttributes.
+  const inside =
+    target.to - target.from > 1
+      ? Math.min(Math.max(pos, target.from + 1), target.to - 1)
+      : pos;
+  editor.view.dispatch(
+    state.tr.setSelection(TextSelection.create(state.doc, inside))
+  );
+}
+
 function placeNearRect(
   rect: DOMRect,
   estimatedHeight: number
@@ -101,6 +165,8 @@ export function LinkEditCard({
   const cardRef = useRef<HTMLDivElement | null>(null);
   const activeEditorRef = useRef<Editor | null>(null);
   const textDirtyRef = useRef(false);
+  /** Bumped per preview request so a slow response cannot land on a newer card. */
+  const previewReqRef = useRef(0);
 
   useEffect(() => {
     activeEditorRef.current = card?.activeEditor ?? null;
@@ -108,6 +174,7 @@ export function LinkEditCard({
 
   const close = useCallback(() => {
     const active = activeEditorRef.current;
+    previewReqRef.current += 1;
     setCard(null);
     setPreview(null);
     setPreviewError(null);
@@ -123,6 +190,7 @@ export function LinkEditCard({
 
   const loadPreview = useCallback((url: string) => {
     const trimmed = url.trim();
+    const req = ++previewReqRef.current;
     if (!trimmed.startsWith("http")) {
       setPreview(null);
       setPreviewError(null);
@@ -133,10 +201,12 @@ export function LinkEditCard({
     setPreviewError(null);
     void fetchLinkPreview(trimmed)
       .then((next) => {
+        if (req !== previewReqRef.current) return;
         setPreview(next);
         setPreviewLoading(false);
       })
       .catch((err: unknown) => {
+        if (req !== previewReqRef.current) return;
         setPreview(null);
         setPreviewLoading(false);
         setPreviewError(err instanceof Error ? err.message : "Preview failed");
@@ -183,7 +253,7 @@ export function LinkEditCard({
         focusText: options.focusText === true,
       });
       if (allowPreview) {
-        window.setTimeout(() => loadPreview(href), 0);
+        loadPreview(href);
       }
     },
     [loadPreview, showPreviews]
@@ -206,7 +276,12 @@ export function LinkEditCard({
       const anchor = target.closest("a[href]");
       if (!anchor || !current.view.dom.contains(anchor)) return;
       const href = (anchor as HTMLAnchorElement).getAttribute("href") || "";
+      // Resolve from the event now; on mobile the editor selection may not
+      // have caught up with the tap yet (blank Text field on first tap).
+      const pos = linkPosFromClick(current, anchor, event);
+      if (pos !== null) selectTappedLink(current, pos);
       window.requestAnimationFrame(() => {
+        if (pos !== null) selectTappedLink(current, pos);
         openAt(current, { allowPreview: true, href });
       });
     }
