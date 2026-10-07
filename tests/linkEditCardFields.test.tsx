@@ -162,4 +162,27 @@ describe("LinkEditCard text and URL fields", () => {
     });
     expect(textInput?.value).toBe("Examplse");
   });
+
+  it("reads the tapped link even when the selection has not caught up (mobile)", async () => {
+    mount("Intro text then [Example](https://example.com) here\n");
+    act(() => {
+      // Touch browsers sync the caret after `click`: selection is still outside.
+      editor!.commands.setTextSelection(2);
+    });
+    const anchor = editor!.view.dom.querySelector("a[href]");
+    expect(anchor).toBeTruthy();
+
+    await act(async () => {
+      anchor!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve())
+      );
+    });
+
+    expect(
+      (document.querySelector('input[aria-label="Link text"]') as HTMLInputElement)
+        .value
+    ).toBe("Example");
+    expect(editor!.isActive("link")).toBe(true);
+  });
 });
