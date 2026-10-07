@@ -5,6 +5,7 @@ import { AddToLibraryButton } from "@/components/library/AddToLibraryButton";
 import { ClipboardIcon, ExternalLinkIcon } from "@/components/icons";
 import type { LinkPreview } from "@/lib/preview/openGraph";
 import { citeLinkedUrl } from "@/lib/citations/libraryCite";
+import { previewByline } from "@/lib/preview/byline";
 import { showCopiedToast, showErrorToast } from "@/lib/ui/toast";
 
 /**
@@ -17,12 +18,18 @@ export function LinkPreviewSnippet({
   loading,
   error,
   onPinAndRead,
+  onUseTitle,
+  currentText,
 }: {
   url: string;
   preview: LinkPreview | null;
   loading: boolean;
   error: string | null;
   onPinAndRead: () => void;
+  /** Replace the link's visible text with the fetched page title. */
+  onUseTitle?: (title: string) => void;
+  /** Current link text; hides "Use title" when it already matches. */
+  currentText?: string;
 }) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const image = preview?.image ?? null;
@@ -36,6 +43,11 @@ export function LinkPreviewSnippet({
   const fetchedTitle = preview?.title?.trim() ?? "";
   const canCopyTitle =
     Boolean(fetchedTitle) && fetchedTitle !== url && !loading && !error;
+  const canUseTitle =
+    Boolean(onUseTitle) &&
+    canCopyTitle &&
+    fetchedTitle !== (currentText ?? "").trim();
+  const byline = loading || error ? "" : previewByline(preview);
 
   async function copyTitle() {
     if (!fetchedTitle) return;
@@ -93,6 +105,11 @@ export function LinkPreviewSnippet({
               </button>
             )}
           </div>
+          {byline && (
+            <p className="link-hover-meta link-hover-byline" title={byline}>
+              {byline}
+            </p>
+          )}
           <p className="link-hover-desc">
             {preview?.description || "\u00a0"}
           </p>
@@ -109,6 +126,15 @@ export function LinkPreviewSnippet({
           Open
           <ExternalLinkIcon className="link-preview-open-icon" />
         </a>
+        {canUseTitle && (
+          <button
+            type="button"
+            title="Replace the link text with the page title"
+            onClick={() => onUseTitle?.(fetchedTitle)}
+          >
+            Use title
+          </button>
+        )}
         <button type="button" onClick={onPinAndRead}>
           Pin and read here
         </button>
