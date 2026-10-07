@@ -4194,6 +4194,12 @@ body.is-dragging-footnote-ref.is-footnote-drop-blocked {
   min-height: 1.05rem;
   overflow: hidden;
 }
+.link-hover-byline {
+  margin-bottom: 0.15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .link-hover-error {
   color: #b42318;
   font-size: 0.75rem;

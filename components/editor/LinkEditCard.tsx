@@ -9,7 +9,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { getMarkRange, type Editor } from "@tiptap/core";
-import { TextSelection } from "@tiptap/pm/state";
+import { TextSelection, type Transaction } from "@tiptap/pm/state";
 import { fetchLinkPreview } from "@/lib/preview/client";
 import type { LinkPreview } from "@/lib/preview/openGraph";
 import { openLinkPin } from "@/lib/pins/pinStore";
@@ -49,8 +49,8 @@ type CardState = {
   focusText: boolean;
 };
 
-function anchorRectForLink(editor: Editor): DOMRect | null {
-  const { from } = editor.state.selection;
+function anchorRectForLink(editor: Editor, at?: number | null): DOMRect | null {
+  const from = at ?? editor.state.selection.from;
   try {
     const dom = editor.view.domAtPos(from).node;
     const el =
@@ -70,8 +70,9 @@ function anchorRectForLink(editor: Editor): DOMRect | null {
 }
 
 /**
- * Doc position inside the tapped/clicked link. Prefers the pointer coords,
- * falling back to the anchor's start when the coords land outside the mark.
+ * Doc position inside the tapped/clicked link. The anchor element decides
+ * which link; pointer coords only refine the caret within it, since on touch
+ * they can resolve into a neighbouring link.
  */
 function linkPosFromClick(
   editor: Editor,
@@ -81,23 +82,22 @@ function linkPosFromClick(
   const { view, state } = editor;
   const type = state.schema.marks.link;
   if (!type) return null;
-  const candidates: number[] = [];
+  let anchorPos: number;
+  try {
+    anchorPos = view.posAtDOM(anchor, 0);
+  } catch {
+    return null;
+  }
+  if (anchorPos < 0 || anchorPos > state.doc.content.size) return null;
+  const range = getMarkRange(state.doc.resolve(anchorPos), type);
+  if (!range) return null;
   try {
     const hit = view.posAtCoords({ left: event.clientX, top: event.clientY });
-    if (hit) candidates.push(hit.pos);
+    if (hit && hit.pos >= range.from && hit.pos <= range.to) return hit.pos;
   } catch {
     // no layout (e.g. coords off-screen)
   }
-  try {
-    candidates.push(view.posAtDOM(anchor, 0));
-  } catch {
-    // anchor not mapped
-  }
-  for (const pos of candidates) {
-    if (pos < 0 || pos > state.doc.content.size) continue;
-    if (getMarkRange(state.doc.resolve(pos), type)) return pos;
-  }
-  return null;
+  return anchorPos;
 }
 
 /**
@@ -130,6 +130,15 @@ function selectTappedLink(editor: Editor, pos: number) {
   editor.view.dispatch(
     state.tr.setSelection(TextSelection.create(state.doc, inside))
   );
+}
+
+/** Visible text of the link mark containing `pos`, or "" if none. */
+function linkTextAt(editor: Editor, pos: number): string {
+  const { state } = editor;
+  const type = state.schema.marks.link;
+  if (!type || pos < 0 || pos > state.doc.content.size) return "";
+  const range = getMarkRange(state.doc.resolve(pos), type);
+  return range ? state.doc.textBetween(range.from, range.to) : "";
 }
 
 function placeNearRect(
@@ -167,6 +176,12 @@ export function LinkEditCard({
   const textDirtyRef = useRef(false);
   /** Bumped per preview request so a slow response cannot land on a newer card. */
   const previewReqRef = useRef(0);
+  /**
+   * Doc position inside the link a click/tap opened the bubble on, mapped
+   * through edits. Text, Apply and Clear read this instead of the selection,
+   * which touch browsers can move back to the previous link after a tap.
+   */
+  const linkPosRef = useRef<number | null>(null);
 
   useEffect(() => {
     activeEditorRef.current = card?.activeEditor ?? null;
@@ -175,6 +190,7 @@ export function LinkEditCard({
   const close = useCallback(() => {
     const active = activeEditorRef.current;
     previewReqRef.current += 1;
+    linkPosRef.current = null;
     setCard(null);
     setPreview(null);
     setPreviewError(null);
@@ -214,13 +230,19 @@ export function LinkEditCard({
   }, []);
 
   const openAt = useCallback(
-    (nextEditor: Editor, options: LinkEditorOpenOptions = {}) => {
+    (
+      nextEditor: Editor,
+      options: LinkEditorOpenOptions = {},
+      linkPos: number | null = null
+    ) => {
       if (nextEditor.isDestroyed) return;
+      linkPosRef.current = linkPos;
+      if (linkPos !== null) selectTappedLink(nextEditor, linkPos);
       const href =
         options.href ??
         (nextEditor.getAttributes("link").href as string | undefined) ??
         "";
-      const rect = anchorRectForLink(nextEditor);
+      const rect = anchorRectForLink(nextEditor, linkPos);
       if (!rect) return;
       const trimmedHref = href.trim();
       // Show OG + Open/Pin/Library whenever the bubble opens on an http(s) link
@@ -233,7 +255,10 @@ export function LinkEditCard({
         ? LINK_BUBBLE_HEIGHT_PREVIEW_PX
         : LINK_BUBBLE_HEIGHT_COMPACT_PX;
       const pos = placeNearRect(rect, estimatedHeight);
-      const displayText = readLinkDisplayText(nextEditor);
+      const displayText =
+        linkPos !== null
+          ? linkTextAt(nextEditor, linkPos)
+          : readLinkDisplayText(nextEditor);
       textDirtyRef.current = false;
       setDraft(href);
       setTextDraft(displayText);
@@ -280,9 +305,12 @@ export function LinkEditCard({
       // have caught up with the tap yet (blank Text field on first tap).
       const pos = linkPosFromClick(current, anchor, event);
       if (pos !== null) selectTappedLink(current, pos);
+      const doc = current.state.doc;
       window.requestAnimationFrame(() => {
-        if (pos !== null) selectTappedLink(current, pos);
-        openAt(current, { allowPreview: true, href });
+        if (current.isDestroyed) return;
+        // Positions are only trusted against the doc they were read from.
+        const stillValid = pos !== null && current.state.doc === doc;
+        openAt(current, { allowPreview: true, href }, stillValid ? pos : null);
       });
     }
 
@@ -306,7 +334,7 @@ export function LinkEditCard({
     (active: Editor, options?: { preferCurrentSide?: boolean }) => {
       const el = cardRef.current;
       if (!el || active.isDestroyed) return;
-      const rect = anchorRectForLink(active);
+      const rect = anchorRectForLink(active, linkPosRef.current);
       if (!rect) return;
       setCard((current) => {
         if (!current) return current;
@@ -384,10 +412,21 @@ export function LinkEditCard({
       if (active.isDestroyed) return;
       if (textDirtyRef.current) return;
       if (document.activeElement === textInputRef.current) return;
-      setTextDraft(readLinkDisplayText(active));
+      const at = linkPosRef.current;
+      setTextDraft(
+        at !== null ? linkTextAt(active, at) : readLinkDisplayText(active)
+      );
     }
+    function mapLinkPos({ transaction }: { transaction: Transaction }) {
+      const at = linkPosRef.current;
+      if (at === null || !transaction.docChanged) return;
+      // Bias left so a pos inside the link stays inside after edits within it.
+      linkPosRef.current = transaction.mapping.map(at, -1);
+    }
+    active.on("transaction", mapLinkPos);
     active.on("update", syncDisplayText);
     return () => {
+      active.off("transaction", mapLinkPos);
       active.off("update", syncDisplayText);
     };
   }, [card]);
@@ -423,29 +462,50 @@ export function LinkEditCard({
     };
   }, [card, close]);
 
-  function applyHref(raw: string, options?: { keepOpen?: boolean }) {
+  function applyHref(
+    raw: string,
+    options?: { keepOpen?: boolean; text?: string }
+  ) {
+    const text = options?.text ?? textDraft;
     const active = card?.activeEditor;
     if (!active || active.isDestroyed) return;
     const url = raw.trim();
     // Do not sync-focus the editor here. Enter in the URL field must not land
     // in ProseMirror (that deletes the selected link text and inserts a newline).
     // close() returns focus on the next animation frame.
+    const pinned = linkPosRef.current;
+    let linkStart: number | null = null;
+    if (pinned !== null) {
+      selectTappedLink(active, pinned);
+      const type = active.state.schema.marks.link;
+      const range = type
+        ? getMarkRange(active.state.doc.resolve(pinned), type)
+        : undefined;
+      linkStart = range?.from ?? null;
+    }
     if (!url) {
-      applyLinkHrefAndText(active, "", textDraft);
+      applyLinkHrefAndText(active, "", text);
       close();
       return;
     }
-    applyLinkHrefAndText(active, url, textDraft);
+    applyLinkHrefAndText(active, url, text);
+    // The replaced text maps interior positions out of the link; re-pin.
+    if (linkStart !== null) linkPosRef.current = linkStart + 1;
 
     if (options?.keepOpen) {
+      const sameUrl = card?.href === url;
       setCard((current) =>
         current ? { ...current, href: url, allowPreview: true } : current
       );
       setDraft(url);
       if (!textDirtyRef.current) {
-        setTextDraft(readLinkDisplayText(active));
+        const at = linkPosRef.current;
+        setTextDraft(
+          at !== null ? linkTextAt(active, at) : readLinkDisplayText(active)
+        );
       }
-      if (showPreviews) loadPreview(url);
+      // Re-applying the same URL (e.g. Use title) keeps the loaded preview.
+      if (showPreviews && !(sameUrl && preview)) loadPreview(url);
       return;
     }
     close();
@@ -476,6 +536,9 @@ export function LinkEditCard({
   function clearLink() {
     const active = card?.activeEditor;
     if (!active || active.isDestroyed) return;
+    if (linkPosRef.current !== null) {
+      selectTappedLink(active, linkPosRef.current);
+    }
     active.chain().focus().extendMarkRange("link").unsetLink().run();
     close();
   }
@@ -591,6 +654,12 @@ export function LinkEditCard({
             preview={preview}
             loading={previewLoading}
             error={previewError}
+            currentText={textDraft}
+            onUseTitle={(pageTitle) => {
+              textDirtyRef.current = false;
+              setTextDraft(pageTitle);
+              applyHref(resolvedUrl, { keepOpen: true, text: pageTitle });
+            }}
             onPinAndRead={() => {
               openLinkPin({
                 url: resolvedUrl,
