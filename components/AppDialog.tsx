@@ -13,6 +13,8 @@ import {
 
 /** Resolved when the optional secondary action is chosen (e.g. Import). */
 export const PROMPT_SECONDARY = "__blogide_prompt_secondary__";
+/** Resolved when the optional tertiary action is chosen (e.g. Import from GitHub). */
+export const PROMPT_TERTIARY = "__blogide_prompt_tertiary__";
 
 type PromptOptions = {
   title: string;
@@ -23,6 +25,8 @@ type PromptOptions = {
   placeholder?: string;
   /** Shown under the field — e.g. "Import from file (.md, .txt)" */
   secondaryLabel?: string;
+  /** Second link-style action under the field — e.g. "Import from GitHub" */
+  tertiaryLabel?: string;
 };
 
 type ConfirmOptions = {
@@ -173,6 +177,15 @@ function DialogSurface({
                 onClick={() => onClosePrompt(PROMPT_SECONDARY)}
               >
                 {active.secondaryLabel}
+              </button>
+            )}
+            {active.tertiaryLabel && (
+              <button
+                type="button"
+                className="app-dialog-secondary"
+                onClick={() => onClosePrompt(PROMPT_TERTIARY)}
+              >
+                {active.tertiaryLabel}
               </button>
             )}
             <div className="app-dialog-actions">

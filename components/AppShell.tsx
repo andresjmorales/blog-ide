@@ -66,6 +66,7 @@ import {
 import {
   AppDialogProvider,
   PROMPT_SECONDARY,
+  PROMPT_TERTIARY,
   useAppDialog,
 } from "@/components/AppDialog";
 import type { DeletedFootnote } from "@/lib/markdown/deletedFootnotes";
@@ -73,6 +74,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { deleteLocalDoc, getLocalDoc } from "@/lib/db/indexed";
 import {
   fileNameToTitle,
+  parseTitle,
   titleToFileName,
   writeTitle,
 } from "@/lib/markdown/titleFrontmatter";
@@ -132,7 +134,12 @@ import {
 import { pickEssayImportFile } from "@/lib/export/document";
 import { downloadWorkspaceZip } from "@/lib/export/workspaceZip";
 import { importPandocFile } from "@/lib/pandoc/client";
-import { listGithubMapNodes } from "@/lib/github/files";
+import { listGithubMapNodes, resolveGithubBindings } from "@/lib/github/files";
+import { githubErrorCopy } from "@/lib/github/client";
+import {
+  fetchGithubFileFromLink,
+  GITHUB_IMPORT_LINK_HINT,
+} from "@/lib/github/importUrl";
 import {
   collectGithubDocumentBodies,
   inspectGithubPush,
@@ -145,7 +152,7 @@ import {
   prepareGithubPull,
   type GithubPullFile,
 } from "@/lib/github/pull";
-import { requireGithubDocumentPath } from "@/lib/github/repo";
+import { githubBasename, requireGithubDocumentPath } from "@/lib/github/repo";
 import { remapGithubMaps, type GithubPushIssue } from "@/lib/github/status";
 import {
   loadGithubSettings,
@@ -1510,9 +1517,14 @@ function AppShellContent({
       defaultValue: "Untitled",
       confirmLabel: "Create",
       secondaryLabel: "Import from file (.md, .txt, .docx)",
+      tertiaryLabel: "Import from GitHub (.md link)",
     });
     if (name === PROMPT_SECONDARY) {
       await handleImportDocument(parentId);
+      return;
+    }
+    if (name === PROMPT_TERTIARY) {
+      await handleImportFromGithub(parentId);
       return;
     }
     if (!name?.trim()) return;
@@ -1635,6 +1647,106 @@ function AppShellContent({
     } catch (error) {
       showErrorToast(error, "Could not import document.", "import-essay");
     }
+  }
+
+  /**
+   * Create an essay from a GitHub .md link and map it to that exact file, so
+   * Push / Pull / Diff work immediately. The markdown is stored verbatim (no
+   * frontmatter added) so the new essay starts identical to GitHub.
+   */
+  async function handleImportFromGithub(parentId: string | null) {
+    if (previewMode) return;
+    const link = await dialog.prompt({
+      title: "Import from GitHub",
+      message: `${GITHUB_IMPORT_LINK_HINT}. The essay stays mapped to that file for Push and Pull.`,
+      placeholder: "https://github.com/owner/repo/blob/main/path/essay.md",
+      confirmLabel: "Import",
+    });
+    if (!link?.trim()) return;
+    const encrypt = Boolean(parentId && isInVault(parentId, nodes));
+    if (encrypt && !isVaultUnlocked()) {
+      showErrorToast("Unlock the vault to import there.", undefined, "import-github");
+      return;
+    }
+    let file: Awaited<ReturnType<typeof fetchGithubFileFromLink>>;
+    let settings: Awaited<ReturnType<typeof loadGithubSettings>>;
+    try {
+      [file, settings] = await Promise.all([
+        fetchGithubFileFromLink({ link, token: loadGithubToken() }),
+        loadGithubSettings(),
+      ]);
+    } catch (error) {
+      showErrorToast(githubErrorCopy(error), "Could not import from GitHub.", "import-github");
+      return;
+    }
+    const already = resolveGithubBindings({
+      nodes: nodesRef.current,
+      maps: settings.maps,
+      defaultRepo: settings.repo,
+      defaultBranch: settings.branch,
+    }).find(
+      (binding) =>
+        binding.kind === "document" &&
+        binding.repo.toLowerCase() === file.repo.toLowerCase() &&
+        binding.branch === file.branch &&
+        binding.path === file.path
+    );
+    if (already) {
+      const label = fileNameToTitle(
+        vaultNames.get(already.nodeId) ??
+          docTitles.get(already.nodeId) ??
+          nodesRef.current.find((node) => node.id === already.nodeId)?.name ??
+          "another essay"
+      );
+      const ok = await dialog.confirm({
+        title: "Already mapped",
+        message: `“${label}” is already mapped to ${file.path}. Importing again creates a second essay that pushes to the same file.`,
+        confirmLabel: "Import anyway",
+      });
+      if (!ok) return;
+    }
+    const markdown = file.markdown.replace(/^\uFEFF/, "");
+    const title =
+      parseTitle(splitFrontmatter(markdown).frontmatter) ??
+      fileNameToTitle(githubBasename(file.path));
+    const named = nodesWithDisplayNames(nodes, vaultNames);
+    const fileName = uniqueSiblingName(named, parentId, titleToFileName(title));
+    let id: string;
+    try {
+      id = await createWorkspaceNode({
+        kind: "document",
+        name: fileName,
+        parentId,
+        markdown,
+        encrypt,
+      });
+    } catch (error) {
+      showErrorToast(error, "Could not import document.", "import-github");
+      return;
+    }
+    try {
+      await saveGithubSettings({
+        ...settings,
+        maps: [
+          ...settings.maps.filter((m) => m.nodeId !== id),
+          { nodeId: id, repo: file.repo, branch: file.branch, path: file.path },
+        ],
+      });
+      setGithubEpoch((value) => value + 1);
+      showSuccessToast(
+        `Imported “${title}” from ${file.repo}. Mapped to ${file.path}.`,
+        undefined,
+        "import-github"
+      );
+    } catch (error) {
+      showErrorToast(
+        error,
+        "Imported, but could not save the GitHub mapping. Map it from the file menu.",
+        "import-github"
+      );
+    }
+    await refreshTree();
+    setActiveNodeId(id);
   }
 
   async function handleMapToGithub(nodeId: string) {
