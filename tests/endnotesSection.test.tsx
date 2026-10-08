@@ -87,6 +87,23 @@ describe("EndnotesSection", () => {
     expect(host.querySelector(".endnote-editor")).toBeNull();
   });
 
+  it("shows display-only notes in the split-view preview", () => {
+    const open = vi.spyOn(footnoteOpen, "openFootnoteCardNear").mockReturnValue(true);
+    editor.setEditable(false);
+    act(() =>
+      root.render(
+        <EndnotesSection editor={editor} expanded onExpandedChange={() => {}} preview />
+      )
+    );
+    const body = host.querySelector<HTMLElement>('[data-endnote-id="n2"] .endnote-body')!;
+    expect(body.textContent).toBe("Source two.");
+    expect(body.getAttribute("role")).toBeNull();
+    act(() => body.click());
+    expect(open).not.toHaveBeenCalled();
+    expect(host.querySelector(".endnote-editor")).toBeNull();
+    expect(host.querySelectorAll(".endnote-backlink")).toHaveLength(2);
+  });
+
   it("follows footnote edits", () => {
     act(() => root.render(<Harness editor={editor} initial />));
     act(() => {

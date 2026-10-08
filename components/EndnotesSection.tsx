@@ -23,6 +23,11 @@ type Props = {
   editor: Editor;
   expanded: boolean;
   onExpandedChange: (next: boolean) => void;
+  /**
+   * Split-view preview: notes are display-only (the markdown source is the
+   * place to edit them), so bodies are plain text with no card or editor.
+   */
+  preview?: boolean;
 };
 
 function footnoteRefEl(editor: Editor, id: string): HTMLElement | null {
@@ -151,10 +156,12 @@ const Endnote = memo(function Endnote({
   editor,
   note,
   commented,
+  preview,
 }: {
   editor: Editor;
   note: RailNote;
   commented: boolean;
+  preview: boolean;
 }) {
   const html = useMemo(() => footnoteHtml(note.content), [note.content]);
   const readOnly = !editor.isEditable;
@@ -184,7 +191,11 @@ const Endnote = memo(function Endnote({
       >
         {note.number}
       </button>
-      {editing && !readOnly ? (
+      {preview ? (
+        <div className={`endnote-body is-static${html ? "" : " is-empty"}`}>
+          {html ? <span dangerouslySetInnerHTML={{ __html: html }} /> : "Empty footnote"}
+        </div>
+      ) : editing && !readOnly ? (
         <EndnoteInlineEditor editor={editor} note={note} onDone={stopEditing} />
       ) : (
         <div
@@ -226,7 +237,12 @@ const Endnote = memo(function Endnote({
  * nothing while you write. Numbers link back to each reference; clicking a
  * note's text edits it in place (invitees get the read-only card instead).
  */
-export function EndnotesSection({ editor, expanded, onExpandedChange }: Props) {
+export function EndnotesSection({
+  editor,
+  expanded,
+  onExpandedChange,
+  preview = false,
+}: Props) {
   const listId = useId();
   // Same source as the margin rail: plugin state, reused while typing in
   // the body (no document walk per keystroke).
@@ -264,6 +280,7 @@ export function EndnotesSection({ editor, expanded, onExpandedChange }: Props) {
               editor={editor}
               note={note}
               commented={commented.has(note.id)}
+              preview={preview}
             />
           ))}
         </ol>

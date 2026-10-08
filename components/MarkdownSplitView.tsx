@@ -49,6 +49,7 @@ import {
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import { DEFAULT_EDITOR_PREFS } from "@/lib/settings";
 import { FootnotePreviewNodeView } from "@/components/FootnotePreviewNodeView";
+import { EndnotesSection } from "@/components/EndnotesSection";
 import { ImageCaptionNodeView } from "@/components/ImageCaptionNodeView";
 import {
   BlockMathNodeView,
@@ -931,6 +932,18 @@ export function MarkdownSplitView({
               ) : null}
             </div>
             <EditorContent editor={editor} />
+            {/* The preview has no margin rail, so notes always list below —
+                otherwise edits to `[^n]:` definitions never show up. */}
+            {editor && (
+              <EndnotesSection
+                editor={editor}
+                expanded={prefs.endnotesExpanded ?? true}
+                onExpandedChange={(next) =>
+                  updatePrefs({ endnotesExpanded: next })
+                }
+                preview
+              />
+            )}
           </div>
         </div>
       </div>
