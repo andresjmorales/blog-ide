@@ -5238,6 +5238,12 @@ body.is-dragging-footnote-ref.is-footnote-drop-blocked {
 .endnote-body:hover {
   color: var(--foreground);
 }
+.endnote-body.is-static {
+  cursor: text;
+}
+.endnote-body.is-static:hover {
+  color: inherit;
+}
 .endnote-body.is-empty {
   font-style: italic;
 }
