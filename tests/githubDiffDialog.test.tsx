@@ -66,6 +66,28 @@ describe("GitHubDiffDialog", () => {
     expect(el.textContent).toContain("Pull from GitHub");
   });
 
+  it("toggles line wrapping and expands to full screen", () => {
+    const el = render(file("# A\n\nNew words\n", "# A\n\nOld words\n"));
+    const button = (label: string) =>
+      [...document.querySelectorAll("button")].find(
+        (b) => b.textContent === label
+      )!;
+    expect(el.querySelector(".diff-viewer-body.is-wrapped")).not.toBeNull();
+    act(() => button("Wrap lines").click());
+    expect(el.querySelector(".diff-viewer-body.is-nowrap")).not.toBeNull();
+    expect(button("Wrap lines").getAttribute("aria-pressed")).toBe("false");
+
+    act(() => button("Expand").click());
+    const expanded = document.querySelector(".diff-viewer-expanded");
+    expect(expanded?.querySelector(".word-diff ins")?.textContent).toBe("New");
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(document.querySelector(".diff-viewer-expanded")).toBeNull();
+    expect(el.querySelector(".word-diff ins")?.textContent).toBe("New");
+    act(() => button("Wrap lines").click());
+  });
+
   it("explains a file that is not on GitHub yet", () => {
     const el = render(file("# A\n", null));
     expect(el.textContent).toContain("Not on GitHub yet");
