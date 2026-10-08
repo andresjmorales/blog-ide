@@ -1521,6 +1521,57 @@ body {
   padding: 0.2rem 0.35rem;
 }
 
+.blogide-find-format {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.blogide-find-format button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  color: var(--foreground);
+  cursor: pointer;
+  font-family: Georgia, serif;
+  font-size: 0.75rem;
+  line-height: 1;
+  min-width: 1.5rem;
+  padding: 0.2rem 0.35rem;
+}
+
+.blogide-find-format button.is-bold {
+  font-weight: 700;
+}
+
+.blogide-find-format button.is-italic {
+  font-style: italic;
+}
+
+.blogide-find-format button.is-strike {
+  text-decoration: line-through;
+}
+
+.blogide-find-format button[aria-pressed="true"] {
+  background: color-mix(in oklab, var(--accent) 16%, transparent);
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--border));
+}
+
+.blogide-find-format button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.blogide-find-format select {
+  appearance: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  color: var(--foreground);
+  font-size: 0.7rem;
+  padding: 0.2rem 0.35rem;
+}
+
 .blogide-find-scope-hint {
   color: var(--muted);
   font-size: 0.65rem;

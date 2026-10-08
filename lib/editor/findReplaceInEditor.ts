@@ -231,3 +231,149 @@ export function replaceAllInEditor(
   }
   return { count: matches.length, stickyRange: nextSticky };
 }
+
+/** Inline marks Find can apply to every match at once. */
+export type FindFormatMark = "bold" | "italic" | "strike";
+
+/** Markdown delimiters for marks applied inside footnote `content` attrs. */
+const FOOTNOTE_DELIMITERS: Record<FindFormatMark, string> = {
+  bold: "**",
+  italic: "*",
+  strike: "~~",
+};
+
+/**
+ * Whether `content[from, to)` sits directly inside this mark's markdown
+ * delimiters. Italic must not mistake the inner `*` of `**bold**` for its
+ * own (but `***both***` counts as italic).
+ */
+function footnoteRangeHasMark(
+  content: string,
+  from: number,
+  to: number,
+  mark: FindFormatMark
+): boolean {
+  const delim = FOOTNOTE_DELIMITERS[mark];
+  const n = delim.length;
+  if (from < n || to + n > content.length) return false;
+  if (content.slice(from - n, from) !== delim) return false;
+  if (content.slice(to, to + n) !== delim) return false;
+  if (mark === "italic") {
+    const before = content.slice(Math.max(0, from - 3), from);
+    const after = content.slice(to, to + 3);
+    const starsBefore = before.length - before.replace(/\*+$/, "").length;
+    const starsAfter = after.length - after.replace(/^\*+/, "").length;
+    return starsBefore % 2 === 1 && starsAfter % 2 === 1;
+  }
+  return true;
+}
+
+function docRangeHasMark(
+  editor: Editor,
+  from: number,
+  to: number,
+  mark: FindFormatMark
+): boolean {
+  const type = editor.state.schema.marks[mark];
+  if (!type) return false;
+  let all = true;
+  let sawText = false;
+  editor.state.doc.nodesBetween(from, to, (node) => {
+    if (!node.isText) return;
+    sawText = true;
+    if (!type.isInSet(node.marks)) all = false;
+  });
+  return sawText && all;
+}
+
+/** True when every match already carries `mark` (so applying it toggles off). */
+export function matchesHaveMark(
+  editor: Editor,
+  matches: FindMatch[],
+  mark: FindFormatMark
+): boolean {
+  if (matches.length === 0) return false;
+  return matches.every((match) => {
+    if (match.footnotePos != null) {
+      const node = editor.state.doc.nodeAt(match.footnotePos);
+      if (!node || node.type.name !== "footnoteRef") return false;
+      return footnoteRangeHasMark(
+        String(node.attrs.content ?? ""),
+        match.from,
+        match.to,
+        mark
+      );
+    }
+    return docRangeHasMark(editor, match.from, match.to, mark);
+  });
+}
+
+/**
+ * Toggle an inline mark on the given matches in one transaction (one undo
+ * step). If every match already has the mark it is removed; otherwise it is
+ * added to all of them. Footnote bodies are markdown, so their matches are
+ * wrapped in (or unwrapped from) the mark's delimiters instead.
+ * Returns whether the mark was added and how many matches changed.
+ */
+export function toggleMarkOnMatches(
+  editor: Editor,
+  matches: FindMatch[],
+  mark: FindFormatMark
+): { added: boolean; count: number } {
+  const type = editor.state.schema.marks[mark];
+  if (!type || matches.length === 0) return { added: false, count: 0 };
+  const remove = matchesHaveMark(editor, matches, mark);
+  const delim = FOOTNOTE_DELIMITERS[mark];
+  let tr = editor.state.tr;
+  let count = 0;
+
+  // Mark steps never shift positions; footnote edits only change an atom's
+  // attrs. Bottom-up keeps earlier offsets inside one note's content valid.
+  const ordered = [...matches].sort((a, b) => {
+    const key = matchSortKey(b) - matchSortKey(a);
+    if (key !== 0) return key;
+    return b.from - a.from;
+  });
+
+  for (const match of ordered) {
+    if (match.footnotePos != null) {
+      const node = tr.doc.nodeAt(match.footnotePos);
+      if (!node || node.type.name !== "footnoteRef") continue;
+      const content = String(node.attrs.content ?? "");
+      const has = footnoteRangeHasMark(content, match.from, match.to, mark);
+      let updated: string;
+      if (remove) {
+        if (!has) continue;
+        updated =
+          content.slice(0, match.from - delim.length) +
+          content.slice(match.from, match.to) +
+          content.slice(match.to + delim.length);
+      } else {
+        if (has) continue;
+        updated =
+          content.slice(0, match.from) +
+          delim +
+          content.slice(match.from, match.to) +
+          delim +
+          content.slice(match.to);
+      }
+      tr = tr.setNodeMarkup(match.footnotePos, undefined, {
+        ...node.attrs,
+        content: updated,
+      });
+      count += 1;
+      continue;
+    }
+    if (remove) {
+      tr = tr.removeMark(match.from, match.to, type);
+    } else {
+      tr = tr.addMark(match.from, match.to, type.create());
+    }
+    count += 1;
+  }
+
+  if (tr.docChanged) {
+    editor.view.dispatch(tr);
+  }
+  return { added: !remove, count };
+}
