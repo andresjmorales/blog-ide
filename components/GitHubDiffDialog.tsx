@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import { DiffViewer } from "@/components/DiffViewer";
 import { WordDiffText } from "@/components/WordDiffText";
 import type { GithubPullFile } from "@/lib/github/pull";
 import { unifiedLineDiff } from "@/lib/markdown/diff";
@@ -138,7 +139,7 @@ export function GitHubDiffDialog({
                   red is only on GitHub (a push removes it, a pull brings it back).
                 </span>
               </p>
-              <div className="github-diff-body">
+              <DiffViewer title="Compare with GitHub" className="github-diff-body">
                 {diff.rows.map((row, i) =>
                   row.type === "context" ? (
                     <div key={i} className="word-diff-context">
@@ -148,7 +149,7 @@ export function GitHubDiffDialog({
                     <WordDiffText key={i} segments={row.segments} />
                   )
                 )}
-              </div>
+              </DiffViewer>
             </>
           )}
         </section>

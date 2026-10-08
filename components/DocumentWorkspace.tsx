@@ -33,6 +33,7 @@ import {
   loadComments,
   refreshComments,
 } from "@/lib/comments/store";
+import { DiffViewer, LineDiffRows } from "@/components/DiffViewer";
 import { compactDiff, unifiedLineDiff } from "@/lib/markdown/diff";
 import {
   isLossy,
@@ -2215,32 +2216,17 @@ export function DocumentWorkspace({
               </button>
             </div>
             {lossyDiffOpen && (
-              <pre className="lossy-diff mt-2 max-h-56 overflow-auto rounded border border-border bg-background p-2 font-mono text-[0.7rem] leading-snug">
+              <div className="mt-2">
                 {lossyDiffLines.length === 0 ? (
-                  <span className="text-muted">
+                  <p className="text-xs text-muted">
                     No line-level changes detected.
-                  </span>
+                  </p>
                 ) : (
-                  lossyDiffLines.map((line, index) => (
-                    <div
-                      key={`${line.type}-${index}`}
-                      className={
-                        line.type === "add"
-                          ? "lossy-diff-add"
-                          : line.type === "remove"
-                            ? "lossy-diff-remove"
-                            : "text-muted"
-                      }
-                    >
-                      {line.type === "add"
-                        ? `+ ${line.text}`
-                        : line.type === "remove"
-                          ? `- ${line.text}`
-                          : `  ${line.text}`}
-                    </div>
-                  ))
+                  <DiffViewer title="Rich-text normalization">
+                    <LineDiffRows lines={lossyDiffLines} />
+                  </DiffViewer>
                 )}
-              </pre>
+              </div>
             )}
           </div>
         )}

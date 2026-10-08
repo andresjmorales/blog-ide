@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { DiffViewer, LineDiffRows } from "@/components/DiffViewer";
 import { compactDiff, unifiedLineDiff } from "@/lib/markdown/diff";
 import type { GithubPullFile } from "@/lib/github/pull";
 
@@ -283,26 +284,9 @@ function GitHubPullForm({
                   ) : diff.length === 0 ? (
                     <p className="settings-help">No line-level differences.</p>
                   ) : (
-                    <pre className="lossy-diff mt-2 max-h-56 overflow-auto rounded border border-border bg-panel p-2 font-mono text-[0.7rem] leading-snug">
-                      {diff.map((line, index) => (
-                        <div
-                          key={`${line.type}-${index}`}
-                          className={
-                            line.type === "add"
-                              ? "lossy-diff-add"
-                              : line.type === "remove"
-                                ? "lossy-diff-remove"
-                                : "text-muted"
-                          }
-                        >
-                          {line.type === "add"
-                            ? `+ ${line.text}`
-                            : line.type === "remove"
-                              ? `- ${line.text}`
-                              : `  ${line.text}`}
-                        </div>
-                      ))}
-                    </pre>
+                    <DiffViewer title={`Changes · ${active.label}`}>
+                      <LineDiffRows lines={diff} />
+                    </DiffViewer>
                   )}
                 </div>
               )}
