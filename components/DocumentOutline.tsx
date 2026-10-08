@@ -23,6 +23,7 @@ import {
   scheduleEditorWork,
 } from "@/lib/editor/workSchedule";
 import { scrollHeadingIntoView } from "@/lib/editor/editorScroll";
+import { withMarkdownWords } from "@/lib/editor/markdownWordCount";
 
 type Props = {
   editor: Editor | null;
@@ -57,6 +58,27 @@ export function DocumentOutline({ editor, open, onToggle }: Props) {
   );
 }
 
+/** Outline snapshot with words counted the way personal-site (and Substack) do. */
+function essaySnapshot(editor: Editor): OutlineSnapshot {
+  const snapshot = takeOutlineSnapshot(editor.state.doc);
+  return {
+    ...snapshot,
+    stats: withMarkdownWords(snapshot.stats, editor.getJSON()),
+  };
+}
+
+function selectionSnapshotStats(
+  editor: Editor,
+  from: number,
+  to: number
+): DocumentStats {
+  const { doc } = editor.state;
+  return withMarkdownWords(collectRangeStats(doc, from, to), {
+    type: "doc",
+    content: doc.slice(from, to).content.toJSON() ?? [],
+  });
+}
+
 function DocumentOutlineLive({
   editor,
   open,
@@ -67,13 +89,13 @@ function DocumentOutlineLive({
   onToggle: () => void;
 }) {
   const [snapshot, setSnapshot] = useState<OutlineSnapshot>(() =>
-    takeOutlineSnapshot(editor.state.doc)
+    essaySnapshot(editor)
   );
 
   useEffect(() => {
     const workId = `outline-${editor.view.dom.id || "essay"}`;
     const refresh = () => {
-      const next = takeOutlineSnapshot(editor.state.doc);
+      const next = essaySnapshot(editor);
       setSnapshot((prev) => (outlineSnapshotsEqual(prev, next) ? prev : next));
     };
     const onUpdate = () => {
@@ -103,7 +125,7 @@ function DocumentOutlineLive({
         setSelectionStats(null);
         return;
       }
-      const next = collectRangeStats(editor.state.doc, from, to);
+      const next = selectionSnapshotStats(editor, from, to);
       const words = next.words + next.footnotes.words;
       setSelectionStats(words > 1 ? next : null);
     };
