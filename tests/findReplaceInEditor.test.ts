@@ -5,6 +5,7 @@ import { parseBody, serializeBody } from "@/lib/markdown/pipeline";
 import {
   findInEditor,
   replaceAllInEditor,
+  toggleMarkOnMatches,
 } from "@/lib/editor/findReplaceInEditor";
 
 function makeEditor(body: string): Editor {
@@ -107,6 +108,84 @@ describe("findReplaceInEditor", () => {
       expect(md).toContain("12–14");
       expect(md).toMatch(/\[\^[^\]]+\]/);
       expect(md).toContain("Keep this note.");
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it("italicizes every match, then toggles it back off", () => {
+    const editor = makeEditor(
+      "The ordo amoris orders love. Ordo amoris again.\n"
+    );
+    try {
+      const opts = { query: "ordo amoris", regex: false, caseSensitive: false };
+      const matches = findInEditor(editor, opts, "document");
+      expect(matches).toHaveLength(2);
+      expect(toggleMarkOnMatches(editor, matches, "italic")).toEqual({
+        added: true,
+        count: 2,
+      });
+      expect(serializeBody(editor.getJSON())).toBe(
+        "The *ordo amoris* orders love. *Ordo amoris* again."
+      );
+      const again = findInEditor(editor, opts, "document");
+      expect(toggleMarkOnMatches(editor, again, "italic").added).toBe(false);
+      expect(serializeBody(editor.getJSON())).toBe(
+        "The ordo amoris orders love. Ordo amoris again."
+      );
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it("adds the mark to all when only some matches have it", () => {
+    const editor = makeEditor("*ordo amoris* and ordo amoris.\n");
+    try {
+      const matches = findInEditor(
+        editor,
+        { query: "ordo amoris", regex: false, caseSensitive: false },
+        "document"
+      );
+      expect(toggleMarkOnMatches(editor, matches, "italic").added).toBe(true);
+      expect(serializeBody(editor.getJSON())).toBe(
+        "*ordo amoris* and *ordo amoris*."
+      );
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it("formats only the given match", () => {
+    const editor = makeEditor("one two one\n");
+    try {
+      const matches = findInEditor(
+        editor,
+        { query: "one", regex: false, caseSensitive: true },
+        "document"
+      );
+      toggleMarkOnMatches(editor, [matches[1]], "bold");
+      expect(serializeBody(editor.getJSON())).toBe("one two **one**");
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it("wraps footnote matches in markdown delimiters", () => {
+    const editor = makeEditor(
+      "See ordo amoris[^1].\n\n[^1]: On ordo amoris and **ordo amoris**.\n"
+    );
+    try {
+      const opts = { query: "ordo amoris", regex: false, caseSensitive: true };
+      const matches = findInEditor(editor, opts, "document");
+      expect(matches).toHaveLength(3);
+      toggleMarkOnMatches(editor, matches, "italic");
+      let md = serializeBody(editor.getJSON());
+      expect(md).toContain("See *ordo amoris*");
+      expect(md).toContain("On *ordo amoris* and ***ordo amoris***.");
+      toggleMarkOnMatches(editor, findInEditor(editor, opts, "document"), "italic");
+      md = serializeBody(editor.getJSON());
+      expect(md).toContain("See ordo amoris");
+      expect(md).toContain("On ordo amoris and **ordo amoris**.");
     } finally {
       editor.destroy();
     }

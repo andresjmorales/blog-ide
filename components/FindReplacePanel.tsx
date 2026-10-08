@@ -5,8 +5,11 @@ import type { Editor } from "@tiptap/core";
 import {
   findInEditor,
   replaceAllInEditor,
+  matchesHaveMark,
   replaceMatch,
+  toggleMarkOnMatches,
   type DocRange,
+  type FindFormatMark,
 } from "@/lib/editor/findReplaceInEditor";
 import type { FindMatch, FindScope } from "@/lib/editor/findReplace";
 import {
@@ -102,6 +105,17 @@ function seedQueryFromSticky(
   }
 }
 
+const FORMAT_BUTTONS: {
+  mark: FindFormatMark;
+  label: string;
+  name: string;
+  className: string;
+}[] = [
+  { mark: "bold", label: "B", name: "Bold", className: "is-bold" },
+  { mark: "italic", label: "I", name: "Italic", className: "is-italic" },
+  { mark: "strike", label: "S", name: "Strikethrough", className: "is-strike" },
+];
+
 /** Typing pause before Find opens a footnote card for the active match. */
 const FOOTNOTE_CARD_TYPING_PAUSE_MS = 400;
 
@@ -135,6 +149,8 @@ export function FindReplacePanel({
   /** The writer clicked or typed in the essay after the last match was shown. */
   const userMovedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  /** Format buttons act on every match, or only the current one. */
+  const [formatTarget, setFormatTarget] = useState<"all" | "current">("all");
   const findInputRef = useRef<HTMLInputElement | null>(null);
   const replaceInputRef = useRef<HTMLInputElement | null>(null);
   const activeFieldRef = useRef<"find" | "replace">("find");
@@ -521,6 +537,31 @@ export function FindReplacePanel({
     });
   }
 
+  function formatTargets(): FindMatch[] {
+    if (formatTarget === "current") {
+      return matches[index] ? [matches[index]] : [];
+    }
+    return matches;
+  }
+
+  /** Toggle a mark on the targeted matches (removes it if all have it). */
+  function doFormat(mark: FindFormatMark) {
+    const targets = formatTargets();
+    if (targets.length === 0) return;
+    ignoreNextUpdateRef.current = true;
+    toggleMarkOnMatches(editor, targets, mark);
+    ignoreNextUpdateRef.current = false;
+    // Text is unchanged, so the same matches survive; re-scan to refresh
+    // decorations and keep the current match.
+    applyScan(query, regex, caseSensitive, scope, stickyRange, {
+      scroll: false,
+      preferIndex: index,
+      openFootnoteCard: false,
+    });
+  }
+
+  const formatTargetMatches = formatTargets();
+
   return (
     <div
       className="blogide-find-replace"
@@ -704,6 +745,43 @@ export function FindReplacePanel({
             <option value="headings">Headings only</option>
           </select>
         </label>
+        <span
+          className="blogide-find-format"
+          role="group"
+          aria-label="Format matches"
+        >
+          <span>Format:</span>
+          {FORMAT_BUTTONS.map(({ mark, label, name, className }) => {
+            const active = matchesHaveMark(editor, formatTargetMatches, mark);
+            const target =
+              formatTarget === "current" ? "the current match" : "all matches";
+            return (
+              <button
+                key={mark}
+                type="button"
+                className={className}
+                title={`${active ? "Remove" : "Apply"} ${name.toLowerCase()} on ${target}`}
+                aria-label={`${name} ${target}`}
+                aria-pressed={active}
+                disabled={formatTargetMatches.length === 0}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => doFormat(mark)}
+              >
+                {label}
+              </button>
+            );
+          })}
+          <select
+            value={formatTarget}
+            aria-label="Format which matches"
+            onChange={(event) =>
+              setFormatTarget(event.target.value as "all" | "current")
+            }
+          >
+            <option value="all">All matches</option>
+            <option value="current">Current match</option>
+          </select>
+        </span>
         {scope === "selection" && stickyRange && (
           <span className="blogide-find-scope-hint">In selection</span>
         )}
