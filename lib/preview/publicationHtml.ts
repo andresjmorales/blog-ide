@@ -521,6 +521,22 @@ ${enhancer}
     border: 1px solid var(--border); padding: 0.4em 0.65em; text-align: left;
   }
   .editor-prose th { background: var(--panel); font-weight: 600; }
+  .editor-prose a.fb-enhancer-link {
+    color: inherit;
+    background: none;
+    background-color: transparent;
+    cursor: help;
+    text-decoration: underline dotted;
+    text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
+    white-space: nowrap;
+  }
+  .editor-prose a.fb-enhancer-link:hover {
+    color: inherit;
+    text-decoration: underline dotted;
+    text-decoration-color: color-mix(in srgb, var(--foreground) 42%, transparent);
+  }
   .blogide-block-math { margin: 1.25em 0; max-width: 100%; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; text-align: center; }
   .blogide-inline-math { display: inline; }
   .preview-fn {

@@ -1647,12 +1647,15 @@ body {
 
 /* fetch(bible) reference decorations (do not serialize to markdown). */
 .blogide-bible-ref {
-  background: color-mix(in oklab, #ca8a04 18%, transparent);
-  border-radius: 2px;
-  cursor: pointer;
+  text-decoration: underline dotted;
+  text-decoration-color: color-mix(in oklab, var(--muted) 50%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  cursor: help;
 }
+.blogide-bible-ref:hover,
 .blogide-bible-ref.is-active {
-  background: color-mix(in oklab, #ca8a04 32%, transparent);
+  text-decoration-color: color-mix(in oklab, var(--foreground) 42%, transparent);
 }
 
 .bible-ref-card {
