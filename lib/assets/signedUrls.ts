@@ -1,11 +1,17 @@
 import { createClient } from "@/lib/supabase/client";
 import { ASSETS_BUCKET, assetPathFromUrl } from "@/lib/assets/paths";
 
-/** One day — long enough for an editing session; refresh before it lapses. */
+/** One day: Library PDFs, shared-page images, and other short-lived links. */
 export const ASSET_SIGNED_URL_TTL_SEC = 60 * 60 * 24;
 
-/** Re-sign when less than this remains on a stored URL. */
-export const ASSET_SIGNED_URL_REFRESH_SEC = 60 * 60 * 4;
+/**
+ * Thirty days for essay images. These URLs live in the markdown, so they reach
+ * GitHub and any site that renders the file; a day was too short for that.
+ */
+export const ESSAY_IMAGE_SIGNED_URL_TTL_SEC = 60 * 60 * 24 * 30;
+
+/** Re-sign a stored essay image URL when less than this remains. */
+export const ASSET_SIGNED_URL_REFRESH_SEC = 60 * 60 * 24 * 7;
 
 export async function createAssetSignedUrl(
   path: string,
@@ -57,12 +63,13 @@ export function signedUrlExpirySec(url: string): number | null {
 
 export function signedUrlNeedsRefresh(
   url: string,
-  nowSec = Math.floor(Date.now() / 1000)
+  nowSec = Math.floor(Date.now() / 1000),
+  refreshSec = ASSET_SIGNED_URL_REFRESH_SEC
 ): boolean {
   if (url.includes(`/object/public/${ASSETS_BUCKET}/`)) return true;
   const exp = signedUrlExpirySec(url);
   if (exp == null) return false;
-  return exp - nowSec <= ASSET_SIGNED_URL_REFRESH_SEC;
+  return exp - nowSec <= refreshSec;
 }
 
 /**
@@ -81,7 +88,10 @@ export async function refreshOwnedAssetUrls(
     if (path && signedUrlNeedsRefresh(url)) needed.add(path);
   }
   if (needed.size === 0) return markdown;
-  const fresh = await createAssetSignedUrls([...needed]);
+  const fresh = await createAssetSignedUrls(
+    [...needed],
+    ESSAY_IMAGE_SIGNED_URL_TTL_SEC
+  );
   if (fresh.size === 0) return markdown;
   return markdown.replace(re, (full, prefix: string, url: string, suffix: string) => {
     const path = assetPathFromUrl(url, userId);
@@ -89,6 +99,44 @@ export async function refreshOwnedAssetUrls(
     const next = fresh.get(path);
     return next ? `${prefix}${next}${suffix}` : full;
   });
+}
+
+/**
+ * `refreshOwnedAssetUrls` for whoever is signed in. Best-effort: returns the
+ * markdown unchanged when signed out, offline, or Storage refuses.
+ */
+export async function refreshOwnedAssetUrlsForCurrentUser(
+  markdown: string
+): Promise<string> {
+  try {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return markdown;
+    return await refreshOwnedAssetUrls(markdown, user.id);
+  } catch {
+    return markdown;
+  }
+}
+
+/**
+ * A fresh signed URL for one of the signed-in writer's own uploads, or null
+ * when `url` is not ours (or signing fails). Used when an image fails to load.
+ */
+export async function resignOwnedAssetUrl(url: string): Promise<string | null> {
+  try {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return null;
+    const path = assetPathFromUrl(url, user.id);
+    if (!path) return null;
+    return await createAssetSignedUrl(path, ESSAY_IMAGE_SIGNED_URL_TTL_SEC);
+  } catch {
+    return null;
+  }
 }
 
 function base64UrlToUtf8(b64url: string): string {

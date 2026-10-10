@@ -16,6 +16,10 @@ import {
 } from "@/components/EditorOverflowMenu";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import {
+  absolutizeSiteRelativeHtml,
+  absolutizeSiteRelativeMarkdown,
+} from "@/lib/siteRelative";
+import {
   buildPublicationDocument,
   openPublicationPreviewTab,
   openPublicationPrintTab,
@@ -1655,9 +1659,17 @@ export function DocumentWorkspace({
       : packDocument(frontmatter, subtitle, author, publication, nextBody);
   }
 
+  /**
+   * The essay as it leaves BlogIDE (copy, export, preview): site-relative
+   * links and images point at the writer's main site, when one is set.
+   */
+  function outboundMarkdown(): string {
+    return absolutizeSiteRelativeMarkdown(currentMarkdown(), prefs.siteUrl);
+  }
+
   async function exportMarkdownFile() {
     downloadMarkdown(
-      currentMarkdown(),
+      outboundMarkdown(),
       documentName ?? `${essayTitle}.md`
     );
     showSuccessToast("Downloaded markdown.", undefined, "export-file");
@@ -1665,7 +1677,7 @@ export function DocumentWorkspace({
 
   async function copyForExport() {
     try {
-      await copyMarkdownToClipboard(currentMarkdown());
+      await copyMarkdownToClipboard(outboundMarkdown());
       showCopiedToast("Copied markdown.");
     } catch {
       showErrorToast(
@@ -1682,8 +1694,11 @@ export function DocumentWorkspace({
       const { html, plain } =
         editor && !isMarkdownCanonical(mode)
           ? richTextFromEditor(editor)
-          : richTextFromMarkdown(currentMarkdown());
-      await copyDocumentForPaste({ html, plain });
+          : richTextFromMarkdown(outboundMarkdown());
+      await copyDocumentForPaste({
+        html: absolutizeSiteRelativeHtml(html, prefs.siteUrl),
+        plain,
+      });
       showCopiedToast("Copied rich text.");
     } catch {
       showErrorToast(
@@ -1695,7 +1710,7 @@ export function DocumentWorkspace({
   }
 
   async function copyForPublish(target: PublishCopyTarget) {
-    const markdown = currentMarkdown();
+    const markdown = outboundMarkdown();
     const { html, plain } = htmlForPublishTarget(markdown, target);
     try {
       await copyDocumentForPaste({ html, plain });
@@ -1717,7 +1732,7 @@ export function DocumentWorkspace({
 
   async function exportHtmlFile() {
     downloadHtmlDocument(
-      buildPublicationDocument(currentMarkdown(), {
+      buildPublicationDocument(outboundMarkdown(), {
         fetchBible: prefs.fetchBibleEnabled,
       }),
       documentName ?? `${essayTitle}.html`
@@ -1727,7 +1742,7 @@ export function DocumentWorkspace({
 
   function exportPdfPrint() {
     try {
-      openPublicationPrintTab(currentMarkdown(), {
+      openPublicationPrintTab(outboundMarkdown(), {
         fetchBible: prefs.fetchBibleEnabled,
       });
     } catch (err) {
@@ -1745,7 +1760,7 @@ export function DocumentWorkspace({
       return;
     }
     try {
-      await exportMarkdownAsPdf(currentMarkdown(), essayTitle);
+      await exportMarkdownAsPdf(outboundMarkdown(), essayTitle);
       showSuccessToast("Downloaded PDF.", undefined, "export-file");
     } catch (error) {
       showErrorToast(error, "Could not convert this essay to PDF.", "export-file");
@@ -1758,7 +1773,7 @@ export function DocumentWorkspace({
       return;
     }
     try {
-      await exportMarkdownAsDocx(currentMarkdown(), essayTitle);
+      await exportMarkdownAsDocx(outboundMarkdown(), essayTitle);
       showSuccessToast("Downloaded Word file.", undefined, "export-file");
     } catch (error) {
       showErrorToast(error, "Could not convert this essay to Word.", "export-file");
@@ -1852,7 +1867,7 @@ export function DocumentWorkspace({
       label: "Preview in new tab",
       onSelect: () => {
         try {
-          openPublicationPreviewTab(currentMarkdown(), {
+          openPublicationPreviewTab(outboundMarkdown(), {
             fetchBible: prefs.fetchBibleEnabled,
           });
         } catch (err) {
@@ -2159,6 +2174,7 @@ export function DocumentWorkspace({
         onClose={() => setPublishOpen(false)}
         getMarkdown={currentMarkdown}
         snapshot={publishSnapshot}
+        siteUrl={prefs.siteUrl}
         title={essayTitle}
         subtitle={subtitle}
         allowServerChecks={!inVault}
@@ -2335,6 +2351,7 @@ export function DocumentWorkspace({
         onClose={() => setPublishOpen(false)}
         getMarkdown={currentMarkdown}
         snapshot={publishSnapshot}
+        siteUrl={prefs.siteUrl}
         title={essayTitle}
         subtitle={subtitle}
         allowServerChecks={!inVault}

@@ -1,7 +1,11 @@
 import { createClient } from "@/lib/supabase/client";
 import { ASSETS_BUCKET } from "@/lib/assets/paths";
 import { classifyStorageError, isBrowserOffline } from "@/lib/assets/errors";
-import { createAssetSignedUrl } from "@/lib/assets/signedUrls";
+import {
+  ASSET_SIGNED_URL_TTL_SEC,
+  createAssetSignedUrl,
+  ESSAY_IMAGE_SIGNED_URL_TTL_SEC,
+} from "@/lib/assets/signedUrls";
 
 export type AssetKind = "essay_image" | "library_pdf";
 
@@ -97,7 +101,12 @@ export async function uploadUserAsset(
   }
 
   try {
-    return await createAssetSignedUrl(fullPath);
+    return await createAssetSignedUrl(
+      fullPath,
+      kind === "essay_image"
+        ? ESSAY_IMAGE_SIGNED_URL_TTL_SEC
+        : ASSET_SIGNED_URL_TTL_SEC
+    );
   } catch (urlError) {
     await supabase.storage.from(ASSETS_BUCKET).remove([fullPath]);
     await supabase.rpc("release_asset_path", { p_path: fullPath });

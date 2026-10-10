@@ -8,6 +8,7 @@ import {
   panelLayoutFromLegacy,
   type PanelLayout,
 } from "@/lib/panels/layout";
+import { normalizeSiteUrl } from "@/lib/siteRelative";
 import {
   DEFAULT_TOOLBAR_LAYOUT,
   normalizeToolbarLayout,
@@ -112,6 +113,12 @@ export type EditorPrefs = {
    * overflow folder. Missing ids become unused chips in Settings → Toolbar.
    */
   toolbarLayout?: ToolbarLayout;
+  /**
+   * The writer's main site, e.g. `https://example.com`. Site-relative links
+   * and images (`/writing/…`) resolve against it in the editor and become
+   * absolute URLs on copy, export, and publish. Empty = leave them as-is.
+   */
+  siteUrl?: string;
 };
 
 export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
@@ -145,6 +152,7 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   harperDisabledKinds: [],
   harperDictionary: [],
   toolbarLayout: DEFAULT_TOOLBAR_LAYOUT,
+  siteUrl: "",
 };
 
 const LOCAL_KEY = "blogide.editorPrefs";
@@ -211,6 +219,7 @@ export function mergePrefs(partial: EditorPrefs = {}): Required<EditorPrefs> {
     toolbarLayout: normalizeToolbarLayout(
       partial.toolbarLayout ?? merged.toolbarLayout
     ),
+    siteUrl: normalizeSiteUrl(merged.siteUrl),
   };
 }
 

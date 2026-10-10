@@ -11,6 +11,7 @@ import {
   folderPathLabel,
   listSameNamedDocuments,
 } from "@/lib/workspace/tree";
+import { refreshOwnedAssetUrlsForCurrentUser } from "@/lib/assets/signedUrls";
 import { getLocalDoc } from "@/lib/db/indexed";
 import { saveLocal, syncDocument } from "@/lib/sync/engine";
 import {
@@ -197,8 +198,11 @@ export async function applyGithubPullToDocument(input: {
       "That essay is gone. Pull will not create a new BlogIDE file from GitHub."
     );
   }
+  // GitHub holds whatever image URLs were last pushed, which may have
+  // expired; re-sign our own uploads so the pulled essay renders right away.
+  const markdown = await refreshOwnedAssetUrlsForCurrentUser(input.markdown);
   if (input.isOpen && input.applyMarkdown) {
-    input.applyMarkdown(input.markdown);
+    input.applyMarkdown(markdown);
     return;
   }
   const remote = await fetchRemoteDocument(input.nodeId);
@@ -210,7 +214,7 @@ export async function applyGithubPullToDocument(input: {
   const local = await getLocalDoc(input.nodeId);
   await saveLocal(
     input.nodeId,
-    input.markdown,
+    markdown,
     githubPullBaseVersion(local?.baseVersion, Number(remote.version))
   );
   await syncDocument(input.nodeId);

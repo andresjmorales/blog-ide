@@ -32,6 +32,7 @@ import {
 } from "@/lib/billing/plans";
 import { ProfilePhotoField } from "@/components/avatar/ProfilePhotoField";
 import { GitHubSettingsSection } from "@/components/GitHubSettingsSection";
+import { MainSiteSettingsSection } from "@/components/MainSiteSettingsSection";
 import { PushbulletSettingsSection } from "@/components/PushbulletSettingsSection";
 import { ZoteroSettingsSection } from "@/components/ZoteroSettingsSection";
 import { NtfySettingsSection } from "@/components/NtfySettingsSection";
@@ -687,6 +688,8 @@ function SettingsDialog({
                 onPushWorkspace={onPushWorkspace}
                 onPullMapped={onPullMapped}
               />
+
+              <MainSiteSettingsSection />
 
               <PushbulletSettingsSection
                 previewMode={previewMode}
