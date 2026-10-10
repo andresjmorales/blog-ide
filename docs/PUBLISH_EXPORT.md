@@ -125,6 +125,36 @@ Two paths:
 `text/plain` on the HTML copies is a readable rendering of the HTML,
 never the markdown source.
 
+## Site-relative links and images
+
+Settings → Integrations → **Main site** (e.g. `example.com`) is where your
+essays are published. Links and images with site-relative paths, like
+`/writing/my-essay/figure.webp` or `/writing/another-essay`, stay relative
+in the markdown and in GitHub pushes, so your own site serves them. In the
+editor they load from the main site.
+
+Every copy and export in the table above, and Preview in new tab, writes
+them as full URLs on the main site, so they work in Substack, Word, or a
+standalone HTML file. The Publish panel shows a checkbox for this when the
+essay has any; turn it off only when publishing on the main site itself.
+
+An essay hosted on a different site can override the account setting with
+its own `main_site:` frontmatter field (listed under the essay's metadata
+fields). `canonical:` is not used for this: it often points at a mirror
+such as Substack, which does not serve the site's `/writing/…` paths.
+
+The Main site setting, like the other account preferences (dictionary,
+dash style, toolbar), is saved to your account and loaded on every device
+you sign in on. Panel sizes and other layout stay per device.
+
+## Image links
+
+BlogIDE uploads use signed links. Essay images are signed for 30 days and
+re-signed when an essay opens with less than a week left, after a GitHub
+pull, and whenever an image fails to load in the editor. GitHub and your
+site only get the fresh link on the next push, so for anything long-lived
+(a published post), copy the images into the site itself.
+
 ## Substack checklist and helper
 
 Publish → **Substack** scans the essay and lists only what will

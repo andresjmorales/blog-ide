@@ -16,6 +16,14 @@ import {
 } from "@/components/EditorOverflowMenu";
 import { useEditorPrefs } from "@/components/EditorPrefsContext";
 import {
+  absolutizeSiteRelativeHtml,
+  absolutizeSiteRelativeMarkdown,
+  ESSAY_SITE_FRONTMATTER_KEY,
+  notifyActiveSiteUrl,
+  resolveEssaySiteUrl,
+  setEssaySiteOverride,
+} from "@/lib/siteRelative";
+import {
   buildPublicationDocument,
   openPublicationPreviewTab,
   openPublicationPrintTab,
@@ -27,6 +35,7 @@ import {
 } from "@/components/CopyeditDialog";
 import { PublishDialog } from "@/components/PublishDialog";
 import { splitFrontmatter } from "@/lib/markdown/frontmatter";
+import { parseFrontmatterField } from "@/lib/markdown/yamlFields";
 import { CommentsToolbarButton } from "@/components/comments/OwnerComments";
 import {
   clearCommentSession,
@@ -416,6 +425,25 @@ export function DocumentWorkspace({
   const onRenameRef = useRef(onRenameDocument);
   // Mirror of doc state so event-time flushes can pack markdown without
   // waiting on a React render (setState updaters run async).
+  // An essay hosted somewhere else can name its own site in `main_site:`;
+  // otherwise site-relative paths use the account's Main site.
+  const essayMainSite = parseFrontmatterField(
+    frontmatter,
+    ESSAY_SITE_FRONTMATTER_KEY
+  );
+  const essaySiteUrl = resolveEssaySiteUrl(essayMainSite, prefs.siteUrl);
+  // Set during render (silently) so the editor below draws links with it.
+  setEssaySiteOverride(essayMainSite);
+  useEffect(() => {
+    // Re-set here too: the previous cleanup runs after this render's set.
+    setEssaySiteOverride(essayMainSite);
+    notifyActiveSiteUrl();
+    return () => {
+      setEssaySiteOverride("");
+      notifyActiveSiteUrl();
+    };
+  }, [essayMainSite]);
+
   const docRef = useRef({ frontmatter, subtitle, author, publication, body });
   useEffect(() => {
     docRef.current = { frontmatter, subtitle, author, publication, body };
@@ -1655,9 +1683,17 @@ export function DocumentWorkspace({
       : packDocument(frontmatter, subtitle, author, publication, nextBody);
   }
 
+  /**
+   * The essay as it leaves BlogIDE (copy, export, preview): site-relative
+   * links and images point at the writer's main site, when one is set.
+   */
+  function outboundMarkdown(): string {
+    return absolutizeSiteRelativeMarkdown(currentMarkdown(), essaySiteUrl);
+  }
+
   async function exportMarkdownFile() {
     downloadMarkdown(
-      currentMarkdown(),
+      outboundMarkdown(),
       documentName ?? `${essayTitle}.md`
     );
     showSuccessToast("Downloaded markdown.", undefined, "export-file");
@@ -1665,7 +1701,7 @@ export function DocumentWorkspace({
 
   async function copyForExport() {
     try {
-      await copyMarkdownToClipboard(currentMarkdown());
+      await copyMarkdownToClipboard(outboundMarkdown());
       showCopiedToast("Copied markdown.");
     } catch {
       showErrorToast(
@@ -1682,8 +1718,11 @@ export function DocumentWorkspace({
       const { html, plain } =
         editor && !isMarkdownCanonical(mode)
           ? richTextFromEditor(editor)
-          : richTextFromMarkdown(currentMarkdown());
-      await copyDocumentForPaste({ html, plain });
+          : richTextFromMarkdown(outboundMarkdown());
+      await copyDocumentForPaste({
+        html: absolutizeSiteRelativeHtml(html, essaySiteUrl),
+        plain,
+      });
       showCopiedToast("Copied rich text.");
     } catch {
       showErrorToast(
@@ -1695,7 +1734,7 @@ export function DocumentWorkspace({
   }
 
   async function copyForPublish(target: PublishCopyTarget) {
-    const markdown = currentMarkdown();
+    const markdown = outboundMarkdown();
     const { html, plain } = htmlForPublishTarget(markdown, target);
     try {
       await copyDocumentForPaste({ html, plain });
@@ -1717,7 +1756,7 @@ export function DocumentWorkspace({
 
   async function exportHtmlFile() {
     downloadHtmlDocument(
-      buildPublicationDocument(currentMarkdown(), {
+      buildPublicationDocument(outboundMarkdown(), {
         fetchBible: prefs.fetchBibleEnabled,
       }),
       documentName ?? `${essayTitle}.html`
@@ -1727,7 +1766,7 @@ export function DocumentWorkspace({
 
   function exportPdfPrint() {
     try {
-      openPublicationPrintTab(currentMarkdown(), {
+      openPublicationPrintTab(outboundMarkdown(), {
         fetchBible: prefs.fetchBibleEnabled,
       });
     } catch (err) {
@@ -1745,7 +1784,7 @@ export function DocumentWorkspace({
       return;
     }
     try {
-      await exportMarkdownAsPdf(currentMarkdown(), essayTitle);
+      await exportMarkdownAsPdf(outboundMarkdown(), essayTitle);
       showSuccessToast("Downloaded PDF.", undefined, "export-file");
     } catch (error) {
       showErrorToast(error, "Could not convert this essay to PDF.", "export-file");
@@ -1758,7 +1797,7 @@ export function DocumentWorkspace({
       return;
     }
     try {
-      await exportMarkdownAsDocx(currentMarkdown(), essayTitle);
+      await exportMarkdownAsDocx(outboundMarkdown(), essayTitle);
       showSuccessToast("Downloaded Word file.", undefined, "export-file");
     } catch (error) {
       showErrorToast(error, "Could not convert this essay to Word.", "export-file");
@@ -1852,7 +1891,7 @@ export function DocumentWorkspace({
       label: "Preview in new tab",
       onSelect: () => {
         try {
-          openPublicationPreviewTab(currentMarkdown(), {
+          openPublicationPreviewTab(outboundMarkdown(), {
             fetchBible: prefs.fetchBibleEnabled,
           });
         } catch (err) {
@@ -2159,6 +2198,7 @@ export function DocumentWorkspace({
         onClose={() => setPublishOpen(false)}
         getMarkdown={currentMarkdown}
         snapshot={publishSnapshot}
+        siteUrl={essaySiteUrl}
         title={essayTitle}
         subtitle={subtitle}
         allowServerChecks={!inVault}
@@ -2335,6 +2375,7 @@ export function DocumentWorkspace({
         onClose={() => setPublishOpen(false)}
         getMarkdown={currentMarkdown}
         snapshot={publishSnapshot}
+        siteUrl={essaySiteUrl}
         title={essayTitle}
         subtitle={subtitle}
         allowServerChecks={!inVault}

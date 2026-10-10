@@ -22,7 +22,14 @@ describe("signed asset URLs", () => {
     const exp = Math.floor(Date.now() / 1000) + 86_400;
     const url = jwtWithExp(exp);
     expect(signedUrlExpirySec(url)).toBe(exp);
-    expect(signedUrlNeedsRefresh(url, exp - 20_000)).toBe(false);
-    expect(signedUrlNeedsRefresh(url, exp - 60)).toBe(true);
+    expect(signedUrlNeedsRefresh(url, exp - 20_000, 4 * 3600)).toBe(false);
+    expect(signedUrlNeedsRefresh(url, exp - 60, 4 * 3600)).toBe(true);
+  });
+
+  it("re-signs essay images a week before they lapse", () => {
+    const now = Math.floor(Date.now() / 1000);
+    expect(signedUrlNeedsRefresh(jwtWithExp(now + 20 * 86_400), now)).toBe(false);
+    expect(signedUrlNeedsRefresh(jwtWithExp(now + 6 * 86_400), now)).toBe(true);
+    expect(signedUrlNeedsRefresh(jwtWithExp(now - 3600), now)).toBe(true);
   });
 });

@@ -8,6 +8,7 @@ import {
   panelLayoutFromLegacy,
   type PanelLayout,
 } from "@/lib/panels/layout";
+import { normalizeSiteUrl } from "@/lib/siteRelative";
 import {
   DEFAULT_TOOLBAR_LAYOUT,
   normalizeToolbarLayout,
@@ -112,6 +113,12 @@ export type EditorPrefs = {
    * overflow folder. Missing ids become unused chips in Settings → Toolbar.
    */
   toolbarLayout?: ToolbarLayout;
+  /**
+   * The writer's main site, e.g. `https://example.com`. Site-relative links
+   * and images (`/writing/…`) resolve against it in the editor and become
+   * absolute URLs on copy, export, and publish. Empty = leave them as-is.
+   */
+  siteUrl?: string;
 };
 
 export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
@@ -145,6 +152,7 @@ export const DEFAULT_EDITOR_PREFS: Required<EditorPrefs> = {
   harperDisabledKinds: [],
   harperDictionary: [],
   toolbarLayout: DEFAULT_TOOLBAR_LAYOUT,
+  siteUrl: "",
 };
 
 const LOCAL_KEY = "blogide.editorPrefs";
@@ -211,7 +219,75 @@ export function mergePrefs(partial: EditorPrefs = {}): Required<EditorPrefs> {
     toolbarLayout: normalizeToolbarLayout(
       partial.toolbarLayout ?? merged.toolbarLayout
     ),
+    siteUrl: normalizeSiteUrl(merged.siteUrl),
   };
+}
+
+/**
+ * Layout prefs that belong to one screen, not the account: synced up like
+ * the rest, but never applied from another device on load.
+ */
+const DEVICE_PREF_KEYS = new Set<keyof EditorPrefs>([
+  "leftWidth",
+  "rightWidth",
+  "leftOpen",
+  "rightOpen",
+  "rightTab",
+  "shellOpen",
+  "shellHeight",
+  "panelLayout",
+  "mobileOpenShell",
+  "mobileStartSurface",
+  "markdownSplitWidth",
+  "endnotesExpanded",
+]);
+
+/** The signed-in account's saved prefs, or null (signed out, offline, none). */
+export async function loadRemotePrefs(): Promise<EditorPrefs | null> {
+  if (!isSupabaseConfigured()) return null;
+  try {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data, error } = await supabase
+      .from("user_settings")
+      .select("editor_prefs")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (error || !data?.editor_prefs) return null;
+    const prefs = data.editor_prefs as unknown;
+    return prefs && typeof prefs === "object" && !Array.isArray(prefs)
+      ? (prefs as EditorPrefs)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Apply account prefs saved from another device over this browser's copy.
+ * Account-level settings come from the server; layout stays local. Harper
+ * dictionary words from both sides are kept.
+ */
+export function mergeRemotePrefs(
+  local: EditorPrefs,
+  remote: EditorPrefs
+): EditorPrefs {
+  const next: Record<string, unknown> = { ...local };
+  for (const [key, value] of Object.entries(remote)) {
+    if (value === undefined || DEVICE_PREF_KEYS.has(key as keyof EditorPrefs)) {
+      continue;
+    }
+    next[key] = value;
+  }
+  const words = [
+    ...(local.harperDictionary ?? []),
+    ...(remote.harperDictionary ?? []),
+  ];
+  if (words.length) next.harperDictionary = [...new Set(words)];
+  return next as EditorPrefs;
 }
 
 let remotePrefsTimer: ReturnType<typeof setTimeout> | null = null;

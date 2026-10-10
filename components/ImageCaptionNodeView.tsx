@@ -14,7 +14,22 @@ import {
   normalizeCaptionMarkdown,
 } from "@/lib/editor/imageCaption";
 import { promptForLink } from "@/lib/editor/linkShortcut";
+import { resignOwnedAssetUrl } from "@/lib/assets/signedUrls";
+import { resolveSiteRelativeUrl } from "@/lib/siteRelative";
+import { useActiveSiteUrl } from "@/lib/useActiveSiteUrl";
 import { ItalicIcon, LinkIcon } from "@/components/icons";
+
+/**
+ * Image URLs (without the token) re-signed in the last minute. A fresh URL
+ * that still fails (deleted upload, Storage down) shows the broken card
+ * instead of re-signing in a loop, even if the node view remounts.
+ */
+const recentlyResigned = new Map<string, number>();
+const RESIGN_COOLDOWN_MS = 60_000;
+
+function resignKey(src: string): string {
+  return src.split("?")[0];
+}
 
 /**
  * A selected figure owns the DOM selection, which spans the caption, so the
@@ -42,11 +57,21 @@ function releaseOuterSelection(captionDom: HTMLElement) {
  * edit alt text.
  */
 export function ImageCaptionNodeView({
+  editor,
   node,
   updateAttributes,
   selected,
 }: NodeViewProps) {
   const src = String(node.attrs.src || "");
+  const siteUrl = useActiveSiteUrl();
+  /** Fresh signed URL shown in place of an expired one in a read-only editor. */
+  const [resignedSrc, setResignedSrc] = useState<{ from: string; to: string } | null>(
+    null
+  );
+  const displaySrc =
+    resignedSrc?.from === src
+      ? resignedSrc.to
+      : resolveSiteRelativeUrl(src, siteUrl);
   const alt = String(node.attrs.alt || "");
   const title =
     typeof node.attrs.title === "string" && node.attrs.title
@@ -144,7 +169,32 @@ export function ImageCaptionNodeView({
   const hideCaption = showPlaceholder && !selected && !focused;
 
   function retryLoad() {
+    recentlyResigned.delete(resignKey(src));
     setBrokenSrc(null);
+  }
+
+  /**
+   * Our own uploads use signed URLs that expire. Before showing the broken
+   * card, try once to re-sign; in an editable essay the fresh URL is saved.
+   */
+  function handleLoadError() {
+    const key = resignKey(src);
+    const last = recentlyResigned.get(key);
+    if (last !== undefined && Date.now() - last < RESIGN_COOLDOWN_MS) {
+      setBrokenSrc(src);
+      return;
+    }
+    recentlyResigned.set(key, Date.now());
+    const failedSrc = src;
+    void resignOwnedAssetUrl(failedSrc).then((fresh) => {
+      if (!fresh || fresh === failedSrc) {
+        setBrokenSrc(failedSrc);
+      } else if (editor.isEditable) {
+        updateAttributes({ src: fresh });
+      } else {
+        setResignedSrc({ from: failedSrc, to: fresh });
+      }
+    });
   }
 
   const altField = selected ? (
@@ -213,11 +263,11 @@ export function ImageCaptionNodeView({
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={src}
+        src={displaySrc}
         alt={alt}
         title={title || alt || undefined}
         draggable={false}
-        onError={() => setBrokenSrc(src)}
+        onError={handleLoadError}
       />
       {altField}
       <div

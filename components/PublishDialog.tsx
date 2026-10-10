@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   runPrePublishCheck,
   type PrePublishReport,
@@ -27,6 +27,10 @@ import {
 } from "@/lib/export/substackEditorHelper";
 import { substackIntroFromMarkdown } from "@/lib/markdown/substackIntro";
 import { SendIcon } from "@/components/icons";
+import {
+  absolutizeSiteRelativeMarkdown,
+  countSiteRelativeUrls,
+} from "@/lib/siteRelative";
 import {
   ActionButton,
   CopyIconButton,
@@ -57,6 +61,8 @@ type Props = {
   allowServerChecks?: boolean;
   /** Save the Substack-only intro to frontmatter. Unset: read-only. */
   onSubstackIntroChange?: (intro: string) => void;
+  /** Writer's main site (Settings → Integrations); "" when unset. */
+  siteUrl?: string;
 };
 
 /** "Prepare publish": copy the essay out to Substack or another editor. */
@@ -74,10 +80,35 @@ function PublishPanel({
   subtitle,
   allowServerChecks = true,
   onSubstackIntroChange,
+  siteUrl = "",
 }: Omit<Props, "open"> & { initialTab: PublishTab }) {
   const [tab, setTab] = useState<PublishTab>(initialTab);
   const [linkRunId, setLinkRunId] = useState(0);
   const [linksVisited, setLinksVisited] = useState(initialTab === "links");
+  const relative = useMemo(() => countSiteRelativeUrls(snapshot), [snapshot]);
+  const relativeTotal = relative.images + relative.links;
+  // Publishing anywhere but the main site: point /writing/… at that site.
+  const [pointAtSite, setPointAtSite] = useState(true);
+  const absolutize = Boolean(siteUrl) && relativeTotal > 0 && pointAtSite;
+  const outboundGetMarkdown = useCallback(
+    () =>
+      absolutize
+        ? absolutizeSiteRelativeMarkdown(getMarkdown(), siteUrl)
+        : getMarkdown(),
+    [absolutize, getMarkdown, siteUrl]
+  );
+  const outboundSnapshot = useMemo(
+    () =>
+      absolutize ? absolutizeSiteRelativeMarkdown(snapshot, siteUrl) : snapshot,
+    [absolutize, snapshot, siteUrl]
+  );
+  const siteHost = siteUrl.replace(/^https?:\/\//, "");
+  const relativeLabel = [
+    relative.images ? `${relative.images} image${relative.images === 1 ? "" : "s"}` : "",
+    relative.links ? `${relative.links} link${relative.links === 1 ? "" : "s"}` : "",
+  ]
+    .filter(Boolean)
+    .join(" and ");
 
   return (
     <ToolPanel
@@ -91,22 +122,36 @@ function PublishPanel({
       }}
       onClose={onClose}
     >
+      {siteUrl && relativeTotal > 0 && (
+        <ul className="blogide-publish-checklist">
+          <CheckRow
+            checked={pointAtSite}
+            onChange={setPointAtSite}
+            label={`Point site-relative ${relativeLabel} at ${siteHost}`}
+            detail={
+              pointAtSite
+                ? `Copies use full ${siteHost} URLs, so they load anywhere. Turn off only when publishing on ${siteHost} itself.`
+                : "Copies keep paths like /writing/…, which only load on your own site."
+            }
+          />
+        </ul>
+      )}
       {tab === "substack" && (
         <SubstackTab
-          getMarkdown={getMarkdown}
-          snapshot={snapshot}
+          getMarkdown={outboundGetMarkdown}
+          snapshot={outboundSnapshot}
           title={title}
           subtitle={subtitle}
           onIntroChange={onSubstackIntroChange}
         />
       )}
-      {tab === "other" && <OtherEditorsTab getMarkdown={getMarkdown} />}
+      {tab === "other" && <OtherEditorsTab getMarkdown={outboundGetMarkdown} />}
       {/* Keep the link report mounted so switching tabs doesn't re-fetch. */}
       {linksVisited && (
         <div hidden={tab !== "links"}>
           <LinksTab
-            key={linkRunId}
-            getMarkdown={getMarkdown}
+            key={`${linkRunId}-${absolutize}`}
+            getMarkdown={outboundGetMarkdown}
             onRerun={() => setLinkRunId((id) => id + 1)}
             allowServerChecks={allowServerChecks}
           />

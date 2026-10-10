@@ -26,6 +26,7 @@ export const TEMPLATE_FRONTMATTER_KEYS = [
   "description",
   "tags",
   "canonical",
+  "main_site",
   "status",
 ] as const;
 
@@ -41,6 +42,7 @@ export const TEMPLATE_FRONTMATTER_LABELS: Record<
   description: "Description",
   tags: "Tags",
   canonical: "Canonical URL",
+  main_site: "Main site (overrides Settings)",
   status: "Status",
 };
 
