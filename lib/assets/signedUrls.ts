@@ -5,13 +5,15 @@ import { ASSETS_BUCKET, assetPathFromUrl } from "@/lib/assets/paths";
 export const ASSET_SIGNED_URL_TTL_SEC = 60 * 60 * 24;
 
 /**
- * Thirty days for essay images. These URLs live in the markdown, so they reach
- * GitHub and any site that renders the file; a day was too short for that.
+ * One year for essay images. These URLs live in the markdown, so they reach
+ * GitHub and any site that renders the file. Re-signing changes the essay
+ * (and is saved like an edit), so a long life keeps old essays from showing
+ * phantom edits whenever they are reopened.
  */
-export const ESSAY_IMAGE_SIGNED_URL_TTL_SEC = 60 * 60 * 24 * 30;
+export const ESSAY_IMAGE_SIGNED_URL_TTL_SEC = 60 * 60 * 24 * 365;
 
 /** Re-sign a stored essay image URL when less than this remains. */
-export const ASSET_SIGNED_URL_REFRESH_SEC = 60 * 60 * 24 * 7;
+export const ASSET_SIGNED_URL_REFRESH_SEC = 60 * 60 * 24 * 30;
 
 export async function createAssetSignedUrl(
   path: string,

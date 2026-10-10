@@ -23,6 +23,7 @@ import {
   fetchRemoteDocument,
   saveDocumentRemote,
 } from "@/lib/workspace/api";
+import { refreshOwnedAssetUrls } from "@/lib/assets/signedUrls";
 
 vi.mock("@/lib/workspace/api", () => ({
   fetchRemoteDocument: vi.fn(),
@@ -32,6 +33,17 @@ vi.mock("@/lib/workspace/api", () => ({
   getWorkspaceNode: vi.fn(),
 }));
 
+vi.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({
+    auth: { getUser: async () => ({ data: { user: { id: "u" } } }) },
+  }),
+}));
+
+vi.mock("@/lib/assets/signedUrls", () => ({
+  refreshOwnedAssetUrls: vi.fn(async (markdown: string) => markdown),
+}));
+
+const mockRefreshUrls = vi.mocked(refreshOwnedAssetUrls);
 const mockFetchRemote = vi.mocked(fetchRemoteDocument);
 const mockSaveRemote = vi.mocked(saveDocumentRemote);
 const mockCreateConflict = vi.mocked(createDocumentConflictCopy);
@@ -111,6 +123,32 @@ describe("openDocument", () => {
     expect(opened.markdown).toBe("unsynced edits");
     expect(opened.dirty).toBe(true);
     expect(mockFetchRemote).not.toHaveBeenCalled();
+  });
+
+  it("saves re-signed image links so the cloud copy and GitHub get them", async () => {
+    const nodeId = freshNodeId();
+    const stale = "![a](https://x.supabase.co/storage/v1/object/sign/assets/u/a.webp?token=old)\n";
+    const fresh = "![a](https://x.supabase.co/storage/v1/object/sign/assets/u/a.webp?token=new)\n";
+    mockFetchRemote.mockResolvedValue(remoteDoc(nodeId, 4, stale));
+    mockRefreshUrls.mockResolvedValueOnce(fresh);
+    mockSaveRemote.mockResolvedValue({ version: 5, updated_at: new Date().toISOString() } as never);
+
+    const opened = await openDocument(nodeId);
+    expect(opened.markdown).toBe(fresh);
+    expect(opened.dirty).toBe(true);
+    await vi.waitFor(() => expect(mockSaveRemote).toHaveBeenCalled());
+    expect(mockSaveRemote.mock.calls[0]).toContain(fresh);
+  });
+
+  it("opens clean when no image link needed re-signing", async () => {
+    const nodeId = freshNodeId();
+    mockFetchRemote.mockResolvedValue(remoteDoc(nodeId, 2, "# Fine\n"));
+    const opened = await openDocument(nodeId);
+    expect(opened.dirty).toBe(false);
+    expect((await getLocalDoc(nodeId))?.dirty).toBe(false);
+    expect(await listSyncQueue()).not.toContainEqual(
+      expect.objectContaining({ nodeId })
+    );
   });
 
   it("still rejects when there is no local copy and no remote", async () => {

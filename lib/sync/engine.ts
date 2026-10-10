@@ -216,7 +216,8 @@ export async function openDocument(nodeId: string): Promise<OpenedDocument> {
 
   if (remote) {
     rememberRemoteEnc(nodeId, Number(remote.version), remote.enc ?? 0);
-    let markdown = await plaintextFromRemote(remote);
+    const remoteMarkdown = await plaintextFromRemote(remote);
+    let markdown = remoteMarkdown;
     try {
       const supabase = createClient();
       const {
@@ -230,7 +231,7 @@ export async function openDocument(nodeId: string): Promise<OpenedDocument> {
     }
     const adopted = await adoptRemoteIfClean(
       nodeId,
-      markdown,
+      remoteMarkdown,
       Number(remote.version),
       remote.updated_at
     );
@@ -248,6 +249,25 @@ export async function openDocument(nodeId: string): Promise<OpenedDocument> {
         baseVersion: adopted.local.baseVersion,
         dirty: true,
       };
+    }
+    if (markdown !== remoteMarkdown) {
+      // Re-signed image links: save them like an edit so the cloud copy (and
+      // with it GitHub push and diff, which read the cloud copy) gets them.
+      // Links are only re-signed with under a month left on a year, so rare.
+      try {
+        await saveLocal(nodeId, markdown, Number(remote.version));
+        void syncDocument(nodeId).catch(() => {
+          // Stays queued; the next sync pass retries.
+        });
+        return {
+          nodeId,
+          markdown,
+          baseVersion: Number(remote.version),
+          dirty: true,
+        };
+      } catch {
+        // Could not stage locally; show the fresh links without saving them.
+      }
     }
     emitFor(nodeId, {
       dirty: false,
