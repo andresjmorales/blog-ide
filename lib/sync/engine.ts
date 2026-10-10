@@ -253,7 +253,7 @@ export async function openDocument(nodeId: string): Promise<OpenedDocument> {
     if (markdown !== remoteMarkdown) {
       // Re-signed image links: save them like an edit so the cloud copy (and
       // with it GitHub push and diff, which read the cloud copy) gets them.
-      // Links are only re-signed with under a week left, so this is rare.
+      // Links are only re-signed with under a month left on a year, so rare.
       try {
         await saveLocal(nodeId, markdown, Number(remote.version));
         void syncDocument(nodeId).catch(() => {

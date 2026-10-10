@@ -149,11 +149,12 @@ you sign in on. Panel sizes and other layout stay per device.
 
 ## Image links
 
-BlogIDE uploads use signed links. Essay images are signed for 30 days and
-re-signed when an essay opens with less than a week left, after a GitHub
-pull, and whenever an image fails to load in the editor. GitHub and your
-site only get the fresh link on the next push, so for anything long-lived
-(a published post), copy the images into the site itself.
+BlogIDE uploads use signed links. Essay images are signed for a year and
+re-signed when an essay opens with less than a month left, after a GitHub
+pull, and whenever an image fails to load in the editor. A re-sign is saved
+like an edit, so the next GitHub push carries the fresh links; with a
+year-long life that happens rarely. For a published post, copy the images
+into the site itself so nothing depends on a signed link.
 
 ## Substack checklist and helper
 
