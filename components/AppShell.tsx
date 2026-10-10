@@ -12,7 +12,9 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   loadLocalPrefs,
+  loadRemotePrefs,
   mergePrefs,
+  mergeRemotePrefs,
   savePrefs,
   type EditorPrefs,
 } from "@/lib/settings";
@@ -243,7 +245,7 @@ import {
   type PanelLayout,
 } from "@/lib/panels/layout";
 import { OPEN_LIBRARY_CITE_EVENT } from "@/lib/citations/openLibraryCite";
-import { setActiveSiteUrl } from "@/lib/siteRelative";
+import { notifyActiveSiteUrl, setAccountSiteUrl } from "@/lib/siteRelative";
 import { OwnerCommentsPanel } from "@/components/comments/OwnerComments";
 import {
   COMMENTS_PANEL_EVENT,
@@ -423,7 +425,7 @@ function AppShellContent({
   const prefs = mergePrefs(hydrated ? storedPrefs : {});
   // Editor link marks render outside React; give them the main site before
   // the editor below renders (idempotent, so safe to do during render).
-  setActiveSiteUrl(prefs.siteUrl);
+  setAccountSiteUrl(prefs.siteUrl);
   const dragging = useRef<"left" | "right" | "shell" | null>(null);
   const prefsRef = useRef(storedPrefs);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -737,6 +739,28 @@ function AppShellContent({
       return next;
     });
   }, []);
+
+  // Prefs were saved to the account but only ever read from this browser,
+  // so a new device started blank. Pull the account copy once per sign-in.
+  useEffect(() => {
+    if (previewMode) return;
+    let cancelled = false;
+    void loadRemotePrefs().then((remote) => {
+      if (cancelled || !remote) return;
+      setPrefs((current) => {
+        const next = mergePrefs(mergeRemotePrefs(current, remote));
+        savePrefs(next);
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [previewMode, userEmail]);
+
+  useEffect(() => {
+    notifyActiveSiteUrl();
+  }, [prefs.siteUrl]);
 
   const panelLayout = prefs.panelLayout;
 

@@ -30,15 +30,51 @@ export function resolveSiteRelativeUrl(url: string, siteUrl: string): string {
   return siteUrl && isSiteRelativeUrl(url) ? `${siteUrl}${url}` : url;
 }
 
-let activeSiteUrl = "";
+/**
+ * The site for the essay on screen: the open essay's `main_site:` override,
+ * else the account's Main site. Editor marks render outside React and read
+ * it directly; node views subscribe (see `useActiveSiteUrl`).
+ *
+ * The setters are silent so they can run during render, before the editor
+ * below them draws its links; call `notifyActiveSiteUrl` from an effect so
+ * subscribed views pick up a change.
+ */
+let accountSiteUrl = "";
+let essaySiteUrl = "";
+const listeners = new Set<() => void>();
 
-/** The signed-in writer's main site, for code outside React (editor marks). */
-export function setActiveSiteUrl(siteUrl: string): void {
-  activeSiteUrl = normalizeSiteUrl(siteUrl);
+export function setAccountSiteUrl(siteUrl: string): void {
+  accountSiteUrl = normalizeSiteUrl(siteUrl);
+}
+
+export function setEssaySiteOverride(siteUrl: string): void {
+  essaySiteUrl = normalizeSiteUrl(siteUrl);
 }
 
 export function getActiveSiteUrl(): string {
-  return activeSiteUrl;
+  return essaySiteUrl || accountSiteUrl;
+}
+
+export function notifyActiveSiteUrl(): void {
+  for (const listener of listeners) listener();
+}
+
+export function subscribeActiveSiteUrl(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/** Frontmatter key for a per-essay main site (an essay hosted elsewhere). */
+export const ESSAY_SITE_FRONTMATTER_KEY = "main_site";
+
+/** The essay's own `main_site:` if set and valid, else the account's site. */
+export function resolveEssaySiteUrl(
+  essayMainSite: string,
+  accountSite: string
+): string {
+  return normalizeSiteUrl(essayMainSite) || normalizeSiteUrl(accountSite);
 }
 
 const FRONTMATTER_RE = /^---\r?\n[\s\S]*?\r?\n---\r?\n/;

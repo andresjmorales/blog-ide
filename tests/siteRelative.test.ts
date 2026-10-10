@@ -4,6 +4,7 @@ import {
   countSiteRelativeUrls,
   isSiteRelativeUrl,
   normalizeSiteUrl,
+  resolveEssaySiteUrl,
   resolveSiteRelativeUrl,
 } from "@/lib/siteRelative";
 
@@ -75,5 +76,18 @@ describe("site-relative URLs", () => {
   it("counts site-relative images and links", () => {
     const md = "![a](/x.webp) [b](/y) [c](https://z.com) ![d](//cdn/e.png)\n\n[r]: /q\n";
     expect(countSiteRelativeUrls(md)).toEqual({ images: 1, links: 2 });
+  });
+
+  it("prefers an essay's own main_site over the account site", () => {
+    expect(resolveEssaySiteUrl("other.blog", "https://andresmorales.xyz")).toBe(
+      "https://other.blog"
+    );
+    expect(resolveEssaySiteUrl("", "andresmorales.xyz")).toBe(
+      "https://andresmorales.xyz"
+    );
+    expect(resolveEssaySiteUrl("not a site", "andresmorales.xyz")).toBe(
+      "https://andresmorales.xyz"
+    );
+    expect(resolveEssaySiteUrl("", "")).toBe("");
   });
 });

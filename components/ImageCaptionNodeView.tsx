@@ -16,7 +16,7 @@ import {
 import { promptForLink } from "@/lib/editor/linkShortcut";
 import { resignOwnedAssetUrl } from "@/lib/assets/signedUrls";
 import { resolveSiteRelativeUrl } from "@/lib/siteRelative";
-import { useEditorPrefs } from "@/components/EditorPrefsContext";
+import { useActiveSiteUrl } from "@/lib/useActiveSiteUrl";
 import { ItalicIcon, LinkIcon } from "@/components/icons";
 
 /**
@@ -63,7 +63,7 @@ export function ImageCaptionNodeView({
   selected,
 }: NodeViewProps) {
   const src = String(node.attrs.src || "");
-  const { prefs } = useEditorPrefs();
+  const siteUrl = useActiveSiteUrl();
   /** Fresh signed URL shown in place of an expired one in a read-only editor. */
   const [resignedSrc, setResignedSrc] = useState<{ from: string; to: string } | null>(
     null
@@ -71,7 +71,7 @@ export function ImageCaptionNodeView({
   const displaySrc =
     resignedSrc?.from === src
       ? resignedSrc.to
-      : resolveSiteRelativeUrl(src, prefs.siteUrl);
+      : resolveSiteRelativeUrl(src, siteUrl);
   const alt = String(node.attrs.alt || "");
   const title =
     typeof node.attrs.title === "string" && node.attrs.title

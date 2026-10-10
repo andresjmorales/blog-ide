@@ -21,6 +21,7 @@ describe("yamlFields", () => {
       "description",
       "tags",
       "canonical",
+      "main_site",
       "status",
     ]);
     expect(template.find((field) => field.key === "status")?.value).toBe(

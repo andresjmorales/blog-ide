@@ -138,6 +138,15 @@ them as full URLs on the main site, so they work in Substack, Word, or a
 standalone HTML file. The Publish panel shows a checkbox for this when the
 essay has any; turn it off only when publishing on the main site itself.
 
+An essay hosted on a different site can override the account setting with
+its own `main_site:` frontmatter field (listed under the essay's metadata
+fields). `canonical:` is not used for this: it often points at a mirror
+such as Substack, which does not serve the site's `/writing/…` paths.
+
+The Main site setting, like the other account preferences (dictionary,
+dash style, toolbar), is saved to your account and loaded on every device
+you sign in on. Panel sizes and other layout stay per device.
+
 ## Image links
 
 BlogIDE uploads use signed links. Essay images are signed for 30 days and

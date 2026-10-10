@@ -30,7 +30,7 @@ export function MainSiteSettingsSection() {
     <section className="settings-section">
       <h3>
         Main site
-        <SettingsInfo text="Where your essays are published, e.g. example.com. Links and images with site-relative paths like /writing/my-essay/figure.webp load from this site in the editor. When you copy, export, or publish elsewhere (Substack, HTML, Word), they become full URLs on this site. GitHub push keeps them relative, so your site still serves its own copies." />
+        <SettingsInfo text="Where your essays are published, e.g. example.com. Links and images with site-relative paths like /writing/my-essay/figure.webp load from this site in the editor. When you copy, export, or publish elsewhere (Substack, HTML, Word), they become full URLs on this site. GitHub push keeps them relative, so your site still serves its own copies. An essay hosted somewhere else can set its own site with a main_site field (essay menu → Essay metadata)." />
       </h3>
       <label className="settings-row settings-row-stack">
         <span>Site URL</span>
