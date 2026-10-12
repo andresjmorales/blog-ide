@@ -49,6 +49,7 @@ import {
   cancelEditorWork,
   EDITOR_WORK_MS,
   scheduleEditorWork,
+  onEditorDocChange,
 } from "@/lib/editor/workSchedule";
 import type { EditorPrefs } from "@/lib/settings";
 
@@ -192,9 +193,9 @@ function useLiveDocValue<T>(
     refresh();
     const onUpdate = () =>
       scheduleEditorWork(workId, EDITOR_WORK_MS.outlineStats, refresh);
-    editor.on("update", onUpdate);
+    const stop = onEditorDocChange(editor, onUpdate);
     return () => {
-      editor.off("update", onUpdate);
+      stop();
       cancelEditorWork(workId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

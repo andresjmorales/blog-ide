@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
+import { onEditorDocChange } from "@/lib/editor/workSchedule";
 import { FootnoteSidenote } from "@/components/FootnoteSidenote";
 import { DeletedFootnotesPanel } from "@/components/DeletedFootnotesPanel";
 import { PanelCaret } from "@/components/icons";
@@ -233,7 +234,7 @@ export function SidenoteRail({
     }
 
     // Typing can move markers without changing either scroll height.
-    editor.on("update", invalidate);
+    const stopDocChange = onEditorDocChange(editor, invalidate);
 
     const armEssay = armFromUser("essay");
     const armRail = armFromUser("rail");
@@ -267,7 +268,7 @@ export function SidenoteRail({
       notesPane.removeEventListener("touchstart", armRail, userOpts);
       notesPane.removeEventListener("keydown", armRail, userOpts);
       window.removeEventListener("resize", onResize);
-      editor.off("update", invalidate);
+      stopDocChange();
     };
   }, [editor, scrollRoot, linked, notes]);
 

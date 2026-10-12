@@ -137,7 +137,10 @@ import { pickEssayImportFile } from "@/lib/export/document";
 import { downloadWorkspaceZip } from "@/lib/export/workspaceZip";
 import { importPandocFile } from "@/lib/pandoc/client";
 import { listGithubMapNodes, resolveGithubBindings } from "@/lib/github/files";
-import { githubErrorCopy } from "@/lib/github/client";
+import {
+  githubErrorCopy,
+  invalidateGithubTreeCache,
+} from "@/lib/github/client";
 import {
   fetchGithubFileFromLink,
   GITHUB_IMPORT_LINK_HINT,
@@ -167,6 +170,8 @@ import { hydrateAccountSecrets } from "@/lib/secrets/client";
 import { NOTES_CHANGED_EVENT } from "@/lib/capture/seen";
 import type { GithubMapStatus, GithubSyncMap } from "@/lib/github/types";
 import { GitHubPullDialog, type GithubPullApply } from "@/components/GitHubPullDialog";
+import { gitBlobSha } from "@/lib/github/blobSha";
+import { recordGithubSyncBases } from "@/lib/github/syncBase";
 import { GitHubDiffDialog } from "@/components/GitHubDiffDialog";
 import {
   GitHubPushWarningDialog,
@@ -729,6 +734,26 @@ function AppShellContent({
     }, 80);
     return () => window.clearTimeout(timer);
   }, [previewMode, nodes, githubEpoch, refreshGithubStatuses]);
+
+  // Commits made outside BlogIDE: re-read GitHub when the tab comes back
+  // into focus (at most once a minute) so the "new on GitHub" badge shows.
+  useEffect(() => {
+    if (previewMode) return;
+    let last = Date.now();
+    function onFocus() {
+      if (document.visibilityState === "hidden") return;
+      if (Date.now() - last < 60_000) return;
+      last = Date.now();
+      invalidateGithubTreeCache();
+      void refreshGithubStatuses();
+    }
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [previewMode, refreshGithubStatuses]);
 
   const update = useCallback((patch: Partial<EditorPrefs>, persist = true) => {
     setPrefs((p) => {
@@ -1824,7 +1849,27 @@ function AppShellContent({
     if (previewMode) return;
     await flushDocumentRef.current();
     try {
-      const { issues } = await inspectGithubPush({ scope });
+      const { issues, remoteAhead } = await inspectGithubPush({ scope });
+      if (remoteAhead.length > 0) {
+        const names = remoteAhead.map((row) => row.path.split("/").pop());
+        const listed =
+          names.length > 3
+            ? `${names.slice(0, 3).join(", ")} and ${names.length - 3} more`
+            : names.join(", ");
+        const push = await dialog.confirm({
+          title: "GitHub has changes you haven’t pulled",
+          message: `${listed} changed on GitHub since BlogIDE last synced. Pushing replaces ${
+            names.length === 1 ? "that file" : "those files"
+          } with your BlogIDE version and drops those edits. Pull first to merge them.`,
+          confirmLabel: "Push anyway",
+          cancelLabel: "Pull first",
+          danger: true,
+        });
+        if (!push) {
+          await handlePullFromGithub(scope);
+          return;
+        }
+      }
       if (issues.length > 0) {
         setPushScope(scope);
         setPushIssues(issues);
@@ -1890,6 +1935,7 @@ function AppShellContent({
         token,
         localBodies: bodies,
         scope,
+        withHistory: true,
       });
       const known = new Set(tree.map((node) => node.id));
       if (plan.files.some((file) => !known.has(file.nodeId))) {
@@ -1969,6 +2015,16 @@ function AppShellContent({
           nodes: nodesRef.current,
           applyMarkdown: applyMarkdownRef.current,
         });
+        // GitHub's file is now the last version both sides agreed on.
+        recordGithubSyncBases([
+          {
+            nodeId: file.nodeId,
+            repo: file.repo,
+            branch: file.branch,
+            path: file.pullPath,
+            blobSha: await gitBlobSha(file.remoteMarkdown),
+          },
+        ]);
       }
       setPullOpen(false);
       setGithubEpoch((value) => value + 1);

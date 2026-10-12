@@ -93,3 +93,26 @@ export function resetEditorWorkSchedule(): void {
   timers.clear();
   pending.clear();
 }
+
+type DocChangeSource = {
+  on(event: "transaction", fn: (props: { transaction: { docChanged: boolean } }) => void): unknown;
+  off(event: "transaction", fn: (props: { transaction: { docChanged: boolean } }) => void): unknown;
+};
+
+/**
+ * Like `editor.on("update")`, but also fires for whole-document swaps made
+ * with `setContent(…, { emitUpdate: false })` (GitHub pull, version restore,
+ * source-view round trips), which never emit "update". Returns the unsubscribe.
+ */
+export function onEditorDocChange(
+  editor: DocChangeSource,
+  fn: () => void
+): () => void {
+  const listener = ({ transaction }: { transaction: { docChanged: boolean } }) => {
+    if (transaction.docChanged) fn();
+  };
+  editor.on("transaction", listener);
+  return () => {
+    editor.off("transaction", listener);
+  };
+}

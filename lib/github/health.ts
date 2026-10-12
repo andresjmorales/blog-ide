@@ -13,6 +13,7 @@ import type {
   GithubTreeIndex,
 } from "@/lib/github/types";
 import type { WorkspaceNode } from "@/lib/workspace/types";
+import { normalizeGithubPath } from "@/lib/github/repo";
 
 export async function loadGithubMapStatuses(input: {
   nodes: WorkspaceNode[];
@@ -85,7 +86,12 @@ export async function loadGithubMapStatuses(input: {
         detail: index.message,
       });
     }
-    return assessGithubBinding(binding, index ?? null);
+    const status = assessGithubBinding(binding, index ?? null);
+    const remoteSha =
+      binding.kind === "document"
+        ? index?.blobShas?.[normalizeGithubPath(binding.path)]
+        : undefined;
+    return remoteSha ? { ...status, remoteSha } : status;
   });
 
   const lookalikesByNode = new Map<string, string[]>();

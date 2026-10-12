@@ -179,11 +179,17 @@ export async function fetchGithubTreeIndex(input: {
     trees: [],
     truncated: Boolean(tree.truncated),
   };
+  const blobShas: Record<string, string> = {};
   for (const item of tree.tree ?? []) {
     if (!item.path) continue;
-    if (item.type === "blob") index.blobs.push(item.path);
-    else if (item.type === "tree") index.trees.push(item.path);
+    if (item.type === "blob") {
+      index.blobs.push(item.path);
+      if (item.sha) blobShas[item.path] = item.sha;
+    } else if (item.type === "tree") {
+      index.trees.push(item.path);
+    }
   }
+  index.blobShas = blobShas;
   treeCache.set(cacheKey, { expires: Date.now() + TREE_TTL_MS, index });
   return index;
 }
@@ -417,4 +423,101 @@ export function requireRepoRef(repo: string): GithubRepoRef {
     throw new Error('Repo must look like "owner/repo".');
   }
   return parsed;
+}
+
+export type GithubPathCommit = {
+  sha: string;
+  /** First line of the commit message. */
+  subject: string;
+  author: string;
+  /** ISO committer date. */
+  date: string;
+  htmlUrl: string;
+};
+
+/** Newest-first commits on `branch` that touched `path`. */
+export async function fetchGithubPathCommits(input: {
+  token: string;
+  repo: string;
+  branch: string;
+  path: string;
+  limit?: number;
+}): Promise<GithubPathCommit[]> {
+  const { owner, repo } = requireRepoRef(input.repo);
+  const branch = (input.branch || "main").trim() || "main";
+  const params = new URLSearchParams({
+    sha: branch,
+    path: input.path.replace(/^\/+/, ""),
+    per_page: String(input.limit ?? 10),
+  });
+  const rows = await githubFetch<
+    Array<{
+      sha: string;
+      html_url?: string;
+      author?: { login?: string } | null;
+      commit?: {
+        message?: string;
+        author?: { name?: string; date?: string } | null;
+        committer?: { date?: string } | null;
+      };
+    }>
+  >(input.token, `/repos/${owner}/${repo}/commits?${params}`);
+  return (rows ?? []).map((row) => ({
+    sha: row.sha,
+    subject: (row.commit?.message ?? "").split("\n")[0] ?? "",
+    author: row.author?.login || row.commit?.author?.name || "",
+    date: row.commit?.committer?.date || row.commit?.author?.date || "",
+    htmlUrl:
+      row.html_url || `https://github.com/${owner}/${repo}/commit/${row.sha}`,
+  }));
+}
+
+/** A file at any ref (branch or commit sha) with its git blob sha. */
+export async function fetchGithubFileAtRef(input: {
+  token: string;
+  repo: string;
+  ref: string;
+  path: string;
+}): Promise<{ sha: string; content: string } | null> {
+  const { owner, repo } = requireRepoRef(input.repo);
+  const path = encodeGithubContentPath(input.path);
+  if (!path) return null;
+  try {
+    const data = await githubFetch<ContentPayload & { sha?: string }>(
+      input.token,
+      `/repos/${owner}/${repo}/contents/${path}?ref=${encodeURIComponent(input.ref)}`
+    );
+    if (data.type !== "file" || typeof data.content !== "string" || !data.sha) {
+      return null;
+    }
+    return {
+      sha: data.sha,
+      content: decodeGithubFileContent(data.content, data.encoding),
+    };
+  } catch (error) {
+    if (error instanceof GithubApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+/** A blob by sha (e.g. the last version BlogIDE synced), or null if gone. */
+export async function fetchGithubBlob(input: {
+  token: string;
+  repo: string;
+  sha: string;
+}): Promise<string | null> {
+  const { owner, repo } = requireRepoRef(input.repo);
+  try {
+    const data = await githubFetch<{ content?: string; encoding?: string }>(
+      input.token,
+      `/repos/${owner}/${repo}/git/blobs/${encodeURIComponent(input.sha)}`
+    );
+    if (typeof data.content !== "string") return null;
+    return decodeGithubFileContent(data.content, data.encoding);
+  } catch (error) {
+    if (error instanceof GithubApiError && (error.status === 404 || error.status === 422)) {
+      return null;
+    }
+    throw error;
+  }
 }
