@@ -179,11 +179,17 @@ export async function fetchGithubTreeIndex(input: {
     trees: [],
     truncated: Boolean(tree.truncated),
   };
+  const blobShas: Record<string, string> = {};
   for (const item of tree.tree ?? []) {
     if (!item.path) continue;
-    if (item.type === "blob") index.blobs.push(item.path);
-    else if (item.type === "tree") index.trees.push(item.path);
+    if (item.type === "blob") {
+      index.blobs.push(item.path);
+      if (item.sha) blobShas[item.path] = item.sha;
+    } else if (item.type === "tree") {
+      index.trees.push(item.path);
+    }
   }
+  index.blobShas = blobShas;
   treeCache.set(cacheKey, { expires: Date.now() + TREE_TTL_MS, index });
   return index;
 }

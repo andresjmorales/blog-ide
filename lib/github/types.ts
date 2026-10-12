@@ -44,6 +44,8 @@ export type GithubMapStatus = GithubResolvedBinding & {
   replacesFolder?: boolean;
   /** Mapped node is missing from the workspace or in Trash. */
   stale: boolean;
+  /** Git blob sha of the mapped file on GitHub (documents, when checked). */
+  remoteSha?: string;
   /** Other BlogIDE documents with the same filename (not created from GitHub). */
   workspaceTwins: Array<{ nodeId: string; label: string }>;
   /**
@@ -60,6 +62,8 @@ export type GithubTreeIndex = {
   blobs: string[];
   trees: string[];
   truncated: boolean;
+  /** Git blob sha by path, when the index came from the API. */
+  blobShas?: Record<string, string>;
 };
 
 export type GithubRemoteSettings = {

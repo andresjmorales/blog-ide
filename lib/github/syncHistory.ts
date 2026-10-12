@@ -11,7 +11,10 @@ import {
   fetchGithubPathCommits,
   type GithubPathCommit,
 } from "@/lib/github/client";
-import { loadGithubSyncBase } from "@/lib/github/syncBase";
+import {
+  loadGithubSyncBase,
+  recordGithubSyncBases,
+} from "@/lib/github/syncBase";
 
 export type GithubPullHistory = {
   /** The last version both sides had, or null when it can't be found. */
@@ -120,6 +123,21 @@ export async function loadGithubPullHistory(input: {
         commit,
         syncedAt: isRecorded ? (recorded?.at ?? null) : null,
       };
+      if (!isRecorded) {
+        // Remember it, so the editor's "new on GitHub" check needn't search.
+        recordGithubSyncBases(
+          [
+            {
+              nodeId: input.nodeId,
+              repo: input.repo,
+              branch: input.branch,
+              path: input.path,
+              blobSha: entry.sha,
+            },
+          ],
+          commit.date || undefined
+        );
+      }
       break;
     }
     remoteCommits.push(commit);

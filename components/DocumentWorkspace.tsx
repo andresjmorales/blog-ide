@@ -37,6 +37,7 @@ import { PublishDialog } from "@/components/PublishDialog";
 import { splitFrontmatter } from "@/lib/markdown/frontmatter";
 import { parseFrontmatterField } from "@/lib/markdown/yamlFields";
 import { CommentsToolbarButton } from "@/components/comments/OwnerComments";
+import { GitHubBehindBadge } from "@/components/GitHubBehindBadge";
 import {
   clearCommentSession,
   loadComments,
@@ -2108,6 +2109,15 @@ export function DocumentWorkspace({
         >
           Pop out
         </button>
+      )}
+      {!previewMode && (
+        <GitHubBehindBadge
+          nodeId={nodeId}
+          status={githubStatus}
+          epoch={githubSettingsEpoch}
+          getMarkdown={getMarkdownForAi}
+          onPull={onPullFromGithub}
+        />
       )}
       <CommentsToolbarButton nodeId={commentNodeId} />
       <EditorOverflowMenu

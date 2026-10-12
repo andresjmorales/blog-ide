@@ -77,6 +77,10 @@ markdown.
   says whether BlogIDE was edited since, and offers a line-based three-way
   merge (`lib/markdown/merge3.ts`) with a per-passage pick where both sides
   edited the same paragraph. Re-signed image tokens are not counted as edits.
+  The same evidence drives a "new on GitHub" toolbar badge (GitHub's blob sha
+  comes from the cached tree index, re-read on tab focus at most once a
+  minute) and a "pull first?" prompt before a push would overwrite commits
+  BlogIDE never pulled (`lib/github/remoteAhead.ts`).
   Pull never creates a workspace node. Mapping badges in Files reflect whether
   the GitHub path still exists; same-name Files entries and GitHub extras
   under a mapped folder are called out so a `git mv` is not mistaken for a

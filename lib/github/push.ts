@@ -13,6 +13,7 @@ import {
 import { githubPushCommitMessage } from "@/lib/github/commitMessage";
 import { gitBlobSha } from "@/lib/github/blobSha";
 import { recordGithubSyncBases } from "@/lib/github/syncBase";
+import { githubRemoteAhead } from "@/lib/github/remoteAhead";
 import { loadGithubSettings } from "@/lib/github/settings";
 import { loadGithubToken } from "@/lib/github/token";
 import { showToast } from "@/lib/ui/toast";
@@ -182,6 +183,8 @@ export function githubPushSummary(results: GithubPushResult[]): string {
 
 export type GithubPushInspection = {
   issues: GithubPushIssue[];
+  /** Essays where GitHub has commits BlogIDE never pulled; a push overwrites them. */
+  remoteAhead: Array<{ nodeId: string; repo: string; path: string }>;
 };
 
 /** Flag mapped files that disappeared from GitHub but still exist under another name/path. */
@@ -191,6 +194,7 @@ export async function inspectGithubPush(input: {
   const { token, plans } = await prepareGithubPush(input.scope);
 
   const issues: GithubPushIssue[] = [];
+  const remoteAhead: GithubPushInspection["remoteAhead"] = [];
   for (const plan of plans) {
     try {
       const index = await fetchGithubTreeIndex({
@@ -202,11 +206,24 @@ export async function inspectGithubPush(input: {
       issues.push(
         ...inspectPushFiles(plan.files, plan.repo, plan.branch, index)
       );
+      for (const file of plan.files) {
+        if (!file.nodeId) continue;
+        const path = file.path.replace(/^\/+/, "");
+        const ahead = await githubRemoteAhead({
+          nodeId: file.nodeId,
+          repo: plan.repo,
+          branch: plan.branch,
+          path,
+          remoteSha: index.blobShas?.[path],
+          localMarkdown: file.content,
+        });
+        if (ahead) remoteAhead.push({ nodeId: file.nodeId, repo: plan.repo, path });
+      }
     } catch (error) {
       throw new Error(githubErrorCopy(error));
     }
   }
-  return { issues };
+  return { issues, remoteAhead };
 }
 
 /** Push with the shared upload-status toast. */
