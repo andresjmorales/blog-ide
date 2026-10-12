@@ -95,6 +95,7 @@ import {
   EDITOR_WORK_MS,
   cancelEditorWork,
   scheduleEditorWork,
+  onEditorDocChange,
 } from "@/lib/editor/workSchedule";
 
 const SEARCH_DEBOUNCE_MS = EDITOR_WORK_MS.citeInventory;
@@ -275,9 +276,9 @@ export function CitePanel({
         refresh(linksOpen)
       );
     };
-    editor.on("update", onUpdate);
+    const stop = onEditorDocChange(editor, onUpdate);
     return () => {
-      editor.off("update", onUpdate);
+      stop();
       cancelEditorWork(workId);
     };
   }, [editor, style, linksOpen]);

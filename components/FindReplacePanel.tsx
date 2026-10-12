@@ -27,6 +27,7 @@ import {
   flushEditorWork,
   hasScheduledEditorWork,
   scheduleEditorWork,
+  onEditorDocChange,
 } from "@/lib/editor/workSchedule";
 import {
   insertIntoTextControl,
@@ -421,9 +422,9 @@ export function FindReplacePanel({
         );
       });
     }
-    editor.on("update", onEditorUpdate);
+    const stop = onEditorDocChange(editor, onEditorUpdate);
     return () => {
-      editor.off("update", onEditorUpdate);
+      stop();
       cancelEditorWork(workId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

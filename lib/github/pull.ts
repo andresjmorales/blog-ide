@@ -24,7 +24,16 @@ import type {
   GithubResolvedBinding,
 } from "@/lib/github/types";
 import type { WorkspaceNode } from "@/lib/workspace/types";
-import { fetchRemoteDocument } from "@/lib/workspace/api";
+import {
+  fetchRemoteDocument,
+  listDocumentRevisions,
+} from "@/lib/workspace/api";
+import { gitBlobSha } from "@/lib/github/blobSha";
+import { recordGithubSyncBases } from "@/lib/github/syncBase";
+import {
+  loadGithubPullHistory,
+  type GithubPullHistory,
+} from "@/lib/github/syncHistory";
 
 export type GithubPullFile = {
   nodeId: string;
@@ -39,6 +48,12 @@ export type GithubPullFile = {
   candidates: string[];
   identical: boolean;
   workspaceTwins: Array<{ nodeId: string; label: string }>;
+  /**
+   * What each side did since BlogIDE and GitHub last agreed (for `pullPath`).
+   * Absent when not requested or when the file already matches; null when
+   * GitHub history could not be read.
+   */
+  history?: GithubPullHistory | null;
 };
 
 export type GithubPullPlan = {
@@ -66,6 +81,8 @@ export async function prepareGithubPull(input: {
   token: string;
   localBodies: Map<string, string>;
   scope: "workspace" | { nodeId: string };
+  /** Also read GitHub history to find the last sync point (pull dialog). */
+  withHistory?: boolean;
 }): Promise<GithubPullPlan> {
   const bindings = resolveGithubBindings({
     nodes: input.nodes,
@@ -153,6 +170,27 @@ export async function prepareGithubPull(input: {
       const identical =
         remoteMarkdown !== null &&
         normalizeNewlines(remoteMarkdown) === normalizeNewlines(localMarkdown);
+      let history: GithubPullHistory | null | undefined;
+      if (identical) {
+        recordGithubSyncBases([
+          {
+            nodeId: binding.nodeId,
+            repo: binding.repo,
+            branch: binding.branch,
+            path: pullPath,
+            blobSha: await gitBlobSha(remoteMarkdown),
+          },
+        ]);
+      } else if (input.withHistory && remoteMarkdown !== null) {
+        history = await loadPullHistory({
+          token: input.token,
+          binding,
+          path: pullPath,
+          localMarkdown,
+          remoteMarkdown,
+          nodes: input.nodes,
+        });
+      }
       files.push({
         nodeId: binding.nodeId,
         label: folderPathLabel(binding.nodeId, input.nodes),
@@ -165,11 +203,46 @@ export async function prepareGithubPull(input: {
         candidates,
         identical,
         workspaceTwins: listSameNamedDocuments(input.nodes, binding.nodeId),
+        history,
       });
     }
   }
 
   return { files, unmapped };
+}
+
+async function loadPullHistory(input: {
+  token: string;
+  binding: GithubResolvedBinding;
+  path: string;
+  localMarkdown: string;
+  remoteMarkdown: string;
+  nodes: WorkspaceNode[];
+}): Promise<GithubPullHistory | null> {
+  const { binding } = input;
+  try {
+    const local = await getLocalDoc(binding.nodeId);
+    const node = input.nodes.find((row) => row.id === binding.nodeId);
+    return await loadGithubPullHistory({
+      token: input.token,
+      repo: binding.repo,
+      branch: binding.branch,
+      path: input.path,
+      nodeId: binding.nodeId,
+      localMarkdown: input.localMarkdown,
+      remoteMarkdown: input.remoteMarkdown,
+      localEditedAt: local?.dirty
+        ? local.updatedAt
+        : (node?.updated_at ?? local?.updatedAt ?? null),
+      loadRevisions: async () =>
+        (await listDocumentRevisions(binding.nodeId)).map(
+          (row) => row.markdown
+        ),
+    });
+  } catch {
+    // The plain diff still works; the dialog says the history is unknown.
+    return null;
+  }
 }
 
 export function githubPullBaseVersion(

@@ -21,6 +21,7 @@ import {
   EDITOR_WORK_MS,
   cancelEditorWork,
   scheduleEditorWork,
+  onEditorDocChange,
 } from "@/lib/editor/workSchedule";
 import { scrollHeadingIntoView } from "@/lib/editor/editorScroll";
 import { withMarkdownWords } from "@/lib/editor/markdownWordCount";
@@ -102,9 +103,9 @@ function DocumentOutlineLive({
       scheduleEditorWork(workId, EDITOR_WORK_MS.outlineStats, refresh);
     };
     refresh();
-    editor.on("update", onUpdate);
+    const stop = onEditorDocChange(editor, onUpdate);
     return () => {
-      editor.off("update", onUpdate);
+      stop();
       cancelEditorWork(workId);
     };
   }, [editor]);

@@ -11,6 +11,8 @@ import {
   type GithubPushIssue,
 } from "@/lib/github/status";
 import { githubPushCommitMessage } from "@/lib/github/commitMessage";
+import { gitBlobSha } from "@/lib/github/blobSha";
+import { recordGithubSyncBases } from "@/lib/github/syncBase";
 import { loadGithubSettings } from "@/lib/github/settings";
 import { loadGithubToken } from "@/lib/github/token";
 import { showToast } from "@/lib/ui/toast";
@@ -130,6 +132,19 @@ export async function pushWorkspaceToGithub(input: {
         message: (changed) => githubPushCommitMessage(changed),
       });
       results.push(result);
+      // GitHub now has exactly these bodies: the next pull's merge base.
+      const synced = [];
+      for (const file of plan.files) {
+        if (!file.nodeId) continue;
+        synced.push({
+          nodeId: file.nodeId,
+          repo: plan.repo,
+          branch: plan.branch,
+          path: file.path.replace(/^\/+/, ""),
+          blobSha: await gitBlobSha(file.content),
+        });
+      }
+      recordGithubSyncBases(synced);
     } catch (error) {
       throw new Error(githubErrorCopy(error));
     }

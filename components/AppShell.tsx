@@ -167,6 +167,8 @@ import { hydrateAccountSecrets } from "@/lib/secrets/client";
 import { NOTES_CHANGED_EVENT } from "@/lib/capture/seen";
 import type { GithubMapStatus, GithubSyncMap } from "@/lib/github/types";
 import { GitHubPullDialog, type GithubPullApply } from "@/components/GitHubPullDialog";
+import { gitBlobSha } from "@/lib/github/blobSha";
+import { recordGithubSyncBases } from "@/lib/github/syncBase";
 import { GitHubDiffDialog } from "@/components/GitHubDiffDialog";
 import {
   GitHubPushWarningDialog,
@@ -1890,6 +1892,7 @@ function AppShellContent({
         token,
         localBodies: bodies,
         scope,
+        withHistory: true,
       });
       const known = new Set(tree.map((node) => node.id));
       if (plan.files.some((file) => !known.has(file.nodeId))) {
@@ -1969,6 +1972,16 @@ function AppShellContent({
           nodes: nodesRef.current,
           applyMarkdown: applyMarkdownRef.current,
         });
+        // GitHub's file is now the last version both sides agreed on.
+        recordGithubSyncBases([
+          {
+            nodeId: file.nodeId,
+            repo: file.repo,
+            branch: file.branch,
+            path: file.pullPath,
+            blobSha: await gitBlobSha(file.remoteMarkdown),
+          },
+        ]);
       }
       setPullOpen(false);
       setGithubEpoch((value) => value + 1);
