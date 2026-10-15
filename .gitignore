@@ -46,3 +46,6 @@ next-env.d.ts
 
 # notes
 .local
+
+# self-hosted stack backups (compose.supabase.yaml, profile "backup")
+/backups/

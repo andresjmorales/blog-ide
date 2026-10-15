@@ -3,6 +3,8 @@
 #   cp .env.example .env    # fill in the Supabase values
 #   docker compose up -d --build
 #
+# To run Supabase too, with no Supabase account, see compose.supabase.yaml.
+#
 # The Supabase URL and keys are read when the container starts, so changing
 # them only needs `docker compose up -d`. The other NEXT_PUBLIC_* values are
 # baked in at build time: rebuild after changing them (`up -d --build`).
