@@ -160,6 +160,13 @@ NEXT_PUBLIC_SITE_URL=https://blogide.example
 SUPABASE_PUBLIC_URL=https://api.blogide.example
 ```
 
+**Supabase Studio** (table editor, SQL editor, users, storage):
+`docker compose --profile studio up -d`, then open http://localhost:3001.
+Studio has no login of its own, so it only listens on the machine itself.
+On a server, reach it through an SSH tunnel
+(`ssh -L 3001:localhost:3001 you@your-server`, then the same address) and
+never give it a public domain. The log explorer is not included.
+
 **Backups:** `docker compose --profile backup up -d` dumps the database, the
 uploaded files and `.env` into `./backups` every night (keeping 14 days).
 Copy that folder off the machine as well.

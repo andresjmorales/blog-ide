@@ -13,6 +13,9 @@ POSTGRES_PASSWORD="$(openssl rand -hex 24)"
 
 JWT_SECRET="$(openssl rand -hex 32)"
 
+# Encrypts the connection details Studio passes to its helper (profile "studio").
+PG_META_CRYPTO_KEY="$(openssl rand -hex 32)"
+
 # S3 protocol endpoint credentials. The gateway denies that endpoint (see
 # nginx.conf.template), but the compose requires these rather than defaulting to
 # the demo pair Supabase publishes, so they are minted with everything else.
@@ -46,4 +49,5 @@ ANON_KEY=$ANON_KEY
 SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY
 S3_PROTOCOL_ACCESS_KEY_ID=$S3_PROTOCOL_ACCESS_KEY_ID
 S3_PROTOCOL_ACCESS_KEY_SECRET=$S3_PROTOCOL_ACCESS_KEY_SECRET
+PG_META_CRYPTO_KEY=$PG_META_CRYPTO_KEY
 EOF
