@@ -1,0 +1,322 @@
+# Self-host BlogIDE together with its own Supabase services. No Supabase
+# account needed. Layered on top of compose.yaml:
+#
+#   cp .env.example .env
+#   sh docker/supabase/generate-secrets.sh    # paste the output into .env
+#   # in .env, uncomment COMPOSE_FILE (and the other self-host lines)
+#   docker compose up -d --build
+#
+# With COMPOSE_FILE set in .env, every plain `docker compose` command (ps,
+# logs, down, …) uses both files. Without it, pass
+# `-f compose.yaml -f compose.supabase.yaml` each time.
+#
+# WHAT RUNS HERE
+#   db        Postgres (supabase/postgres image: roles, auth + storage schemas)
+#   auth      GoTrue: sign-in, sessions, password-reset email
+#   rest      PostgREST: the Data API the app and browser query
+#   storage   Storage API: the private `assets` bucket (files on a volume)
+#   gateway   nginx in front of auth/rest/storage at /auth/v1, /rest/v1 and
+#             /storage/v1; handles CORS and serves the email templates
+#   migrate   one-shot: applies supabase/migrations/*.sql, tracked in a ledger
+#   blogide   the app (from compose.yaml), pointed at the gateway
+#   backup    optional (profile "backup"): daily DB + storage + .env backups
+#   mail      optional (profile "mail"): Mailpit, to see reset emails locally
+#
+# Left out vs. upstream Supabase: Studio, Realtime, Edge Functions, Analytics,
+# Supavisor and imgproxy. BlogIDE uses none of them.
+#
+# PUBLIC URLS
+#   APP_URL               where people open BlogIDE (https://blogide.example)
+#   SUPABASE_PUBLIC_URL   where the browser AND the app reach the gateway.
+#                         Locally http://supabase.localhost:8000; on a server
+#                         a subdomain behind your reverse proxy, such as
+#                         https://api.blogide.example -> gateway:8000.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    logging: *logging
+    image: supabase/postgres:17.6.1.136
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      PGPORT: 5432
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: postgres
+      PGDATABASE: postgres
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?run sh docker/supabase/generate-secrets.sh}"
+      PGPASSWORD: ${POSTGRES_PASSWORD:?}
+      JWT_EXP: ${JWT_EXPIRY:-3600}
+    volumes:
+      # The image's top-level entrypoint runs init-scripts/*.sql on first boot;
+      # "99-" sorts after the base schema it ships with.
+      - ./docker/supabase/volumes/db/roles.sql:/docker-entrypoint-initdb.d/init-scripts/99-roles.sql:ro
+      - ./docker/supabase/volumes/db/jwt.sql:/docker-entrypoint-initdb.d/init-scripts/99-jwt.sql:ro
+      - db-data:/var/lib/postgresql/data
+      - db-config:/etc/postgresql-custom
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      # First boot runs the schema/role init scripts before accepting TCP
+      # connections; don't let those count against the retry budget.
+      start_period: 90s
+
+  auth:
+    logging: *logging
+    image: supabase/gotrue:v2.197.0
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${SUPABASE_PUBLIC_URL:?}/auth/v1
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD:?}@db:5432/postgres
+      GOTRUE_SITE_URL: ${APP_URL:-http://localhost:3000}
+      GOTRUE_URI_ALLOW_LIST: ${APP_URL:-http://localhost:3000}/**
+      # BlogIDE creates accounts in /api/auth/signup with the service-role key
+      # (which also enforces signup codes). Closing public signup on Auth
+      # stops anyone from skipping that route with the anon key.
+      GOTRUE_DISABLE_SIGNUP: "true"
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: ${JWT_EXPIRY:-3600}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET:?}
+      GOTRUE_JWT_ISSUER: ${SUPABASE_PUBLIC_URL:?}/auth/v1
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/verify
+      # The reset email links straight to BlogIDE's /auth/confirm with a
+      # token_hash (see docs/HOSTED_OPERATOR.md), never to the gateway.
+      GOTRUE_MAILER_TEMPLATES_RECOVERY: http://gateway:8000/email-templates/recovery.html
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: Reset your BlogIDE password
+      # Password-reset email. Unset, the stack runs but resets cannot be sent.
+      # AUTH_* names keep these apart from any SMTP settings of your own.
+      GOTRUE_SMTP_ADMIN_EMAIL: ${AUTH_SMTP_ADMIN_EMAIL:-}
+      GOTRUE_SMTP_HOST: ${AUTH_SMTP_HOST:-}
+      # Must parse as an int; an empty value makes GoTrue exit at startup.
+      GOTRUE_SMTP_PORT: ${AUTH_SMTP_PORT:-1025}
+      GOTRUE_SMTP_USER: ${AUTH_SMTP_USER:-}
+      GOTRUE_SMTP_PASS: ${AUTH_SMTP_PASS:-}
+      GOTRUE_SMTP_SENDER_NAME: ${AUTH_SMTP_SENDER_NAME:-BlogIDE}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9999/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  rest:
+    logging: *logging
+    image: postgrest/postgrest:v14.17
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD:?}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_MAX_ROWS: 1000
+      PGRST_DB_EXTRA_SEARCH_PATH: public,extensions
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET:?}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_APP_SETTINGS_JWT_EXP: ${JWT_EXPIRY:-3600}
+      # The `postgrest --ready` healthcheck probes the admin server.
+      PGRST_ADMIN_SERVER_HOST: localhost
+      PGRST_ADMIN_SERVER_PORT: 3001
+    healthcheck:
+      test: ["CMD", "postgrest", "--ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  storage:
+    logging: *logging
+    image: supabase/storage-api:v1.79.31
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      rest:
+        condition: service_started
+    environment:
+      ANON_KEY: ${ANON_KEY:?}
+      SERVICE_KEY: ${SERVICE_ROLE_KEY:?}
+      POSTGREST_URL: http://rest:3000
+      AUTH_JWT_SECRET: ${JWT_SECRET:?}
+      DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD:?}@db:5432/postgres
+      STORAGE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL:?}
+      REQUEST_ALLOW_X_FORWARDED_PATH: "true"
+      FILE_SIZE_LIMIT: 52428800
+      STORAGE_BACKEND: file
+      GLOBAL_S3_BUCKET: stub
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: stub
+      REGION: stub
+      # imgproxy is not run; BlogIDE never requests transformed images.
+      ENABLE_IMAGE_TRANSFORMATION: "false"
+      # The S3 protocol endpoint, which the gateway denies. Required with no
+      # defaults: upstream publishes a demo key pair, and a stack started on
+      # a published credential is one anyone can read.
+      S3_PROTOCOL_ACCESS_KEY_ID: ${S3_PROTOCOL_ACCESS_KEY_ID:?run sh docker/supabase/generate-secrets.sh}
+      S3_PROTOCOL_ACCESS_KEY_SECRET: ${S3_PROTOCOL_ACCESS_KEY_SECRET:?run sh docker/supabase/generate-secrets.sh}
+    volumes:
+      - storage-data:/var/lib/storage
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://storage:5000/status"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  gateway:
+    logging: *logging
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - auth
+      - rest
+      - storage
+    environment:
+      # Substituted into the nginx template by the image entrypoint.
+      APP_URL: ${APP_URL:-http://localhost:3000}
+    volumes:
+      - ./docker/supabase/volumes/api/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./docker/supabase/volumes/auth/templates:/usr/share/nginx/email-templates:ro
+    ports:
+      # Bind to 127.0.0.1 on a server so only your reverse proxy reaches it:
+      # SUPABASE_GATEWAY_BIND=127.0.0.1:8000
+      - "${SUPABASE_GATEWAY_BIND:-8000}:8000"
+
+  migrate:
+    logging: *logging
+    image: supabase/postgres:17.6.1.136
+    entrypoint: ["/bin/bash", "/migrate.sh"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+      # Migrations insert into storage.buckets, which the Storage API creates
+      # on first start, so wait for it.
+      storage:
+        condition: service_healthy
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      DB_HOST: db
+      MIGRATIONS_DIR: /migrations
+    volumes:
+      - ./supabase/migrations:/migrations:ro
+      - ./docker/supabase/migrate.sh:/migrate.sh:ro
+
+  blogide:
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      gateway:
+        condition: service_started
+    # These win over .env, so the app always matches the stack's keys.
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_PUBLIC_URL:?}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY:?}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY:?}
+      # compose.yaml hands the app all of .env; it needs none of the stack's
+      # own secrets, so keep the database password and JWT secret out of it.
+      POSTGRES_PASSWORD: ""
+      JWT_SECRET: ""
+      S3_PROTOCOL_ACCESS_KEY_ID: ""
+      S3_PROTOCOL_ACCESS_KEY_SECRET: ""
+      AUTH_SMTP_PASS: ""
+      SOURCE_DB_URL: ""
+      SOURCE_SERVICE_ROLE_KEY: ""
+    extra_hosts:
+      # The server reaches the gateway at the same URL the browser uses.
+      # *.localhost resolves to loopback in browsers; inside the container
+      # this entry points at the Docker host, where the gateway port is
+      # published. It only affects the one hostname it names, so on a server
+      # with a real domain leave it at the default.
+      - "${SUPABASE_HOST_ALIAS:-supabase.localhost}:host-gateway"
+
+  # Optional: daily backup of the database, the storage volume and .env.
+  # Enable with: docker compose --profile backup up -d
+  # Runs one backup at start, then follows BACKUP_SCHEDULE. Copy ./backups
+  # off the machine too; a backup on the same disk is not a backup.
+  backup:
+    image: supabase/postgres:17.6.1.136
+    profiles: ["backup"]
+    restart: unless-stopped
+    logging: *logging
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      DB_HOST: db
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-0 3 * * *}
+      KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      SECRETS_KEEP_DAYS: ${BACKUP_SECRETS_KEEP_DAYS:-90}
+    volumes:
+      - ./docker/supabase/backup.sh:/backup.sh:ro
+      - storage-data:/var/lib/storage:ro
+      - ./.env:/secrets/.env:ro
+      - ./backups:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        # PATH is pinned: crond runs jobs with a minimal PATH that omits the
+        # Nix bin dir where this image's pg_dump lives. crond has no catch-up,
+        # so run one backup now (backgrounded, non-fatal) before the first tick.
+        echo "$$BACKUP_SCHEDULE PATH=$$PATH /bin/bash /backup.sh > /proc/1/fd/1 2>&1" > /etc/crontabs/root
+        ( /bin/bash /backup.sh > /proc/1/fd/1 2>&1 || true ) &
+        exec crond -f
+
+  # One-shot: copy accounts, data and files from a Supabase Cloud project
+  # into this (fresh) stack. See README → "Moving from Supabase Cloud".
+  #   docker compose stop blogide
+  #   docker compose --profile import run --rm import
+  import:
+    image: supabase/postgres:17.6.1.136
+    profiles: ["import"]
+    restart: "no"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      storage:
+        condition: service_healthy
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY:?}
+      DB_HOST: db
+      SOURCE_DB_URL: ${SOURCE_DB_URL:-}
+      SOURCE_SUPABASE_URL: ${SOURCE_SUPABASE_URL:-}
+      SOURCE_SERVICE_ROLE_KEY: ${SOURCE_SERVICE_ROLE_KEY:-}
+      IMPORT_FORCE: ${IMPORT_FORCE:-}
+    volumes:
+      - ./docker/supabase/import-from-cloud.sh:/import.sh:ro
+    entrypoint: ["/bin/bash", "/import.sh"]
+
+  # Optional, for local testing: catches Auth emails at http://localhost:8025.
+  # Enable with: docker compose --profile mail up -d, and set
+  # AUTH_SMTP_HOST=mail and AUTH_SMTP_ADMIN_EMAIL=noreply@blogide.localhost.
+  mail:
+    image: axllent/mailpit:v1.27
+    profiles: ["mail"]
+    restart: unless-stopped
+    logging: *logging
+    ports:
+      - "127.0.0.1:8025:8025"
+
+volumes:
+  db-data:
+  db-config:
+  storage-data:

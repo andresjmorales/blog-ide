@@ -50,7 +50,8 @@ Built with Next.js, TypeScript, TipTap and Supabase.
 
 ## Self-hosting
 
-You need a Supabase project (hosted or self-hosted) and either Docker or
+You need a Supabase project (hosted, or self-hosted with Docker as in
+[3c](#3c-run-everything-yourself-no-supabase-account)) and either Docker or
 Node.js 22.
 
 ### 1. Set up Supabase
@@ -102,6 +103,86 @@ npm run dev          # or: npm run build && npm start
 
 Without Supabase credentials the app runs in an unauthenticated preview
 mode: the editor works, with no sign-in or cloud sync.
+
+### 3c. Run everything yourself (no Supabase account)
+
+Supabase is open source, so the database, sign-in and file storage can run
+in Docker next to BlogIDE. [`compose.supabase.yaml`](./compose.supabase.yaml)
+adds Postgres, Auth, the Data API, Storage and a small gateway, and applies
+[`supabase/migrations/`](./supabase/migrations/) on every start (each file
+once). Skip step 1 above.
+
+```bash
+cp .env.example .env
+sh docker/supabase/generate-secrets.sh   # paste the output into .env
+```
+
+In `.env`, uncomment `COMPOSE_FILE` (on Windows, separate the two files with
+`;`) and the `APP_URL` / `SUPABASE_PUBLIC_URL` lines, then:
+
+```bash
+docker compose up -d --build
+```
+
+BlogIDE is at http://localhost:3000, and the gateway the browser talks to is
+at http://supabase.localhost:8000. With `COMPOSE_FILE` set, plain commands
+cover the whole stack: `docker compose ps`, `docker compose logs auth`,
+`docker compose down`. Data lives in Docker volumes, so `down` keeps it and
+`down -v` deletes it.
+
+Password-reset emails need SMTP (`AUTH_SMTP_*` in `.env`, Resend works). To
+see them locally without one, run `docker compose --profile mail up -d`,
+set `AUTH_SMTP_HOST=mail` and `AUTH_SMTP_ADMIN_EMAIL=noreply@blogide.localhost`,
+and open http://localhost:8025. The reset link goes straight to
+`/auth/confirm` (see [docs/HOSTED_OPERATOR.md](./docs/HOSTED_OPERATOR.md)),
+with no extra setup. Public signup on Auth is closed; accounts are created
+through BlogIDE's own signup page.
+
+**On a server**, put a reverse proxy with HTTPS in front of the app and the
+gateway, and keep both ports private. With [Caddy](https://caddyserver.com),
+for example:
+
+```
+blogide.example {
+  reverse_proxy 127.0.0.1:3000
+}
+api.blogide.example {
+  reverse_proxy 127.0.0.1:8000
+}
+```
+
+```bash
+# .env
+BLOGIDE_PORT=127.0.0.1:3000
+SUPABASE_GATEWAY_BIND=127.0.0.1:8000
+APP_URL=https://blogide.example
+NEXT_PUBLIC_SITE_URL=https://blogide.example
+SUPABASE_PUBLIC_URL=https://api.blogide.example
+```
+
+**Backups:** `docker compose --profile backup up -d` dumps the database, the
+uploaded files and `.env` into `./backups` every night (keeping 14 days).
+Copy that folder off the machine as well.
+
+#### Moving from Supabase Cloud
+
+`import` copies accounts, every BlogIDE table and all uploaded files from a
+Cloud project into a fresh stack. The Cloud project is only read from.
+
+1. Start the new stack once (`docker compose up -d`) so the migrations run,
+   then `docker compose stop blogide`.
+2. In `.env`, set the Cloud project's values:
+   - `SOURCE_DB_URL`: **Connect → Session pooler** connection string, with
+     your database password filled in
+   - `SOURCE_SUPABASE_URL`: `https://<project-ref>.supabase.co`
+   - `SOURCE_SERVICE_ROLE_KEY`: the secret (service role) key
+3. `docker compose --profile import run --rm import`
+4. `docker compose up -d`, then sign in with your usual password.
+
+Everyone signs in once more after the move, because sessions are not copied.
+Images in essays point at the old project until they are opened: the editor
+re-signs each one against the new stack the first time it loads. Keep the
+Cloud project until you have checked your essays, then delete it.
 
 ### Word and PDF export (Pandoc)
 
