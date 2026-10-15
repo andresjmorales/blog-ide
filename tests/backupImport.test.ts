@@ -4,6 +4,8 @@ import {
   BACKUP_MANIFEST_PATH,
   emptyBackupManifest,
   parseBackupManifest,
+  siteImageZipPath,
+  zipLinkFrom,
 } from "@/lib/export/backupManifest";
 import {
   backupCopyName,
@@ -11,6 +13,7 @@ import {
   planBackupImport,
   readBackupArchive,
   relinkBundledAssets,
+  restoreBackupMarkdown,
 } from "@/lib/export/backupImportPlan";
 import { readZip } from "@/lib/export/unzip";
 import { buildZip } from "@/lib/export/zip";
@@ -127,5 +130,45 @@ describe("backup import planning", () => {
     );
     expect(backupCopyName("ordo.md", "2026-10-15T12:00:00Z")).toBe("ordo (backup 2026-10-15).md");
     expect(backupCopyName("ordo.md", "")).toBe("ordo (backup).md");
+  });
+
+  it("relinks bundled images behind ../ from a nested essay", () => {
+    const md = "![c](../../assets/x.webp)";
+    expect(bundledAssetPaths(md)).toEqual(["assets/x.webp"]);
+    expect(relinkBundledAssets(md, new Map([["assets/x.webp", "https://u"]]))).toBe(
+      "![c](https://u)"
+    );
+  });
+});
+
+describe("site images in the zip", () => {
+  it("mirrors the site path under site-images/<host>", () => {
+    expect(siteImageZipPath("https://example.com", "/writing/a%20b.webp?v=2")).toBe(
+      "site-images/example.com/writing/a b.webp"
+    );
+    expect(siteImageZipPath("https://example.com", "/../x/./y.png")).toBe(
+      "site-images/example.com/x/y.png"
+    );
+  });
+
+  it("links zip files relative to the essay's folder", () => {
+    expect(zipLinkFrom("ordo.md", "assets/x.webp")).toBe("assets/x.webp");
+    expect(zipLinkFrom("Essays/2026/ordo.md", "site-images/example.com/a b.webp")).toBe(
+      "../../site-images/example.com/a%20b.webp"
+    );
+  });
+
+  it("restores downloaded site images to their site paths", () => {
+    const manifest = emptyBackupManifest();
+    manifest.siteImages["site-images/example.com/writing/a b.webp"] = "/writing/a%20b.webp";
+    manifest.documents["Essays/x.md"] = {
+      siteUrl: "https://example.com",
+      sitePaths: ["/writing/a%20b.webp", "/writing/other"],
+    };
+    const exported =
+      "![i](../site-images/example.com/writing/a%20b.webp) [o](https://example.com/writing/other)";
+    expect(restoreBackupMarkdown("Essays/x.md", exported, manifest)).toBe(
+      "![i](/writing/a%20b.webp) [o](/writing/other)"
+    );
   });
 });

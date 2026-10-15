@@ -71,11 +71,24 @@ export function subscribeActiveSiteUrl(listener: () => void): () => void {
 /** Frontmatter key for a per-essay main site (an essay hosted elsewhere). */
 export const ESSAY_SITE_FRONTMATTER_KEY = "main_site";
 
-/** The essay's own `main_site:` if set and valid, else the account's site. */
+/**
+ * `main_site: none` keeps an essay's site-relative paths as written on every
+ * copy and export. The editor still loads them from the account's site.
+ */
+export function isEssaySiteNone(essayMainSite: string): boolean {
+  return essayMainSite.trim().toLowerCase() === "none";
+}
+
+/**
+ * The site an essay's exports point site-relative paths at: its own
+ * `main_site:` if set and valid, "" for `main_site: none`, else the
+ * account's site.
+ */
 export function resolveEssaySiteUrl(
   essayMainSite: string,
   accountSite: string
 ): string {
+  if (isEssaySiteNone(essayMainSite)) return "";
   return normalizeSiteUrl(essayMainSite) || normalizeSiteUrl(accountSite);
 }
 
@@ -150,6 +163,32 @@ export function relativizeSiteMarkdown(
     part
       .replace(inline, (_m, lead: string, path: string) => strip(lead, path))
       .replace(reference, (_m, lead: string, path: string) => strip(lead, path))
+  );
+}
+
+/** `![alt](/path` — a site-relative inline image. */
+const SITE_IMAGE_RE = /(!\[[^\]\n]*\]\(\s*<?)(\/(?!\/)[^\s)>]*)/g;
+
+/** Site-relative inline image paths outside code, without repeats. */
+export function listSiteRelativeImagePaths(markdown: string): string[] {
+  const paths = new Set<string>();
+  rewriteOutsideCode(markdown, (part) => {
+    for (const match of part.matchAll(SITE_IMAGE_RE)) paths.add(match[2]);
+    return part;
+  });
+  return [...paths];
+}
+
+/** Point site-relative inline images elsewhere; `to` returns null to keep one. */
+export function replaceSiteRelativeImages(
+  markdown: string,
+  to: (path: string) => string | null
+): string {
+  return rewriteOutsideCode(markdown, (part) =>
+    part.replace(SITE_IMAGE_RE, (full, lead: string, path: string) => {
+      const next = to(path);
+      return next === null ? full : `${lead}${next}`;
+    })
   );
 }
 

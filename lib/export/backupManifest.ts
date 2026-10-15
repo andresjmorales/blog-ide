@@ -23,6 +23,11 @@ export type BackupManifest = {
   documents: Record<string, BackupDocument>;
   /** `assets/<file>` → the Storage path it was downloaded from. */
   assets: Record<string, string>;
+  /**
+   * `site-images/<host>/<path>` → the site-relative path it was downloaded
+   * from (`/writing/…`), when the export included images from the site.
+   */
+  siteImages: Record<string, string>;
 };
 
 export function emptyBackupManifest(exportedAt = new Date()): BackupManifest {
@@ -32,6 +37,7 @@ export function emptyBackupManifest(exportedAt = new Date()): BackupManifest {
     exportedAt: exportedAt.toISOString(),
     documents: {},
     assets: {},
+    siteImages: {},
   };
 }
 
@@ -44,14 +50,44 @@ export function parseBackupManifest(text: string | null): BackupManifest | null 
     const documents =
       raw.documents && typeof raw.documents === "object" ? raw.documents : {};
     const assets = raw.assets && typeof raw.assets === "object" ? raw.assets : {};
+    const siteImages =
+      raw.siteImages && typeof raw.siteImages === "object" ? raw.siteImages : {};
     return {
       format: BACKUP_FORMAT,
       version: 1,
       exportedAt: typeof raw.exportedAt === "string" ? raw.exportedAt : "",
       documents,
       assets,
+      siteImages,
     };
   } catch {
     return null;
   }
+}
+
+/**
+ * Where an image from the writer's site goes in the zip: its path on the
+ * site under `site-images/<host>`, so the folder can be copied to a new host
+ * as-is. `/writing/a%20b.webp?v=2` → `site-images/example.com/writing/a b.webp`.
+ */
+export function siteImageZipPath(siteUrl: string, sitePath: string): string {
+  const host = new URL(siteUrl).host;
+  const bare = sitePath.split(/[?#]/)[0];
+  let decoded = bare;
+  try {
+    decoded = decodeURIComponent(bare);
+  } catch {
+    // keep the path as written
+  }
+  const segments = decoded
+    .split("/")
+    .filter((part) => part && part !== "." && part !== "..");
+  return ["site-images", host, ...segments].join("/");
+}
+
+/** The link to `zipPath` as written in an essay at `essayPath`. */
+export function zipLinkFrom(essayPath: string, zipPath: string): string {
+  const depth = essayPath.split("/").length - 1;
+  const link = zipPath.split("/").map(encodeURIComponent).join("/");
+  return "../".repeat(depth) + link;
 }

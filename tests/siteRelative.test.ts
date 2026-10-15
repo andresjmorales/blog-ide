@@ -3,7 +3,9 @@ import {
   absolutizeSiteRelativeMarkdown,
   essaySiteUrlForMarkdown,
   isSiteRelativeUrl,
+  listSiteRelativeImagePaths,
   listSiteRelativePaths,
+  replaceSiteRelativeImages,
   normalizeSiteUrl,
   resolveEssaySiteUrl,
   relativizeSiteMarkdown,
@@ -99,6 +101,21 @@ describe("site-relative URLs", () => {
     expect(relativizeSiteMarkdown(md, "https://example.com", new Set(["/x"]))).toBe(
       "[a](/x) [b](https://example.com/typed)"
     );
+  });
+
+  it("main_site: none keeps paths relative on export", () => {
+    expect(resolveEssaySiteUrl("none", "andresmorales.xyz")).toBe("");
+    expect(resolveEssaySiteUrl(" None ", "andresmorales.xyz")).toBe("");
+    expect(essaySiteUrlForMarkdown("---\nmain_site: none\n---\nx", "a.com")).toBe("");
+  });
+
+  it("lists and replaces site-relative images only", () => {
+    const md = "![a](/x.webp) [b](/y) ![c](/x.webp) ![d](https://e/f.png) `![g](/no.png)`";
+    expect(listSiteRelativeImagePaths(md)).toEqual(["/x.webp"]);
+    expect(replaceSiteRelativeImages(md, (p) => `local${p}`)).toBe(
+      "![a](local/x.webp) [b](/y) ![c](local/x.webp) ![d](https://e/f.png) `![g](/no.png)`"
+    );
+    expect(replaceSiteRelativeImages(md, () => null)).toBe(md);
   });
 
   it("reads an essay's main_site from its frontmatter", () => {

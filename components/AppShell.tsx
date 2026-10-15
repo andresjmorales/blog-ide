@@ -1548,8 +1548,25 @@ function AppShellContent({
 
   async function exportAll() {
     if (previewMode) return;
+    const choice = await dialog.confirmWithCheckbox({
+      title: "Export all essays",
+      message:
+        "Downloads every essay outside the Trash as a .zip, in its folders, with the images you uploaded to BlogIDE. Links and images on your site (/writing/…) become full URLs on it.",
+      checkbox: {
+        label:
+          "Also download images hosted on your site, so the zip has everything needed to host the essays somewhere else. Slower.",
+      },
+      confirmLabel: "Export",
+    });
+    if (!choice) return;
+    if (choice.checked) {
+      showToast({ tone: "info", message: "Downloading images…", replaceKey: "export-zip" });
+    }
     try {
-      const count = await downloadWorkspaceZip({ siteUrl: prefs.siteUrl });
+      const { fileCount: count, siteImagesFailed } = await downloadWorkspaceZip({
+        siteUrl: prefs.siteUrl,
+        includeSiteImages: choice.checked,
+      });
       if (count === 0) {
         showToast({
           tone: "info",
@@ -1557,8 +1574,11 @@ function AppShellContent({
           replaceKey: "export-zip",
         });
       } else {
+        const failed = siteImagesFailed
+          ? ` ${siteImagesFailed} image${siteImagesFailed === 1 ? "" : "s"} could not be downloaded from your site and stay as links.`
+          : "";
         showSuccessToast(
-          `Exported ${count} essay${count === 1 ? "" : "s"}.`,
+          `Exported ${count} essay${count === 1 ? "" : "s"}.${failed}`,
           undefined,
           "export-zip"
         );

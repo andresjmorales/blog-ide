@@ -13,12 +13,14 @@ export type BundledAsset = {
 
 /**
  * Download owned Supabase assets referenced in markdown and rewrite links to
- * relative `assets/<filename>` paths. External URLs are left alone.
+ * relative `assets/<filename>` paths, behind `linkPrefix` (`../` per folder
+ * the essay sits in). External URLs are left alone.
  */
 export async function bundleOwnedAssetsInMarkdown(
   markdown: string,
   userId: string,
-  usedZipNames: Set<string>
+  usedZipNames: Set<string>,
+  linkPrefix = ""
 ): Promise<{ markdown: string; assets: BundledAsset[] }> {
   const supabase = createClient();
   const assets: BundledAsset[] = [];
@@ -62,7 +64,7 @@ export async function bundleOwnedAssetsInMarkdown(
     if (!storagePath) return full;
     const zipPath = pathToZip.get(storagePath);
     if (!zipPath) return full;
-    return `![${alt}](${zipPath})`;
+    return `![${alt}](${linkPrefix}${zipPath})`;
   });
 
   return { markdown: rewritten, assets };

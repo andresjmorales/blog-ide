@@ -37,14 +37,26 @@ type ConfirmOptions = {
   danger?: boolean;
 };
 
+type ConfirmWithCheckboxOptions = ConfirmOptions & {
+  checkbox: { label: string; defaultChecked?: boolean };
+};
+
 type DialogAPI = {
   prompt: (options: PromptOptions) => Promise<string | null>;
   confirm: (options: ConfirmOptions) => Promise<boolean>;
+  /** Confirm with one option; null when cancelled. */
+  confirmWithCheckbox: (
+    options: ConfirmWithCheckboxOptions
+  ) => Promise<{ checked: boolean } | null>;
 };
 
 type ActiveDialog =
   | ({ kind: "prompt"; resolve: (value: string | null) => void } & PromptOptions)
-  | ({ kind: "confirm"; resolve: (value: boolean) => void } & ConfirmOptions);
+  | ({
+      kind: "confirm";
+      resolve: (value: boolean, checked: boolean) => void;
+      checkbox?: ConfirmWithCheckboxOptions["checkbox"];
+    } & ConfirmOptions);
 
 const DialogContext = createContext<DialogAPI | null>(null);
 
@@ -59,11 +71,24 @@ export function AppDialogProvider({ children }: { children: React.ReactNode }) {
 
   const confirm = useCallback((options: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
-      setActive({ kind: "confirm", resolve, ...options });
+      setActive({ kind: "confirm", resolve: (value) => resolve(value), ...options });
     });
   }, []);
 
-  const api = useMemo(() => ({ prompt, confirm }), [prompt, confirm]);
+  const confirmWithCheckbox = useCallback((options: ConfirmWithCheckboxOptions) => {
+    return new Promise<{ checked: boolean } | null>((resolve) => {
+      setActive({
+        kind: "confirm",
+        resolve: (value, checked) => resolve(value ? { checked } : null),
+        ...options,
+      });
+    });
+  }, []);
+
+  const api = useMemo(
+    () => ({ prompt, confirm, confirmWithCheckbox }),
+    [prompt, confirm, confirmWithCheckbox]
+  );
 
   return (
     <DialogContext.Provider value={api}>
@@ -76,8 +101,8 @@ export function AppDialogProvider({ children }: { children: React.ReactNode }) {
             if (active.kind === "prompt") active.resolve(value);
             setActive(null);
           }}
-          onCloseConfirm={(value) => {
-            if (active.kind === "confirm") active.resolve(value);
+          onCloseConfirm={(value, checked) => {
+            if (active.kind === "confirm") active.resolve(value, checked);
             setActive(null);
           }}
         />
@@ -94,6 +119,10 @@ export function useAppDialog(): DialogAPI {
         window.prompt(options.message ?? options.title, options.defaultValue ?? ""),
       confirm: async (options) =>
         window.confirm(options.message ?? options.title),
+      confirmWithCheckbox: async (options) =>
+        window.confirm(options.message ?? options.title)
+          ? { checked: Boolean(options.checkbox.defaultChecked) }
+          : null,
     };
   }
   return ctx;
@@ -106,12 +135,15 @@ function DialogSurface({
 }: {
   active: ActiveDialog;
   onClosePrompt: (value: string | null) => void;
-  onCloseConfirm: (value: boolean) => void;
+  onCloseConfirm: (value: boolean, checked: boolean) => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const titleId = useId();
   const [value, setValue] = useState(
     active.kind === "prompt" ? (active.defaultValue ?? "") : ""
+  );
+  const [checked, setChecked] = useState(
+    active.kind === "confirm" && Boolean(active.checkbox?.defaultChecked)
   );
 
   useEffect(() => {
@@ -126,7 +158,7 @@ function DialogSurface({
       if (event.key === "Escape") {
         event.preventDefault();
         if (active.kind === "prompt") onClosePrompt(null);
-        else onCloseConfirm(false);
+        else onCloseConfirm(false, false);
       }
     }
     document.addEventListener("keydown", onKeyDown);
@@ -140,7 +172,7 @@ function DialogSurface({
         className="app-dialog-backdrop"
         aria-label="Dismiss dialog"
         onClick={() =>
-          active.kind === "prompt" ? onClosePrompt(null) : onCloseConfirm(false)
+          active.kind === "prompt" ? onClosePrompt(null) : onCloseConfirm(false, false)
         }
       />
       <div
@@ -203,12 +235,23 @@ function DialogSurface({
           </form>
         )}
 
+        {active.kind === "confirm" && active.checkbox && (
+          <label className="app-dialog-checkbox">
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={(event) => setChecked(event.target.checked)}
+            />
+            <span>{active.checkbox.label}</span>
+          </label>
+        )}
+
         {active.kind === "confirm" && (
           <div className="app-dialog-actions">
             <button
               type="button"
               className="app-dialog-btn"
-              onClick={() => onCloseConfirm(false)}
+              onClick={() => onCloseConfirm(false, false)}
             >
               {active.cancelLabel ?? "Cancel"}
             </button>
@@ -217,7 +260,7 @@ function DialogSurface({
               className={`app-dialog-btn is-primary ${
                 active.danger ? "is-danger" : ""
               }`}
-              onClick={() => onCloseConfirm(true)}
+              onClick={() => onCloseConfirm(true, checked)}
             >
               {active.confirmLabel ?? "OK"}
             </button>

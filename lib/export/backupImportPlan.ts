@@ -29,8 +29,10 @@ export type BackupArchive = {
   assets: Map<string, Uint8Array>;
 };
 
-/** `](assets/…` in a link or image destination written by the export. */
-const BUNDLED_ASSET_RE = /(\]\(\s*<?)(assets\/[^\s)>]+)/g;
+/** `](assets/…` (behind `../` per folder) in a destination written by the export. */
+const BUNDLED_ASSET_RE = /(\]\(\s*<?)(?:\.\.\/)*(assets\/[^\s)>]+)/g;
+/** `](site-images/<host>/…` written by an export that included site images. */
+const SITE_IMAGE_LINK_RE = /(\]\(\s*<?)(?:\.\.\/)*(site-images\/[^\s)>]+)/g;
 /** Destination of any markdown image. */
 const IMAGE_DEST_RE = /(!\[[^\]]*\]\(\s*<?)([^\s)>]+)/g;
 
@@ -95,19 +97,34 @@ export function readBackupArchive(
   return { manifest, documents, assets };
 }
 
-/** Undo the export's main-site rewrite for one essay. */
+function decodeLink(link: string): string {
+  try {
+    return decodeURIComponent(link);
+  } catch {
+    return link;
+  }
+}
+
+/** Undo the export's main-site rewrites for one essay. */
 export function restoreBackupMarkdown(
   path: string,
   markdown: string,
   manifest: BackupManifest | null
 ): string {
-  const doc = manifest?.documents[path];
-  if (!doc?.siteUrl) return markdown;
-  return relativizeSiteMarkdown(
-    markdown,
-    doc.siteUrl,
-    doc.sitePaths ? new Set(doc.sitePaths) : undefined
-  );
+  if (!manifest) return markdown;
+  let restored = markdown.replace(SITE_IMAGE_LINK_RE, (full, lead: string, link: string) => {
+    const sitePath = manifest.siteImages[decodeLink(link)];
+    return sitePath ? `${lead}${sitePath}` : full;
+  });
+  const doc = manifest.documents[path];
+  if (doc?.siteUrl) {
+    restored = relativizeSiteMarkdown(
+      restored,
+      doc.siteUrl,
+      doc.sitePaths ? new Set(doc.sitePaths) : undefined
+    );
+  }
+  return restored;
 }
 
 function fileBaseName(path: string): string {

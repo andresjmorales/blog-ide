@@ -2,13 +2,17 @@ import { getLocalDoc } from "@/lib/db/indexed";
 import {
   BACKUP_MANIFEST_PATH,
   emptyBackupManifest,
+  siteImageZipPath,
+  zipLinkFrom,
 } from "@/lib/export/backupManifest";
 import { bundleOwnedAssetsInMarkdown } from "@/lib/export/bundleAssets";
 import { buildZip, type ZipEntry } from "@/lib/export/zip";
 import {
   absolutizeSiteRelativeMarkdown,
   essaySiteUrlForMarkdown,
+  listSiteRelativeImagePaths,
   listSiteRelativePaths,
+  replaceSiteRelativeImages,
 } from "@/lib/siteRelative";
 import { createClient } from "@/lib/supabase/client";
 import { decryptTreeNames, nodesWithDisplayNames } from "@/lib/vault/names";
@@ -109,23 +113,55 @@ export async function loadWorkspaceExportSnapshot(): Promise<WorkspaceExportSnap
   };
 }
 
-/**
- * Bundle every document (Trash excluded) into a ZIP. Owned Supabase Storage
- * images are downloaded into `assets/` and markdown links rewritten to
- * relative paths. Site-relative links and images become full URLs on the
- * essay's main site (`main_site:`, else `siteUrl`), like every other export.
- * `blogide-backup.json` records both rewrites so an import can undo them.
- * Unsynced local drafts win over the cloud copy.
- */
-export async function exportWorkspaceZip(options: { siteUrl?: string } = {}): Promise<{
+export type WorkspaceZipOptions = {
+  /** The account's Main site. */
+  siteUrl?: string;
+  /**
+   * Also download images on the essays' sites (`/writing/…`) into
+   * `site-images/<host>/…` and link them relatively, so the zip holds
+   * everything needed to host the essays elsewhere.
+   */
+  includeSiteImages?: boolean;
+};
+
+export type WorkspaceZipResult = {
   blob: Blob;
   fileCount: number;
-}> {
+  /** Site images that could not be downloaded (left as full URLs). */
+  siteImagesFailed: number;
+};
+
+/** One image from the writer's site, through the server (sites rarely allow CORS). */
+async function fetchSiteImage(url: string): Promise<Uint8Array | null> {
+  try {
+    const response = await fetch(`/api/site-image?url=${encodeURIComponent(url)}`);
+    if (!response.ok) return null;
+    return new Uint8Array(await response.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Bundle every document (Trash excluded) into a ZIP. Owned Supabase Storage
+ * images are downloaded into `assets/` and linked relatively. Site-relative
+ * links and images become full URLs on the essay's main site (`main_site:`,
+ * else `siteUrl`; `main_site: none` keeps them), like every other export —
+ * or, with `includeSiteImages`, the images are downloaded and linked
+ * relatively too. `blogide-backup.json` records every rewrite so an import
+ * can undo them. Unsynced local drafts win over the cloud copy.
+ */
+export async function exportWorkspaceZip(
+  options: WorkspaceZipOptions = {}
+): Promise<WorkspaceZipResult> {
   const { paths, userId, markdownFor } = await loadWorkspaceExportSnapshot();
   const encoder = new TextEncoder();
   const entries: ZipEntry[] = [];
   const usedAssetNames = new Set<string>();
   const manifest = emptyBackupManifest();
+  // Full image URL → its zip path, or null when the download failed.
+  const siteImages = new Map<string, string | null>();
+  let siteImagesFailed = 0;
   let essayCount = 0;
 
   for (const [nodeId, path] of paths) {
@@ -135,7 +171,8 @@ export async function exportWorkspaceZip(options: { siteUrl?: string } = {}): Pr
       const bundled = await bundleOwnedAssetsInMarkdown(
         markdown,
         userId,
-        usedAssetNames
+        usedAssetNames,
+        zipLinkFrom(path, "")
       );
       markdown = bundled.markdown;
       for (const asset of bundled.assets) {
@@ -147,8 +184,34 @@ export async function exportWorkspaceZip(options: { siteUrl?: string } = {}): Pr
     const siteUrl = essaySiteUrlForMarkdown(markdown, options.siteUrl ?? "");
     const sitePaths = siteUrl ? listSiteRelativePaths(markdown) : [];
     if (sitePaths.length > 0) {
-      markdown = absolutizeSiteRelativeMarkdown(markdown, siteUrl);
       manifest.documents[path] = { siteUrl, sitePaths: [...new Set(sitePaths)] };
+    }
+
+    if (siteUrl && options.includeSiteImages) {
+      for (const sitePath of listSiteRelativeImagePaths(markdown)) {
+        const url = `${siteUrl}${sitePath}`;
+        if (siteImages.has(url)) continue;
+        const data = await fetchSiteImage(url);
+        if (!data) {
+          siteImages.set(url, null);
+          siteImagesFailed += 1;
+          continue;
+        }
+        const zipPath = siteImageZipPath(siteUrl, sitePath);
+        if (!(zipPath in manifest.siteImages)) {
+          entries.push({ path: zipPath, data });
+          manifest.siteImages[zipPath] = sitePath;
+        }
+        siteImages.set(url, zipPath);
+      }
+      markdown = replaceSiteRelativeImages(markdown, (sitePath) => {
+        const zipPath = siteImages.get(`${siteUrl}${sitePath}`);
+        return zipPath ? zipLinkFrom(path, zipPath) : null;
+      });
+    }
+
+    if (sitePaths.length > 0) {
+      markdown = absolutizeSiteRelativeMarkdown(markdown, siteUrl);
     }
 
     entries.push({ path, data: encoder.encode(markdown) });
@@ -165,14 +228,14 @@ export async function exportWorkspaceZip(options: { siteUrl?: string } = {}): Pr
   const blob = new Blob([buildZip(entries) as BlobPart], {
     type: "application/zip",
   });
-  return { blob, fileCount: essayCount };
+  return { blob, fileCount: essayCount, siteImagesFailed };
 }
 
 /** Download the whole workspace as blogide-export-YYYY-MM-DD.zip. */
 export async function downloadWorkspaceZip(
-  options: { siteUrl?: string } = {}
-): Promise<number> {
-  const { blob, fileCount } = await exportWorkspaceZip(options);
+  options: WorkspaceZipOptions = {}
+): Promise<Omit<WorkspaceZipResult, "blob">> {
+  const { blob, fileCount, siteImagesFailed } = await exportWorkspaceZip(options);
   const stamp = new Date().toISOString().slice(0, 10);
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -180,5 +243,5 @@ export async function downloadWorkspaceZip(
   anchor.download = `blogide-export-${stamp}.zip`;
   anchor.click();
   URL.revokeObjectURL(url);
-  return fileCount;
+  return { fileCount, siteImagesFailed };
 }

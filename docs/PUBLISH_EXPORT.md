@@ -140,7 +140,8 @@ GitHub push keeps them relative.
 
 An essay hosted on a different site can override the account setting with
 its own `main_site:` frontmatter field (listed under the essay's metadata
-fields). `canonical:` is not used for this: it often points at a mirror
+fields). `main_site: none` keeps that essay's paths relative on every copy
+and export; the editor still loads its images from the account's site. `canonical:` is not used for this: it often points at a mirror
 such as Substack, which does not serve the site's `/writing/…` paths.
 
 The Main site setting, like the other account preferences (dictionary,
@@ -153,7 +154,15 @@ The download button above the file tree (**Export all essays (.zip)**)
 saves every essay outside the Trash, in its folders. Images you uploaded
 are bundled into `assets/` and linked relatively, and site-relative paths
 point at the main site, so the unzipped folder reads anywhere. A locked
-Vault is left out. `blogide-backup.json` in the zip records both rewrites.
+Vault is left out.
+
+Tick **Also download images hosted on your site** to leave BlogIDE (or
+your site) entirely: images on the main site (`/writing/…`) are fetched
+into `site-images/<host>/writing/…`, mirroring their place on the site,
+and the essays link to those copies. Images that can't be fetched stay as
+full URLs, and the export says how many. Other site links stay full URLs.
+
+`blogide-backup.json` in the zip records every rewrite.
 
 The upload button next to it (**Import backup (.zip)**) restores one. It
 never overwrites an essay; it matches each file to the essay at the same
@@ -166,7 +175,7 @@ folder path and:
   `essay (backup YYYY-MM-DD).md`, so you can compare and keep either.
 
 Before importing it shows how many of each. Paths are written back as they
-were stored (`/writing/…` relative again), and images still in your
+were stored (`/writing/…` relative again, downloaded site images included), and images still in your
 storage are linked again rather than uploaded twice; the rest are uploaded.
 Essays in the Vault need it unlocked, otherwise they are skipped. Older
 zips without `blogide-backup.json` import the same way, with images
