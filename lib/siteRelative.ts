@@ -6,6 +6,8 @@
  * leaves for anywhere else (copy, export, publish).
  */
 
+import { parseFrontmatterField } from "@/lib/markdown/yamlFields";
+
 /** `example.com`, `https://example.com/`, … → `https://example.com`, or "" if unusable. */
 export function normalizeSiteUrl(input: string | null | undefined): string {
   const raw = (input ?? "").trim();
@@ -69,11 +71,24 @@ export function subscribeActiveSiteUrl(listener: () => void): () => void {
 /** Frontmatter key for a per-essay main site (an essay hosted elsewhere). */
 export const ESSAY_SITE_FRONTMATTER_KEY = "main_site";
 
-/** The essay's own `main_site:` if set and valid, else the account's site. */
+/**
+ * `main_site: none` keeps an essay's site-relative paths as written on every
+ * copy and export. The editor still loads them from the account's site.
+ */
+export function isEssaySiteNone(essayMainSite: string): boolean {
+  return essayMainSite.trim().toLowerCase() === "none";
+}
+
+/**
+ * The site an essay's exports point site-relative paths at: its own
+ * `main_site:` if set and valid, "" for `main_site: none`, else the
+ * account's site.
+ */
 export function resolveEssaySiteUrl(
   essayMainSite: string,
   accountSite: string
 ): string {
+  if (isEssaySiteNone(essayMainSite)) return "";
   return normalizeSiteUrl(essayMainSite) || normalizeSiteUrl(accountSite);
 }
 
@@ -83,6 +98,20 @@ const CODE_RE = /(```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)|`[^`\n]*`)/g;
 const INLINE_DEST_RE = /(\]\(\s*<?)(\/(?!\/)[^\s)>]*)/g;
 /** `[label]: /path` reference definitions. */
 const REFERENCE_DEF_RE = /^(\s{0,3}\[[^\]\n]+\]:\s*<?)(\/(?!\/)\S*?)(>?(?:\s|$))/gm;
+
+/** Apply `rewrite` to the markdown body outside frontmatter and code. */
+function rewriteOutsideCode(
+  markdown: string,
+  rewrite: (prose: string) => string
+): string {
+  const frontmatter = markdown.match(FRONTMATTER_RE)?.[0] ?? "";
+  const body = markdown.slice(frontmatter.length);
+  const rewritten = body
+    .split(CODE_RE)
+    .map((part, index) => (index % 2 === 1 ? part : rewrite(part)))
+    .join("");
+  return frontmatter + rewritten;
+}
 
 /**
  * Rewrite site-relative link and image destinations to absolute URLs on
@@ -95,22 +124,92 @@ export function absolutizeSiteRelativeMarkdown(
 ): string {
   const site = normalizeSiteUrl(siteUrl);
   if (!site || !markdown.includes("/")) return markdown;
+  return rewriteOutsideCode(markdown, (part) =>
+    part
+      .replace(INLINE_DEST_RE, (_m, lead: string, path: string) => `${lead}${site}${path}`)
+      .replace(
+        REFERENCE_DEF_RE,
+        (_m, lead: string, path: string, tail: string) => `${lead}${site}${path}${tail}`
+      )
+  );
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Undo `absolutizeSiteRelativeMarkdown`: link and image destinations on
+ * `siteUrl` go back to site-relative paths. With `onlyPaths`, only those
+ * paths are touched, so URLs the writer typed out in full stay as written.
+ * Used when restoring a backup that was written with absolute URLs.
+ */
+export function relativizeSiteMarkdown(
+  markdown: string,
+  siteUrl: string,
+  onlyPaths?: ReadonlySet<string>
+): string {
+  const site = normalizeSiteUrl(siteUrl);
+  if (!site || !markdown.includes(site)) return markdown;
+  const origin = escapeRegExp(site);
+  const strip = (lead: string, path: string) =>
+    !onlyPaths || onlyPaths.has(path) ? `${lead}${path}` : `${lead}${site}${path}`;
+  const inline = new RegExp(`(\\]\\(\\s*<?)${origin}(/(?!/)[^\\s)>]*)`, "g");
+  const reference = new RegExp(
+    `^(\\s{0,3}\\[[^\\]\\n]+\\]:\\s*<?)${origin}(/(?!/)[^\\s>]*)`,
+    "gm"
+  );
+  return rewriteOutsideCode(markdown, (part) =>
+    part
+      .replace(inline, (_m, lead: string, path: string) => strip(lead, path))
+      .replace(reference, (_m, lead: string, path: string) => strip(lead, path))
+  );
+}
+
+/** `![alt](/path` — a site-relative inline image. */
+const SITE_IMAGE_RE = /(!\[[^\]\n]*\]\(\s*<?)(\/(?!\/)[^\s)>]*)/g;
+
+/** Site-relative inline image paths outside code, without repeats. */
+export function listSiteRelativeImagePaths(markdown: string): string[] {
+  const paths = new Set<string>();
+  rewriteOutsideCode(markdown, (part) => {
+    for (const match of part.matchAll(SITE_IMAGE_RE)) paths.add(match[2]);
+    return part;
+  });
+  return [...paths];
+}
+
+/** Point site-relative inline images elsewhere; `to` returns null to keep one. */
+export function replaceSiteRelativeImages(
+  markdown: string,
+  to: (path: string) => string | null
+): string {
+  return rewriteOutsideCode(markdown, (part) =>
+    part.replace(SITE_IMAGE_RE, (full, lead: string, path: string) => {
+      const next = to(path);
+      return next === null ? full : `${lead}${next}`;
+    })
+  );
+}
+
+/** Every site-relative link and image destination, in order of appearance. */
+export function listSiteRelativePaths(markdown: string): string[] {
+  const paths: string[] = [];
+  rewriteOutsideCode(markdown, (part) => {
+    for (const match of part.matchAll(INLINE_DEST_RE)) paths.push(match[2]);
+    for (const match of part.matchAll(REFERENCE_DEF_RE)) paths.push(match[2]);
+    return part;
+  });
+  return paths;
+}
+
+/** The site an essay's site-relative paths resolve against: its own `main_site:`, else the account's. */
+export function essaySiteUrlForMarkdown(markdown: string, accountSite: string): string {
   const frontmatter = markdown.match(FRONTMATTER_RE)?.[0] ?? "";
-  const body = markdown.slice(frontmatter.length);
-  const rewritten = body
-    .split(CODE_RE)
-    .map((part, index) =>
-      index % 2 === 1
-        ? part
-        : part
-            .replace(INLINE_DEST_RE, (_m, lead: string, path: string) => `${lead}${site}${path}`)
-            .replace(
-              REFERENCE_DEF_RE,
-              (_m, lead: string, path: string, tail: string) => `${lead}${site}${path}${tail}`
-            )
-    )
-    .join("");
-  return frontmatter + rewritten;
+  return resolveEssaySiteUrl(
+    parseFrontmatterField(frontmatter, ESSAY_SITE_FRONTMATTER_KEY),
+    accountSite
+  );
 }
 
 /** `src="/…"` / `href="/…"` in HTML (rich-text copies taken from the editor). */
@@ -121,20 +220,4 @@ export function absolutizeSiteRelativeHtml(html: string, siteUrl: string): strin
     /(\s(?:src|href)=)(["'])(\/(?!\/)[^"']*)\2/g,
     (_m, attr: string, quote: string, path: string) => `${attr}${quote}${site}${path}${quote}`
   );
-}
-
-/** How many link and image destinations are site-relative. */
-export function countSiteRelativeUrls(markdown: string): {
-  images: number;
-  links: number;
-} {
-  const body = markdown.replace(FRONTMATTER_RE, "").replace(CODE_RE, "");
-  let images = 0;
-  let links = 0;
-  for (const match of body.matchAll(/(!?)\[[^\]\n]*\]\(\s*<?\/(?!\/)/g)) {
-    if (match[1]) images += 1;
-    else links += 1;
-  }
-  links += [...body.matchAll(/^\s{0,3}\[[^\]\n]+\]:\s*<?\/(?!\/)/gm)].length;
-  return { images, links };
 }

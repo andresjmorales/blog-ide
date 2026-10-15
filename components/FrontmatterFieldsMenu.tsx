@@ -274,7 +274,9 @@ export function FrontmatterFieldsMenu({
                   ? "YYYY-MM-DD"
                   : field.key === "status"
                     ? "draft"
-                    : "Optional"
+                    : field.key === "main_site"
+                      ? "example.com, or none to keep paths relative"
+                      : "Optional"
               }
               onCommit={(next) => commitField(field.key, next)}
             />

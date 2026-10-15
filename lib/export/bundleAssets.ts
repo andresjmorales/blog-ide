@@ -6,17 +6,21 @@ const IMAGE_MD_RE = /!\[([^\]]*)]\(\s*<?([^>\s)]+)>?(?:\s+"[^"]*")?\s*\)/g;
 export type BundledAsset = {
   /** Path inside the zip, e.g. assets/123-cover.webp */
   zipPath: string;
+  /** Where it lives in Storage, e.g. `<userId>/123-cover.webp`. */
+  storagePath: string;
   data: Uint8Array;
 };
 
 /**
  * Download owned Supabase assets referenced in markdown and rewrite links to
- * relative `assets/<filename>` paths. External URLs are left alone.
+ * relative `assets/<filename>` paths, behind `linkPrefix` (`../` per folder
+ * the essay sits in). External URLs are left alone.
  */
 export async function bundleOwnedAssetsInMarkdown(
   markdown: string,
   userId: string,
-  usedZipNames: Set<string>
+  usedZipNames: Set<string>,
+  linkPrefix = ""
 ): Promise<{ markdown: string; assets: BundledAsset[] }> {
   const supabase = createClient();
   const assets: BundledAsset[] = [];
@@ -48,7 +52,7 @@ export async function bundleOwnedAssetsInMarkdown(
     const buffer = new Uint8Array(await data.arrayBuffer());
     const zipPath = `assets/${zipName}`;
     pathToZip.set(storagePath, zipPath);
-    assets.push({ zipPath, data: buffer });
+    assets.push({ zipPath, storagePath, data: buffer });
   }
 
   if (pathToZip.size === 0) {
@@ -60,7 +64,7 @@ export async function bundleOwnedAssetsInMarkdown(
     if (!storagePath) return full;
     const zipPath = pathToZip.get(storagePath);
     if (!zipPath) return full;
-    return `![${alt}](${zipPath})`;
+    return `![${alt}](${linkPrefix}${zipPath})`;
   });
 
   return { markdown: rewritten, assets };

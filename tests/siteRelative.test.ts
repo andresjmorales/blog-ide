@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   absolutizeSiteRelativeMarkdown,
-  countSiteRelativeUrls,
+  essaySiteUrlForMarkdown,
   isSiteRelativeUrl,
+  listSiteRelativeImagePaths,
+  listSiteRelativePaths,
+  replaceSiteRelativeImages,
   normalizeSiteUrl,
   resolveEssaySiteUrl,
+  relativizeSiteMarkdown,
   resolveSiteRelativeUrl,
 } from "@/lib/siteRelative";
 
@@ -73,9 +77,52 @@ describe("site-relative URLs", () => {
     expect(absolutizeSiteRelativeMarkdown(md, "")).toBe(md);
   });
 
-  it("counts site-relative images and links", () => {
-    const md = "![a](/x.webp) [b](/y) [c](https://z.com) ![d](//cdn/e.png)\n\n[r]: /q\n";
-    expect(countSiteRelativeUrls(md)).toEqual({ images: 1, links: 2 });
+  it("lists site-relative destinations outside code", () => {
+    const md = "![a](/x.webp) [b](/y) [c](https://z.com) ![d](//cdn/e.png) `[e](/no)`\n\n[r]: /q\n";
+    expect(listSiteRelativePaths(md)).toEqual(["/x.webp", "/y", "/q"]);
+  });
+
+  it("absolutizes an image whose alt text has parentheses", () => {
+    const md =
+      "![Landscape (1638), Rembrandt. (https://commons.wikimedia.org/wiki/File:X.jpg)](/writing/ordo/1-image.webp)\n";
+    expect(absolutizeSiteRelativeMarkdown(md, "example.com")).toBe(
+      "![Landscape (1638), Rembrandt. (https://commons.wikimedia.org/wiki/File:X.jpg)](https://example.com/writing/ordo/1-image.webp)\n"
+    );
+  });
+
+  it("relativizes back what absolutize wrote", () => {
+    const md = "---\ntitle: T\n---\n![a](/x.webp) [b](</y>) `[c](/z)`\n\n[r]: /q\n";
+    const out = absolutizeSiteRelativeMarkdown(md, "example.com");
+    expect(relativizeSiteMarkdown(out, "https://example.com")).toBe(md);
+  });
+
+  it("relativizes only the listed paths", () => {
+    const md = "[a](https://example.com/x) [b](https://example.com/typed)";
+    expect(relativizeSiteMarkdown(md, "https://example.com", new Set(["/x"]))).toBe(
+      "[a](/x) [b](https://example.com/typed)"
+    );
+  });
+
+  it("main_site: none keeps paths relative on export", () => {
+    expect(resolveEssaySiteUrl("none", "andresmorales.xyz")).toBe("");
+    expect(resolveEssaySiteUrl(" None ", "andresmorales.xyz")).toBe("");
+    expect(essaySiteUrlForMarkdown("---\nmain_site: none\n---\nx", "a.com")).toBe("");
+  });
+
+  it("lists and replaces site-relative images only", () => {
+    const md = "![a](/x.webp) [b](/y) ![c](/x.webp) ![d](https://e/f.png) `![g](/no.png)`";
+    expect(listSiteRelativeImagePaths(md)).toEqual(["/x.webp"]);
+    expect(replaceSiteRelativeImages(md, (p) => `local${p}`)).toBe(
+      "![a](local/x.webp) [b](/y) ![c](local/x.webp) ![d](https://e/f.png) `![g](/no.png)`"
+    );
+    expect(replaceSiteRelativeImages(md, () => null)).toBe(md);
+  });
+
+  it("reads an essay's main_site from its frontmatter", () => {
+    expect(essaySiteUrlForMarkdown("---\nmain_site: other.blog\n---\nx", "a.com")).toBe(
+      "https://other.blog"
+    );
+    expect(essaySiteUrlForMarkdown("no frontmatter", "a.com")).toBe("https://a.com");
   });
 
   it("prefers an essay's own main_site over the account site", () => {

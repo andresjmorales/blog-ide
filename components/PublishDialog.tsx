@@ -27,10 +27,7 @@ import {
 } from "@/lib/export/substackEditorHelper";
 import { substackIntroFromMarkdown } from "@/lib/markdown/substackIntro";
 import { SendIcon } from "@/components/icons";
-import {
-  absolutizeSiteRelativeMarkdown,
-  countSiteRelativeUrls,
-} from "@/lib/siteRelative";
+import { absolutizeSiteRelativeMarkdown } from "@/lib/siteRelative";
 import {
   ActionButton,
   CopyIconButton,
@@ -85,30 +82,15 @@ function PublishPanel({
   const [tab, setTab] = useState<PublishTab>(initialTab);
   const [linkRunId, setLinkRunId] = useState(0);
   const [linksVisited, setLinksVisited] = useState(initialTab === "links");
-  const relative = useMemo(() => countSiteRelativeUrls(snapshot), [snapshot]);
-  const relativeTotal = relative.images + relative.links;
-  // Publishing anywhere but the main site: point /writing/… at that site.
-  const [pointAtSite, setPointAtSite] = useState(true);
-  const absolutize = Boolean(siteUrl) && relativeTotal > 0 && pointAtSite;
+  // Like every export, site-relative /writing/… paths point at the main site.
   const outboundGetMarkdown = useCallback(
-    () =>
-      absolutize
-        ? absolutizeSiteRelativeMarkdown(getMarkdown(), siteUrl)
-        : getMarkdown(),
-    [absolutize, getMarkdown, siteUrl]
+    () => absolutizeSiteRelativeMarkdown(getMarkdown(), siteUrl),
+    [getMarkdown, siteUrl]
   );
   const outboundSnapshot = useMemo(
-    () =>
-      absolutize ? absolutizeSiteRelativeMarkdown(snapshot, siteUrl) : snapshot,
-    [absolutize, snapshot, siteUrl]
+    () => absolutizeSiteRelativeMarkdown(snapshot, siteUrl),
+    [snapshot, siteUrl]
   );
-  const siteHost = siteUrl.replace(/^https?:\/\//, "");
-  const relativeLabel = [
-    relative.images ? `${relative.images} image${relative.images === 1 ? "" : "s"}` : "",
-    relative.links ? `${relative.links} link${relative.links === 1 ? "" : "s"}` : "",
-  ]
-    .filter(Boolean)
-    .join(" and ");
 
   return (
     <ToolPanel
@@ -122,20 +104,6 @@ function PublishPanel({
       }}
       onClose={onClose}
     >
-      {siteUrl && relativeTotal > 0 && (
-        <ul className="blogide-publish-checklist">
-          <CheckRow
-            checked={pointAtSite}
-            onChange={setPointAtSite}
-            label={`Point site-relative ${relativeLabel} at ${siteHost}`}
-            detail={
-              pointAtSite
-                ? `Copies use full ${siteHost} URLs, so they load anywhere. Turn off only when publishing on ${siteHost} itself.`
-                : "Copies keep paths like /writing/…, which only load on your own site."
-            }
-          />
-        </ul>
-      )}
       {tab === "substack" && (
         <SubstackTab
           getMarkdown={outboundGetMarkdown}
@@ -150,7 +118,7 @@ function PublishPanel({
       {linksVisited && (
         <div hidden={tab !== "links"}>
           <LinksTab
-            key={`${linkRunId}-${absolutize}`}
+            key={linkRunId}
             getMarkdown={outboundGetMarkdown}
             onRerun={() => setLinkRunId((id) => id + 1)}
             allowServerChecks={allowServerChecks}

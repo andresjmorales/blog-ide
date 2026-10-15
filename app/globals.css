@@ -3757,6 +3757,21 @@ body.is-dragging-footnote-ref.is-footnote-drop-blocked {
   line-height: 1.45;
   margin-bottom: 0.75rem;
 }
+.app-dialog-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  margin-bottom: 0.75rem;
+  cursor: pointer;
+}
+
+.app-dialog-checkbox input {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
 .app-dialog-input {
   background: var(--panel);
   border: 1px solid var(--border);

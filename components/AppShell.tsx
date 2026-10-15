@@ -134,6 +134,12 @@ import {
   workspaceMoveToastMessage,
 } from "@/lib/workspace/actionToast";
 import { pickEssayImportFile } from "@/lib/export/document";
+import {
+  applyBackupImport,
+  pickBackupZip,
+  prepareBackupImport,
+  type PreparedBackupImport,
+} from "@/lib/export/backupImport";
 import { downloadWorkspaceZip } from "@/lib/export/workspaceZip";
 import { importPandocFile } from "@/lib/pandoc/client";
 import { listGithubMapNodes, resolveGithubBindings } from "@/lib/github/files";
@@ -1542,8 +1548,25 @@ function AppShellContent({
 
   async function exportAll() {
     if (previewMode) return;
+    const choice = await dialog.confirmWithCheckbox({
+      title: "Export all essays",
+      message:
+        "Downloads every essay outside the Trash as a .zip, in its folders, with the images you uploaded to BlogIDE. Links and images on your site (/writing/…) become full URLs on it.",
+      checkbox: {
+        label:
+          "Also download images hosted on your site, so the zip has everything needed to host the essays somewhere else. Slower.",
+      },
+      confirmLabel: "Export",
+    });
+    if (!choice) return;
+    if (choice.checked) {
+      showToast({ tone: "info", message: "Downloading images…", replaceKey: "export-zip" });
+    }
     try {
-      const count = await downloadWorkspaceZip();
+      const { fileCount: count, siteImagesFailed } = await downloadWorkspaceZip({
+        siteUrl: prefs.siteUrl,
+        includeSiteImages: choice.checked,
+      });
       if (count === 0) {
         showToast({
           tone: "info",
@@ -1551,14 +1574,71 @@ function AppShellContent({
           replaceKey: "export-zip",
         });
       } else {
+        const failed = siteImagesFailed
+          ? ` ${siteImagesFailed} image${siteImagesFailed === 1 ? "" : "s"} could not be downloaded from your site and stay as links.`
+          : "";
         showSuccessToast(
-          `Exported ${count} essay${count === 1 ? "" : "s"}.`,
+          `Exported ${count} essay${count === 1 ? "" : "s"}.${failed}`,
           undefined,
           "export-zip"
         );
       }
     } catch (error) {
       showErrorToast(error, "Could not build the export archive.", "export-zip");
+    }
+  }
+
+  async function importBackup() {
+    if (previewMode) return;
+    const file = await pickBackupZip();
+    if (!file) return;
+    let prepared: PreparedBackupImport;
+    try {
+      prepared = await prepareBackupImport(file);
+    } catch (error) {
+      showErrorToast(error, "Could not read that backup.", "import-backup");
+      return;
+    }
+    const { create, copy, unchanged } = prepared.counts;
+    if (create + copy === 0) {
+      showToast({
+        tone: "info",
+        message: `All ${unchanged} essay${unchanged === 1 ? " is" : "s are"} already here, unchanged.`,
+        replaceKey: "import-backup",
+      });
+      return;
+    }
+    const lines = [
+      create ? `${create} new essay${create === 1 ? "" : "s"} will be added.` : "",
+      copy
+        ? `${copy} essay${copy === 1 ? " differs" : "s differ"} from the one at the same path; the backup version is added beside it as a copy. Nothing is overwritten.`
+        : "",
+      unchanged ? `${unchanged} already here, unchanged, will be skipped.` : "",
+    ].filter(Boolean);
+    const ok = await dialog.confirm({
+      title: "Import backup",
+      message: lines.join(" "),
+      confirmLabel: "Import",
+    });
+    if (!ok) return;
+    showToast({ tone: "info", message: "Importing backup…", replaceKey: "import-backup" });
+    try {
+      const result = await applyBackupImport(prepared);
+      await refreshTree();
+      bumpShellRefresh();
+      const parts = [
+        result.created ? `${result.created} added` : "",
+        result.copies ? `${result.copies} added as copies` : "",
+        result.unchanged ? `${result.unchanged} unchanged` : "",
+        result.skippedVault ? `${result.skippedVault} skipped (unlock the Vault to import them)` : "",
+        result.missingImages
+          ? `${result.missingImages} image${result.missingImages === 1 ? "" : "s"} could not be restored`
+          : "",
+      ].filter(Boolean);
+      showSuccessToast(`Imported backup: ${parts.join(", ")}.`, undefined, "import-backup");
+    } catch (error) {
+      await refreshTree();
+      showErrorToast(error, "Could not finish the import. Essays added so far were kept.", "import-backup");
     }
   }
 
@@ -2429,6 +2509,7 @@ function AppShellContent({
       onDeleteForever={handleDeleteForever}
       onReviewConflict={handleReviewConflict}
       onExportAll={previewMode ? undefined : () => void exportAll()}
+      onImportBackup={previewMode ? undefined : () => void importBackup()}
       onMapToGithub={previewMode ? undefined : (id) => void handleMapToGithub(id)}
       onPushToGithub={
         previewMode ? undefined : (id) => void handlePushToGithub({ nodeId: id })
