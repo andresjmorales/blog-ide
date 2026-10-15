@@ -6,6 +6,8 @@ const IMAGE_MD_RE = /!\[([^\]]*)]\(\s*<?([^>\s)]+)>?(?:\s+"[^"]*")?\s*\)/g;
 export type BundledAsset = {
   /** Path inside the zip, e.g. assets/123-cover.webp */
   zipPath: string;
+  /** Where it lives in Storage, e.g. `<userId>/123-cover.webp`. */
+  storagePath: string;
   data: Uint8Array;
 };
 
@@ -48,7 +50,7 @@ export async function bundleOwnedAssetsInMarkdown(
     const buffer = new Uint8Array(await data.arrayBuffer());
     const zipPath = `assets/${zipName}`;
     pathToZip.set(storagePath, zipPath);
-    assets.push({ zipPath, data: buffer });
+    assets.push({ zipPath, storagePath, data: buffer });
   }
 
   if (pathToZip.size === 0) {

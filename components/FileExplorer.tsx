@@ -57,6 +57,8 @@ type Props = {
   onReviewConflict?: (copyId: string) => void;
   /** Download every essay (Trash excluded) as a .zip. */
   onExportAll?: () => void;
+  /** Restore essays from an "Export all" .zip without overwriting any. */
+  onImportBackup?: () => void;
   onMapToGithub?: (nodeId: string) => void;
   onPushToGithub?: (nodeId: string) => void;
   onPullFromGithub?: (nodeId: string) => void;
@@ -146,6 +148,7 @@ export function FileExplorer({
   onDeleteForever,
   onReviewConflict,
   onExportAll,
+  onImportBackup,
   onMapToGithub,
   onPushToGithub,
   onPullFromGithub,
@@ -503,12 +506,23 @@ export function FileExplorer({
           >
             <FolderPlusIcon />
           </button>
+          {onImportBackup && (
+            <button
+              type="button"
+              title="Import backup (.zip)"
+              aria-label="Import essays from a backup zip"
+              className="explorer-toolbar-btn ml-auto"
+              onClick={onImportBackup}
+            >
+              <UploadIcon />
+            </button>
+          )}
           {onExportAll && (
             <button
               type="button"
               title="Export all essays (.zip)"
               aria-label="Export all essays as a zip"
-              className="explorer-toolbar-btn ml-auto"
+              className={`explorer-toolbar-btn ${onImportBackup ? "" : "ml-auto"}`}
               onClick={onExportAll}
             >
               <DownloadIcon />
@@ -519,7 +533,7 @@ export function FileExplorer({
               type="button"
               title="Create vault"
               aria-label="Create vault"
-              className={`explorer-toolbar-btn ${onExportAll ? "" : "ml-auto"}`}
+              className={`explorer-toolbar-btn ${onExportAll || onImportBackup ? "" : "ml-auto"}`}
               onClick={onCreateVault}
             >
               <LockIcon size={14} />
@@ -721,6 +735,26 @@ function PinIcon() {
         stroke="currentColor"
         strokeWidth="0.6"
         strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function UploadIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M8 10V2.5M5 5l3-3 3 3"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M2.5 11.5v2.5h11v-2.5"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
       />
     </svg>
   );

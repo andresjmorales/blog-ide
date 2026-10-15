@@ -133,10 +133,10 @@ essays are published. Links and images with site-relative paths, like
 in the markdown and in GitHub pushes, so your own site serves them. In the
 editor they load from the main site.
 
-Every copy and export in the table above, and Preview in new tab, writes
-them as full URLs on the main site, so they work in Substack, Word, or a
-standalone HTML file. The Publish panel shows a checkbox for this when the
-essay has any; turn it off only when publishing on the main site itself.
+Every copy and export in the table above, the Publish panel, Preview in
+new tab, and Export all essays (.zip) write them as full URLs on the main
+site, so they work in Substack, Word, or a standalone HTML file. Only
+GitHub push keeps them relative.
 
 An essay hosted on a different site can override the account setting with
 its own `main_site:` frontmatter field (listed under the essay's metadata
@@ -146,6 +146,31 @@ such as Substack, which does not serve the site's `/writing/…` paths.
 The Main site setting, like the other account preferences (dictionary,
 dash style, toolbar), is saved to your account and loaded on every device
 you sign in on. Panel sizes and other layout stay per device.
+
+## Backup: export all and import
+
+The download button above the file tree (**Export all essays (.zip)**)
+saves every essay outside the Trash, in its folders. Images you uploaded
+are bundled into `assets/` and linked relatively, and site-relative paths
+point at the main site, so the unzipped folder reads anywhere. A locked
+Vault is left out. `blogide-backup.json` in the zip records both rewrites.
+
+The upload button next to it (**Import backup (.zip)**) restores one. It
+never overwrites an essay; it matches each file to the essay at the same
+folder path and:
+
+- **adds** essays and folders that aren't there;
+- **skips** an essay that is already there unchanged (a re-signed image
+  link doesn't count as a change);
+- **adds a copy beside** an essay that differs, named
+  `essay (backup YYYY-MM-DD).md`, so you can compare and keep either.
+
+Before importing it shows how many of each. Paths are written back as they
+were stored (`/writing/…` relative again), and images still in your
+storage are linked again rather than uploaded twice; the rest are uploaded.
+Essays in the Vault need it unlocked, otherwise they are skipped. Older
+zips without `blogide-backup.json` import the same way, with images
+uploaded again.
 
 ## Image links
 
