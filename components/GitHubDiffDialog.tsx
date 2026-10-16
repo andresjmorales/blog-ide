@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo } from "react";
 import { DiffViewer } from "@/components/DiffViewer";
-import { WordDiffText } from "@/components/WordDiffText";
+import {
+  FootnoteRenumberWordRow,
+  WordDiffText,
+} from "@/components/WordDiffText";
 import type { GithubPullFile } from "@/lib/github/pull";
 import { unifiedLineDiff } from "@/lib/markdown/diff";
 import { reviewDiff } from "@/lib/markdown/wordDiff";
@@ -55,7 +58,7 @@ export function GitHubDiffDialog({
     if (before === local) return { rows: [], added: 0, removed: 0 };
     const lines = unifiedLineDiff(before, local);
     return {
-      rows: reviewDiff(before, local, 1),
+      rows: reviewDiff(before, local, 1, { foldFootnoteRenumbers: true }),
       added: lines.filter((line) => line.type === "add" && line.text.trim()).length,
       removed: lines.filter((line) => line.type === "remove" && line.text.trim())
         .length,
@@ -145,6 +148,8 @@ export function GitHubDiffDialog({
                     <div key={i} className="word-diff-context">
                       {row.text}
                     </div>
+                  ) : row.type === "renumber" ? (
+                    <FootnoteRenumberWordRow key={i} {...row} />
                   ) : (
                     <WordDiffText key={i} segments={row.segments} />
                   )

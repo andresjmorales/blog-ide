@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DiffViewer, LineDiffRows } from "@/components/DiffViewer";
 import { compactDiff, unifiedLineDiff } from "@/lib/markdown/diff";
+import { describeAnchoredFootnotes } from "@/lib/markdown/footnoteAnchors";
 import type {
   ConflictChoice,
   MergeChunk,
@@ -763,7 +764,7 @@ function ConflictPicker({
 }
 
 function ConflictSide({ title, lines }: { title: string; lines: string[] }) {
-  const text = lines.join("\n").trim();
+  const text = describeAnchoredFootnotes(lines.join("\n")).trim();
   return (
     <div className="min-w-0">
       <p className="text-muted">{title}</p>

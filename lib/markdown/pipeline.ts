@@ -135,18 +135,17 @@ export function formatFootnoteDefinition(
   return `[^${label}]:\n${indented}`;
 }
 
+export type FootnoteDefinition = { content: string; raw: string; order: number };
+
 /**
- * Definitions live outside the ProseMirror document on disk. Before TipTap
- * parses the body, fold referenced definitions into inline atom sentinels and
- * retain unreferenced definitions on the doc attrs for lossless re-emission.
- *
- * Supports GFM multi-line definitions (continuation lines indented ≥4 spaces).
+ * Split GFM footnote definitions (with indented continuation lines) out of a
+ * body: the remaining lines, and each definition by label.
  */
-function prepareFootnotes(body: string): PreparedFootnotes {
-  const definitions = new Map<
-    string,
-    { content: string; raw: string; order: number }
-  >();
+export function collectFootnoteDefinitions(body: string): {
+  bodyLines: string[];
+  definitions: Map<string, FootnoteDefinition>;
+} {
+  const definitions = new Map<string, FootnoteDefinition>();
   const bodyLines: string[] = [];
   const lines = body.split("\n");
   let i = 0;
@@ -203,6 +202,18 @@ function prepareFootnotes(body: string): PreparedFootnotes {
     });
   }
 
+  return { bodyLines, definitions };
+}
+
+/**
+ * Definitions live outside the ProseMirror document on disk. Before TipTap
+ * parses the body, fold referenced definitions into inline atom sentinels and
+ * retain unreferenced definitions on the doc attrs for lossless re-emission.
+ *
+ * Supports GFM multi-line definitions (continuation lines indented ≥4 spaces).
+ */
+function prepareFootnotes(body: string): PreparedFootnotes {
+  const { bodyLines, definitions } = collectFootnoteDefinitions(body);
   const referencedLabels = new Set<string>();
   let occurrence = 0;
   const markdown = bodyLines

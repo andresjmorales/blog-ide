@@ -1369,9 +1369,9 @@ function ReviewPanel({
               <div key={i} className="word-diff-context">
                 {row.text}
               </div>
-            ) : (
+            ) : row.type === "change" ? (
               <WordDiffText key={i} segments={row.segments} />
-            )
+            ) : null
           )}
         </div>
       ) : (
