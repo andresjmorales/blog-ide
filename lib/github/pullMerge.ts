@@ -11,6 +11,10 @@ import {
 } from "@/lib/markdown/merge3";
 import type { GithubPullFile } from "@/lib/github/pull";
 import {
+  anchorFootnotes,
+  releaseFootnotes,
+} from "@/lib/markdown/footnoteAnchors";
+import {
   alignSignedAssetUrls,
   githubPullSituation,
 } from "@/lib/github/syncHistory";
@@ -40,10 +44,12 @@ export function pullMerge(
   const remote = file.remotes[path];
   if (!base || remote == null) return null;
   // Re-signed image links are not edits: compare with BlogIDE's links.
+  // Footnotes merge by their text, not their number (see footnoteAnchors),
+  // so a kept paragraph keeps its own notes and renumbers never conflict.
   return mergeThreeWay(
-    alignSignedAssetUrls(base.markdown, file.localMarkdown),
-    file.localMarkdown,
-    alignSignedAssetUrls(remote, file.localMarkdown)
+    anchorFootnotes(alignSignedAssetUrls(base.markdown, file.localMarkdown)),
+    anchorFootnotes(file.localMarkdown),
+    anchorFootnotes(alignSignedAssetUrls(remote, file.localMarkdown))
   );
 }
 
@@ -76,7 +82,7 @@ export function pullResultMarkdown(
   if (remote == null) return null;
   if (strategy === "merge") {
     const merge = pullMerge(file, path);
-    if (merge) return resolveThreeWay(merge, choices);
+    if (merge) return releaseFootnotes(resolveThreeWay(merge, choices));
   }
   return remote;
 }
