@@ -294,6 +294,46 @@ body {
 .is-nowrap .line-diff-text {
   white-space: pre;
 }
+.line-diff-renumber {
+  color: var(--muted, inherit);
+  opacity: 0.8;
+}
+.line-diff-renumber-toggle {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+}
+.word-diff-renumber-toggle {
+  background: none;
+  border: 0;
+  color: var(--muted, inherit);
+  cursor: pointer;
+  display: block;
+  font: inherit;
+  font-size: 0.78rem;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.word-diff-renumber-toggle:hover {
+  text-decoration: underline;
+}
+/* Folded: one line, whatever the wrap setting. */
+.line-diff-row .line-diff-renumber-toggle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.line-diff-renumber-toggle:hover {
+  text-decoration: underline;
+}
 .ai-context {
   align-items: center;
   border: 1px solid var(--border);

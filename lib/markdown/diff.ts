@@ -96,3 +96,98 @@ export function compactDiff(lines: DiffLine[], context = 2): DiffLine[] {
   }
   return out;
 }
+
+/** A footnote label that changed between the two sides of a line. */
+export type FootnoteRelabel = { from: string; to: string };
+
+/** A removed + added line that differ only in footnote labels. */
+export type FootnoteRenumberRow = {
+  type: "renumber";
+  before: string;
+  after: string;
+  labels: FootnoteRelabel[];
+};
+
+export type DiffRow = DiffLine | FootnoteRenumberRow;
+
+/** "[^67] → [^76]" (first few) for a folded footnote renumber. */
+export function relabelSummary(labels: FootnoteRelabel[]): string {
+  const shown = labels
+    .slice(0, 3)
+    .map(({ from, to }) => `[^${from}] → [^${to}]`)
+    .join(", ");
+  return labels.length > 3 ? `${shown}, …` : shown;
+}
+
+const FOOTNOTE_LABEL = /\[\^([^\]\s]+)\]/g;
+
+/**
+ * The relabelled footnotes when `before` and `after` are the same text apart
+ * from `[^label]` references (or a `[^label]:` definition), else null.
+ */
+export function footnoteRelabels(
+  before: string,
+  after: string
+): FootnoteRelabel[] | null {
+  if (before === after) return null;
+  const strip = (text: string) => text.replace(FOOTNOTE_LABEL, "[^]");
+  if (strip(before) !== strip(after)) return null;
+  const from = [...before.matchAll(FOOTNOTE_LABEL)].map((m) => m[1]);
+  const to = [...after.matchAll(FOOTNOTE_LABEL)].map((m) => m[1]);
+  const labels: FootnoteRelabel[] = [];
+  from.forEach((label, index) => {
+    if (label !== to[index]) labels.push({ from: label, to: to[index] });
+  });
+  return labels.length > 0 ? labels : null;
+}
+
+/**
+ * Pairs each removed line with a later added line of the same change run
+ * when the two differ only in footnote numbers (a renumber, not an edit),
+ * so views can fold that pair into one row. Nothing else is touched.
+ */
+export function groupFootnoteRenumbers(lines: DiffLine[]): DiffRow[] {
+  const out: DiffRow[] = [];
+  let index = 0;
+  while (index < lines.length) {
+    if (lines[index].type === "context") {
+      out.push(lines[index]);
+      index += 1;
+      continue;
+    }
+    let end = index;
+    while (end < lines.length && lines[end].type !== "context") end += 1;
+    const run = lines.slice(index, end);
+    const pairs = new Map<number, { add: number; labels: FootnoteRelabel[] }>();
+    const used = new Set<number>();
+    let after = 0;
+    run.forEach((line, i) => {
+      if (line.type !== "remove") return;
+      for (let j = Math.max(after, i + 1); j < run.length; j += 1) {
+        if (run[j].type !== "add" || used.has(j)) continue;
+        const labels = footnoteRelabels(line.text, run[j].text);
+        if (!labels) continue;
+        pairs.set(i, { add: j, labels });
+        used.add(j);
+        after = j + 1;
+        break;
+      }
+    });
+    run.forEach((line, i) => {
+      if (used.has(i)) return;
+      const pair = pairs.get(i);
+      out.push(
+        pair
+          ? {
+              type: "renumber",
+              before: line.text,
+              after: run[pair.add].text,
+              labels: pair.labels,
+            }
+          : line
+      );
+    });
+    index = end;
+  }
+  return out;
+}

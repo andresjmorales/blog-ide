@@ -2,7 +2,12 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import type { DiffLine } from "@/lib/markdown/diff";
+import {
+  groupFootnoteRenumbers,
+  relabelSummary,
+  type DiffLine,
+  type FootnoteRelabel,
+} from "@/lib/markdown/diff";
 
 const WRAP_KEY = "blogide.diffWrap";
 
@@ -127,27 +132,80 @@ export function DiffViewer({
   );
 }
 
-/** Line-level diff rows ("+", "-", context) for use inside DiffViewer. */
+function LineDiffRow({ line }: { line: DiffLine }) {
+  return (
+    <div
+      className={
+        line.type === "add"
+          ? "line-diff-row lossy-diff-add"
+          : line.type === "remove"
+            ? "line-diff-row lossy-diff-remove"
+            : "line-diff-row text-muted"
+      }
+    >
+      <span className="line-diff-sign" aria-hidden="true">
+        {line.type === "add" ? "+" : line.type === "remove" ? "-" : " "}
+      </span>
+      <span className="line-diff-text">{line.text}</span>
+    </div>
+  );
+}
+
+/**
+ * A removed + added pair that only renumbers footnotes, folded to one row.
+ * Still a real change (a push or pull writes it); this just clears clutter.
+ */
+function RenumberRow({
+  before,
+  after,
+  labels,
+}: {
+  before: string;
+  after: string;
+  labels: FootnoteRelabel[];
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <div className="line-diff-row line-diff-renumber">
+        <span className="line-diff-sign" aria-hidden="true">
+          ~
+        </span>
+        <button
+          type="button"
+          className="line-diff-text line-diff-renumber-toggle"
+          aria-expanded={open}
+          title={open ? "Hide this line" : "Show the full line"}
+          onClick={() => setOpen((current) => !current)}
+        >
+          {open ? "▾" : "▸"} Footnotes renumbered only ({relabelSummary(labels)}
+          ): {after}
+        </button>
+      </div>
+      {open && (
+        <>
+          <LineDiffRow line={{ type: "remove", text: before }} />
+          <LineDiffRow line={{ type: "add", text: after }} />
+        </>
+      )}
+    </>
+  );
+}
+
+/**
+ * Line-level diff rows ("+", "-", context) for use inside DiffViewer. Lines
+ * whose only change is footnote numbering start folded.
+ */
 export function LineDiffRows({ lines }: { lines: DiffLine[] }) {
   return (
     <div className="line-diff">
-      {lines.map((line, index) => (
-        <div
-          key={`${line.type}-${index}`}
-          className={
-            line.type === "add"
-              ? "line-diff-row lossy-diff-add"
-              : line.type === "remove"
-                ? "line-diff-row lossy-diff-remove"
-                : "line-diff-row text-muted"
-          }
-        >
-          <span className="line-diff-sign" aria-hidden="true">
-            {line.type === "add" ? "+" : line.type === "remove" ? "-" : " "}
-          </span>
-          <span className="line-diff-text">{line.text}</span>
-        </div>
-      ))}
+      {groupFootnoteRenumbers(lines).map((row, index) =>
+        row.type === "renumber" ? (
+          <RenumberRow key={`renumber-${index}`} {...row} />
+        ) : (
+          <LineDiffRow key={`${row.type}-${index}`} line={row} />
+        )
+      )}
     </div>
   );
 }

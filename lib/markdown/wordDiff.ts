@@ -3,7 +3,12 @@
  * lines, so a line diff alone marks the whole paragraph as changed; this
  * highlights the words that actually moved.
  */
-import { compactDiff, unifiedLineDiff } from "@/lib/markdown/diff";
+import {
+  compactDiff,
+  groupFootnoteRenumbers,
+  unifiedLineDiff,
+  type FootnoteRenumberRow,
+} from "@/lib/markdown/diff";
 
 export type WordSegment = {
   type: "same" | "add" | "remove";
@@ -12,7 +17,8 @@ export type WordSegment = {
 
 export type ReviewRow =
   | { type: "context"; text: string }
-  | { type: "change"; segments: WordSegment[] };
+  | { type: "change"; segments: WordSegment[] }
+  | FootnoteRenumberRow;
 
 /** Past this token-grid size, fall back to whole remove + add. */
 const MAX_GRID = 400_000;
@@ -181,10 +187,14 @@ function rawWordDiff(before: string, after: string): WordSegment[] {
 export function reviewDiff(
   before: string,
   after: string,
-  context = 1
+  context = 1,
+  options: { foldFootnoteRenumbers?: boolean } = {}
 ): ReviewRow[] {
   // Paragraphs are separated by blank lines, so `context` counts paragraphs.
-  const lines = compactDiff(unifiedLineDiff(before, after), context * 2);
+  const compact = compactDiff(unifiedLineDiff(before, after), context * 2);
+  const lines = options.foldFootnoteRenumbers
+    ? groupFootnoteRenumbers(compact)
+    : compact;
   const rows: ReviewRow[] = [];
   let removed: string[] = [];
   let added: string[] = [];
@@ -198,7 +208,10 @@ export function reviewDiff(
     added = [];
   };
   for (const line of lines) {
-    if (line.type === "remove") removed.push(line.text);
+    if (line.type === "renumber") {
+      flush();
+      rows.push(line);
+    } else if (line.type === "remove") removed.push(line.text);
     else if (line.type === "add") added.push(line.text);
     else {
       flush();
