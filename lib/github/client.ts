@@ -54,7 +54,16 @@ async function githubFetch<T>(
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`${API}${path}`, { ...init, headers });
+  // GitHub sends `Cache-Control: max-age=60` on reads, so the browser would
+  // serve the branch as it was before a push for up to a minute (a stale
+  // sha makes the Pull badge think GitHub changed). "no-cache" revalidates
+  // with the ETag instead; a 304 is cheap and doesn't count against the
+  // rate limit.
+  const response = await fetch(`${API}${path}`, {
+    cache: "no-cache",
+    ...init,
+    headers,
+  });
   if (response.status === 204) return undefined as T;
   const text = await response.text();
   let body: unknown = null;
