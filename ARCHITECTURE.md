@@ -130,8 +130,12 @@ working layer:
 1. Editor transactions serialize to markdown and save locally.
 2. The sync engine writes documents to Supabase using optimistic versions.
 3. A clean client fast-forwards when a newer remote version exists.
-4. Concurrent dirty edits create a conflict-copy document rather than losing
-   either version.
+4. When a dirty draft finds the cloud copy moved on, both are diffed against
+   the base version's snapshot (`document_revisions`). A draft with no edits
+   of its own adopts the cloud copy, and edits to different passages merge
+   and push; either way the editor reloads with an info toast. Only edits to
+   the same lines (or a base that has left the 20-version history) create a
+   conflict-copy document, so neither version is lost.
 5. Dirty local copies open without a network round trip, and a clean local
    copy still opens when Supabase is unreachable (offline).
 6. Local writes and their sync-queue entries commit in single IndexedDB
