@@ -2732,30 +2732,50 @@ function AppShellContent({
             </div>
           )}
 
-          {syncBanner &&
-            syncBanner.conflictCopyId !== dismissedConflictId && (
-            <div
-              role="status"
-              className="flex flex-wrap items-center gap-3 border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm"
-            >
-              <span>{syncBanner.message}</span>
-              {syncBanner.conflictCopyId && (
-                <button
-                  type="button"
-                  className="rounded border border-border px-2 py-0.5 text-xs hover:bg-panel"
-                  onClick={() => {
-                    if (syncBanner.conflictCopyId) {
-                      handleReviewConflict(syncBanner.conflictCopyId);
-                    }
-                  }}
-                >
-                  Review conflict
-                </button>
-              )}
-            </div>
-          )}
-
           <div className="relative flex min-h-0 flex-1">
+            {/* Floats over the editor toolbar instead of pushing the layout
+                down; the conflict copy stays reachable from its own notice. */}
+            {syncBanner &&
+              syncBanner.conflictCopyId !== dismissedConflictId && (
+              <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center px-4">
+                <div
+                  role="status"
+                  className="pointer-events-auto flex max-w-2xl items-center gap-2 rounded-lg border border-amber-500/50 bg-background py-1.5 pl-3 pr-1.5 text-xs shadow-lg"
+                >
+                  <span
+                    aria-hidden
+                    className="h-2 w-2 shrink-0 rounded-full bg-amber-500"
+                  />
+                  <span className="min-w-0">{syncBanner.message}</span>
+                  {syncBanner.conflictCopyId && (
+                    <>
+                      <button
+                        type="button"
+                        className="shrink-0 rounded border border-border px-2 py-0.5 hover:bg-panel"
+                        onClick={() => {
+                          if (syncBanner.conflictCopyId) {
+                            handleReviewConflict(syncBanner.conflictCopyId);
+                          }
+                        }}
+                      >
+                        Review
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Dismiss"
+                        title="Dismiss"
+                        className="shrink-0 rounded px-1.5 py-0.5 text-muted hover:bg-panel hover:text-foreground"
+                        onClick={() =>
+                          setDismissedConflictId(syncBanner.conflictCopyId)
+                        }
+                      >
+                        ×
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
             {/* Desktop left dock */}
             {!isMobile && dockHasVisiblePanels(panelLayout, "left") && (
               <>

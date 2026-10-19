@@ -564,7 +564,7 @@ async function handleSaveConflict(
   emitFor(nodeId, {
     conflictCopyId: copyId,
     message:
-      "This essay was edited elsewhere while you had unsynced changes to the same passages. The newer version is open; your changes are kept in a copy to review.",
+      "Edited in two places at once. The newer version is open; yours is saved as a copy.",
   });
   conflictChannel?.postMessage({
     originId: nodeId,
