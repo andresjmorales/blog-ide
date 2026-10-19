@@ -53,3 +53,91 @@ describe("rebaseDraft", () => {
     ).toBe("# Essay\n\nOne, typed.\n\nTwo.\n");
   });
 });
+
+describe("reconcileDraft with renumbered footnotes", () => {
+  const lines = (...l: string[]) => l.join("\n");
+  const base = lines(
+    "Intro.",
+    "",
+    "First point.[^1]",
+    "",
+    "Second point.[^2]",
+    "",
+    "[^1]: Note A.",
+    "[^2]: Note B."
+  );
+
+  it("merges a cloud footnote that renumbers the rest with a local edit", () => {
+    const cloud = lines(
+      "Intro.[^1]",
+      "",
+      "First point.[^2]",
+      "",
+      "Second point.[^3]",
+      "",
+      "[^1]: New note.",
+      "[^2]: Note A.",
+      "[^3]: Note B."
+    );
+    const local = base.replace("Second point.", "Second point, revised.");
+    expect(reconcileDraft(base, local, cloud)).toEqual({
+      kind: "merged",
+      markdown: cloud.replace("Second point.", "Second point, revised."),
+    });
+  });
+
+  it("numbers footnotes both sides added in different paragraphs", () => {
+    const local = lines(
+      "Intro.",
+      "",
+      "First point.[^1]",
+      "",
+      "Second point.[^2] Mine.[^3]",
+      "",
+      "[^1]: Note A.",
+      "[^2]: Note B.",
+      "[^3]: Local note."
+    );
+    const cloud = lines(
+      "Intro.[^1]",
+      "",
+      "First point.[^2]",
+      "",
+      "Second point.[^3]",
+      "",
+      "[^1]: Cloud note.",
+      "[^2]: Note A.",
+      "[^3]: Note B."
+    );
+    expect(reconcileDraft(base, local, cloud)).toEqual({
+      kind: "merged",
+      markdown: lines(
+        "Intro.[^1]",
+        "",
+        "First point.[^2]",
+        "",
+        "Second point.[^3] Mine.[^4]",
+        "",
+        "[^1]: Cloud note.",
+        "[^2]: Note A.",
+        "[^3]: Note B.",
+        "[^4]: Local note."
+      ),
+    });
+  });
+
+  it("treats a renumber-only difference as no edit", () => {
+    const cloud = base.replace("Intro.", "Intro, edited.");
+    const local = lines(
+      "Intro.",
+      "",
+      "First point.[^a]",
+      "",
+      "Second point.[^b]",
+      "",
+      "[^a]: Note A.",
+      "[^b]: Note B."
+    );
+    expect(reconcileDraft(base, local, cloud)).toEqual({ kind: "take-remote" });
+  });
+});
