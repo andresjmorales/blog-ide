@@ -1,9 +1,45 @@
-# BlogIDE
+<p align="center">
+  <a href="https://blogide.com">
+    <img src="./public/icons/blogide-logo.png" alt="BlogIDE logo" width="128" height="128">
+  </a>
+</p>
 
-A writing IDE for essays and blog posts, with a research pad beside the
-draft: footnotes, a source library, citations, and quick notes. Plain
-Markdown, local-first autosave, optional AI. Open source (MIT) and
-self-hostable.
+<h1 align="center">BlogIDE</h1>
+
+<p align="center">
+  A writing IDE for essays and blog posts, with a research pad beside the draft.
+</p>
+
+<p align="center">
+  <a href="https://github.com/andresjmorales/blog-ide/actions/workflows/ci.yml"><img src="https://github.com/andresjmorales/blog-ide/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/andresjmorales/blog-ide?color=blue" alt="License: MIT"></a>
+  <a href="https://github.com/andresjmorales/blog-ide/commits/main"><img src="https://img.shields.io/github/last-commit/andresjmorales/blog-ide" alt="Last commit"></a>
+  <a href="https://github.com/andresjmorales/blog-ide/stargazers"><img src="https://img.shields.io/github/stars/andresjmorales/blog-ide?style=flat" alt="GitHub stars"></a>
+  <a href="https://blogide.com"><img src="https://img.shields.io/website?url=https%3A%2F%2Fblogide.com&label=blogide.com" alt="blogide.com status"></a>
+  <br>
+  <img src="https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white" alt="Next.js 16">
+  <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/TipTap-3-1a1a1a" alt="TipTap 3">
+  <img src="https://img.shields.io/badge/Supabase-3FCF8E?logo=supabase&logoColor=white" alt="Supabase">
+  <a href="#3a-run-with-docker"><img src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white" alt="Docker ready"></a>
+  <img src="https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa&logoColor=white" alt="Installable PWA">
+  <a href="https://buymeacoffee.com/andresjmorales"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-FFDD00?logo=buymeacoffee&logoColor=black" alt="Buy Me a Coffee"></a>
+</p>
+
+<p align="center">
+  <a href="https://blogide.com"><b>Try it</b></a> ·
+  <a href="#self-hosting"><b>Self-host</b></a> ·
+  <a href="./ARCHITECTURE.md"><b>Architecture</b></a> ·
+  <a href="./CONTRIBUTING.md"><b>Contributing</b></a>
+</p>
+
+<p align="center">
+  <img src="./public/screenshots/editor.png" alt="BlogIDE editor with the file tree, outline, a pinned PDF, a link preview and the footnotes rail beside the draft" width="900">
+</p>
+
+Footnotes, a source library, citations, and quick notes live beside the
+draft. Plain Markdown, local-first autosave, optional AI. Open source (MIT)
+and self-hostable.
 
 ## What's in it
 
