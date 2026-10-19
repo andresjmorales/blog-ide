@@ -3,6 +3,7 @@ import {
   dequeueSync,
   getLocalDoc,
   listSyncQueue,
+  replaceStaleDraft,
   settleConflictDoc,
   settleSyncedDoc,
   stageLocalEdit,
@@ -12,9 +13,12 @@ import { normalize } from "@/lib/markdown/pipeline";
 import { WORKSPACE_READ_TIMEOUT_MS, withTimeout } from "@/lib/net/timeout";
 import {
   createDocumentConflictCopy,
+  fetchDocumentRevision,
   fetchRemoteDocument,
   saveDocumentRemote,
 } from "@/lib/workspace/api";
+import { reconcileDraft } from "@/lib/sync/reconcile";
+import { showToast } from "@/lib/ui/toast";
 import { plaintextFromConflictPayload, plaintextFromRemote } from "@/lib/vault/document";
 import { refreshOwnedAssetUrls } from "@/lib/assets/signedUrls";
 import { createClient } from "@/lib/supabase/client";
@@ -80,6 +84,21 @@ conflictChannel?.addEventListener("message", (message: MessageEvent<unknown>) =>
     listener(event as CrossTabConflict);
   }
 });
+
+/**
+ * The engine replaced a stale draft with a newer remote version (or its merge
+ * with the draft). An open editor should load `markdown`, carrying over any
+ * typing it made on top of `draftMarkdown`.
+ */
+export type RemoteUpdate = {
+  nodeId: string;
+  draftMarkdown: string;
+  markdown: string;
+  version: number;
+};
+
+type RemoteUpdateListener = (event: RemoteUpdate) => void;
+const remoteUpdateListeners = new Set<RemoteUpdateListener>();
 
 let focusNodeId: string | null = null;
 
@@ -150,6 +169,13 @@ export function subscribeCrossTabConflict(
 ): () => void {
   crossTabConflictListeners.add(listener);
   return () => crossTabConflictListeners.delete(listener);
+}
+
+export function subscribeRemoteUpdate(
+  listener: RemoteUpdateListener
+): () => void {
+  remoteUpdateListeners.add(listener);
+  return () => remoteUpdateListeners.delete(listener);
 }
 
 export type OpenedDocument = {
@@ -384,9 +410,83 @@ async function catchUpToRemote(
 }
 
 /**
+ * A remote that moved past the draft's base version is usually not a real
+ * conflict: the draft may carry no edits of its own (a stale dirty flag left
+ * by a closed tab, re-signed image links), or the two sides edited different
+ * passages. Diff both against the base snapshot and settle those quietly —
+ * adopt the remote, or push the clean merge. Returns false (no write) when
+ * the base is gone from history, both sides changed the same lines, or newer
+ * typing landed meanwhile; the caller then keeps a conflict copy.
+ */
+async function reconcileWithBase(
+  nodeId: string,
+  baseVersion: number,
+  localMarkdown: string,
+  remoteMarkdown: string,
+  remoteVersion: number
+): Promise<boolean> {
+  let base: string | null = null;
+  try {
+    base = (await fetchDocumentRevision(nodeId, baseVersion))?.markdown ?? null;
+  } catch {
+    return false;
+  }
+  if (base == null) return false;
+
+  const outcome = reconcileDraft(base, localMarkdown, remoteMarkdown);
+  if (outcome.kind === "conflict") return false;
+
+  const markdown =
+    outcome.kind === "merged" ? outcome.markdown : remoteMarkdown;
+  const dirty = outcome.kind === "merged";
+  const updatedAt = new Date().toISOString();
+  const replaced = await replaceStaleDraft(
+    nodeId,
+    localMarkdown,
+    markdown,
+    remoteVersion,
+    updatedAt,
+    dirty
+  );
+  if (!replaced) return false;
+
+  emitFor(nodeId, {
+    syncing: false,
+    dirty,
+    syncedAt: updatedAt,
+    localSavedAt: updatedAt,
+    conflictCopyId: null,
+    message: null,
+    error: null,
+  });
+  for (const listener of remoteUpdateListeners) {
+    listener({
+      nodeId,
+      draftMarkdown: localMarkdown,
+      markdown,
+      version: remoteVersion,
+    });
+  }
+  showToast({
+    tone: "info",
+    message: dirty
+      ? "This essay was updated elsewhere. Your edits were merged into the newer version."
+      : "This essay was updated elsewhere. Showing the newer version.",
+    replaceKey: `sync-remote-update:${nodeId}`,
+  });
+  if (dirty) {
+    setTimeout(() => {
+      void syncDocument(nodeId);
+    }, 0);
+  }
+  return true;
+}
+
+/**
  * Resolve a save_document conflict. Same-content races (stale baseVersion
- * after a push that already landed) catch up quietly. Divergent content
- * creates a conflict copy and adopts the remote document.
+ * after a push that already landed) catch up quietly, as do drafts that
+ * merge cleanly with the remote (see reconcileWithBase). Only edits to the
+ * same lines create a conflict copy and adopt the remote document.
  */
 async function handleSaveConflict(
   nodeId: string,
@@ -434,14 +534,27 @@ async function handleSaveConflict(
   }
 
   const localMarkdown = fresh?.markdown ?? attempted.markdown;
+  const resolvedRemote = remoteBody;
+  const resolvedVersion = Number(remote?.version ?? remoteVersion);
+
+  if (
+    await reconcileWithBase(
+      nodeId,
+      attempted.baseVersion,
+      localMarkdown,
+      resolvedRemote,
+      resolvedVersion
+    )
+  ) {
+    return true;
+  }
+
   const copyId = await createConflictCopy(
     nodeId,
     attempted.baseVersion,
     localMarkdown,
     remote?.enc === 1 || result.remoteEnc === 1 ? 1 : 0
   );
-  const resolvedRemote = remoteBody;
-  const resolvedVersion = Number(remote?.version ?? remoteVersion);
   await catchUpToRemote(
     nodeId,
     localMarkdown,
@@ -451,7 +564,7 @@ async function handleSaveConflict(
   emitFor(nodeId, {
     conflictCopyId: copyId,
     message:
-      "This document changed elsewhere. Your local edits are safe—review the conflict to choose which version to keep.",
+      "This essay was edited elsewhere while you had unsynced changes to the same passages. The newer version is open; your changes are kept in a copy to review.",
   });
   conflictChannel?.postMessage({
     originId: nodeId,

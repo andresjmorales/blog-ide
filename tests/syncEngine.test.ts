@@ -20,6 +20,7 @@ import {
 } from "@/lib/sync/engine";
 import {
   createDocumentConflictCopy,
+  fetchDocumentRevision,
   fetchRemoteDocument,
   saveDocumentRemote,
 } from "@/lib/workspace/api";
@@ -29,6 +30,7 @@ vi.mock("@/lib/workspace/api", () => ({
   fetchRemoteDocument: vi.fn(),
   saveDocumentRemote: vi.fn(),
   createDocumentConflictCopy: vi.fn(),
+  fetchDocumentRevision: vi.fn(),
   createWorkspaceNode: vi.fn(),
   getWorkspaceNode: vi.fn(),
 }));
@@ -47,6 +49,7 @@ const mockRefreshUrls = vi.mocked(refreshOwnedAssetUrls);
 const mockFetchRemote = vi.mocked(fetchRemoteDocument);
 const mockSaveRemote = vi.mocked(saveDocumentRemote);
 const mockCreateConflict = vi.mocked(createDocumentConflictCopy);
+const mockFetchRevision = vi.mocked(fetchDocumentRevision);
 
 let seq = 0;
 function freshNodeId(): string {
@@ -316,6 +319,119 @@ describe("syncDocument", () => {
     });
     expect(getSyncStatus().conflictCopyId).toBe("conflict-copy");
     setSyncFocus(null);
+  });
+});
+
+describe("syncDocument against a newer cloud version", () => {
+  const BASE = "# Essay\n\nFirst paragraph.\n\nSecond paragraph.\n";
+  const CLOUD = "# Essay\n\nFirst paragraph, edited in the cloud.\n\nSecond paragraph.\n";
+
+  function cloudMovedTo(nodeId: string, markdown: string) {
+    mockFetchRemote.mockResolvedValue(remoteDoc(nodeId, 2, markdown));
+    mockFetchRevision.mockResolvedValue({
+      node_id: nodeId,
+      version: 1,
+      created_at: new Date().toISOString(),
+      markdown: BASE,
+    });
+    mockSaveRemote.mockResolvedValueOnce({
+      ok: false,
+      reason: "conflict",
+      remoteVersion: 2,
+      remoteMarkdown: markdown,
+    });
+  }
+
+  it("adopts the cloud copy when the draft had no edits of its own", async () => {
+    const nodeId = freshNodeId();
+    await saveLocal(nodeId, BASE, 1);
+    cloudMovedTo(nodeId, CLOUD);
+    setSyncFocus(nodeId);
+
+    await syncDocument(nodeId);
+
+    expect(mockCreateConflict).not.toHaveBeenCalled();
+    expect(mockFetchRevision).toHaveBeenCalledWith(nodeId, 1);
+    expect(await getLocalDoc(nodeId)).toMatchObject({
+      markdown: CLOUD,
+      dirty: false,
+      baseVersion: 2,
+    });
+    expect(await listSyncQueue()).not.toContainEqual(
+      expect.objectContaining({ nodeId })
+    );
+    expect(getSyncStatus()).toMatchObject({
+      conflictCopyId: null,
+      message: null,
+    });
+    setSyncFocus(null);
+  });
+
+  it("merges edits to different paragraphs and pushes the result", async () => {
+    const nodeId = freshNodeId();
+    const local = "# Essay\n\nFirst paragraph.\n\nSecond paragraph, edited here.\n";
+    const merged =
+      "# Essay\n\nFirst paragraph, edited in the cloud.\n\nSecond paragraph, edited here.\n";
+    await saveLocal(nodeId, local, 1);
+    cloudMovedTo(nodeId, CLOUD);
+    mockSaveRemote.mockResolvedValueOnce({
+      ok: true,
+      version: 3,
+      updated_at: new Date().toISOString(),
+    } as never);
+
+    await syncDocument(nodeId);
+
+    expect(mockCreateConflict).not.toHaveBeenCalled();
+    await vi.waitFor(async () =>
+      expect(await getLocalDoc(nodeId)).toMatchObject({
+        markdown: merged,
+        dirty: false,
+        baseVersion: 3,
+      })
+    );
+    expect(mockSaveRemote).toHaveBeenLastCalledWith(nodeId, merged, 2, {
+      enc: 0,
+    });
+  });
+
+  it("keeps a conflict copy when both sides edited the same paragraph", async () => {
+    const nodeId = freshNodeId();
+    const local = "# Essay\n\nFirst paragraph, edited here.\n\nSecond paragraph.\n";
+    await saveLocal(nodeId, local, 1);
+    cloudMovedTo(nodeId, CLOUD);
+    mockCreateConflict.mockResolvedValue({
+      ok: true,
+      copyId: "conflict-copy",
+      created: true,
+    });
+
+    await syncDocument(nodeId);
+
+    expect(mockCreateConflict).toHaveBeenCalledWith(nodeId, 1, local, {
+      enc: 0,
+    });
+    expect(await getLocalDoc(nodeId)).toMatchObject({
+      markdown: CLOUD,
+      dirty: false,
+      baseVersion: 2,
+    });
+  });
+
+  it("keeps a conflict copy when the base version left the history", async () => {
+    const nodeId = freshNodeId();
+    await saveLocal(nodeId, BASE, 1);
+    cloudMovedTo(nodeId, CLOUD);
+    mockFetchRevision.mockResolvedValue(null);
+    mockCreateConflict.mockResolvedValue({
+      ok: true,
+      copyId: "conflict-copy",
+      created: true,
+    });
+
+    await syncDocument(nodeId);
+
+    expect(mockCreateConflict).toHaveBeenCalledOnce();
   });
 });
 

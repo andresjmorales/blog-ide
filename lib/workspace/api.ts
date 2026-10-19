@@ -288,52 +288,81 @@ export type DocumentRevision = {
   enc?: number;
 };
 
+type RevisionRow = {
+  node_id: string;
+  version: number;
+  created_at: string;
+  markdown: string;
+  enc?: number;
+  ciphertext?: string | null;
+};
+
+const REVISION_COLUMNS = "node_id, version, created_at, markdown, enc, ciphertext";
+
+/** Plaintext revision, or null when a vault revision can't be read. */
+async function decodeRevision(row: RevisionRow): Promise<DocumentRevision | null> {
+  if (row.enc !== 1) {
+    return {
+      node_id: row.node_id,
+      version: row.version,
+      created_at: row.created_at,
+      markdown: row.markdown,
+      enc: 0,
+    };
+  }
+  const keys = getVaultKeys();
+  if (!keys) return null;
+  const blob = byteaToBytes(row.ciphertext);
+  if (!blob) return null;
+  try {
+    return {
+      node_id: row.node_id,
+      version: row.version,
+      created_at: row.created_at,
+      markdown: await decryptUtf8(keys.dek, blob),
+      enc: 1,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Server-side snapshots of the last 20 saved versions (newest first). */
 export async function listDocumentRevisions(
   nodeId: string
 ): Promise<DocumentRevision[]> {
   const { data, error } = await client()
     .from("document_revisions")
-    .select("node_id, version, created_at, markdown, enc, ciphertext")
+    .select(REVISION_COLUMNS)
     .eq("node_id", nodeId)
     .order("version", { ascending: false });
   if (error) throw error;
-  const keys = getVaultKeys();
   const out: DocumentRevision[] = [];
-  for (const row of (data ?? []) as {
-    node_id: string;
-    version: number;
-    created_at: string;
-    markdown: string;
-    enc?: number;
-    ciphertext?: string | null;
-  }[]) {
-    if (row.enc === 1) {
-      if (!keys) continue;
-      const blob = byteaToBytes(row.ciphertext);
-      if (!blob) continue;
-      try {
-        out.push({
-          node_id: row.node_id,
-          version: row.version,
-          created_at: row.created_at,
-          markdown: await decryptUtf8(keys.dek, blob),
-          enc: 1,
-        });
-      } catch {
-        continue;
-      }
-    } else {
-      out.push({
-        node_id: row.node_id,
-        version: row.version,
-        created_at: row.created_at,
-        markdown: row.markdown,
-        enc: 0,
-      });
-    }
+  for (const row of (data ?? []) as RevisionRow[]) {
+    const revision = await decodeRevision(row);
+    if (revision) out.push(revision);
   }
   return out;
+}
+
+/**
+ * The document as it stood at `version` (snapshotted when the next version
+ * was saved), or null if it has aged out of the history or can't be read.
+ */
+export async function fetchDocumentRevision(
+  nodeId: string,
+  version: number,
+  signal?: AbortSignal
+): Promise<DocumentRevision | null> {
+  const { data, error } = await client()
+    .from("document_revisions")
+    .select(REVISION_COLUMNS)
+    .eq("node_id", nodeId)
+    .eq("version", version)
+    .abortSignal(readSignal(signal))
+    .maybeSingle();
+  if (error) throw error;
+  return data ? decodeRevision(data as RevisionRow) : null;
 }
 
 /**

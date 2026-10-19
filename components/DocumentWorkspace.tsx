@@ -61,9 +61,11 @@ import {
   saveLocal,
   setSyncFocus,
   subscribeCrossTabConflict,
+  subscribeRemoteUpdate,
   subscribeSyncStatus,
   syncDocument,
 } from "@/lib/sync/engine";
+import { rebaseDraft } from "@/lib/sync/reconcile";
 import { restoreDocumentRevision } from "@/lib/workspace/api";
 import { EDITOR_WORK_MS } from "@/lib/editor/workSchedule";
 import {
@@ -1440,6 +1442,34 @@ export function DocumentWorkspace({
       });
     });
   }, [persistEnabled, nodeId, applyOpenedMarkdown]);
+
+  // The engine settled a stale draft against a newer cloud version without a
+  // conflict copy. Load the result, carrying over typing that hadn't reached
+  // IndexedDB yet (it was made on top of the replaced draft).
+  useEffect(() => {
+    if (!persistEnabled || !nodeId) return;
+    return subscribeRemoteUpdate((event) => {
+      if (event.nodeId !== nodeId || nodeIdRef.current !== nodeId) return;
+      flushMarkdownRef.current?.();
+      const pending = pendingLocalRef.current;
+      if (!pending || pending.markdown === event.draftMarkdown) {
+        applyOpenedMarkdown(event.markdown, event.version);
+        return;
+      }
+      const rebased = rebaseDraft(
+        event.draftMarkdown,
+        pending.markdown,
+        event.markdown
+      );
+      applyOpenedMarkdown(rebased, event.version);
+      if (rebased === event.markdown) return;
+      void writeLocalDraft({ nodeId, markdown: rebased })
+        .then(() => syncDocument(nodeId))
+        .catch(() => {
+          // Draft is back in pendingLocalRef; the next flush retries.
+        });
+    });
+  }, [persistEnabled, nodeId, applyOpenedMarkdown, writeLocalDraft]);
 
   // A sibling tab may resolve the same shared IndexedDB draft first. Reload
   // when our pending text is already preserved; keep genuinely different

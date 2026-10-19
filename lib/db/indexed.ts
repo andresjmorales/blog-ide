@@ -213,6 +213,42 @@ export async function settleConflictDoc(
   return next;
 }
 
+/**
+ * Replace a draft that a newer remote version made stale — with the remote
+ * itself (`dirty: false`) or with a merge still to push — in ONE
+ * transaction, and only if the draft is still `expectedMarkdown`. Returns
+ * false when newer typing landed meanwhile; nothing is written then.
+ */
+export async function replaceStaleDraft(
+  nodeId: string,
+  expectedMarkdown: string,
+  markdown: string,
+  remoteVersion: number,
+  updatedAt: string,
+  dirty: boolean
+): Promise<boolean> {
+  const db = await getDb();
+  const tx = db.transaction(["docs", "syncQueue"], "readwrite");
+  const docs = tx.objectStore("docs");
+  const current = await docs.get(nodeId);
+  if (current && current.markdown !== expectedMarkdown) {
+    await tx.done;
+    return false;
+  }
+  await docs.put({
+    nodeId,
+    markdown,
+    updatedAt,
+    dirty,
+    baseVersion: Math.max(current?.baseVersion ?? 0, remoteVersion),
+  });
+  const queue = tx.objectStore("syncQueue");
+  if (dirty) await queue.put({ nodeId, op: "put", queuedAt: updatedAt });
+  else await queue.delete(nodeId);
+  await tx.done;
+  return true;
+}
+
 export async function putLocalDoc(doc: LocalDoc): Promise<void> {
   const db = await getDb();
   await db.put("docs", doc);
