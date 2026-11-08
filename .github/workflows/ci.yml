@@ -88,13 +88,15 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Pinned: CLI majors change defaults (3.0 made `db push` target the
+      # local database), so bump this deliberately rather than via `latest`.
       - uses: supabase/setup-cli@v1
         if: steps.secrets.outputs.configured == 'true'
         with:
-          version: latest
+          version: 3.0.0
 
       - name: Link project and push migrations
         if: steps.secrets.outputs.configured == 'true'
         run: |
           supabase link --project-ref "$SUPABASE_PROJECT_ID"
-          supabase db push
+          supabase db push --remote --yes
